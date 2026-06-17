@@ -5,6 +5,8 @@
 [![data: CC0-1.0](https://img.shields.io/badge/data-CC0--1.0-brightgreen.svg)](DATA-LICENSE)
 [![accessibility: WCAG 2.2 AA](https://img.shields.io/badge/accessibility-WCAG%202.2%20AA-success.svg)](docs/accessibility/ACR.md)
 
+**[▶ Live demo](https://chelseakr.github.io/swelter/)** — the dashboard on the recorded demo week: a calibrated heat-island and AQI map, with table and list views, in English and Spanish.
+
 > A neighborhood-owned mesh of low-cost heat and air-quality sensors, a time-series pipeline that
 > ingests their readings, calibration that corrects sensor drift against reference monitors, and an
 > accessible public dashboard that maps urban heat islands and AQI block by block. Built for
