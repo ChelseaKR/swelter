@@ -32,14 +32,15 @@ Before anything else, confirm the toolchain runs end to end on the shipped demo:
 $ make demo
 ```
 
-That replays a recorded ~16-day downtown week through the whole pipeline and serves the dashboard at
+That replays a recorded downtown week through the whole pipeline and serves the dashboard at
 <http://127.0.0.1:8000>. If you see the map, the table, and the list, your machine is ready and you
 can move on to your own network.
 
 ## Step 1 — Copy `network.yaml`
 
-`network.yaml` at the repo root is the worked example (an 18-node downtown network). It is the one
-file a community edits to become its own network. Copy it so you keep the example to refer to:
+`network.yaml` at the repo root is the worked example (a downtown network whose size is set by the
+`SWELTER_DEMO_NODES` knob). It is the one file a community edits to become its own network. Copy it
+so you keep the example to refer to:
 
 ```console
 $ cp network.yaml my-network.yaml

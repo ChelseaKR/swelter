@@ -40,7 +40,7 @@ that must both be yes:
 2. **The collective agrees the location is useful and safe.** The collective decides where coverage
    is needed — which blocks are hottest, which are unmeasured, where the grid has holes — using the
    `node_health` and gap views and the map's coverage. Siting aims for overlapping coverage so a
-   single node dropping offline does not blind a block (see the demo network: 18 nodes on a ~150 m
+   single node dropping offline does not blind a block (see the demo network: nodes on a ~150 m
    grid, with deliberate overlap).
 
 Siting is recorded in `network.yaml`: each node's `node_id`, `label`, `lat`, `lon`, and `location`

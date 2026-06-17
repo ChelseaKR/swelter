@@ -59,15 +59,16 @@ evidence a correction is fit from. In the demo they are committed to `data/demo/
 JSON object per line:
 
 ```json
-{"node_id":"node-01","parameter":"temp_c","timestamp":"2026-06-01T00:00:00Z","raw":24.55,"reference":24.81,"humidity":75.8}
-{"node_id":"node-01","parameter":"pm25_ugm3","timestamp":"2026-06-01T00:00:00Z","raw":22.04,"reference":13.5,"humidity":75.8}
-{"node_id":"node-01","parameter":"pm10_ugm3","timestamp":"2026-06-01T00:00:00Z","raw":40.32,"reference":28.37,"humidity":75.8}
+{"node_id":"node-01","parameter":"temp_c","timestamp":"2026-06-01T00:00:00Z","raw":25.09,"reference":24.76,"humidity":74.4}
+{"node_id":"node-01","parameter":"pm25_ugm3","timestamp":"2026-06-01T00:00:00Z","raw":23.81,"reference":14.84,"humidity":74.4}
+{"node_id":"node-01","parameter":"pm10_ugm3","timestamp":"2026-06-01T00:00:00Z","raw":45.96,"reference":28.06,"humidity":74.4}
 ```
 
 `read_colocation()` loads these into `TrainingPair` records; `humidity` is optional and is only used
 by the PM models. The fit needs at least three pairs for a node/parameter, and the demo windows hold
-72 hourly pairs each (three days). A node that is never co-located has no training pairs, gets no
-correction, and stays raw — the network never invents a correction it has no evidence for.
+48 hourly pairs each (the first two days of the recorded week). A node that is never co-located has no
+training pairs, gets no correction, and stays raw — the network never invents a correction it has no
+evidence for.
 
 ---
 
@@ -220,10 +221,10 @@ corrections:                     # list, one entry per fitted node/parameter
 
 `coefficients` is positional: `coefficients[i]` multiplies `predictors[i]`, and the prediction is
 `intercept + Σ coefficients[i]·predictors[i]`. For a temperature entry `predictors` is `[raw]`, so
-there is one coefficient; for a PM entry `predictors` is `[raw, humidity]`, so there are two. The demo
-registry holds 36 corrections: 12 co-located nodes × 3 parameters (temp, PM2.5, PM10). The other 6
-nodes in the 18-node demo network have no co-location records, so they appear nowhere in the registry
-and their readings publish raw.
+there is one coefficient; for a PM entry `predictors` is `[raw, humidity]`, so there are two. Each
+co-located node contributes three corrections (temp, PM2.5, PM10), so the demo registry holds 300
+corrections from the 100 co-located nodes. The remaining third of the network has no co-location
+records, so those nodes appear nowhere in the registry and their readings publish raw.
 
 ---
 
@@ -273,10 +274,10 @@ use; a number marked provisional is a hint, not a fact.
 
 ## Worked example: node-01 temperature (R² ≈ 0.99)
 
-Take the temperature correction for `node-01` from the demo. Its 72 co-location pairs span
-`2026-06-01T00:00:00Z` to `2026-06-03T23:00:00Z`. Because temperature uses the enclosure-offset model,
-the fit regresses the reference temperature on the node's raw temperature with an intercept:
-`corrected = a·raw + c`.
+Take the temperature correction for `node-01` from the demo. Its 48 co-location pairs span
+`2026-06-01T00:00:00Z` to `2026-06-02T23:00:00Z` (the first two days of the recorded week). Because
+temperature uses the enclosure-offset model, the fit regresses the reference temperature on the node's
+raw temperature with an intercept: `corrected = a·raw + c`.
 
 `swelter calibrate` fits and writes this entry to `data/demo/corrections.yaml`:
 
@@ -288,31 +289,31 @@ the fit regresses the reference temperature on the node's raw temperature with a
   predictors:
   - raw
   coefficients:
-  - 0.917887
-  intercept: 2.009634
-  residual_std: 0.480814
-  r2: 0.991822
-  n: 72
+  - 0.908949
+  intercept: 2.248444
+  residual_std: 0.476025
+  r2: 0.991959
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 ```
 
 Reading it:
 
-- The fitted model is **`corrected = 0.917887·raw + 2.009634`**. The intercept near +2 °C is the
+- The fitted model is **`corrected = 0.908949·raw + 2.248444`**. The intercept near +2 °C is the
   enclosure offset — the box reads about two degrees warm at baseline — and the slope just under 1 is a
   small gain correction.
-- **R² = 0.991822** says the corrected node tracks the reference almost exactly: the model explains
+- **R² = 0.991959** says the corrected node tracks the reference almost exactly: the model explains
   over 99% of the reference's variance over the window. Temperature is an easy quantity to correct,
   which is why temperature R² lands near 0.99 while the humidity-bound PM fits for the same nodes sit
   lower (around 0.6 to 0.8 in this demo) and carry correspondingly larger `residual_std`.
-- **residual_std = 0.480814 °C** is the published 1-sigma uncertainty. Every calibrated temperature
+- **residual_std = 0.476025 °C** is the published 1-sigma uncertainty. Every calibrated temperature
   observation from node-01 carries `±0.48 °C` as its `uncertainty`. So a corrected reading of, say,
   31.0 °C means "about 31, give or take roughly half a degree."
 
 Applying it to a single raw reading: a raw `27.0 °C` from this node co-located against a reference of
-`26.89 °C` corrects to `0.917887 × 27.0 + 2.009634 ≈ 26.79 °C` — within the published half-degree of the
+`26.89 °C` corrects to `0.908949 × 27.0 + 2.248444 ≈ 26.79 °C` — within the published half-degree of the
 reference's `26.89 °C`, which is the fit doing its job.
 
 To reproduce this entry, run `swelter calibrate` against `data/demo/colocation.jsonl` and compare the

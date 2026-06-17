@@ -30,9 +30,9 @@ with a full audit trail, not a code change and a redeploy, and the `version`,
 `window_start`/`window_end`, `reference`, and `n` fields record the provenance of
 every fitted value. Fixed 6-dp rounding makes the fit reproducible: re-running
 `fit` on the committed co-location data (`data/demo/colocation.jsonl`) reproduces
-the published registry (`data/demo/corrections.yaml`, 36 entries = 12 nodes × 3
-parameters) byte-for-byte, so anyone can check a calibration instead of trusting
-it. We rejected hard-coding coefficients in Python (no diff-able history, no
+the published registry (`data/demo/corrections.yaml`, three entries per co-located
+node — temp, PM2.5, PM10) byte-for-byte, so anyone can check a calibration instead
+of trusting it. We rejected hard-coding coefficients in Python (no diff-able history, no
 reproducibility check, fit and stored values can drift apart) and an opaque
 calibration library (unauditable by a community group, and a runtime dependency
 we explicitly avoid).

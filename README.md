@@ -50,9 +50,9 @@ findings, and audited accessibility.
 
 ```console
 $ swelter export --since 2026-06-01 --format csv --store store > heat.csv
-swelter: 48,094 observations from 18 nodes (12 calibrated, 6 raw-flagged)
-         calibration applied: pm10_ugm3.epa-humidity ×12; pm25_ugm3.epa-humidity ×12; temp_c.enclosure-offset ×12
-         coverage: 2026-06-01T00:00:00Z → 2026-06-17T00:00:00Z, longest gap 3180 min (node-07 offline)
+swelter: 177,050 observations from 150 nodes (100 calibrated, 50 raw-flagged)
+         calibration applied: pm10_ugm3.epa-humidity ×100; pm25_ugm3.epa-humidity ×100; temp_c.enclosure-offset ×100
+         coverage: 2026-06-01T00:00:00Z → 2026-06-08T00:00:00Z, longest gap 2940 min (node-07 offline)
          data license: CC0-1.0 (observations) · see DATA-LICENSE
 ```
 

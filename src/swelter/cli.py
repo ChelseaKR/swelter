@@ -218,12 +218,24 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
-def _write_web_sample(web_dir: Path, surface: aggregate.Surface, hours: int = 24) -> None:
-    """Refresh the dashboard's offline fallback (last ``hours`` buckets) if web/ exists."""
+def _write_web_sample(web_dir: Path, surface: aggregate.Surface, max_cells: int = 4000) -> None:
+    """Refresh the dashboard's offline fallback if web/ exists, capped to keep the static payload
+    light on a host like GitHub Pages — the most recent hourly buckets up to ~``max_cells`` cells,
+    so a large network does not bloat the committed sample (the live API has the full history)."""
     if not web_dir.is_dir():
         return
-    buckets = sorted({c.bucket for c in surface.cells})[-hours:]
-    keep = set(buckets)
+    per_bucket: dict[str, int] = {}
+    for cell in surface.cells:
+        per_bucket[cell.bucket] = per_bucket.get(cell.bucket, 0) + 1
+    chosen: list[str] = []
+    total = 0
+    for bucket in sorted(per_bucket, reverse=True):  # newest first
+        if chosen and total + per_bucket[bucket] > max_cells:
+            break
+        chosen.append(bucket)
+        total += per_bucket[bucket]
+    keep = set(chosen)
+    buckets = sorted(keep)
     records = [c.as_record() for c in surface.cells if c.bucket in keep]
     payload = {"interval": surface.interval, "buckets": buckets, "cells": records}
     (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

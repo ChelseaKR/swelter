@@ -11,8 +11,8 @@ something true to recover:
 
 * PM optical counts inflate with humidity and carry a per-node offset.
 * Temperature reads high in sun because the enclosure heats (a per-node offset).
-* Twelve nodes have a co-location record against a reference monitor (they calibrate); six do
-  not (they stay raw-flagged) — matching the README's "12 calibrated, 6 raw-flagged".
+* Two-thirds of the nodes have a co-location record against a reference monitor (they calibrate);
+  the rest stay raw-flagged. The node count is set by SWELTER_DEMO_NODES (default 150).
 * A node goes offline (the longest gap), one PM reading spikes out of range, and one humidity
   sensor flatlines, so QC has something to catch.
 
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import random
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -34,41 +35,56 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO = ROOT / "data" / "demo"
 SEED = 20260601
 START = datetime(2026, 6, 1, 0, 0, 0, tzinfo=UTC)
-HOURS = 385  # 2026-06-01T00 .. 2026-06-17T00 inclusive
-TRAINING_HOURS = 72  # first three days are the co-location window
-N_NODES = 18
-N_CALIBRATED = 12
+HOURS = 169  # 2026-06-01T00 .. 2026-06-08T00 inclusive (a 7-day week)
+TRAINING_HOURS = 48  # first two days are the co-location window
+# Node count is the one knob (override with SWELTER_DEMO_NODES); two-thirds calibrate.
+N_NODES = int(os.environ.get("SWELTER_DEMO_NODES", "150"))
+N_CALIBRATED = round(N_NODES * 2 / 3)
 
-# Human, block-level names so the dashboard can say a place, not an anonymous "Cell N" (F1).
-NODE_LABELS = (
-    "Riverside & 5th",
-    "Oak Park Commons",
-    "Southside Park",
-    "Alkali Flat",
-    "Mansion Flats",
-    "R Street Corridor",
-    "Marshall School",
-    "Fremont Park",
-    "Capitol & 12th",
-    "Newton Booth",
-    "Land Park Dr",
-    "Curtis Park",
-    "Tahoe Park",
-    "Med Center / 3rd Ave",
-    "Franklin Blvd",
-    "Broadway & 16th",
-    "Miller Park",
-    "Washington Elementary",
+# Block names are generated, so the dashboard says a place, not an anonymous "Cell N" (F1):
+# each node sits at a {street} & {ordinal-avenue} crossing, unique per grid cell.
+STREETS = (
+    "Elm",
+    "Oak",
+    "Maple",
+    "Pine",
+    "Cedar",
+    "Birch",
+    "Walnut",
+    "Chestnut",
+    "Spruce",
+    "Willow",
+    "Ash",
+    "Poplar",
+    "Sycamore",
+    "Magnolia",
+    "Laurel",
+    "Juniper",
+    "Hazel",
+    "Linden",
 )
 
-# A fictional downtown grid (Sacramento-ish, to sit beside the portfolio's regional work).
+# A downtown grid (Sacramento-ish), wider than tall, one node per ~330 m cell so each lands in a
+# distinct published 150 m grid cell. The extent grows with the node count.
 CENTER_LAT = 38.5816
 CENTER_LON = -121.4944
+GRID_COLS = min(len(STREETS), max(1, round((N_NODES * 1.6) ** 0.5)))
+GRID_SPACING_DEG = 0.003
+
+
+def _ordinal(n: int) -> str:
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def node_label(col: int, row: int) -> str:
+    return f"{STREETS[col % len(STREETS)]} & {_ordinal(3 + 2 * row)}"
 
 
 @dataclass
 class Node:
     node_id: str
+    label: str
     lat: float
     lon: float
     canopy: float  # 0 bare .. 1 shaded; less canopy ⇒ hotter (heat island)
@@ -81,15 +97,23 @@ class Node:
 
 def build_nodes(rng: random.Random) -> list[Node]:
     nodes: list[Node] = []
+    rows = -(-N_NODES // GRID_COLS)  # ceil
     for i in range(N_NODES):
         node_id = f"node-{i + 1:02d}"
-        # Lay nodes on a rough 6×3 grid spanning ~2 km.
-        col, row = i % 6, i // 6
-        lat = round(CENTER_LAT + (row - 1) * 0.006 + rng.uniform(-0.001, 0.001), 6)
-        lon = round(CENTER_LON + (col - 2.5) * 0.006 + rng.uniform(-0.001, 0.001), 6)
+        col, row = i % GRID_COLS, i // GRID_COLS
+        lat = round(
+            CENTER_LAT + (row - (rows - 1) / 2) * GRID_SPACING_DEG + rng.uniform(-0.0003, 0.0003), 6
+        )
+        lon = round(
+            CENTER_LON
+            + (col - (GRID_COLS - 1) / 2) * GRID_SPACING_DEG
+            + rng.uniform(-0.0003, 0.0003),
+            6,
+        )
         nodes.append(
             Node(
                 node_id=node_id,
+                label=node_label(col, row),
                 lat=lat,
                 lon=lon,
                 canopy=round(rng.uniform(0.05, 0.9), 3),
@@ -116,7 +140,7 @@ def true_field(t: datetime, node: Node) -> tuple[float, float, float, float]:
     rush = max(0.0, math.sin(2 * math.pi * (h - 7) / 24)) + max(
         0.0, math.sin(2 * math.pi * (h - 18) / 24)
     )
-    smoke = 32.0 if 6 <= day <= 8 else 0.0  # a wildfire-smoke episode mid-window
+    smoke = 32.0 if 3 <= day <= 5 else 0.0  # a wildfire-smoke episode mid-week
     pm25 = 7.0 + 6.0 * rush + 0.4 * urban + smoke
     pm10 = pm25 * 1.7 + 4.0
     return temp, humidity, pm25, pm10
@@ -173,7 +197,7 @@ def generate() -> None:
     offline = {
         nodes[6].node_id: {
             START + timedelta(hours=i)
-            for i in range(216, 268)  # ~2 days mid-window
+            for i in range(72, 120)  # ~2 days mid-week
         }
     }
 
@@ -264,12 +288,12 @@ def write_network_yaml(nodes: list[Node]) -> None:
         "nodes": [
             {
                 "node_id": n.node_id,
-                "label": NODE_LABELS[i],
+                "label": n.label,
                 "lat": n.lat,
                 "lon": n.lon,
                 "location": "coarse",
             }
-            for i, n in enumerate(nodes)
+            for n in nodes
         ],
         "calibration_windows": [
             {

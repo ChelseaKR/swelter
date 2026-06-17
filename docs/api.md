@@ -109,18 +109,18 @@ back to the node id when unnamed).
 
 ```json
 {
-  "@iot.count": 18,
+  "@iot.count": 150,
   "value": [
     {
       "@iot.id": "node-01",
-      "name": "Riverside & 5th",
+      "name": "Elm & 3rd",
       "description": "Community heat/air-quality sensor node",
-      "properties": {"location_precision": "coarse", "label": "Riverside & 5th"},
+      "properties": {"location_precision": "coarse", "label": "Elm & 3rd"},
       "Locations": [
         {
-          "name": "Riverside & 5th (published cell)",
+          "name": "Elm & 3rd (published cell)",
           "encodingType": "application/geo+json",
-          "location": {"type": "Point", "coordinates": [-121.508516, 38.574605]}
+          "location": {"type": "Point", "coordinates": [-121.515433, 38.567867]}
         }
       ],
       "Locations@iot.navigationLink": "http://localhost:8000/v1.1/Things(node-01)/Locations"
@@ -139,13 +139,13 @@ map client that wants the locations collection without walking each Thing.
 
 ```json
 {
-  "@iot.count": 18,
+  "@iot.count": 150,
   "value": [
     {
       "@iot.id": "node-01-loc",
-      "name": "Riverside & 5th (published cell)",
+      "name": "Elm & 3rd (published cell)",
       "encodingType": "application/geo+json",
-      "location": {"type": "Point", "coordinates": [-121.508516, 38.574605]}
+      "location": {"type": "Point", "coordinates": [-121.515433, 38.567867]}
     }
   ]
 }
@@ -154,16 +154,16 @@ map client that wants the locations collection without walking each Thing.
 ### `GET /v1.1/Datastreams`
 
 One `Datastream` per `(node, parameter)` pair — the SensorThings link between a `Thing` and an
-`ObservedProperty`. The demo network's 18 nodes × 6 parameters yield 108 streams. Each carries its
+`ObservedProperty`. The demo network's 150 nodes × 6 parameters yield 900 streams. Each carries its
 unit of measurement and navigation links to its Thing and ObservedProperty.
 
 ```json
 {
-  "@iot.count": 108,
+  "@iot.count": 900,
   "value": [
     {
       "@iot.id": "node-01:temp_c",
-      "name": "Riverside & 5th — temp_c",
+      "name": "Elm & 3rd — temp_c",
       "unitOfMeasurement": {
         "name": "temp_c",
         "symbol": "degC",
@@ -226,13 +226,13 @@ doubles `@iot.count` for a node/parameter that is calibrated).
 
 ```json
 {
-  "@iot.count": 385,
+  "@iot.count": 169,
   "value": [
     {
       "@iot.id": "node-01|2026-06-01T00:00:00Z|temp_c|temp_c.enclosure-offset.node-01",
       "phenomenonTime": "2026-06-01T00:00:00Z",
-      "result": 24.883378,
-      "resultQuality": {"qc": "ok", "uncertainty": 0.480814, "trustworthy": true},
+      "result": 24.935811,
+      "resultQuality": {"qc": "ok", "uncertainty": 0.476025, "trustworthy": true},
       "parameters": {
         "node_id": "node-01",
         "parameter": "temp_c",
@@ -241,7 +241,7 @@ doubles `@iot.count` for a node/parameter that is calibrated).
       }
     }
   ],
-  "@iot.nextLink": "http://localhost:8000/v1.1/Observations?$skip=2&$top=2"
+  "@iot.nextLink": "http://localhost:8000/v1.1/Observations?$skip=1&$top=1"
 }
 ```
 
@@ -256,13 +256,13 @@ and `trustworthy`:
 ```
 GET /v1.1/Observations?parameter=temp_c&node=node-01&dedupe=false
   → "raw"  → {"qc": "ok", "uncertainty": null, "trustworthy": false}
-  → "temp_c.enclosure-offset.node-01" → {"qc": "ok", "uncertainty": 0.480814, "trustworthy": true}
+  → "temp_c.enclosure-offset.node-01" → {"qc": "ok", "uncertainty": 0.476025, "trustworthy": true}
 ```
 
 Example (page through PM2.5 for one node, 500 at a time):
 
 ```
-GET /v1.1/Observations?parameter=pm25_ugm3&node=node-07&since=2026-06-10T00:00:00Z&$top=500&$skip=0
+GET /v1.1/Observations?parameter=pm25_ugm3&node=node-07&since=2026-06-06T00:00:00Z&$top=500&$skip=0
 ```
 
 ## Surface endpoints
@@ -288,25 +288,25 @@ unit). PM2.5 cells add `pm25_aqi`, `aqi_category`, and `aqi_window` (always `"ho
   "features": [
     {
       "type": "Feature",
-      "geometry": {"type": "Point", "coordinates": [-121.491604, 38.574605]},
+      "geometry": {"type": "Point", "coordinates": [-121.515433, 38.567867]},
       "properties": {
-        "cell_id": "38.574605,-121.491604",
-        "label": "Alkali Flat",
-        "bucket": "2026-06-17T00:00:00Z",
+        "cell_id": "38.567867,-121.515433",
+        "label": "Elm & 3rd",
+        "bucket": "2026-06-08T00:00:00Z",
         "provisional": true,
-        "temp_c": 27.152,
-        "temp_c_uncertainty": 0.779,
+        "temp_c": 27.345,
+        "temp_c_uncertainty": 0.476,
         "temp_c_provisional": false,
-        "heat_index_c": 30.21,
+        "heat_index_c": 29.87,
         "heat_index_c_provisional": true,
-        "pm25_ugm3": 13.863,
-        "pm25_ugm3_uncertainty": 1.316,
+        "pm25_ugm3": 14.159,
+        "pm25_ugm3_uncertainty": 0.9,
         "pm25_ugm3_provisional": false,
         "pm25_aqi": 60,
         "aqi_category": "Moderate",
         "aqi_window": "hourly-mean",
-        "pm10_ugm3": 25.637,
-        "pm10_ugm3_uncertainty": 1.843,
+        "pm10_ugm3": 29.168,
+        "pm10_ugm3_uncertainty": 1.609,
         "pm10_ugm3_provisional": false
       }
     }
@@ -336,34 +336,34 @@ null for other parameters.
 ```json
 {
   "interval": "hour",
-  "buckets": ["2026-06-16T23:00:00Z", "2026-06-17T00:00:00Z"],
+  "buckets": ["2026-06-07T23:00:00Z", "2026-06-08T00:00:00Z"],
   "cells": [
     {
-      "cell_id": "38.574605,-121.491604",
-      "label": "Alkali Flat",
-      "lat": 38.574605,
-      "lon": -121.491604,
+      "cell_id": "38.567867,-121.515433",
+      "label": "Elm & 3rd",
+      "lat": 38.567867,
+      "lon": -121.515433,
       "parameter": "pm25_ugm3",
-      "bucket": "2026-06-16T23:00:00Z",
-      "mean": 13.656,
+      "bucket": "2026-06-07T23:00:00Z",
+      "mean": 13.875,
       "n": 1,
       "provisional": false,
-      "uncertainty": 1.316,
-      "aqi": 59,
+      "uncertainty": 0.9,
+      "aqi": 60,
       "category": "Moderate",
       "aqi_window": "hourly-mean"
     },
     {
-      "cell_id": "38.574605,-121.491604",
-      "label": "Alkali Flat",
-      "lat": 38.574605,
-      "lon": -121.491604,
+      "cell_id": "38.567867,-121.515433",
+      "label": "Elm & 3rd",
+      "lat": 38.567867,
+      "lon": -121.515433,
       "parameter": "temp_c",
-      "bucket": "2026-06-16T23:00:00Z",
-      "mean": 28.7,
+      "bucket": "2026-06-07T23:00:00Z",
+      "mean": 27.908,
       "n": 1,
       "provisional": false,
-      "uncertainty": 0.779,
+      "uncertainty": 0.476,
       "aqi": null,
       "category": null
     }
@@ -394,8 +394,8 @@ downloader can see what was measured and what was corrected.
 
 ```
 node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy
-node-01,2026-06-01T00:00:00Z,temp_c,24.92,degC,raw,ok,,False
-node-01,2026-06-01T00:00:00Z,temp_c,24.883378,degC,temp_c.enclosure-offset.node-01,ok,0.480814,True
+node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False
+node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True
 ```
 
 `trustworthy` is `True` only for a calibrated, QC-clean reading; a `raw` row leaves `uncertainty`
@@ -415,7 +415,7 @@ row carrying the same fields as the CSV columns.
       "node_id": "node-01",
       "timestamp": "2026-06-01T00:00:00Z",
       "parameter": "temp_c",
-      "value": 24.92,
+      "value": 24.96,
       "unit": "degC",
       "calibration": "raw",
       "qc": "ok",
@@ -426,11 +426,11 @@ row carrying the same fields as the CSV columns.
       "node_id": "node-01",
       "timestamp": "2026-06-01T00:00:00Z",
       "parameter": "temp_c",
-      "value": 24.883378,
+      "value": 24.935811,
       "unit": "degC",
       "calibration": "temp_c.enclosure-offset.node-01",
       "qc": "ok",
-      "uncertainty": 0.480814,
+      "uncertainty": 0.476025,
       "trustworthy": true
     }
   ]
@@ -440,7 +440,7 @@ row carrying the same fields as the CSV columns.
 Example:
 
 ```
-GET /export.csv?since=2026-06-01T00:00:00Z&until=2026-06-17T00:00:00Z&node=node-07&parameter=pm25_ugm3
+GET /export.csv?since=2026-06-01T00:00:00Z&until=2026-06-08T00:00:00Z&node=node-07&parameter=pm25_ugm3
 ```
 
 ## `GET /health`
@@ -448,7 +448,7 @@ GET /export.csv?since=2026-06-01T00:00:00Z&until=2026-06-17T00:00:00Z&node=node-
 Liveness and the current observation count. (`/healthz` is an alias.)
 
 ```json
-{"status": "ok", "observations": 48094}
+{"status": "ok", "observations": 177050}
 ```
 
 ## `swelter qc` (CLI)
@@ -460,9 +460,9 @@ longest gaps. A node reads `degraded` when its completeness drops below 95% or i
 10% of readings, and `offline` when it has been silent past three reporting intervals.
 
 ```
-swelter: 18 nodes (1 degraded/offline), 5 gaps over interval 3600s
-  gap  node-07/temp_c  2026-06-09T23:00:00Z → 2026-06-12T04:00:00Z  (3180 min)
-   node-01  OK          1925 obs    100.0% complete    1.5% flagged
+swelter: 150 nodes (1 degraded/offline), 5 gaps over interval 3600s
+  gap  node-07/temp_c  2026-06-03T23:00:00Z → 2026-06-06T00:00:00Z  (2940 min)
+   node-01  OK           845 obs    100.0% complete    0.0% flagged
 ```
 
 Add `--json` for the machine-readable form — a `nodes` list and a `gaps` list — for dashboards and CI:
@@ -473,20 +473,20 @@ Add `--json` for the machine-readable form — a `nodes` list and a `gaps` list 
     {
       "node_id": "node-01",
       "status": "ok",
-      "observations": 1925,
+      "observations": 845,
       "completeness": 1.0,
-      "flagged_fraction": 0.015,
+      "flagged_fraction": 0.0,
       "online": true,
-      "last_seen": "2026-06-17T00:00:00Z"
+      "last_seen": "2026-06-08T00:00:00Z"
     }
   ],
   "gaps": [
     {
       "node_id": "node-07",
       "parameter": "heat_index_c",
-      "start": "2026-06-09T23:00:00Z",
-      "end": "2026-06-12T04:00:00Z",
-      "minutes": 3180
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
     }
   ]
 }

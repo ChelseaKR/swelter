@@ -204,13 +204,13 @@ with the store at `store/demo`. Step by step:
 
 1. **Fresh store.** Deletes `store/demo/observations.db` so each run starts clean; replay is
    idempotent anyway.
-2. **Ingest.** `ingest_file("data/demo/observations.jsonl")` replays the recorded ~16-day hourly
-   week (18 nodes, including node-07's offline gap, a PM range spike, and a flatlined humidity
+2. **Ingest.** `ingest_file("data/demo/observations.jsonl")` replays the recorded hourly week (the
+   demo network, including node-07's offline gap, a PM range spike, and a flatlined humidity
    sensor) into immutable raw, running QC and quarantining anything malformed.
 3. **Calibrate.** Reads `data/demo/colocation.jsonl`, `fit()`s the registry, writes it to
    `store/demo/corrections.yaml`, then `apply()`s corrections and writes the calibrated
-   observations beside the raw. The 12 nodes with co-location records become calibrated; the 6
-   without stay raw-flagged.
+   observations beside the raw. Two-thirds of the nodes have co-location records and become
+   calibrated; the rest stay raw-flagged.
 4. **Aggregate.** Rolls the store up with `aggregate()` and writes the GeoJSON surface to
    `store/demo/aggregate.geojson`.
 5. **Refresh the offline sample.** Regenerates `web/sample-surface.json` (the last 24 buckets) so

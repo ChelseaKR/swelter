@@ -326,6 +326,18 @@ input[type="range"][aria-disabled="true"] {
   outline-offset: 2px;
 }
 
+/* On a dense network, shrink markers to small dots so the coverage reads as a map, not a pile. */
+.map.dense .cell {
+  min-width: 1.7rem;
+  min-height: 1.3rem;
+  padding: 0.1rem 0.15rem;
+  font-size: 0.62rem;
+}
+
+.map.dense .cell .cell-cat {
+  display: none;
+}
+
 /* AQI severity: color AND a distinct background pattern AND text — never color alone. */
 .aqi-good { background-color: #d7f0d0; background-image: none; }
 .aqi-moderate {

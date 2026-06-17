@@ -8,15 +8,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.585177
-  - -0.082485
-  intercept: 8.401288
-  residual_std: 1.533644
-  r2: 0.784081
-  n: 72
+  - 0.511862
+  - -0.134221
+  intercept: 14.258046
+  residual_std: 1.609499
+  r2: 0.751745
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-01
   node_id: node-01
   parameter: pm25_ugm3
@@ -25,15 +25,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.617122
-  - -0.071784
-  intercept: 4.452267
-  residual_std: 0.912117
-  r2: 0.797303
-  n: 72
+  - 0.603969
+  - -0.054308
+  intercept: 3.759027
+  residual_std: 0.900144
+  r2: 0.791317
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-01
   node_id: node-01
   parameter: temp_c
@@ -41,14 +41,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.917887
-  intercept: 2.009634
-  residual_std: 0.480814
-  r2: 0.991822
-  n: 72
+  - 0.908949
+  intercept: 2.248444
+  residual_std: 0.476025
+  r2: 0.991959
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-02
   node_id: node-02
   parameter: pm10_ugm3
@@ -57,15 +57,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.6619
-  - -0.121322
-  intercept: 11.722235
-  residual_std: 2.083009
-  r2: 0.627695
-  n: 72
+  - 0.596108
+  - -0.089379
+  intercept: 11.783822
+  residual_std: 1.826238
+  r2: 0.690295
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-02
   node_id: node-02
   parameter: pm25_ugm3
@@ -74,15 +74,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.598432
-  - -0.04638
-  intercept: 4.982032
-  residual_std: 1.188037
-  r2: 0.627219
-  n: 72
+  - 0.637089
+  - -0.047217
+  intercept: 4.389033
+  residual_std: 0.96835
+  r2: 0.763878
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-02
   node_id: node-02
   parameter: temp_c
@@ -90,14 +90,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.837746
-  intercept: 3.919496
-  residual_std: 0.904892
-  r2: 0.970857
-  n: 72
+  - 0.845106
+  intercept: 3.619836
+  residual_std: 0.916159
+  r2: 0.970378
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-03
   node_id: node-03
   parameter: pm10_ugm3
@@ -106,15 +106,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.55902
-  - -0.076395
-  intercept: 8.86381
-  residual_std: 1.630863
-  r2: 0.744072
-  n: 72
+  - 0.501129
+  - -0.075719
+  intercept: 10.892754
+  residual_std: 1.817461
+  r2: 0.695101
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-03
   node_id: node-03
   parameter: pm25_ugm3
@@ -123,15 +123,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.535049
-  - -0.055721
-  intercept: 5.762855
-  residual_std: 1.08741
-  r2: 0.718201
-  n: 72
+  - 0.503263
+  - -0.037713
+  intercept: 5.152353
+  residual_std: 1.086
+  r2: 0.675452
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-03
   node_id: node-03
   parameter: temp_c
@@ -139,14 +139,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.937056
-  intercept: 1.467101
-  residual_std: 0.475719
-  r2: 0.991937
-  n: 72
+  - 0.940724
+  intercept: 1.357439
+  residual_std: 0.466577
+  r2: 0.992296
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-04
   node_id: node-04
   parameter: pm10_ugm3
@@ -155,15 +155,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.578727
-  - -0.045982
-  intercept: 10.874474
-  residual_std: 1.843472
-  r2: 0.66194
-  n: 72
+  - 0.5874
+  - -0.061431
+  intercept: 11.588402
+  residual_std: 2.066192
+  r2: 0.609064
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-04
   node_id: node-04
   parameter: pm25_ugm3
@@ -172,15 +172,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.609565
-  - -0.011627
-  intercept: 4.254645
-  residual_std: 1.315574
-  r2: 0.585253
-  n: 72
+  - 0.584629
+  - -0.032574
+  intercept: 5.986325
+  residual_std: 1.103667
+  r2: 0.688334
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-04
   node_id: node-04
   parameter: temp_c
@@ -188,14 +188,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.859741
-  intercept: 3.139517
-  residual_std: 0.779135
-  r2: 0.978496
-  n: 72
+  - 0.85831
+  intercept: 3.199648
+  residual_std: 0.786357
+  r2: 0.977927
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-05
   node_id: node-05
   parameter: pm10_ugm3
@@ -204,15 +204,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.603023
-  - -0.099601
-  intercept: 10.084706
-  residual_std: 1.840126
-  r2: 0.701616
-  n: 72
+  - 0.550673
+  - -0.083791
+  intercept: 10.609819
+  residual_std: 2.068095
+  r2: 0.608838
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-05
   node_id: node-05
   parameter: pm25_ugm3
@@ -221,15 +221,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.522102
-  - -0.070208
-  intercept: 7.53674
-  residual_std: 0.961254
-  r2: 0.75736
-  n: 72
+  - 0.496454
+  - -0.051375
+  intercept: 6.813569
+  residual_std: 1.112471
+  r2: 0.672679
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-05
   node_id: node-05
   parameter: temp_c
@@ -237,14 +237,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.901635
-  intercept: 2.333482
-  residual_std: 0.586085
-  r2: 0.987876
-  n: 72
+  - 0.905099
+  intercept: 2.315848
+  residual_std: 0.678893
+  r2: 0.983686
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-06
   node_id: node-06
   parameter: pm10_ugm3
@@ -253,15 +253,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.54426
-  - -0.071287
-  intercept: 8.631479
-  residual_std: 1.768602
-  r2: 0.70817
-  n: 72
+  - 0.58447
+  - -0.116351
+  intercept: 9.646981
+  residual_std: 1.277216
+  r2: 0.854322
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-06
   node_id: node-06
   parameter: pm25_ugm3
@@ -270,15 +270,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.559318
-  - -0.057304
-  intercept: 4.398745
-  residual_std: 1.010077
-  r2: 0.722346
-  n: 72
+  - 0.481709
+  - -0.027919
+  intercept: 4.16602
+  residual_std: 0.897654
+  r2: 0.772187
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-06
   node_id: node-06
   parameter: temp_c
@@ -286,14 +286,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.895204
-  intercept: 2.520873
-  residual_std: 0.593315
-  r2: 0.987402
-  n: 72
+  - 0.893688
+  intercept: 2.600962
+  residual_std: 0.622906
+  r2: 0.986133
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-07
   node_id: node-07
   parameter: pm10_ugm3
@@ -302,15 +302,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.515228
-  - -0.133365
-  intercept: 13.252677
-  residual_std: 1.579915
-  r2: 0.770112
-  n: 72
+  - 0.509615
+  - -0.109121
+  intercept: 11.721428
+  residual_std: 1.45124
+  r2: 0.798402
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-07
   node_id: node-07
   parameter: pm25_ugm3
@@ -319,15 +319,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.562832
-  - -0.05209
-  intercept: 4.54966
-  residual_std: 0.842575
-  r2: 0.825742
-  n: 72
+  - 0.568827
+  - -0.066338
+  intercept: 5.32585
+  residual_std: 0.870346
+  r2: 0.810253
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-07
   node_id: node-07
   parameter: temp_c
@@ -335,14 +335,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.865254
-  intercept: 3.03656
-  residual_std: 0.752415
-  r2: 0.979974
-  n: 72
+  - 0.859622
+  intercept: 3.062937
+  residual_std: 0.812175
+  r2: 0.976687
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-08
   node_id: node-08
   parameter: pm10_ugm3
@@ -351,15 +351,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.554586
-  - -0.123489
-  intercept: 10.382079
-  residual_std: 1.51194
-  r2: 0.773217
-  n: 72
+  - 0.45099
+  - -0.09569
+  intercept: 12.79608
+  residual_std: 1.537707
+  r2: 0.763266
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-08
   node_id: node-08
   parameter: pm25_ugm3
@@ -368,15 +368,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.526322
-  - -0.046617
-  intercept: 4.402264
-  residual_std: 0.90682
-  r2: 0.783288
-  n: 72
+  - 0.519806
+  - -0.036687
+  intercept: 3.760669
+  residual_std: 1.004268
+  r2: 0.739018
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-08
   node_id: node-08
   parameter: temp_c
@@ -384,14 +384,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.929048
-  intercept: 1.672562
-  residual_std: 0.457429
-  r2: 0.992607
-  n: 72
+  - 0.930695
+  intercept: 1.579738
+  residual_std: 0.411722
+  r2: 0.993955
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-09
   node_id: node-09
   parameter: pm10_ugm3
@@ -400,15 +400,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.611684
-  - -0.040734
-  intercept: 8.950291
-  residual_std: 1.71477
-  r2: 0.732905
-  n: 72
+  - 0.618775
+  - -0.059815
+  intercept: 10.076787
+  residual_std: 1.805424
+  r2: 0.698319
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-09
   node_id: node-09
   parameter: pm25_ugm3
@@ -417,15 +417,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.566435
-  - -0.035021
-  intercept: 6.395087
-  residual_std: 1.016882
-  r2: 0.718447
-  n: 72
+  - 0.524436
+  - -0.046584
+  intercept: 7.559791
+  residual_std: 0.854875
+  r2: 0.784606
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-09
   node_id: node-09
   parameter: temp_c
@@ -433,14 +433,63 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.920517
-  intercept: 1.795147
-  residual_std: 0.520969
-  r2: 0.990351
-  n: 72
+  - 0.909929
+  intercept: 2.126898
+  residual_std: 0.502828
+  r2: 0.990914
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-100
+  node_id: node-100
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.554162
+  - -0.017667
+  intercept: 7.249315
+  residual_std: 1.577596
+  r2: 0.769881
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-100
+  node_id: node-100
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.492055
+  - -0.056612
+  intercept: 7.003616
+  residual_std: 1.070352
+  r2: 0.660127
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-100
+  node_id: node-100
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.888046
+  intercept: 2.575164
+  residual_std: 0.704249
+  r2: 0.982585
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-10
   node_id: node-10
   parameter: pm10_ugm3
@@ -449,15 +498,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.570672
-  - -0.107732
-  intercept: 11.444853
-  residual_std: 1.547949
-  r2: 0.791096
-  n: 72
+  - 0.558194
+  - -0.096752
+  intercept: 11.14487
+  residual_std: 1.433288
+  r2: 0.80471
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-10
   node_id: node-10
   parameter: pm25_ugm3
@@ -466,15 +515,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.57957
-  - -0.04681
-  intercept: 5.458432
-  residual_std: 0.823269
-  r2: 0.820909
-  n: 72
+  - 0.49459
+  - -0.029146
+  intercept: 5.56062
+  residual_std: 1.03656
+  r2: 0.713013
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-10
   node_id: node-10
   parameter: temp_c
@@ -482,14 +531,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.894857
-  intercept: 2.444623
-  residual_std: 0.630941
-  r2: 0.985675
-  n: 72
+  - 0.889488
+  intercept: 2.509205
+  residual_std: 0.595362
+  r2: 0.987356
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-11
   node_id: node-11
   parameter: pm10_ugm3
@@ -498,15 +547,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.576108
-  - -0.098462
-  intercept: 9.783804
-  residual_std: 1.703489
-  r2: 0.73567
-  n: 72
+  - 0.626018
+  - -0.092322
+  intercept: 7.468887
+  residual_std: 1.360267
+  r2: 0.82946
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-11
   node_id: node-11
   parameter: pm25_ugm3
@@ -515,15 +564,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.533581
-  - -0.059318
-  intercept: 5.384364
-  residual_std: 0.875863
-  r2: 0.784195
-  n: 72
+  - 0.54074
+  - -0.101288
+  intercept: 7.834913
+  residual_std: 0.905536
+  r2: 0.793268
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-11
   node_id: node-11
   parameter: temp_c
@@ -531,14 +580,14 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.824177
-  intercept: 4.259191
-  residual_std: 0.9495
-  r2: 0.968098
-  n: 72
+  - 0.83117
+  intercept: 3.984563
+  residual_std: 0.88413
+  r2: 0.972116
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm10_ugm3.epa-humidity.node-12
   node_id: node-12
   parameter: pm10_ugm3
@@ -547,15 +596,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.568139
-  - -0.047541
-  intercept: 9.650197
-  residual_std: 1.651176
-  r2: 0.735703
-  n: 72
+  - 0.607735
+  - -0.038791
+  intercept: 8.06628
+  residual_std: 1.597869
+  r2: 0.747172
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: pm25_ugm3.epa-humidity.node-12
   node_id: node-12
   parameter: pm25_ugm3
@@ -564,15 +613,15 @@ corrections:
   - raw
   - humidity
   coefficients:
-  - 0.576285
-  - -0.032198
-  intercept: 4.805768
-  residual_std: 1.199454
-  r2: 0.610003
-  n: 72
+  - 0.544301
+  - -0.025487
+  intercept: 5.119604
+  residual_std: 1.08367
+  r2: 0.67994
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
 - version: temp_c.enclosure-offset.node-12
   node_id: node-12
   parameter: temp_c
@@ -580,11 +629,4274 @@ corrections:
   predictors:
   - raw
   coefficients:
-  - 0.86098
-  intercept: 3.383976
-  residual_std: 0.823943
-  r2: 0.97586
-  n: 72
+  - 0.861878
+  intercept: 3.305133
+  residual_std: 0.730289
+  r2: 0.981125
+  n: 48
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
-  window_end: '2026-06-03T23:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-13
+  node_id: node-13
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.552397
+  - -0.009837
+  intercept: 8.88291
+  residual_std: 2.135999
+  r2: 0.553483
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-13
+  node_id: node-13
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.557447
+  - -0.041854
+  intercept: 7.107034
+  residual_std: 1.100995
+  r2: 0.659043
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-13
+  node_id: node-13
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.940365
+  intercept: 1.246851
+  residual_std: 0.439139
+  r2: 0.993139
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-14
+  node_id: node-14
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.53907
+  - -0.110668
+  intercept: 15.65204
+  residual_std: 1.703828
+  r2: 0.72882
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-14
+  node_id: node-14
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.541353
+  - -0.02973
+  intercept: 6.540379
+  residual_std: 1.161445
+  r2: 0.645852
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-14
+  node_id: node-14
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.880827
+  intercept: 2.537823
+  residual_std: 0.646277
+  r2: 0.985106
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-15
+  node_id: node-15
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.531135
+  - -0.134069
+  intercept: 12.534185
+  residual_std: 1.438483
+  r2: 0.822876
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-15
+  node_id: node-15
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.491905
+  - -0.042456
+  intercept: 5.032701
+  residual_std: 1.060831
+  r2: 0.665794
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-15
+  node_id: node-15
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.880582
+  intercept: 2.730854
+  residual_std: 0.754837
+  r2: 0.979771
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-16
+  node_id: node-16
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607091
+  - -0.048535
+  intercept: 6.52404
+  residual_std: 1.673772
+  r2: 0.739155
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-16
+  node_id: node-16
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.548446
+  - -0.052694
+  intercept: 5.089886
+  residual_std: 0.994058
+  r2: 0.719295
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-16
+  node_id: node-16
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.882361
+  intercept: 2.608765
+  residual_std: 0.689764
+  r2: 0.983136
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-17
+  node_id: node-17
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.564145
+  - -0.121398
+  intercept: 10.88163
+  residual_std: 1.455141
+  r2: 0.802071
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-17
+  node_id: node-17
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.529595
+  - -0.05454
+  intercept: 5.486436
+  residual_std: 0.818799
+  r2: 0.818113
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-17
+  node_id: node-17
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.843633
+  intercept: 3.74336
+  residual_std: 0.919067
+  r2: 0.97022
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-18
+  node_id: node-18
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.592416
+  - -0.068987
+  intercept: 10.742091
+  residual_std: 1.585617
+  r2: 0.764738
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-18
+  node_id: node-18
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.604233
+  - -0.060236
+  intercept: 6.769026
+  residual_std: 1.214211
+  r2: 0.611753
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-18
+  node_id: node-18
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.8879
+  intercept: 2.588633
+  residual_std: 0.662787
+  r2: 0.98451
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-19
+  node_id: node-19
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.650841
+  - -0.101729
+  intercept: 9.841718
+  residual_std: 1.854904
+  r2: 0.678195
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-19
+  node_id: node-19
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.58493
+  - -0.040099
+  intercept: 4.954946
+  residual_std: 1.017233
+  r2: 0.754682
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-19
+  node_id: node-19
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.890821
+  intercept: 2.471608
+  residual_std: 0.604959
+  r2: 0.987029
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-20
+  node_id: node-20
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.621007
+  - -0.089272
+  intercept: 9.531966
+  residual_std: 1.965943
+  r2: 0.661966
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-20
+  node_id: node-20
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.560431
+  - -0.033454
+  intercept: 4.020642
+  residual_std: 1.349407
+  r2: 0.544282
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-20
+  node_id: node-20
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.855324
+  intercept: 3.582831
+  residual_std: 0.724442
+  r2: 0.981243
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-21
+  node_id: node-21
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.575366
+  - -0.15428
+  intercept: 14.432744
+  residual_std: 1.652125
+  r2: 0.757131
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-21
+  node_id: node-21
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.517572
+  - -0.053529
+  intercept: 6.956634
+  residual_std: 1.019126
+  r2: 0.734459
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-21
+  node_id: node-21
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.854578
+  intercept: 3.417155
+  residual_std: 0.866165
+  r2: 0.973252
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-22
+  node_id: node-22
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.497695
+  - -0.047098
+  intercept: 11.490641
+  residual_std: 1.891728
+  r2: 0.656134
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-22
+  node_id: node-22
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.638723
+  - -0.045518
+  intercept: 4.48105
+  residual_std: 1.172225
+  r2: 0.642623
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-22
+  node_id: node-22
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.916622
+  intercept: 1.875365
+  residual_std: 0.439009
+  r2: 0.993143
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-23
+  node_id: node-23
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.558262
+  - -0.071688
+  intercept: 10.795046
+  residual_std: 1.460232
+  r2: 0.787049
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-23
+  node_id: node-23
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607895
+  - -0.055871
+  intercept: 6.284117
+  residual_std: 1.034054
+  r2: 0.720545
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-23
+  node_id: node-23
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.920503
+  intercept: 1.689073
+  residual_std: 0.546752
+  r2: 0.989425
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-24
+  node_id: node-24
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.531421
+  - -0.066948
+  intercept: 8.312632
+  residual_std: 1.353456
+  r2: 0.831249
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-24
+  node_id: node-24
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.478573
+  - -0.035418
+  intercept: 4.787793
+  residual_std: 0.933193
+  r2: 0.769891
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-24
+  node_id: node-24
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.866833
+  intercept: 3.147377
+  residual_std: 0.804523
+  r2: 0.977013
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-25
+  node_id: node-25
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.673795
+  - -0.00253
+  intercept: 1.732073
+  residual_std: 1.794029
+  r2: 0.682441
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-25
+  node_id: node-25
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.603846
+  - -0.044973
+  intercept: 3.570196
+  residual_std: 1.013671
+  r2: 0.716207
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-25
+  node_id: node-25
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.939283
+  intercept: 1.347333
+  residual_std: 0.502739
+  r2: 0.991054
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-26
+  node_id: node-26
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.626151
+  - -0.044449
+  intercept: 7.002776
+  residual_std: 1.853106
+  r2: 0.692543
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-26
+  node_id: node-26
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.615601
+  - -0.035144
+  intercept: 3.612076
+  residual_std: 1.088703
+  r2: 0.674847
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-26
+  node_id: node-26
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.851292
+  intercept: 3.486987
+  residual_std: 0.862958
+  r2: 0.973498
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-27
+  node_id: node-27
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.63509
+  - -0.085081
+  intercept: 10.355042
+  residual_std: 1.910805
+  r2: 0.645032
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-27
+  node_id: node-27
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.595867
+  - -0.017487
+  intercept: 4.340073
+  residual_std: 1.049988
+  r2: 0.705371
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-27
+  node_id: node-27
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.921004
+  intercept: 1.742043
+  residual_std: 0.552162
+  r2: 0.989179
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-28
+  node_id: node-28
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.613408
+  - -0.090069
+  intercept: 8.166588
+  residual_std: 1.764004
+  r2: 0.711764
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-28
+  node_id: node-28
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.537352
+  - -0.034296
+  intercept: 3.744881
+  residual_std: 1.042386
+  r2: 0.722477
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-28
+  node_id: node-28
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.916948
+  intercept: 1.932351
+  residual_std: 0.499423
+  r2: 0.99118
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-29
+  node_id: node-29
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.538941
+  - -0.087415
+  intercept: 9.61689
+  residual_std: 1.390173
+  r2: 0.814319
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-29
+  node_id: node-29
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.552665
+  - -0.087396
+  intercept: 6.425008
+  residual_std: 0.989872
+  r2: 0.745018
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-29
+  node_id: node-29
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.860707
+  intercept: 3.249197
+  residual_std: 0.733197
+  r2: 0.980836
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-30
+  node_id: node-30
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.544298
+  - -0.087971
+  intercept: 11.513207
+  residual_std: 1.747761
+  r2: 0.729469
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-30
+  node_id: node-30
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.492035
+  - -0.059783
+  intercept: 7.417644
+  residual_std: 0.958895
+  r2: 0.752933
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-30
+  node_id: node-30
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.867576
+  intercept: 2.972013
+  residual_std: 0.77673
+  r2: 0.978525
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-31
+  node_id: node-31
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.576205
+  - -0.11587
+  intercept: 11.717415
+  residual_std: 1.674737
+  r2: 0.75738
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-31
+  node_id: node-31
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.536318
+  - -0.054338
+  intercept: 6.135201
+  residual_std: 0.746621
+  r2: 0.852125
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-31
+  node_id: node-31
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.85665
+  intercept: 3.189189
+  residual_std: 0.807602
+  r2: 0.976989
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-32
+  node_id: node-32
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.609505
+  - -0.129794
+  intercept: 11.969124
+  residual_std: 1.487998
+  r2: 0.789364
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-32
+  node_id: node-32
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.524417
+  - -0.028528
+  intercept: 4.445084
+  residual_std: 0.946946
+  r2: 0.774235
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-32
+  node_id: node-32
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.873057
+  intercept: 2.948225
+  residual_std: 0.747604
+  r2: 0.979945
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-33
+  node_id: node-33
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.635864
+  - -0.060844
+  intercept: 9.16917
+  residual_std: 1.533782
+  r2: 0.787099
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-33
+  node_id: node-33
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.572033
+  - -0.052799
+  intercept: 6.91604
+  residual_std: 1.088732
+  r2: 0.698375
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-33
+  node_id: node-33
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.904422
+  intercept: 2.3529
+  residual_std: 0.592332
+  r2: 0.987517
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-34
+  node_id: node-34
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.641575
+  - -0.068574
+  intercept: 9.831796
+  residual_std: 2.004056
+  r2: 0.635526
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-34
+  node_id: node-34
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.523731
+  - -0.023732
+  intercept: 5.903345
+  residual_std: 1.133043
+  r2: 0.672937
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-34
+  node_id: node-34
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.928712
+  intercept: 1.660978
+  residual_std: 0.581055
+  r2: 0.988085
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-35
+  node_id: node-35
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.536318
+  - -0.110198
+  intercept: 11.756527
+  residual_std: 1.565702
+  r2: 0.77528
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-35
+  node_id: node-35
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607611
+  - -0.040276
+  intercept: 2.456483
+  residual_std: 1.234308
+  r2: 0.621307
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-35
+  node_id: node-35
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.91622
+  intercept: 1.858962
+  residual_std: 0.441212
+  r2: 0.993072
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-36
+  node_id: node-36
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.599351
+  - -0.040703
+  intercept: 6.589551
+  residual_std: 1.504246
+  r2: 0.786531
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-36
+  node_id: node-36
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.685936
+  - -0.039841
+  intercept: 2.055869
+  residual_std: 1.085492
+  r2: 0.716825
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-36
+  node_id: node-36
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.938473
+  intercept: 1.422802
+  residual_std: 0.456333
+  r2: 0.992609
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-37
+  node_id: node-37
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.560303
+  - -0.090191
+  intercept: 12.224816
+  residual_std: 1.634616
+  r2: 0.725575
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-37
+  node_id: node-37
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.548405
+  - -0.040602
+  intercept: 5.538672
+  residual_std: 1.133529
+  r2: 0.66907
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-37
+  node_id: node-37
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.930028
+  intercept: 1.535821
+  residual_std: 0.478695
+  r2: 0.991883
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-38
+  node_id: node-38
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.579376
+  - -0.087631
+  intercept: 10.452563
+  residual_std: 1.818569
+  r2: 0.700199
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-38
+  node_id: node-38
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.552415
+  - -0.063493
+  intercept: 6.4567
+  residual_std: 1.301577
+  r2: 0.581205
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-38
+  node_id: node-38
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.8962
+  intercept: 2.483887
+  residual_std: 0.647709
+  r2: 0.98514
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-39
+  node_id: node-39
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.595172
+  - -0.095321
+  intercept: 10.312411
+  residual_std: 1.715628
+  r2: 0.730524
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-39
+  node_id: node-39
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.608344
+  - -0.044477
+  intercept: 4.378842
+  residual_std: 0.886239
+  r2: 0.781277
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-39
+  node_id: node-39
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.866041
+  intercept: 2.903976
+  residual_std: 0.759062
+  r2: 0.979578
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-40
+  node_id: node-40
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.526553
+  - -0.094904
+  intercept: 11.228141
+  residual_std: 1.554311
+  r2: 0.776893
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-40
+  node_id: node-40
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.533526
+  - -0.038097
+  intercept: 3.581796
+  residual_std: 0.93524
+  r2: 0.772538
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-40
+  node_id: node-40
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.883996
+  intercept: 2.873604
+  residual_std: 0.707189
+  r2: 0.982148
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-41
+  node_id: node-41
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607118
+  - -0.018269
+  intercept: 3.246126
+  residual_std: 1.434227
+  r2: 0.810395
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-41
+  node_id: node-41
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.506529
+  - -0.043613
+  intercept: 5.522732
+  residual_std: 0.865841
+  r2: 0.782943
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-41
+  node_id: node-41
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.866047
+  intercept: 3.141083
+  residual_std: 0.808933
+  r2: 0.976803
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-42
+  node_id: node-42
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.496984
+  - -0.102289
+  intercept: 14.173237
+  residual_std: 1.823329
+  r2: 0.703914
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-42
+  node_id: node-42
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.533627
+  - -0.058198
+  intercept: 7.264104
+  residual_std: 1.014683
+  r2: 0.715021
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-42
+  node_id: node-42
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.925543
+  intercept: 1.780781
+  residual_std: 0.497593
+  r2: 0.991226
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-43
+  node_id: node-43
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.578802
+  - -0.091816
+  intercept: 11.851193
+  residual_std: 2.146459
+  r2: 0.600523
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-43
+  node_id: node-43
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.558482
+  - -0.062452
+  intercept: 6.469601
+  residual_std: 1.079273
+  r2: 0.709952
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-43
+  node_id: node-43
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.929726
+  intercept: 1.7078
+  residual_std: 0.520558
+  r2: 0.990381
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-44
+  node_id: node-44
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.597539
+  - -0.074175
+  intercept: 10.057101
+  residual_std: 1.865578
+  r2: 0.680177
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-44
+  node_id: node-44
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.497653
+  - -0.055802
+  intercept: 7.418812
+  residual_std: 1.147556
+  r2: 0.654213
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-44
+  node_id: node-44
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.866304
+  intercept: 3.216139
+  residual_std: 0.793165
+  r2: 0.977654
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-45
+  node_id: node-45
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607162
+  - -0.02078
+  intercept: 8.084947
+  residual_std: 1.796046
+  r2: 0.71373
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-45
+  node_id: node-45
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.495731
+  - -0.050823
+  intercept: 7.909273
+  residual_std: 1.125057
+  r2: 0.674057
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-45
+  node_id: node-45
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.829876
+  intercept: 4.033778
+  residual_std: 0.925495
+  r2: 0.969256
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-46
+  node_id: node-46
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.561763
+  - -0.084772
+  intercept: 10.0027
+  residual_std: 1.720005
+  r2: 0.739706
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-46
+  node_id: node-46
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.665878
+  - -0.036689
+  intercept: 2.262641
+  residual_std: 0.876672
+  r2: 0.80438
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-46
+  node_id: node-46
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.922786
+  intercept: 1.71212
+  residual_std: 0.523349
+  r2: 0.990279
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-47
+  node_id: node-47
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.59912
+  - -0.055494
+  intercept: 8.17054
+  residual_std: 1.98124
+  r2: 0.658213
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-47
+  node_id: node-47
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.622264
+  - -0.033568
+  intercept: 2.840754
+  residual_std: 0.924272
+  r2: 0.780036
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-47
+  node_id: node-47
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.824552
+  intercept: 4.032881
+  residual_std: 0.893218
+  r2: 0.971551
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-48
+  node_id: node-48
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.525452
+  - -0.061808
+  intercept: 12.454247
+  residual_std: 1.705928
+  r2: 0.725162
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-48
+  node_id: node-48
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.526237
+  - -0.02425
+  intercept: 5.548879
+  residual_std: 1.136068
+  r2: 0.64179
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-48
+  node_id: node-48
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.850526
+  intercept: 3.630019
+  residual_std: 0.817634
+  r2: 0.97622
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-49
+  node_id: node-49
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.677787
+  - -0.061559
+  intercept: 9.455016
+  residual_std: 1.554555
+  r2: 0.796614
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-49
+  node_id: node-49
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.646116
+  - -0.029912
+  intercept: 4.977991
+  residual_std: 1.191752
+  r2: 0.633371
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-49
+  node_id: node-49
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.935792
+  intercept: 1.420632
+  residual_std: 0.525437
+  r2: 0.990138
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-50
+  node_id: node-50
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.635752
+  - -0.075157
+  intercept: 6.21284
+  residual_std: 1.685927
+  r2: 0.750051
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-50
+  node_id: node-50
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.508113
+  - -0.052108
+  intercept: 5.700529
+  residual_std: 0.856853
+  r2: 0.793367
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-50
+  node_id: node-50
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.939234
+  intercept: 1.403097
+  residual_std: 0.522477
+  r2: 0.990257
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-51
+  node_id: node-51
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.669047
+  - -0.022697
+  intercept: 3.776793
+  residual_std: 1.479143
+  r2: 0.795162
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-51
+  node_id: node-51
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.574762
+  - -0.04507
+  intercept: 4.971854
+  residual_std: 1.020243
+  r2: 0.728033
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-51
+  node_id: node-51
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.893359
+  intercept: 2.594509
+  residual_std: 0.671256
+  r2: 0.983884
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-52
+  node_id: node-52
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.593641
+  - -0.10351
+  intercept: 11.403477
+  residual_std: 1.311401
+  r2: 0.841423
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-52
+  node_id: node-52
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.590829
+  - -0.061211
+  intercept: 6.179022
+  residual_std: 1.069158
+  r2: 0.706836
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-52
+  node_id: node-52
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.871386
+  intercept: 3.088951
+  residual_std: 0.805143
+  r2: 0.977192
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-53
+  node_id: node-53
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.519704
+  - -0.07638
+  intercept: 9.897799
+  residual_std: 1.747129
+  r2: 0.731331
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-53
+  node_id: node-53
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.61649
+  - -0.042219
+  intercept: 3.145648
+  residual_std: 1.106058
+  r2: 0.678819
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-53
+  node_id: node-53
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.892126
+  intercept: 2.46932
+  residual_std: 0.625538
+  r2: 0.986082
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-54
+  node_id: node-54
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.594061
+  - -0.13022
+  intercept: 12.27011
+  residual_std: 1.871514
+  r2: 0.690706
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-54
+  node_id: node-54
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.587718
+  - -0.049086
+  intercept: 5.17232
+  residual_std: 0.951606
+  r2: 0.757424
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-54
+  node_id: node-54
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.871136
+  intercept: 3.17624
+  residual_std: 0.696029
+  r2: 0.982744
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-55
+  node_id: node-55
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.596686
+  - -0.104213
+  intercept: 13.287243
+  residual_std: 1.802276
+  r2: 0.707583
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-55
+  node_id: node-55
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.581358
+  - -0.031803
+  intercept: 5.5414
+  residual_std: 1.11181
+  r2: 0.694726
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-55
+  node_id: node-55
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.855778
+  intercept: 3.149611
+  residual_std: 0.806216
+  r2: 0.976937
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-56
+  node_id: node-56
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.646397
+  - -0.045934
+  intercept: 6.435762
+  residual_std: 1.935467
+  r2: 0.65769
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-56
+  node_id: node-56
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.520784
+  - -0.016353
+  intercept: 4.436297
+  residual_std: 1.081696
+  r2: 0.644642
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-56
+  node_id: node-56
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.846428
+  intercept: 3.658584
+  residual_std: 0.830954
+  r2: 0.975535
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-57
+  node_id: node-57
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.545208
+  - -0.085188
+  intercept: 9.536045
+  residual_std: 1.571896
+  r2: 0.761078
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-57
+  node_id: node-57
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.505846
+  - -0.056766
+  intercept: 5.384703
+  residual_std: 1.059411
+  r2: 0.695795
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-57
+  node_id: node-57
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.89184
+  intercept: 2.577359
+  residual_std: 0.664742
+  r2: 0.984343
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-58
+  node_id: node-58
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.563032
+  - -0.105162
+  intercept: 12.697786
+  residual_std: 1.814339
+  r2: 0.715885
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-58
+  node_id: node-58
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.530004
+  - -0.053328
+  intercept: 7.06314
+  residual_std: 1.073473
+  r2: 0.660226
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-58
+  node_id: node-58
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.863325
+  intercept: 3.294958
+  residual_std: 0.823632
+  r2: 0.975867
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-59
+  node_id: node-59
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.585154
+  - -0.030215
+  intercept: 5.270189
+  residual_std: 1.513713
+  r2: 0.786467
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-59
+  node_id: node-59
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607219
+  - -0.050192
+  intercept: 3.844067
+  residual_std: 1.011692
+  r2: 0.724352
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-59
+  node_id: node-59
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.91789
+  intercept: 1.928756
+  residual_std: 0.560741
+  r2: 0.988894
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-60
+  node_id: node-60
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.522673
+  - -0.12102
+  intercept: 11.834311
+  residual_std: 1.700179
+  r2: 0.724706
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-60
+  node_id: node-60
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.510035
+  - -0.057157
+  intercept: 5.818369
+  residual_std: 0.850827
+  r2: 0.805525
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-60
+  node_id: node-60
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.887913
+  intercept: 2.65276
+  residual_std: 0.660162
+  r2: 0.984525
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-61
+  node_id: node-61
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.545278
+  - -0.112369
+  intercept: 12.418069
+  residual_std: 1.418193
+  r2: 0.810252
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-61
+  node_id: node-61
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.602538
+  - -0.040402
+  intercept: 3.794736
+  residual_std: 1.030138
+  r2: 0.725457
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-61
+  node_id: node-61
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.842475
+  intercept: 3.631978
+  residual_std: 0.892358
+  r2: 0.971737
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-62
+  node_id: node-62
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607871
+  - -0.093515
+  intercept: 11.237618
+  residual_std: 1.817208
+  r2: 0.682497
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-62
+  node_id: node-62
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.542609
+  - -0.029841
+  intercept: 5.141613
+  residual_std: 0.862699
+  r2: 0.78278
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-62
+  node_id: node-62
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.828519
+  intercept: 3.969805
+  residual_std: 0.882079
+  r2: 0.97223
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-63
+  node_id: node-63
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.679449
+  - -0.099204
+  intercept: 8.328195
+  residual_std: 1.752141
+  r2: 0.691283
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-63
+  node_id: node-63
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.53091
+  - -0.014067
+  intercept: 3.359721
+  residual_std: 1.035607
+  r2: 0.70293
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-63
+  node_id: node-63
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.83675
+  intercept: 4.004871
+  residual_std: 0.933712
+  r2: 0.969477
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-64
+  node_id: node-64
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.540675
+  - -0.053619
+  intercept: 8.933301
+  residual_std: 1.687861
+  r2: 0.725449
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-64
+  node_id: node-64
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.550548
+  - -0.01729
+  intercept: 2.547638
+  residual_std: 0.78332
+  r2: 0.839669
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-64
+  node_id: node-64
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.868657
+  intercept: 3.133698
+  residual_std: 0.789554
+  r2: 0.977981
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-65
+  node_id: node-65
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.58039
+  - -0.09291
+  intercept: 10.367906
+  residual_std: 1.758563
+  r2: 0.735683
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-65
+  node_id: node-65
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.589731
+  - -0.055822
+  intercept: 5.000341
+  residual_std: 1.041668
+  r2: 0.703976
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-65
+  node_id: node-65
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.857601
+  intercept: 3.2754
+  residual_std: 0.815832
+  r2: 0.976428
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-66
+  node_id: node-66
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.619874
+  - -0.146561
+  intercept: 11.561439
+  residual_std: 1.653056
+  r2: 0.755615
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-66
+  node_id: node-66
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.440059
+  - -0.031456
+  intercept: 5.561279
+  residual_std: 1.073922
+  r2: 0.688746
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-66
+  node_id: node-66
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.858261
+  intercept: 3.341545
+  residual_std: 0.811051
+  r2: 0.976606
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-67
+  node_id: node-67
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.55114
+  - -0.053534
+  intercept: 11.097478
+  residual_std: 1.776352
+  r2: 0.690747
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-67
+  node_id: node-67
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.525209
+  - -0.016168
+  intercept: 4.968432
+  residual_std: 1.179692
+  r2: 0.643083
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-67
+  node_id: node-67
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.822475
+  intercept: 4.354411
+  residual_std: 0.941715
+  r2: 0.968359
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-68
+  node_id: node-68
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.653392
+  - -0.123388
+  intercept: 11.264312
+  residual_std: 2.112333
+  r2: 0.618114
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-68
+  node_id: node-68
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.597337
+  - -0.041863
+  intercept: 5.125747
+  residual_std: 1.026882
+  r2: 0.721773
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-68
+  node_id: node-68
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.887671
+  intercept: 2.702569
+  residual_std: 0.632665
+  r2: 0.985705
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-69
+  node_id: node-69
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.592097
+  - -0.10868
+  intercept: 10.607756
+  residual_std: 1.670194
+  r2: 0.768759
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-69
+  node_id: node-69
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.518858
+  - -0.045316
+  intercept: 6.084883
+  residual_std: 0.948522
+  r2: 0.766618
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-69
+  node_id: node-69
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.833003
+  intercept: 3.912658
+  residual_std: 0.921598
+  r2: 0.969938
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-70
+  node_id: node-70
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.536746
+  - -0.107802
+  intercept: 13.671816
+  residual_std: 1.796922
+  r2: 0.687379
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-70
+  node_id: node-70
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.533623
+  - -0.025239
+  intercept: 4.412297
+  residual_std: 0.925513
+  r2: 0.768588
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-70
+  node_id: node-70
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.857701
+  intercept: 3.220894
+  residual_std: 0.882197
+  r2: 0.972274
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-71
+  node_id: node-71
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.507061
+  - -0.141454
+  intercept: 14.477402
+  residual_std: 1.773429
+  r2: 0.714367
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-71
+  node_id: node-71
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.537914
+  - -0.041182
+  intercept: 3.765711
+  residual_std: 0.983429
+  r2: 0.739506
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-71
+  node_id: node-71
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.906898
+  intercept: 2.256733
+  residual_std: 0.552186
+  r2: 0.989097
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-72
+  node_id: node-72
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.559052
+  - -0.007554
+  intercept: 7.560064
+  residual_std: 1.461807
+  r2: 0.805701
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-72
+  node_id: node-72
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.558804
+  - -0.02912
+  intercept: 5.683047
+  residual_std: 1.055306
+  r2: 0.682021
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-72
+  node_id: node-72
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.943148
+  intercept: 1.281905
+  residual_std: 0.426439
+  r2: 0.993532
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-73
+  node_id: node-73
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.607745
+  - -0.070756
+  intercept: 8.792107
+  residual_std: 1.729897
+  r2: 0.722354
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-73
+  node_id: node-73
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.562002
+  - -0.031517
+  intercept: 3.733974
+  residual_std: 0.977206
+  r2: 0.731472
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-73
+  node_id: node-73
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.903241
+  intercept: 2.016866
+  residual_std: 0.631502
+  r2: 0.985963
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-74
+  node_id: node-74
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.605284
+  - -0.052131
+  intercept: 9.259293
+  residual_std: 1.492016
+  r2: 0.799897
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-74
+  node_id: node-74
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.554739
+  - -0.026291
+  intercept: 5.06841
+  residual_std: 1.061454
+  r2: 0.690441
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-74
+  node_id: node-74
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.890859
+  intercept: 2.432777
+  residual_std: 0.615463
+  r2: 0.986486
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-75
+  node_id: node-75
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.503912
+  - -0.114494
+  intercept: 14.425888
+  residual_std: 1.807551
+  r2: 0.691193
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-75
+  node_id: node-75
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.623045
+  - -0.052715
+  intercept: 4.463359
+  residual_std: 1.175284
+  r2: 0.659566
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-75
+  node_id: node-75
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.930723
+  intercept: 1.756201
+  residual_std: 0.459946
+  r2: 0.99242
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-76
+  node_id: node-76
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.522312
+  - -0.071766
+  intercept: 10.419234
+  residual_std: 1.463568
+  r2: 0.773498
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-76
+  node_id: node-76
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.580826
+  - -0.061083
+  intercept: 6.373349
+  residual_std: 0.92106
+  r2: 0.769348
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-76
+  node_id: node-76
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.856684
+  intercept: 3.271011
+  residual_std: 0.770778
+  r2: 0.978887
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-77
+  node_id: node-77
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.54551
+  - -0.087643
+  intercept: 10.449797
+  residual_std: 1.325747
+  r2: 0.827531
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-77
+  node_id: node-77
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.514936
+  - -0.049455
+  intercept: 6.34978
+  residual_std: 0.984977
+  r2: 0.749137
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-77
+  node_id: node-77
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.887916
+  intercept: 2.318937
+  residual_std: 0.789385
+  r2: 0.978184
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-78
+  node_id: node-78
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.640229
+  - -0.101795
+  intercept: 12.586004
+  residual_std: 1.391072
+  r2: 0.816191
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-78
+  node_id: node-78
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.585867
+  - -0.025895
+  intercept: 5.047201
+  residual_std: 1.11015
+  r2: 0.69314
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-78
+  node_id: node-78
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.825259
+  intercept: 4.289762
+  residual_std: 0.91729
+  r2: 0.969838
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-79
+  node_id: node-79
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.519134
+  - -0.107999
+  intercept: 13.225586
+  residual_std: 1.480752
+  r2: 0.792208
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-79
+  node_id: node-79
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.522343
+  - -0.020326
+  intercept: 4.913991
+  residual_std: 0.894991
+  r2: 0.78365
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-79
+  node_id: node-79
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.843111
+  intercept: 3.515087
+  residual_std: 0.885643
+  r2: 0.972264
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-80
+  node_id: node-80
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.50472
+  - -0.094684
+  intercept: 12.343215
+  residual_std: 1.464251
+  r2: 0.803067
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-80
+  node_id: node-80
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.59658
+  - -0.063625
+  intercept: 5.293073
+  residual_std: 1.005384
+  r2: 0.750141
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-80
+  node_id: node-80
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.902247
+  intercept: 2.263472
+  residual_std: 0.663029
+  r2: 0.984344
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-81
+  node_id: node-81
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.557826
+  - -0.121977
+  intercept: 9.665482
+  residual_std: 1.385449
+  r2: 0.818611
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-81
+  node_id: node-81
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.456966
+  - -0.065137
+  intercept: 5.808067
+  residual_std: 1.114624
+  r2: 0.649072
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-81
+  node_id: node-81
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.954488
+  intercept: 0.961722
+  residual_std: 0.555371
+  r2: 0.989049
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-82
+  node_id: node-82
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.6906
+  - -0.076184
+  intercept: 5.034621
+  residual_std: 1.490832
+  r2: 0.788914
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-82
+  node_id: node-82
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.606391
+  - -0.025794
+  intercept: 2.585807
+  residual_std: 1.045043
+  r2: 0.716464
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-82
+  node_id: node-82
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.844626
+  intercept: 3.585978
+  residual_std: 0.899948
+  r2: 0.971417
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-83
+  node_id: node-83
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.57909
+  - -0.013248
+  intercept: 5.19572
+  residual_std: 1.859502
+  r2: 0.669755
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-83
+  node_id: node-83
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.667109
+  - -0.019927
+  intercept: 0.972757
+  residual_std: 1.086693
+  r2: 0.682973
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-83
+  node_id: node-83
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.891427
+  intercept: 2.529545
+  residual_std: 0.578725
+  r2: 0.988109
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-84
+  node_id: node-84
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.595561
+  - -0.077208
+  intercept: 9.899696
+  residual_std: 1.661521
+  r2: 0.747065
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-84
+  node_id: node-84
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.562501
+  - -0.073127
+  intercept: 7.523813
+  residual_std: 1.023999
+  r2: 0.720074
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-84
+  node_id: node-84
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.874403
+  intercept: 2.762088
+  residual_std: 0.715797
+  r2: 0.981918
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-85
+  node_id: node-85
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.511319
+  - -0.139418
+  intercept: 14.604961
+  residual_std: 1.910003
+  r2: 0.654661
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-85
+  node_id: node-85
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.582744
+  - -0.060973
+  intercept: 5.064758
+  residual_std: 1.035024
+  r2: 0.725555
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-85
+  node_id: node-85
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.885719
+  intercept: 2.635417
+  residual_std: 0.646394
+  r2: 0.985146
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-86
+  node_id: node-86
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.466644
+  - -0.115861
+  intercept: 15.626942
+  residual_std: 1.637486
+  r2: 0.734075
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-86
+  node_id: node-86
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.652351
+  - -0.06101
+  intercept: 5.056693
+  residual_std: 0.791801
+  r2: 0.851655
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-86
+  node_id: node-86
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.883751
+  intercept: 2.852152
+  residual_std: 0.672393
+  r2: 0.983923
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-87
+  node_id: node-87
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.559824
+  - -0.082557
+  intercept: 8.921376
+  residual_std: 1.660956
+  r2: 0.735746
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-87
+  node_id: node-87
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.55894
+  - -0.049008
+  intercept: 3.909926
+  residual_std: 0.966788
+  r2: 0.752122
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-87
+  node_id: node-87
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.9151
+  intercept: 1.96291
+  residual_std: 0.535827
+  r2: 0.989731
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-88
+  node_id: node-88
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.555294
+  - -0.07893
+  intercept: 10.384258
+  residual_std: 1.434519
+  r2: 0.792346
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-88
+  node_id: node-88
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.618236
+  - -0.033513
+  intercept: 3.35102
+  residual_std: 1.164272
+  r2: 0.664385
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-88
+  node_id: node-88
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.853432
+  intercept: 3.260217
+  residual_std: 0.819068
+  r2: 0.976218
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-89
+  node_id: node-89
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.533307
+  - -0.124176
+  intercept: 12.023491
+  residual_std: 1.741149
+  r2: 0.724
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-89
+  node_id: node-89
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.529891
+  - -0.073941
+  intercept: 6.31256
+  residual_std: 0.921678
+  r2: 0.753378
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-89
+  node_id: node-89
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.869671
+  intercept: 2.959535
+  residual_std: 0.823482
+  r2: 0.97587
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-90
+  node_id: node-90
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.60261
+  - -0.122954
+  intercept: 11.913981
+  residual_std: 1.593051
+  r2: 0.770679
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-90
+  node_id: node-90
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.594617
+  - -0.062213
+  intercept: 6.167074
+  residual_std: 0.894494
+  r2: 0.767578
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-90
+  node_id: node-90
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.871452
+  intercept: 3.115084
+  residual_std: 0.665836
+  r2: 0.984287
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-91
+  node_id: node-91
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.510337
+  - -0.070684
+  intercept: 11.712704
+  residual_std: 2.03896
+  r2: 0.632559
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-91
+  node_id: node-91
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.525136
+  - -0.0587
+  intercept: 7.066398
+  residual_std: 0.868663
+  r2: 0.791835
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-91
+  node_id: node-91
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.860528
+  intercept: 3.360702
+  residual_std: 0.780464
+  r2: 0.978505
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-92
+  node_id: node-92
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.580037
+  - -0.057925
+  intercept: 11.060734
+  residual_std: 1.609705
+  r2: 0.772873
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-92
+  node_id: node-92
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.548291
+  - -0.020836
+  intercept: 5.392403
+  residual_std: 1.203518
+  r2: 0.604661
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-92
+  node_id: node-92
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.856316
+  intercept: 3.410941
+  residual_std: 0.843579
+  r2: 0.974384
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-93
+  node_id: node-93
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.555425
+  - -0.092454
+  intercept: 8.75491
+  residual_std: 1.651081
+  r2: 0.745605
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-93
+  node_id: node-93
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.521323
+  - -0.058491
+  intercept: 4.699092
+  residual_std: 1.100191
+  r2: 0.699758
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-93
+  node_id: node-93
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.854486
+  intercept: 3.231915
+  residual_std: 0.824547
+  r2: 0.975908
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-94
+  node_id: node-94
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.463203
+  - -0.083504
+  intercept: 13.158643
+  residual_std: 1.437838
+  r2: 0.795887
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-94
+  node_id: node-94
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.518878
+  - -0.062412
+  intercept: 6.319044
+  residual_std: 0.990174
+  r2: 0.729016
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-94
+  node_id: node-94
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.868108
+  intercept: 3.14575
+  residual_std: 0.751127
+  r2: 0.979961
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-95
+  node_id: node-95
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.54263
+  - -0.083353
+  intercept: 8.775185
+  residual_std: 1.629032
+  r2: 0.755371
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-95
+  node_id: node-95
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.591524
+  - -0.072151
+  intercept: 4.085367
+  residual_std: 0.880487
+  r2: 0.78889
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-95
+  node_id: node-95
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.943998
+  intercept: 1.28614
+  residual_std: 0.439783
+  r2: 0.993165
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-96
+  node_id: node-96
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.522535
+  - -0.115175
+  intercept: 12.403374
+  residual_std: 1.420781
+  r2: 0.801248
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-96
+  node_id: node-96
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.519608
+  - -0.066274
+  intercept: 5.939901
+  residual_std: 0.903026
+  r2: 0.754137
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-96
+  node_id: node-96
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.834648
+  intercept: 3.72209
+  residual_std: 0.907764
+  r2: 0.971021
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-97
+  node_id: node-97
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.577853
+  - -0.076032
+  intercept: 8.931586
+  residual_std: 1.900766
+  r2: 0.675618
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-97
+  node_id: node-97
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.541531
+  - -0.039814
+  intercept: 4.109891
+  residual_std: 1.171126
+  r2: 0.641315
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-97
+  node_id: node-97
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.917687
+  intercept: 1.87882
+  residual_std: 0.475301
+  r2: 0.992047
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-98
+  node_id: node-98
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.611929
+  - -0.126115
+  intercept: 13.163827
+  residual_std: 1.698332
+  r2: 0.732723
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-98
+  node_id: node-98
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.57209
+  - -0.007286
+  intercept: 3.694706
+  residual_std: 0.870429
+  r2: 0.798723
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-98
+  node_id: node-98
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.875118
+  intercept: 3.074313
+  residual_std: 0.734441
+  r2: 0.980704
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm10_ugm3.epa-humidity.node-99
+  node_id: node-99
+  parameter: pm10_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.547292
+  - -0.087816
+  intercept: 12.096447
+  residual_std: 1.745674
+  r2: 0.697164
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: pm25_ugm3.epa-humidity.node-99
+  node_id: node-99
+  parameter: pm25_ugm3
+  method: epa-humidity
+  predictors:
+  - raw
+  - humidity
+  coefficients:
+  - 0.56199
+  - -0.048376
+  intercept: 6.113524
+  residual_std: 0.916903
+  r2: 0.777929
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'
+- version: temp_c.enclosure-offset.node-99
+  node_id: node-99
+  parameter: temp_c
+  method: enclosure-offset
+  predictors:
+  - raw
+  coefficients:
+  - 0.938659
+  intercept: 1.402256
+  residual_std: 0.457676
+  r2: 0.99257
+  n: 48
+  reference: reference-monitor
+  window_start: '2026-06-01T00:00:00Z'
+  window_end: '2026-06-02T23:00:00Z'

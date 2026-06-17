@@ -11,11 +11,12 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 
 The pipeline, the `swelter` CLI, the dashboard, and the merge gate are built and green: `make
 verify` passes (fmt-check, lint, typecheck, a11y, test) with the full pytest suite green. The worked example in
-`network.yaml` is an 18-node downtown network; 12 nodes have committed co-location records and
-publish calibrated values, 6 have none and publish raw, flagged provisional. The published
-correction registry in `data/demo/corrections.yaml` holds 36 corrections (12 nodes × 3 parameters:
-PM2.5 and PM10 by `epa-humidity`, temperature by `enclosure-offset`). `swelter demo` replays a
-recorded ~16-day week through the whole pipeline with no hardware.
+`network.yaml` is a downtown network whose node count is a knob (`SWELTER_DEMO_NODES`); two-thirds of
+the nodes have committed co-location records and publish calibrated values, the rest have none and
+publish raw, flagged provisional. The published correction registry in `data/demo/corrections.yaml`
+holds three corrections per co-located node (PM2.5 and PM10 by `epa-humidity`, temperature by
+`enclosure-offset`) — 300 corrections across the 100 co-located nodes at the default size. `swelter
+demo` replays a recorded week through the whole pipeline with no hardware.
 
 Read the phases below as the order the system was built in and the order a new contributor should
 understand it in, not as work still outstanding.

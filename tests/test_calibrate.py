@@ -88,4 +88,5 @@ def test_published_corrections_are_reproducible() -> None:
     fitted = calibrate.fit(calibrate.read_colocation(DEMO / "colocation.jsonl"))
     published = CorrectionRegistry.from_yaml(DEMO / "corrections.yaml")
     assert fitted.to_dict() == published.to_dict()
-    assert len(fitted) == 36  # 12 calibrated nodes × 3 parameters
+    assert len(fitted) == len(published)
+    assert len(fitted) > 0 and len(fitted) % 3 == 0  # 3 parameters per calibrated node

@@ -287,6 +287,7 @@ function td(text) {
 function renderMap(rows) {
   const map = $("#map");
   map.textContent = "";
+  map.classList.toggle("dense", rows.length > 50); // shrink markers on a dense network
   if (!rows.length) return;
   const lats = rows.map((r) => r.lat);
   const lons = rows.map((r) => r.lon);

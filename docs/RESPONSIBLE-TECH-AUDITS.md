@@ -40,10 +40,10 @@ worse decision than one who trusts nothing.
 core feature. Each node is co-located against a reference monitor and gets a per-node correction
 (humidity-aware PM in the US-EPA PurpleAir lineage; an enclosure-offset for temperature), with the
 fit, the window, and the residual error committed and reproducible. A value the model cannot stand
-behind is shown **provisional**, not dressed up as fact. In the demo network, 12 of 18 nodes are
-calibrated and 6 are not; the 6 are surfaced raw and provisional, never silently mixed into the
-trustworthy layer (`Observation.is_trustworthy` is calibrated *and* not QC-rejected). Every value
-carries its 1-sigma uncertainty.
+behind is shown **provisional**, not dressed up as fact. In the demo network, two-thirds of the nodes
+are calibrated and the rest are not; the uncalibrated nodes are surfaced raw and provisional, never
+silently mixed into the trustworthy layer (`Observation.is_trustworthy` is calibrated *and* not
+QC-rejected). Every value carries its 1-sigma uncertainty.
 
 **Non-goals (stated so they cannot creep in).**
 
@@ -90,9 +90,10 @@ That distinction is honest and necessary (audit A). But it creates a fairness ha
 calibrated nodes cluster in one part of the network and the raw nodes in another, the map splits
 into a confident half and a provisional half — and if the provisional half lands on the frontline
 blocks, the tool has quietly recreated the very inequity it was built to expose. In the demo
-network this is visible and deliberate as a test case: nodes 01–12 are calibrated, nodes 13–18 are
-raw, and a coverage-equity read has to confirm the raw set is not concentrated in the
-highest-exposure cells. **Calibration access must not become a proxy for neighborhood.**
+network this is visible and deliberate as a test case: the first two-thirds of the nodes are
+calibrated and the rest are raw, and a coverage-equity read has to confirm the raw set is not
+concentrated in the highest-exposure cells. **Calibration access must not become a proxy for
+neighborhood.**
 
 **Mitigations.**
 
