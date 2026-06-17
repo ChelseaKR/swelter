@@ -55,6 +55,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
                     self._observations(query)
                 elif path == "/api/surface.geojson":
                     self._surface()
+                elif path == "/api/surface.json":
+                    self._surface_records(query)
                 elif path == "/export.csv":
                     self._export(query, fmt="csv")
                 elif path == "/export.json":
@@ -84,6 +86,16 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
         def _surface(self) -> None:
             surface = aggregate.aggregate(ctx.store.all(), ctx.config)
             self._json(surface.snapshot_geojson())
+
+        def _surface_records(self, query: dict[str, list[str]]) -> None:
+            # Flat per-(cell, hour, parameter) records for the dashboard's time slider,
+            # trimmed to the most recent `hours` buckets to keep the payload small.
+            surface = aggregate.aggregate(ctx.store.all(), ctx.config)
+            hours = int(_one(query, "hours") or "48")
+            buckets = sorted({c.bucket for c in surface.cells})[-hours:]
+            keep = set(buckets)
+            records = [c.as_record() for c in surface.cells if c.bucket in keep]
+            self._json({"interval": surface.interval, "buckets": buckets, "cells": records})
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(

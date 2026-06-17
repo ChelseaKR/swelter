@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>swelter — neighborhood heat &amp; air-quality map</title>
+    <meta
+      name="description"
+      content="Block-by-block heat and air quality from a community sensor network. Calibrated, open, and readable as a map, a table, or a plain list."
+    />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="theme-color" content="#7b2d26" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main" data-i18n="skip">Skip to the data</a>
+
+    <header>
+      <div class="brand">
+        <h1>swelter</h1>
+        <p class="tagline" data-i18n="tagline">
+          Block-by-block heat and air quality, calibrated and open.
+        </p>
+      </div>
+      <div class="lang">
+        <label for="lang-select" data-i18n="language">Language</label>
+        <select id="lang-select" data-lang-switch>
+          <option value="en">English</option>
+          <option value="es">Español</option>
+        </select>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="controls" aria-labelledby="controls-heading">
+        <h2 id="controls-heading" class="visually-hidden" data-i18n="controls">Controls</h2>
+        <div class="control">
+          <label for="parameter-select" data-i18n="parameter">Measurement</label>
+          <select id="parameter-select">
+            <option value="pm25_ugm3" data-i18n="param-pm25">PM2.5 — fine particles</option>
+            <option value="temp_c" data-i18n="param-temp">Temperature</option>
+            <option value="heat_index_c" data-i18n="param-hi">Heat index</option>
+            <option value="pm10_ugm3" data-i18n="param-pm10">PM10 — coarse particles</option>
+          </select>
+        </div>
+        <div class="control time">
+          <label for="time-slider" data-i18n="time">Hour</label>
+          <input
+            id="time-slider"
+            type="range"
+            min="0"
+            max="0"
+            step="1"
+            value="0"
+            aria-describedby="time-readout"
+          />
+          <output id="time-readout" for="time-slider" aria-live="polite">—</output>
+        </div>
+      </section>
+
+      <div class="views" role="tablist" aria-label="View" id="viewtabs">
+        <button id="tab-map" role="tab" aria-selected="true" aria-controls="panel-map" tabindex="0" data-i18n="view-map">Map</button>
+        <button id="tab-table" role="tab" aria-selected="false" aria-controls="panel-table" tabindex="-1" data-i18n="view-table">Table</button>
+        <button id="tab-list" role="tab" aria-selected="false" aria-controls="panel-list" tabindex="-1" data-i18n="view-list">List</button>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <section id="panel-map" role="tabpanel" aria-labelledby="tab-map">
+        <p class="hint" data-i18n="map-hint">
+          A schematic map of sensor cells. Each marker states its reading in text; the same
+          data is in the Table and List tabs for any reader the map does not serve.
+        </p>
+        <div id="map" class="map" role="group" aria-label="Sensor cells"></div>
+      </section>
+
+      <section id="panel-table" role="tabpanel" aria-labelledby="tab-table" hidden>
+        <table id="data-table">
+          <caption data-i18n="table-caption">Latest readings by neighborhood cell</caption>
+          <thead>
+            <tr>
+              <th scope="col" aria-sort="none">
+                <button type="button" data-sort="cell_id" data-i18n="col-cell">Cell</button>
+              </th>
+              <th scope="col" aria-sort="none">
+                <button type="button" data-sort="mean" data-i18n="col-value">Value</button>
+              </th>
+              <th scope="col" data-i18n="col-aqi">Air quality</th>
+              <th scope="col" data-i18n="col-state">State</th>
+            </tr>
+          </thead>
+          <tbody id="data-table-body"></tbody>
+        </table>
+      </section>
+
+      <section id="panel-list" role="tabpanel" aria-labelledby="tab-list" hidden>
+        <ul id="data-list" class="readings"></ul>
+      </section>
+
+      <section class="legend" aria-labelledby="legend-heading">
+        <h2 id="legend-heading" data-i18n="legend-title">Air-quality categories (PM2.5)</h2>
+        <ul class="legend-items">
+          <li><span class="swatch aqi-good" aria-hidden="true"></span><span data-i18n="aqi-good">Good — 0 to 9</span></li>
+          <li><span class="swatch aqi-moderate" aria-hidden="true"></span><span data-i18n="aqi-moderate">Moderate — 9 to 35</span></li>
+          <li><span class="swatch aqi-usg" aria-hidden="true"></span><span data-i18n="aqi-usg">Unhealthy for sensitive groups — 35 to 55</span></li>
+          <li><span class="swatch aqi-unhealthy" aria-hidden="true"></span><span data-i18n="aqi-unhealthy">Unhealthy — 55 to 125</span></li>
+          <li><span class="swatch aqi-veryunhealthy" aria-hidden="true"></span><span data-i18n="aqi-vu">Very unhealthy — 125 to 225</span></li>
+          <li><span class="swatch aqi-hazardous" aria-hidden="true"></span><span data-i18n="aqi-haz">Hazardous — 225+</span></li>
+        </ul>
+        <p class="provisional-note" data-i18n="provisional">
+          Cells marked <strong>provisional</strong> have only uncalibrated readings and are
+          shown as not-yet-confirmed, never as fact. Category is conveyed by text and pattern,
+          not color alone.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <p data-i18n="footer-data">
+        Observations are public domain (CC0-1.0); see DATA-LICENSE. Download the full history
+        from <code>/export.csv</code> — no account, no key.
+      </p>
+      <p data-i18n="footer-note">
+        Each reading carries its calibration state and, when calibrated, a published
+        uncertainty. This page reports what the air and heat readings are; it does not tell
+        anyone they are safe. See docs/calibration.md.
+      </p>
+    </footer>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

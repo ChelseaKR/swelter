@@ -158,6 +158,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
         paths["aggregate"].write_text(
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
+        _write_web_sample(Path(args.web), surface)
         all_obs = list(store.all())
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
@@ -172,6 +173,17 @@ def cmd_demo(args: argparse.Namespace) -> int:
         finally:
             store.close()
     return 0
+
+
+def _write_web_sample(web_dir: Path, surface: aggregate.Surface, hours: int = 24) -> None:
+    """Refresh the dashboard's offline fallback (last ``hours`` buckets) if web/ exists."""
+    if not web_dir.is_dir():
+        return
+    buckets = sorted({c.bucket for c in surface.cells})[-hours:]
+    keep = set(buckets)
+    records = [c.as_record() for c in surface.cells if c.bucket in keep]
+    payload = {"interval": surface.interval, "buckets": buckets, "cells": records}
+    (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def cmd_rebuild(args: argparse.Namespace) -> int:
