@@ -83,6 +83,7 @@ input:focus-visible,
 summary:focus-visible,
 [role="tab"]:focus-visible,
 [role="tabpanel"]:focus-visible,
+.map:focus-visible,
 .cell:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
@@ -313,9 +314,14 @@ input[type="range"][aria-disabled="true"] {
   font-size: 0.9rem;
 }
 
-/* Schematic map: positioned markers in a relative box. Not tiles — an honest plot. */
+/* Interactive map: a clipping viewport holding a pannable/zoomable canvas. Not tiles — an honest
+   plot of positioned markers over an optional geographic outline. */
+.map-wrap {
+  position: relative;
+}
 .map {
   position: relative;
+  overflow: hidden;
   width: 100%;
   aspect-ratio: 3 / 2;
   min-height: 20rem;
@@ -325,6 +331,59 @@ input[type="range"][aria-disabled="true"] {
     var(--bg);
   border: 1px solid var(--border);
   border-radius: 0.4rem;
+  cursor: grab;
+  touch-action: none; /* we handle pan + pinch ourselves */
+  user-select: none;
+}
+.map.dragging {
+  cursor: grabbing;
+}
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
+/* Promote to a compositor layer only while actively dragging, not for the whole session. */
+.map.dragging .map-canvas {
+  will-change: transform;
+}
+.map-canvas.animate {
+  transition: transform 0.22s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-canvas.animate {
+    transition: none;
+  }
+}
+
+/* Zoom / reset controls, overlaid top-right of the map. */
+.map-controls {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.map-controls button {
+  min-width: 2.4rem;
+  min-height: 2.4rem;
+  padding: 0.2rem 0.5rem;
+  font: 700 1.1rem/1 system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.map-controls button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+#map-reset {
+  font-size: 0.8rem;
 }
 
 /* Optional geographic basemap (e.g. California counties): decorative land fill + border lines,
@@ -347,7 +406,9 @@ input[type="range"][aria-disabled="true"] {
 .cell {
   position: absolute;
   z-index: 1;
-  transform: translate(-50%, 50%);
+  /* Counter-scale by the map zoom (--k) so markers keep a constant on-screen size while the
+     geography under them grows; the dot still moves with its point. */
+  transform: translate(-50%, 50%) scale(calc(1 / var(--k, 1)));
   min-width: 3.6rem;
   min-height: 2.6rem;
   padding: 0.3rem 0.45rem;

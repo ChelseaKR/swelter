@@ -47,7 +47,22 @@ const state = {
   strings: {},
   historyLoaded: false,
   basemap: null, // optional geographic outline (e.g. California) drawn behind the markers
+  mapView: { zoom: 1, x: 0, y: 0 }, // pan (px) + zoom of the map canvas; 1 = fit, no pan
+  pendingFocus: null, // a cell to center on once the map becomes visible/measurable
+  projSig: "", // signature of the last map projection; a change (no basemap) refits the view
 };
+
+const MAX_ZOOM = 14;
+const reduceMotionMQL = window.matchMedia("(prefers-reduced-motion: reduce)");
+let mapW = 0; // cached #map pixel size — measured on show/resize, never read per frame
+let mapH = 0;
+let mapVisible = false; // is the Map tab currently shown?
+let mapDirty = true; // does the (lazy) map need a rebuild before it is shown?
+let lastK = 1; // last --k written; a pure pan must not rewrite it (would repaint every marker)
+let mapDidDrag = false; // a pan/pinch moved past threshold → suppress the trailing marker click
+let mapWasMultiTouch = false; // a 2-finger gesture happened → suppress a stray tap-select
+let mapRafPending = false; // a transform write is already queued for the next frame
+let mapRafAnimate = false;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -381,24 +396,46 @@ function buildBasemap(proj) {
   return svg;
 }
 
+// A marker's position within the canvas, as left/bottom fractions [0,1]. With a basemap we fill the
+// projected box edge-to-edge; without one we inset a little so data isn't flush to the border.
+function markerPos(row, proj) {
+  const span = (v, lo, hi) => (hi === lo ? 0.5 : (v - lo) / (hi - lo));
+  if (state.basemap) {
+    return { left: span(row.lon, proj.minLon, proj.maxLon), bottom: span(row.lat, proj.minLat, proj.maxLat) };
+  }
+  return {
+    left: 0.06 + 0.88 * span(row.lon, proj.minLon, proj.maxLon),
+    bottom: 0.08 + 0.84 * span(row.lat, proj.minLat, proj.maxLat),
+  };
+}
+
 function renderMap(rows) {
   const map = $("#map");
   map.textContent = "";
   map.classList.toggle("dense", rows.length > 50); // shrink markers on a dense network
   if (!rows.length) return;
   const proj = mapProjection(rows);
+  // Without a basemap the projection is fit to the current rows, so a changed extent (a search
+  // filter, a different parameter's coverage) would silently re-anchor a held zoom onto new ground.
+  // Refit when that signature changes so the view never drifts onto unrelated geography.
+  const sig = `${state.basemap ? "bm" : "data"}:${proj.minLon},${proj.minLat},${proj.maxLon},${proj.maxLat}`;
+  if (!state.basemap && sig !== state.projSig) state.mapView = { zoom: 1, x: 0, y: 0 };
+  state.projSig = sig;
   if (state.basemap) {
     // Match the box to the projection so the outline isn't stretched, and cap its height.
     map.style.aspectRatio = `${proj.W} / ${proj.H}`;
     map.style.maxWidth = `${((proj.W / proj.H) * 34).toFixed(2)}rem`;
     map.style.marginInline = "auto";
-    map.appendChild(buildBasemap(proj));
+    map.style.minHeight = "0"; // let the aspect-ratio drive height; don't stretch on narrow screens
   } else {
     map.style.removeProperty("aspect-ratio");
     map.style.removeProperty("max-width");
     map.style.removeProperty("margin-inline");
+    map.style.removeProperty("min-height");
   }
-  const span = (v, lo, hi) => (hi === lo ? 0.5 : (v - lo) / (hi - lo));
+  const canvas = document.createElement("div");
+  canvas.className = "map-canvas";
+  if (state.basemap) canvas.appendChild(buildBasemap(proj));
   for (const row of rows) {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -410,13 +447,9 @@ function renderMap(rows) {
     }
     if (row.provisional) btn.classList.add("provisional");
     if (row.cell_id === state.selected) btn.classList.add("selected");
-    if (state.basemap) {
-      btn.style.left = `${span(row.lon, proj.minLon, proj.maxLon) * 100}%`;
-      btn.style.bottom = `${span(row.lat, proj.minLat, proj.maxLat) * 100}%`;
-    } else {
-      btn.style.left = `${(0.06 + 0.88 * span(row.lon, proj.minLon, proj.maxLon)) * 100}%`;
-      btn.style.bottom = `${(0.08 + 0.84 * span(row.lat, proj.minLat, proj.maxLat)) * 100}%`;
-    }
+    const pos = markerPos(row, proj);
+    btn.style.left = `${pos.left * 100}%`;
+    btn.style.bottom = `${pos.bottom * 100}%`;
     btn.setAttribute("aria-label", describe(row));
     const value = document.createElement("span");
     value.textContent =
@@ -431,9 +464,264 @@ function renderMap(rows) {
           : localCategory(row.category)
         : unitLabel();
     btn.appendChild(cat);
-    btn.addEventListener("click", () => select(row.cell_id));
-    map.appendChild(btn);
+    btn.addEventListener("click", () => {
+      if (mapDidDrag || mapWasMultiTouch) return; // don't let a pan/pinch end as a marker select
+      select(row.cell_id, true); // a marker tap focuses the map on that cell
+    });
+    canvas.appendChild(btn);
   }
+  lastK = -1; // force the next applyMapTransform to (re)write --k onto the fresh canvas
+  map.appendChild(canvas);
+  applyMapTransform(false);
+  if (state.pendingFocus) {
+    const focus = state.pendingFocus;
+    state.pendingFocus = null;
+    zoomToCell(focus, false);
+  }
+}
+
+// -- map zoom & pan ----------------------------------------------------------
+
+function measureMap() {
+  const map = $("#map");
+  if (map && map.clientWidth) {
+    mapW = map.clientWidth;
+    mapH = map.clientHeight;
+  }
+}
+
+function clampMapView() {
+  const v = state.mapView;
+  v.zoom = Math.min(MAX_ZOOM, Math.max(1, v.zoom));
+  // Keep the scaled canvas covering the viewport so the map can never be lost off-screen. Uses the
+  // cached size (measured on show/resize) so this hot path never forces a synchronous reflow.
+  v.x = Math.min(0, Math.max(mapW * (1 - v.zoom), v.x));
+  v.y = Math.min(0, Math.max(mapH * (1 - v.zoom), v.y));
+}
+
+function applyMapTransform(animate) {
+  if (!mapVisible) return; // tab hidden / unmeasurable — the transform is applied when it is shown
+  const canvas = $("#map .map-canvas");
+  if (!canvas) return;
+  clampMapView();
+  const v = state.mapView;
+  canvas.classList.toggle("animate", !!animate && !reduceMotionMQL.matches);
+  if (v.zoom !== lastK) {
+    // Only touch --k on a real zoom change; a pan must not repaint all the counter-scaled markers.
+    canvas.style.setProperty("--k", v.zoom);
+    lastK = v.zoom;
+  }
+  canvas.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.zoom})`;
+}
+
+// Coalesce high-frequency input (wheel, drag, pinch) into one transform write per animation frame.
+function scheduleTransform(animate) {
+  if (animate) mapRafAnimate = true;
+  if (mapRafPending) return;
+  mapRafPending = true;
+  requestAnimationFrame(() => {
+    mapRafPending = false;
+    const a = mapRafAnimate;
+    mapRafAnimate = false;
+    applyMapTransform(a);
+  });
+}
+
+// Zoom by `factor` about a point (sx, sy) in #map-local pixels, keeping that point fixed. Mutates
+// state only; the caller writes the DOM (scheduled for gestures, immediate for buttons/keys).
+function zoomAt(sx, sy, factor) {
+  const v = state.mapView;
+  const k = Math.min(MAX_ZOOM, Math.max(1, v.zoom * factor));
+  if (k === v.zoom) return;
+  const r = k / v.zoom;
+  v.x = sx - (sx - v.x) * r;
+  v.y = sy - (sy - v.y) * r;
+  v.zoom = k;
+}
+
+function zoomByButton(factor) {
+  zoomAt(mapW / 2, mapH / 2, factor);
+  applyMapTransform(true);
+}
+
+function resetMapView() {
+  state.pendingFocus = null;
+  state.mapView = { zoom: 1, x: 0, y: 0 };
+  applyMapTransform(true);
+}
+
+// Center the map on a cell and zoom in. Defer if the map isn't measurable yet (hidden tab); if the
+// target was filtered out (e.g. a search changed), keep a coherent view instead of going blank.
+function zoomToCell(cellId, animate) {
+  if (!mapVisible || !mapW) {
+    state.pendingFocus = cellId;
+    return;
+  }
+  const rows = current();
+  const row = rows.find((r) => r.cell_id === cellId);
+  if (!row) {
+    applyMapTransform(animate);
+    return;
+  }
+  const pos = markerPos(row, mapProjection(rows));
+  const k = Math.min(MAX_ZOOM, Math.max(state.mapView.zoom, 6));
+  const px = pos.left * mapW; // marker x in canvas px at scale 1
+  const py = (1 - pos.bottom) * mapH; // bottom fraction → top-down px
+  state.mapView.zoom = k;
+  state.mapView.x = mapW / 2 - px * k;
+  state.mapView.y = mapH / 2 - py * k;
+  applyMapTransform(animate);
+}
+
+function wireMap() {
+  const map = $("#map");
+  if (!map) return;
+  const pointers = new Map(); // pointerId → {x, y, cx, cy} (map-local + client coords)
+  let drag = null; // {cx, cy, x, y} client coords + pan at drag start
+  let pinch = null; // {dist, mx, my} for two-pointer zoom
+  const local = (e) => {
+    const r = map.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top, cx: e.clientX, cy: e.clientY };
+  };
+  const startDrag = (p) => {
+    drag = { cx: p.cx, cy: p.cy, x: state.mapView.x, y: state.mapView.y };
+  };
+
+  map.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const p = local(e);
+      zoomAt(p.x, p.y, e.deltaY < 0 ? 1.15 : 1 / 1.15);
+      scheduleTransform(false);
+    },
+    { passive: false },
+  );
+
+  map.addEventListener("pointerdown", (e) => {
+    map.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, local(e));
+    mapDidDrag = false;
+    if (pointers.size === 1) {
+      mapWasMultiTouch = false;
+      startDrag(pointers.get(e.pointerId));
+      map.classList.add("dragging");
+    } else if (pointers.size === 2) {
+      mapWasMultiTouch = true;
+      const [a, b] = [...pointers.values()];
+      pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+      drag = null;
+    }
+  });
+
+  map.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, local(e));
+    if (pinch && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      // Pan by the midpoint movement, then zoom about the current midpoint — applied once.
+      state.mapView.x += mx - pinch.mx;
+      state.mapView.y += my - pinch.my;
+      if (pinch.dist > 0) zoomAt(mx, my, dist / pinch.dist);
+      pinch = { dist, mx, my };
+      mapDidDrag = true;
+      scheduleTransform(false);
+    } else if (drag) {
+      const dx = e.clientX - drag.cx;
+      const dy = e.clientY - drag.cy;
+      if (Math.abs(dx) + Math.abs(dy) > 4) mapDidDrag = true;
+      state.mapView.x = drag.x + dx;
+      state.mapView.y = drag.y + dy;
+      scheduleTransform(false);
+    }
+  });
+
+  const endPointer = (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (pointers.size === 1) {
+      // Lifting one finger of a pinch: keep panning with the finger that is still down.
+      startDrag([...pointers.values()][0]);
+    } else if (pointers.size === 0) {
+      drag = null;
+      map.classList.remove("dragging");
+    }
+  };
+  map.addEventListener("pointerup", endPointer);
+  map.addEventListener("pointercancel", endPointer);
+  map.addEventListener("lostpointercapture", endPointer); // OS seized the gesture — don't get stuck
+
+  map.addEventListener("dblclick", (e) => {
+    if (mapDidDrag) return; // a double-tap that concluded a pan shouldn't also zoom
+    e.preventDefault();
+    const p = local(e);
+    zoomAt(p.x, p.y, 1.8);
+    applyMapTransform(true);
+  });
+
+  map.addEventListener("keydown", (e) => {
+    const step = 40;
+    const v = state.mapView;
+    if (e.key === "ArrowLeft") v.x += step;
+    else if (e.key === "ArrowRight") v.x -= step;
+    else if (e.key === "ArrowUp") v.y += step;
+    else if (e.key === "ArrowDown") v.y -= step;
+    else if (e.key === "+" || e.key === "=") return void zoomKey(1.4, e);
+    else if (e.key === "-" || e.key === "_") return void zoomKey(1 / 1.4, e);
+    else if (e.key === "0") return void resetKey(e);
+    else return;
+    state.pendingFocus = null;
+    scheduleTransform(false);
+    e.preventDefault();
+  });
+
+  // Keep a keyboard-focused marker inside the clipped viewport — overflow:hidden cannot scroll it in.
+  map.addEventListener("focusin", (e) => {
+    const cell = e.target.closest && e.target.closest(".cell");
+    if (!cell) return;
+    const mr = map.getBoundingClientRect();
+    const cr = cell.getBoundingClientRect();
+    const m = 24;
+    let dx = 0;
+    let dy = 0;
+    if (cr.left < mr.left + m) dx = mr.left + m - cr.left;
+    else if (cr.right > mr.right - m) dx = mr.right - m - cr.right;
+    if (cr.top < mr.top + m) dy = mr.top + m - cr.top;
+    else if (cr.bottom > mr.bottom - m) dy = mr.bottom - m - cr.bottom;
+    if (dx || dy) {
+      state.mapView.x += dx;
+      state.mapView.y += dy;
+      applyMapTransform(true);
+    }
+  });
+
+  $("#map-zoom-in").addEventListener("click", () => zoomByButton(1.4));
+  $("#map-zoom-out").addEventListener("click", () => zoomByButton(1 / 1.4));
+  $("#map-reset").addEventListener("click", resetMapView);
+
+  if (window.ResizeObserver) {
+    // Re-measure + reapply when the map box changes size (incl. becoming visible, or a viewport
+    // resize) so clamping and centering use the true dimensions without per-frame reads.
+    new ResizeObserver(() => {
+      if (!mapVisible) return;
+      measureMap();
+      applyMapTransform(false);
+    }).observe(map);
+  }
+}
+
+function zoomKey(factor, e) {
+  state.pendingFocus = null;
+  zoomByButton(factor);
+  e.preventDefault();
+}
+
+function resetKey(e) {
+  resetMapView();
+  e.preventDefault();
 }
 
 function renderDetail() {
@@ -465,13 +753,19 @@ function render() {
   renderHeadline();
   renderList(rows);
   renderTable(rows);
-  renderMap(rows);
+  // The map (337 markers + a 2.6k-point SVG path) is the heaviest view; only rebuild it when it is
+  // actually visible, otherwise mark it dirty and build lazily when the user opens the Map tab.
+  if (mapVisible) renderMap(rows);
+  else mapDirty = true;
   renderDetail();
 }
 
-function select(cellId) {
+// focusMap=true centers the map on the pick (a map marker tap, geolocation, or a search hit). A
+// plain List/Table row click leaves the map where it is so browsing never yanks a hidden map around.
+function select(cellId, focusMap = false) {
   state.selected = cellId;
   render();
+  if (focusMap) zoomToCell(cellId, true);
   const sel = document.querySelector(`[role="tabpanel"]:not([hidden]) [data-cell="${cellId}"]`);
   if (sel) sel.scrollIntoView({ block: "nearest" });
 }
@@ -486,6 +780,24 @@ function setView(tabId) {
     const panel = document.getElementById(tab.getAttribute("aria-controls"));
     panel.hidden = !selected;
     if (selected) panel.focus();
+  }
+  mapVisible = tabId === "tab-map";
+  if (mapVisible) {
+    // The map is now measurable: build it if it went stale while hidden, then apply the current
+    // view (or honor a focus chosen while it was hidden).
+    requestAnimationFrame(() => {
+      measureMap();
+      if (mapDirty) {
+        renderMap(current()); // builds the canvas, applies the transform, resolves pendingFocus
+        mapDirty = false;
+      } else if (state.pendingFocus) {
+        const focus = state.pendingFocus;
+        state.pendingFocus = null;
+        zoomToCell(focus, false);
+      } else {
+        applyMapTransform(false);
+      }
+    });
   }
 }
 
@@ -552,7 +864,7 @@ function locate() {
       if (best) {
         state.search = "";
         $("#place-search").value = "";
-        select(best.cell_id);
+        select(best.cell_id, true); // geolocation → center the map on the nearest block
         $("#status").textContent = t("locate-found").replace("{place}", placeName(best));
       }
     },
@@ -623,6 +935,7 @@ async function init() {
   wireSort();
   wireControls();
   wireSourceSwitch();
+  wireMap();
   // Phones/touch default to the List view; the map is the hardest view to operate (F17).
   setView(smallScreen() ? "tab-list" : "tab-list");
 

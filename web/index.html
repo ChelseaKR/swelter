@@ -120,10 +120,25 @@
 
       <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" tabindex="-1" hidden>
         <p class="hint" data-i18n="map-hint">
-          A schematic map of sensor blocks. Each marker states its reading in text; the same data
-          is in the List and Table tabs for any reader the map does not serve.
+          An interactive map of sensor blocks — drag to pan, scroll or pinch to zoom, or use the
+          buttons and arrow keys. Each marker states its reading in text; the same data is in the
+          List and Table tabs for any reader the map does not serve.
         </p>
-        <div id="map" class="map" role="group" aria-label="Sensor blocks"></div>
+        <div class="map-wrap">
+          <div
+            id="map"
+            class="map"
+            role="group"
+            data-i18n-attr="aria-label:map-aria"
+            aria-label="Sensor blocks. Drag to pan, scroll to zoom, arrow keys to move."
+            tabindex="0"
+          ></div>
+          <div class="map-controls" role="group" data-i18n-attr="aria-label:map-zoom-group" aria-label="Map zoom">
+            <button id="map-zoom-in" type="button" data-i18n-attr="aria-label:map-zoom-in" aria-label="Zoom in">+</button>
+            <button id="map-zoom-out" type="button" data-i18n-attr="aria-label:map-zoom-out" aria-label="Zoom out">−</button>
+            <button id="map-reset" type="button" data-i18n-attr="aria-label:map-reset-label" data-i18n="map-reset" aria-label="Reset map to fit">Reset</button>
+          </div>
+        </div>
       </section>
 
       <section id="detail" class="detail" aria-labelledby="detail-heading" hidden>
