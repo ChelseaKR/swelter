@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>swelter — neighborhood heat &amp; air-quality map</title>
+    <meta
+      name="description"
+      content="Block-by-block heat and air quality from a community sensor network. Calibrated, open, and readable as a map, a table, or a plain list."
+    />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="theme-color" content="#7b2d26" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main" data-i18n="skip">Skip to the data</a>
+
+    <header>
+      <div class="brand">
+        <h1>swelter</h1>
+        <p class="tagline" data-i18n="tagline">
+          Block-by-block heat and air quality, calibrated and open.
+        </p>
+      </div>
+      <div class="header-controls">
+        <div class="units" role="group" aria-labelledby="units-label">
+          <span id="units-label" data-i18n="units">Units</span>
+          <button id="unit-f" type="button" aria-pressed="true">°F</button>
+          <button id="unit-c" type="button" aria-pressed="false">°C</button>
+        </div>
+        <div class="lang">
+          <label for="lang-select" data-i18n="language">Language</label>
+          <select id="lang-select" data-lang-switch>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <main id="main">
+      <p id="headline" class="headline" role="status" aria-live="polite"></p>
+
+      <section class="controls" aria-labelledby="controls-heading">
+        <h2 id="controls-heading" class="visually-hidden" data-i18n="controls">Controls</h2>
+        <div class="control find">
+          <label for="place-search" data-i18n="search-label">Find your block</label>
+          <div class="find-row">
+            <input
+              id="place-search"
+              type="search"
+              autocomplete="off"
+              data-i18n-attr="placeholder:search-placeholder"
+              placeholder="Search a block name…"
+            />
+            <button id="locate" type="button" data-i18n="locate">Use my location</button>
+          </div>
+        </div>
+        <div class="control">
+          <label for="parameter-select" data-i18n="parameter">Measurement</label>
+          <select id="parameter-select">
+            <option value="pm25_ugm3" data-i18n="param-pm25">PM2.5 — fine particles</option>
+            <option value="temp_c" data-i18n="param-temp">Temperature</option>
+            <option value="heat_index_c" data-i18n="param-hi">Heat index</option>
+            <option value="pm10_ugm3" data-i18n="param-pm10">PM10 — coarse particles</option>
+          </select>
+        </div>
+        <div class="control time">
+          <label for="time-slider" data-i18n="time">Hour</label>
+          <input
+            id="time-slider"
+            type="range"
+            min="0"
+            max="0"
+            step="1"
+            value="0"
+            aria-describedby="time-readout"
+          />
+          <output id="time-readout" for="time-slider">—</output>
+        </div>
+      </section>
+
+      <div class="views" role="tablist" aria-label="View" id="viewtabs">
+        <button id="tab-list" role="tab" aria-selected="true" aria-controls="panel-list" tabindex="0" data-i18n="view-list">List</button>
+        <button id="tab-table" role="tab" aria-selected="false" aria-controls="panel-table" tabindex="-1" data-i18n="view-table">Table</button>
+        <button id="tab-map" role="tab" aria-selected="false" aria-controls="panel-map" tabindex="-1" data-i18n="view-map">Map</button>
+      </div>
+
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <section id="panel-list" role="tabpanel" aria-labelledby="tab-list" tabindex="-1">
+        <ul id="data-list" class="readings"></ul>
+      </section>
+
+      <section id="panel-table" role="tabpanel" aria-labelledby="tab-table" tabindex="-1" hidden>
+        <table id="data-table">
+          <caption data-i18n="table-caption">Latest readings by neighborhood block</caption>
+          <thead>
+            <tr>
+              <th scope="col" aria-sort="none">
+                <button type="button" data-sort="label" data-i18n="col-place">Block</button>
+              </th>
+              <th scope="col" aria-sort="descending">
+                <button type="button" data-sort="value" data-i18n="col-value">Reading</button>
+              </th>
+              <th scope="col" data-i18n="col-aqi">Air quality</th>
+              <th scope="col" data-i18n="col-state">Status</th>
+            </tr>
+          </thead>
+          <tbody id="data-table-body"></tbody>
+        </table>
+      </section>
+
+      <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" tabindex="-1" hidden>
+        <p class="hint" data-i18n="map-hint">
+          A schematic map of sensor blocks. Each marker states its reading in text; the same data
+          is in the List and Table tabs for any reader the map does not serve.
+        </p>
+        <div id="map" class="map" role="group" aria-label="Sensor blocks"></div>
+      </section>
+
+      <section id="detail" class="detail" aria-labelledby="detail-heading" hidden>
+        <h2 id="detail-heading" data-i18n="detail-title">Selected block</h2>
+        <p id="detail-body" aria-live="polite"></p>
+        <p id="detail-guidance" class="guidance"></p>
+        <p class="guidance-source" data-i18n="guide-source">Health context: US EPA AirNow.</p>
+      </section>
+
+      <section class="legend" aria-labelledby="legend-heading">
+        <h2 id="legend-heading" data-i18n="legend-title">Air-quality categories (PM2.5)</h2>
+        <details class="explain">
+          <summary data-i18n="what-is-aqi">What is AQI?</summary>
+          <p data-i18n="what-is-aqi-body">
+            The Air Quality Index (AQI) turns a pollution concentration into a 0–500 scale and a
+            named category. Higher is worse: 0–50 is Good, 100+ starts to affect sensitive people.
+          </p>
+        </details>
+        <ul class="legend-items">
+          <li><span class="swatch aqi-good" aria-hidden="true"></span><span data-i18n="aqi-good">Good — AQI 0 to 50</span></li>
+          <li><span class="swatch aqi-moderate" aria-hidden="true"></span><span data-i18n="aqi-moderate">Moderate — AQI 51 to 100</span></li>
+          <li><span class="swatch aqi-usg" aria-hidden="true"></span><span data-i18n="aqi-usg">Unhealthy for sensitive groups — AQI 101 to 150</span></li>
+          <li><span class="swatch aqi-unhealthy" aria-hidden="true"></span><span data-i18n="aqi-unhealthy">Unhealthy — AQI 151 to 200</span></li>
+          <li><span class="swatch aqi-veryunhealthy" aria-hidden="true"></span><span data-i18n="aqi-vu">Very unhealthy — AQI 201 to 300</span></li>
+          <li><span class="swatch aqi-hazardous" aria-hidden="true"></span><span data-i18n="aqi-haz">Hazardous — AQI 301+</span></li>
+        </ul>
+        <p class="legend-note" data-i18n="aqi-window">
+          The AQI shown is computed from each block's hourly mean, not a 24-hour average.
+        </p>
+        <p class="provisional-note" data-i18n="provisional">
+          <strong>Provisional</strong> blocks have only early, uncalibrated readings — still being
+          double-checked, and never shown as a confirmed category. Status is conveyed by text and
+          pattern, not color alone.
+        </p>
+      </section>
+
+      <details class="explain trust" id="how-to-read">
+        <summary data-i18n="how-to-read">How to read this — and what it does not say</summary>
+        <p data-i18n="trust-summary">
+          Confirmed readings are calibrated against a reference monitor and carry a ± uncertainty.
+          Provisional readings are early and uncalibrated. This page reports what the air and heat
+          readings are; it does not tell anyone they are safe. Use it alongside how you feel and
+          official advisories.
+        </p>
+      </details>
+    </main>
+
+    <footer>
+      <p data-i18n="footer-data">
+        Observations are public domain (CC0-1.0). Download the full history — no account, no key.
+      </p>
+      <p class="footer-links">
+        <a href="DATA-LICENSE" data-i18n="footer-license-link">Read the data license (CC0)</a>
+        ·
+        <a href="export.csv" data-i18n="footer-download">Download CSV</a>
+      </p>
+      <p data-i18n="footer-note">
+        Each reading carries its calibration state and, when calibrated, a published uncertainty.
+      </p>
+    </footer>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

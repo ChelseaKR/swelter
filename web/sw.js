@@ -1,0 +1,70 @@
+// Minimal service worker: cache the app shell so the dashboard installs as a PWA and opens
+// offline at a tenant meeting or a council hearing where there is no signal. The cached
+// sample surface means it renders something useful even with no network and no server.
+const CACHE = "swelter-shell-v2";
+const SHELL = [
+  ".",
+  "index.html",
+  "styles.css",
+  "app.js",
+  "manifest.webmanifest",
+  "icon.svg",
+  "i18n/en.json",
+  "i18n/es.json",
+  "sample-surface.json",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
+    ),
+  );
+  self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+  const url = event.request.url;
+
+  // Live data: network-first, fall back to cache, then to a DEFINED offline response. Returning
+  // undefined to respondWith would surface a raw browser error page.
+  if (url.includes("/api/") || url.includes("/export")) {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches.match(event.request).then(
+          (cached) =>
+            cached ||
+            new Response("Offline — this endpoint needs a network connection.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain" },
+            }),
+        ),
+      ),
+    );
+    return;
+  }
+
+  // App shell: stale-while-revalidate. Serve the cached copy fast, but refresh it in the
+  // background so a deploy's changes reach returning visitors on their next load instead of
+  // being pinned to the old assets forever.
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      const fetched = fetch(event.request)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(event.request, copy));
+          }
+          return res;
+        })
+        .catch(() => cached);
+      return cached || fetched;
+    }),
+  );
+});

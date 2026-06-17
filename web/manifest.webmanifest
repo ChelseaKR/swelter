@@ -1,0 +1,20 @@
+{
+  "name": "swelter — community heat & air-quality map",
+  "short_name": "swelter",
+  "description": "Block-by-block heat and air quality from a community sensor network: calibrated, open, and usable on a phone.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fbf7f2",
+  "theme_color": "#7b2d26",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
