@@ -1,0 +1,42 @@
+CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
+====================================================
+
+The environmental observations published by swelter — the contents of the
+SQLite/Parquet store, the CSV and JSON exports, the OGC SensorThings responses,
+and the aggregated heat-island / AQI surfaces — are dedicated to the public
+domain under the Creative Commons CC0 1.0 Universal Public Domain Dedication.
+
+To the extent possible under law, Chelsea Kelly-Reif and the contributing
+hosting collectives have waived all copyright and related or neighboring rights
+to these observations. You can copy, modify, distribute, and use the data,
+including for commercial purposes, all without asking permission.
+
+The full legal text of the dedication is available at:
+
+    https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+A human-readable summary (not a substitute for the legal text) is at:
+
+    https://creativecommons.org/publicdomain/zero/1.0/
+
+Scope and intent
+----------------
+* This dedication covers the OBSERVATION DATA only. The swelter source code is
+  licensed separately under the Apache License, Version 2.0 (see LICENSE).
+* The data is published open by default and exported through open standards so
+  that anyone — a resident, a reporter, a researcher — can audit, reuse, or fork
+  it, and so a community can leave with its data and stand the network up
+  elsewhere with no lock-in.
+* The observations are aggregate environmental measurements only. They contain
+  no personal information and no field capable of locating a person. Node
+  locations are published snapped to a coarse grid unless a host opts in to a
+  precise location (see docs/governance.md).
+* Attribution is not legally required, but is appreciated: "Environmental data
+  from the swelter community sensing network."
+
+No warranty
+-----------
+The data is provided "as is", without warranty of any kind. Low-cost sensor
+readings carry uncertainty; each value travels with its calibration state and,
+when calibrated, a published uncertainty. Consult docs/calibration.md before
+relying on a value, and treat readings flagged provisional accordingly.
