@@ -1,0 +1,111 @@
+# CI mirrors `make verify` (fmt-check + lint + typecheck + a11y + test) so a
+# green local gate is a green push. Commands here are the exact ones in the
+# Makefile; nothing is added that does not also run locally.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The merge gate. Each step is one line from the Makefile's `verify` target.
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      # `--locked` fails if uv.lock is stale, so CI builds the same environment
+      # that produced the local green run.
+      - name: Install (locked)
+        run: uv sync --locked
+
+      - name: Lint (ruff)
+        run: uv run ruff check src tests scripts
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check src tests scripts
+
+      - name: Type-check (mypy, strict)
+        run: uv run mypy
+
+      - name: Accessibility gate (structural WCAG 2.2 AA subset)
+        run: uv run python scripts/a11y_check.py
+
+      - name: Tests
+        run: uv run pytest -q
+
+  # Supply-chain checks. Separate job so a dependency or secret finding is
+  # reported on its own, not tangled with the functional gate.
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      # Audit the locked dependency set against known advisories. Run from the
+      # project's resolved requirements so the audited tree matches what ships.
+      - name: Sync (locked)
+        run: uv sync --locked
+
+      # Audit the project's runtime environment (PyYAML + the package), not an
+      # isolated tool env. `--no-dev` keeps dev-tool noise out of the gate.
+      - name: pip-audit (known-vulnerability scan)
+        run: uv run --no-dev --with pip-audit pip-audit
+
+      # Secret scan. A repository scan needs a (free) GitLeaks license for the
+      # Action; continue-on-error keeps a missing license from blocking the
+      # gate while still surfacing any findings in the log.
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Node firmware is checked in alongside the Python code; syntax-compile the
+  # MicroPython sources so a broken node build is caught in CI.
+  firmware:
+    name: firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Byte-compile firmware sources
+        run: python -m compileall firmware/src
+
+  # Advisory only: a real-browser axe pass over the built dashboard. The
+  # structural gate in `checks` is the blocking one; this adds depth without
+  # gating the merge, so it is allowed to fail.
+  a11y-advisory:
+    name: a11y-advisory
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: pa11y (axe runner, WCAG2AA)
+        # Chromium has no usable sandbox on the GitHub runner, so launch with --no-sandbox.
+        run: |
+          echo '{"chromeLaunchConfig":{"args":["--no-sandbox","--disable-setuid-sandbox"]}}' > .pa11y.json
+          npx --yes pa11y@8 --config .pa11y.json --standard WCAG2AA --runner axe ./web/index.html

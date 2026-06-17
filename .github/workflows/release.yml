@@ -1,0 +1,74 @@
+# Release pipeline. Triggered by pushing a version tag (e.g. v0.1.0). Builds
+# the sdist + wheel with uv, generates SLSA build provenance, signs the
+# artifacts with Sigstore cosign (keyless / OIDC), and attaches everything to
+# a GitHub Release. Nothing here runs on an ordinary push.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  # id-token lets the keyless cosign/SLSA flow mint an OIDC token; contents
+  # lets the job create the Release and upload assets.
+  id-token: write
+  contents: write
+
+jobs:
+  build:
+    name: build + sign
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      # Reproducible build from the locked environment, into ./dist.
+      - name: Build sdist + wheel
+        run: |
+          uv sync --locked
+          uv build
+
+      # Hashes feed both the GitHub attestation and the cosign signatures, and
+      # give downstream consumers a checksum to verify against.
+      - name: Compute artifact digests
+        id: hash
+        run: |
+          cd dist
+          sha256sum ./* | tee SHA256SUMS
+
+      # SLSA-style build provenance, kept native to GitHub so no extra trust
+      # root is introduced. Produces a signed attestation bound to ./dist.
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: "dist/*"
+
+      # Keyless Sigstore signing: cosign requests a short-lived OIDC token (the
+      # id-token permission above), signs each artifact, and records it in the
+      # public transparency log. No long-lived private key is stored.
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifacts (keyless)
+        run: |
+          for artifact in dist/*.tar.gz dist/*.whl; do
+            cosign sign-blob --yes \
+              --output-signature "${artifact}.sig" \
+              --output-certificate "${artifact}.pem" \
+              "${artifact}"
+          done
+
+      # Attach the wheel, sdist, checksums, and the cosign signature +
+      # certificate for each to the Release for the pushed tag.
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+            dist/SHA256SUMS
+            dist/*.sig
+            dist/*.pem

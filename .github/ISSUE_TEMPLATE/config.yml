@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project overview and design
+    url: https://github.com/ChelseaKR/swelter/blob/main/README.md
+    about: The README is the canonical overview. Read it before filing.
+  - name: Contributing guide
+    url: https://github.com/ChelseaKR/swelter/blob/main/CONTRIBUTING.md
+    about: How to set up uv, run "make verify", and the hard rules a PR must hold.
+  - name: Security report
+    url: https://github.com/ChelseaKR/swelter/security/advisories/new
+    about: Report a vulnerability privately rather than opening a public issue.
