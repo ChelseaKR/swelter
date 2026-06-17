@@ -1,0 +1,145 @@
+# swelter roadmap
+
+The phased implementation spec. It mirrors the build plan in the repo `README.md` (the canonical
+overview): pipeline to first reading, then calibration, then the dashboard and open API, then
+generalize so any community registers its own nodes through `network.yaml`. The README is the
+source of truth; where this file and the README disagree, the README wins.
+
+Author: Chelsea Kelly-Reif. Year: 2026.
+
+## Current state
+
+The pipeline, the `swelter` CLI, the dashboard, and the merge gate are built and green: `make
+verify` passes (fmt-check, lint, typecheck, a11y, test) with the full pytest suite green. The worked example in
+`network.yaml` is an 18-node downtown network; 12 nodes have committed co-location records and
+publish calibrated values, 6 have none and publish raw, flagged provisional. The published
+correction registry in `data/demo/corrections.yaml` holds 36 corrections (12 nodes × 3 parameters:
+PM2.5 and PM10 by `epa-humidity`, temperature by `enclosure-offset`). `swelter demo` replays a
+recorded ~16-day week through the whole pipeline with no hardware.
+
+Read the phases below as the order the system was built in and the order a new contributor should
+understand it in, not as work still outstanding.
+
+## Phase 1 — pipeline to first reading
+
+Turn a recorded raw stream into a queryable, QC-flagged dataset locally, with no hardware.
+
+Files it touches:
+
+- `src/swelter/models.py` — the `Observation` frozen dataclass, the `PARAMETERS` registry
+  (`temp_c`, `humidity_pct`, `pm25_ugm3`, `pm10_ugm3`, `no2_ppb`, `heat_index_c`), QC verdicts
+  (`ok`, `range`, `spike`, `flatline`, `missing`), `content_hash()`, `pm25_aqi()`,
+  `heat_index_c()`.
+- `src/swelter/config.py` — `NetworkConfig`, `NodeConfig`, `snap_to_grid()`, `load_config()`.
+- `src/swelter/store.py` — the `Store` protocol and `SqliteStore`; the store is a copyable folder
+  (`observations.db`, `quarantine.jsonl`, `aggregate.geojson`, `corrections.yaml`); `write()` is
+  `INSERT OR IGNORE`.
+- `src/swelter/ingest.py` — `explode()` a wide payload into raw `Observation`s; quarantine
+  malformed payloads; ignore unknown fields; run QC; return an `IngestResult`.
+- `src/swelter/qc.py` — range/spike/flatline checks, `detect_gaps()`, `node_health()`.
+- `src/swelter/export.py` — `to_csv()`, `to_json()`, `summarize()`, `filter_observations()`.
+- `src/swelter/cli.py` — `ingest`, `qc`, `export` subcommands.
+- `scripts/gen_demo_data.py`, `data/demo/observations.jsonl`.
+- `tests/` — ingest, store, QC, models, export.
+
+Definition of done: one command turns a recorded raw stream into a queryable, QC-flagged dataset
+locally. Ingestion is idempotent (re-running a file adds nothing); malformed payloads are
+quarantined, not ingested; QC labels every reading and deletes nothing; `swelter export` emits flat
+CSV/JSON carrying each value's calibration state and QC verdict.
+
+## Phase 2 — calibration
+
+Fit per-node corrections from co-location windows, apply them to the live stream with published
+uncertainty, and keep calibrated and raw always distinguishable.
+
+Files it touches:
+
+- `src/swelter/calibrate.py` — pure-Python OLS (no numpy); `TrainingPair`, `Correction`,
+  `CorrectionRegistry` (YAML), `fit()` / `fit_one()` / `apply()` / `read_colocation()`. PM is
+  humidity-aware (`corrected = a*raw + b*humidity + c`, US-EPA PurpleAir lineage); temperature uses
+  an enclosure offset (`corrected = a*raw + c`). Each calibrated value carries `residual_std` as its
+  1-sigma uncertainty. Version id = `"{parameter}.{method}.{node_id}"`; methods `epa-humidity`,
+  `enclosure-offset`, `linear`. Coefficients are rounded to 6 dp.
+- `src/swelter/models.py` — `Observation.calibrated()` and the `is_calibrated` /
+  `is_trustworthy` invariants.
+- `src/swelter/store.py` — `drop_calibrated()` drops the derived (non-raw) records, leaving the immutable raw log to rebuild from (the rebuild itself is `swelter rebuild` / `calibrate.apply`).
+- `src/swelter/config.py` — `ReferenceMonitor`, `CalibrationWindow`.
+- `src/swelter/cli.py` — `calibrate`, `rebuild` subcommands.
+- `data/demo/colocation.jsonl`, `data/demo/corrections.yaml`.
+- `tests/` — calibration fit, apply, registry round-trip, the byte-for-byte reproducibility check.
+
+Definition of done: calibrated-vs-raw labeling is enforced through the pipeline — a node with no
+correction stays raw and is shown provisional. Re-running `swelter calibrate` against the committed
+co-location data reproduces `data/demo/corrections.yaml` byte-for-byte (6-dp coefficients make this
+hold). Every calibrated observation names its correction version and carries a 1-sigma uncertainty.
+
+## Phase 3 — dashboard and open API
+
+Build the map, table, and list views; the read-only OGC SensorThings subset; and the heat-island
+and AQI surfaces. Meet WCAG 2.2 AA as a merge gate.
+
+Files it touches:
+
+- `src/swelter/aggregate.py` — snap to published grid cells, hourly rollups, prefer calibrated +
+  QC-clean values (else mark the cell `provisional`); PM2.5 cells carry EPA AQI and category;
+  `Surface.snapshot_geojson()` and `to_records()`.
+- `src/swelter/api.py` — the SensorThings 1.1 subset (Things = nodes, ObservedProperties =
+  parameters, Observations = readings); `service_document` advertises `readOnly: true`.
+- `src/swelter/server.py` — stdlib `http.server`, single-threaded, GET-only (writes → 405); routes
+  `/health`, `/v1.1`, `/v1.1/Things`, `/v1.1/ObservedProperties`, `/v1.1/Observations`,
+  `/api/surface.geojson`, `/api/surface.json`, `/export.csv`, `/export.json`, and static `web/`.
+- `src/swelter/cli.py` — `aggregate`, `serve`, `demo` subcommands; `swelter demo --serve`
+  regenerates `web/sample-surface.json`.
+- `web/` — framework-free WCAG 2.2 AA dashboard: map, sortable table, and plain list as three equal
+  views of one surface; AQI severity by text and pattern, never color alone; keyboard-operable time
+  slider that announces via `aria-live`; en + es bundles; PWA (`manifest.webmanifest`, `sw.js`).
+- `scripts/a11y_check.py` — the 12-check structural WCAG gate run by `make a11y` / `make verify`.
+- `tests/` — aggregate, api, server, and the a11y gate.
+
+Definition of done: WCAG 2.2 AA is met and gated (`make a11y` green, 12 checks); the map is never
+the only way in (table and list carry the same surface with identical filtering); the API is
+read-only and serves the SensorThings subset plus CSV/JSON; Spanish has parity with English; `api.md`
+documents the surface and deep-links per observed property.
+
+## Phase 4 — generalize
+
+Make swelter point at any community's network without code changes.
+
+Files it touches:
+
+- `network.yaml` — the worked example a community copies and edits: `name`, `grid_resolution_m`,
+  `languages`, `nodes[]`, `reference_monitors[]`, `calibration_windows[]`.
+- `src/swelter/config.py` — `load_config()` and `public_location()` so a host's exact coordinates
+  snap to a ~150 m grid unless the node opts into `precise`.
+- `docs/` — an "add your neighborhood in an afternoon" guide
+  ([`ADD-YOUR-NEIGHBORHOOD.md`](ADD-YOUR-NEIGHBORHOOD.md), with a resident-facing
+  [`ABOUT-THE-NETWORK.md`](ABOUT-THE-NETWORK.md) note) and the finished hardware build doc
+  (firmware sampling, store-and-forward, BOM, enclosure).
+- `tests/` — config loading and the snap-to-grid privacy behavior across `coarse` / `precise`.
+
+Definition of done: a community stands up its own instance by editing a copy of `network.yaml` —
+registering its nodes, its reference monitors, and its co-location windows — and runs the same
+pipeline, gate, dashboard, and API. Nothing about the worked downtown example is hard-coded into the
+modules.
+
+## Metrics ledger
+
+These are the numbers the project holds itself to. External-fact rows (the EPA breakpoint and AQI
+methodology the accuracy and AQI metrics depend on) carry a recheck cadence below the table.
+
+| Metric | Target | Measured by | Gate |
+| --- | --- | --- | --- |
+| Accuracy vs reference (PM2.5, PM10) | Calibrated residual_std published per node; corrected values track the co-located reference better than raw | `calibrate.fit()` residual_std + R² on the held co-location window; `tests/` assert corrected error < raw error | `make verify` (test) — fails if a fit regresses below the recorded bound |
+| Accuracy vs reference (temp) | Enclosure-offset correction reduces bias against the reference monitor | `calibrate` residual_std for `enclosure-offset` corrections | `make verify` (test) |
+| Calibration reproducibility | Re-running `swelter calibrate` on committed co-location data reproduces `corrections.yaml` byte-for-byte (coefficients 6 dp) | Registry round-trip test diffs the rebuilt YAML against the committed file | `make verify` (test) — merge-blocking |
+| Accessibility | WCAG 2.2 AA; map has an equivalent sortable table and plain list; AQI never color alone; time slider keyboard-operable | `scripts/a11y_check.py` (12 structural checks) | `make a11y` / `make verify` (a11y) — merge-blocking |
+| Ingestion idempotency | Re-ingesting any payload file adds zero rows | `store.write()` `INSERT OR IGNORE` on key `(node_id, timestamp, parameter, calibration)`; ingest tests re-run a file and assert the count is unchanged | `make verify` (test) |
+| Quarantine integrity | Malformed payloads are quarantined, never ingested; unknown fields ignored | `ingest.explode()` + `quarantine.jsonl`; ingest tests on malformed inputs | `make verify` (test) |
+| Privacy (no PII, coarse location) | No schema field can hold a person; published coords snap to ~150 m unless a node opts into `precise` | Schema review (a PR adding a person-bearing field fails review); `config.public_location()` snap tests | Review + `make verify` (test) |
+| Type safety | `mypy --strict` passes | `mypy --strict` over `src` and `tests` | `make verify` (typecheck) — merge-blocking |
+| Lint / format | ruff clean (line-length 100; E, F, I, UP, B, SIM) | `ruff check` and `ruff format --check` | `make verify` (fmt-check, lint) — merge-blocking |
+| Cost | Single-digit dollars a month; scale-to-zero, no always-on component, no paid dependency (runtime dep: PyYAML only) | Static dashboard + GET-only stdlib server; budget alarm on the optional cloud copy | Architecture review — no merge gate (operational target) |
+
+Last verified: 2026-06-16. Recheck cadence: the accuracy and AQI rows depend on the US-EPA 2024
+24-hour PM2.5 breakpoints and the AQI methodology in `models.py`; recheck on each EPA breakpoint
+revision, and at least annually.
