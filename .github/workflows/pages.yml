@@ -32,8 +32,8 @@ jobs:
         run: |
           uv run swelter demo --store /tmp/demo-store --web web
           cp DATA-LICENSE web/DATA-LICENSE
-          # A bounded slice (last day) keeps the demo download small at any network size.
-          uv run swelter export --store /tmp/demo-store --format csv --since 2026-06-16 > web/export.csv
+          # A bounded slice (the demo week's last day) keeps the download small at any network size.
+          uv run swelter export --store /tmp/demo-store --format csv --since 2026-06-07 > web/export.csv
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
