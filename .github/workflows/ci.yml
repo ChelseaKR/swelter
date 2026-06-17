@@ -67,7 +67,7 @@ jobs:
       # Action; continue-on-error keeps a missing license from blocking the
       # gate while still surfacing any findings in the log.
       - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
