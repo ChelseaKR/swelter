@@ -1,0 +1,32 @@
+# The committed demo data under data/demo/ is reproducible (scripts/gen_demo_data.py);
+# the runtime store it gets replayed into is not, so it is ignored.
+store/
+*.db
+*.sqlite
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# firmware build artifacts
+firmware/build/
+
+# infra: provider binaries and local state/secrets are local; lockfiles are committed
+**/.terraform/
+*.tfstate
+*.tfstate.*
+cdk.out/
+
+# editors / os
+.DS_Store
+.env
+CLAUDE.local.md
+CLAUDE-*.md
+.claude/settings.local.json

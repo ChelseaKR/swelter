@@ -1,0 +1,165 @@
+"""Network configuration: nodes, calibration windows, grid resolution, languages.
+
+Configuration is committed YAML, not code and not an admin console (``network.yaml`` in the
+repo root is the worked example). A community stands up its own instance by editing one
+file: registering its nodes and reference monitors, choosing a grid resolution, and listing
+the languages its dashboard ships. Pointing swelter at a different city is a config change
+with a diff and a review, not a fork.
+
+Two privacy rules are enforced *here*, before any value reaches the map:
+
+* A node's published location is snapped to a coarse grid (``grid_precision_m``, default
+  ~150 m) unless the host explicitly opts into ``location: precise``. ``public_location``
+  is the only coordinate the rest of the system is allowed to read.
+* The precise coordinate is never required — a node with no location at all still ingests,
+  it simply does not appear on the map until a host places it.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+DEFAULT_GRID_M = 150.0
+_METRES_PER_DEGREE_LAT = 111_320.0
+
+
+@dataclass(frozen=True)
+class NodeConfig:
+    """A sensor node as the hosting collective registered it."""
+
+    node_id: str
+    label: str = ""
+    lat: float | None = None
+    lon: float | None = None
+    location: str = "coarse"  # "coarse" (snap to grid) or "precise" (host opted in)
+
+    def public_location(self, grid_m: float) -> tuple[float, float] | None:
+        """The coordinate swelter is allowed to publish for this node.
+
+        ``None`` when the host has not placed the node. ``precise`` returns the exact
+        coordinate the host opted to disclose; otherwise the value is snapped to the grid so
+        hosting a sensor cannot reveal where a person lives.
+        """
+        if self.lat is None or self.lon is None:
+            return None
+        if self.location == "precise":
+            return (self.lat, self.lon)
+        return snap_to_grid(self.lat, self.lon, grid_m)
+
+
+@dataclass(frozen=True)
+class ReferenceMonitor:
+    """A reference-grade monitor a node is co-located against to fit its correction."""
+
+    monitor_id: str
+    label: str = ""
+    source: str = ""  # e.g. "US EPA AQS site 06-067-0010"
+
+
+@dataclass(frozen=True)
+class CalibrationWindow:
+    """A co-location training window: which node sat beside which reference, and when."""
+
+    node_id: str
+    reference: str
+    parameter: str
+    start: str
+    end: str
+
+
+@dataclass(frozen=True)
+class NetworkConfig:
+    """The whole network as one reviewable document."""
+
+    name: str = "swelter network"
+    grid_resolution_m: float = DEFAULT_GRID_M
+    languages: tuple[str, ...] = ("en",)
+    nodes: tuple[NodeConfig, ...] = ()
+    reference_monitors: tuple[ReferenceMonitor, ...] = ()
+    calibration_windows: tuple[CalibrationWindow, ...] = field(default_factory=tuple)
+
+    def node(self, node_id: str) -> NodeConfig | None:
+        return next((n for n in self.nodes if n.node_id == node_id), None)
+
+    def public_locations(self) -> dict[str, tuple[float, float]]:
+        """node_id → published (lat, lon), for every node the host has placed."""
+        out: dict[str, tuple[float, float]] = {}
+        for node in self.nodes:
+            loc = node.public_location(self.grid_resolution_m)
+            if loc is not None:
+                out[node.node_id] = loc
+        return out
+
+
+def snap_to_grid(lat: float, lon: float, grid_m: float) -> tuple[float, float]:
+    """Snap a coordinate to the centre of a ``grid_m``-sided cell.
+
+    Longitude cell size widens with latitude so cells stay roughly square on the ground.
+    Returns the cell centre, which is what gets published.
+    """
+    lat_step = grid_m / _METRES_PER_DEGREE_LAT
+    lon_metres_per_degree = _METRES_PER_DEGREE_LAT * math.cos(math.radians(lat)) or 1e-9
+    lon_step = grid_m / lon_metres_per_degree
+    snapped_lat = (math.floor(lat / lat_step) + 0.5) * lat_step
+    snapped_lon = (math.floor(lon / lon_step) + 0.5) * lon_step
+    return (round(snapped_lat, 6), round(snapped_lon, 6))
+
+
+def _as_str(value: Any, default: str = "") -> str:
+    return str(value) if value is not None else default
+
+
+def _as_float(value: Any) -> float | None:
+    return None if value is None else float(value)
+
+
+def load_config(path: str | Path) -> NetworkConfig:
+    """Load and validate ``network.yaml`` into a typed :class:`NetworkConfig`."""
+    raw: Any = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return parse_config(raw if isinstance(raw, dict) else {})
+
+
+def parse_config(doc: dict[str, Any]) -> NetworkConfig:
+    """Build a :class:`NetworkConfig` from an already-parsed mapping."""
+    nodes = tuple(
+        NodeConfig(
+            node_id=_as_str(n.get("node_id") or n.get("id")),
+            label=_as_str(n.get("label")),
+            lat=_as_float(n.get("lat")),
+            lon=_as_float(n.get("lon")),
+            location=_as_str(n.get("location"), "coarse"),
+        )
+        for n in doc.get("nodes", []) or []
+    )
+    monitors = tuple(
+        ReferenceMonitor(
+            monitor_id=_as_str(m.get("monitor_id") or m.get("id")),
+            label=_as_str(m.get("label")),
+            source=_as_str(m.get("source")),
+        )
+        for m in doc.get("reference_monitors", []) or []
+    )
+    windows = tuple(
+        CalibrationWindow(
+            node_id=_as_str(w.get("node_id")),
+            reference=_as_str(w.get("reference")),
+            parameter=_as_str(w.get("parameter")),
+            start=_as_str(w.get("start")),
+            end=_as_str(w.get("end")),
+        )
+        for w in doc.get("calibration_windows", []) or []
+    )
+    languages = tuple(str(lang) for lang in doc.get("languages", ["en"]) or ["en"])
+    return NetworkConfig(
+        name=_as_str(doc.get("name"), "swelter network"),
+        grid_resolution_m=float(doc.get("grid_resolution_m", DEFAULT_GRID_M)),
+        languages=languages,
+        nodes=nodes,
+        reference_monitors=monitors,
+        calibration_windows=windows,
+    )

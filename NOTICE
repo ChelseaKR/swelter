@@ -1,0 +1,21 @@
+swelter
+Copyright 2026 Chelsea Kelly-Reif
+
+This product includes software developed by Chelsea Kelly-Reif.
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Independence statement
+-----------------------
+swelter is an independent personal open-source project. It is unaffiliated with
+any employer or client, contains no proprietary or client material, and was not
+built for or on behalf of any government customer. It is not a government system.
+
+Observation data
+----------------
+Environmental observations published by swelter are released under CC0 1.0
+Universal (public-domain dedication); see DATA-LICENSE. The observations are
+aggregate environmental measurements only — temperature, humidity, particulate
+matter, and derived heat/air-quality indices. They contain no personal
+information, no device-as-tracker identifiers, and no field capable of locating
+a person. Node locations are the hosting collective's to disclose and are
+published snapped to a coarse grid unless a host opts in to a precise location.
