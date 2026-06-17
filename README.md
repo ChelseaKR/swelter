@@ -5,7 +5,7 @@
 [![data: CC0-1.0](https://img.shields.io/badge/data-CC0--1.0-brightgreen.svg)](DATA-LICENSE)
 [![accessibility: WCAG 2.2 AA](https://img.shields.io/badge/accessibility-WCAG%202.2%20AA-success.svg)](docs/accessibility/ACR.md)
 
-**[▶ Live demo](https://chelseakr.github.io/swelter/)** — the dashboard on **real, current** air quality and heat for Sacramento neighborhoods (Copernicus CAMS via Open-Meteo, refreshed daily): an AQI and heat-island map with table and list views, in English and Spanish.
+**[▶ Live demo](https://chelseakr.github.io/swelter/)** — the dashboard on **real, current** data, refreshed daily, in two views you can switch between: **[Sacramento](https://chelseakr.github.io/swelter/)** (Copernicus CAMS air quality + heat) and **[Stuttgart](https://chelseakr.github.io/swelter/sensors/)** (real community low-cost sensors, Sensor.Community). AQI and heat-island map with table and list views, English and Spanish.
 
 > A neighborhood-owned mesh of low-cost heat and air-quality sensors, a time-series pipeline that
 > ingests their readings, calibration that corrects sensor drift against reference monitors, and an

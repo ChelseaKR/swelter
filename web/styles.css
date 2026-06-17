@@ -156,6 +156,30 @@ h1 {
   font-size: 0.85rem;
 }
 
+.source-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+}
+.source-switch a {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.source-switch a:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.source-switch a[aria-current="page"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
 .headline {
   margin: 1rem 0 0;
   padding: 0.85rem 1rem;

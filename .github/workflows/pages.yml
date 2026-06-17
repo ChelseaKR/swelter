@@ -1,8 +1,10 @@
-# Publish the dashboard to GitHub Pages as a live demo, populated with REAL open data: current
-# hourly air quality (Copernicus CAMS) and weather for Sacramento neighborhoods, via Open-Meteo
-# (no API key). The dashboard is static, so the fetched surface is baked into the artifact along
-# with a DATA-LICENSE and a CSV download. Runs on push and daily so the readings stay current; if
-# the fetch ever fails it falls back to the committed synthetic demo so the page never breaks.
+# Publish the dashboard to GitHub Pages as a live demo with REAL open data on two pages:
+#   "/"         — Copernicus CAMS air quality + weather for Sacramento neighborhoods (Open-Meteo)
+#   "/sensors/" — real community low-cost sensors from Sensor.Community (Stuttgart)
+# Both are keyless. The dashboard is static, so each fetched surface is baked into the artifact with
+# a DATA-LICENSE and a CSV download. Runs on push and daily so the readings stay current; if a fetch
+# ever fails it falls back (CAMS → committed synthetic demo; sensors → the CAMS surface) so the page
+# never breaks.
 name: demo
 
 on:
@@ -30,12 +32,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - name: Assemble the live demo (real open data, synthetic fallback)
+      - name: Assemble the live demo (two real sources, synthetic fallback)
         run: |
-          uv run swelter fetch --store /tmp/real --config /tmp/real-network.yaml --web web --past-days 3 \
-            || uv run swelter demo --store /tmp/real --web web
+          # Page 1 ("/"): real Copernicus CAMS air quality + weather for Sacramento neighborhoods.
+          uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
+            --web web --past-days 3 || uv run swelter demo --store /tmp/cams --web web
           cp DATA-LICENSE web/DATA-LICENSE
-          uv run swelter export --store /tmp/real --format csv > web/export.csv
+          uv run swelter export --store /tmp/cams --format csv > web/export.csv
+          # Page 2 ("/sensors/"): real community low-cost sensors (Sensor.Community, Stuttgart).
+          rm -rf web/sensors && mkdir -p web/sensors
+          find web -maxdepth 1 -type f -exec cp {} web/sensors/ \;
+          cp -r web/i18n web/sensors/i18n
+          uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
+            --web web/sensors || cp web/sample-surface.json web/sensors/sample-surface.json
+          cp DATA-LICENSE web/sensors/DATA-LICENSE
+          uv run swelter export --store /tmp/sc --format csv > web/sensors/export.csv \
+            || cp web/export.csv web/sensors/export.csv
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

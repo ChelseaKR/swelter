@@ -4,6 +4,7 @@ store/
 *.db
 *.sqlite
 network.real.yaml  # written by `swelter fetch` from live open data; not committed
+web/sensors/       # the second live-demo page (Sensor.Community); assembled in CI, not committed
 
 # python
 __pycache__/

@@ -493,6 +493,19 @@ function smallScreen() {
   return window.matchMedia("(max-width: 40rem)").matches;
 }
 
+// The live demo deploys two pages: "/" (Sacramento, Copernicus CAMS model data) and "/sensors/"
+// (Stuttgart, real Sensor.Community low-cost sensors). Both share this file, so resolve the links
+// relative to wherever we are and mark the active one — base-path agnostic (works under /swelter/).
+function wireSourceSwitch() {
+  const cams = $("#switch-cams");
+  const sensors = $("#switch-sensors");
+  if (!cams || !sensors) return;
+  const onSensors = location.pathname.replace(/\/+$/, "").endsWith("/sensors");
+  cams.setAttribute("href", onSensors ? "../" : "./");
+  sensors.setAttribute("href", onSensors ? "./" : "sensors/");
+  (onSensors ? sensors : cams).setAttribute("aria-current", "page");
+}
+
 async function init() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker
@@ -504,6 +517,7 @@ async function init() {
   wireTabs();
   wireSort();
   wireControls();
+  wireSourceSwitch();
   // Phones/touch default to the List view; the map is the hardest view to operate (F17).
   setView(smallScreen() ? "tab-list" : "tab-list");
 
