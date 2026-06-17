@@ -255,31 +255,51 @@ def _write_web_sample(
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
-    """Fetch REAL readings from Open-Meteo (Copernicus CAMS + weather) for real neighborhoods,
-    build the surface and the dashboard sample, and optionally serve. No API key, no hardware —
-    real current data, attributed to its source, not swelter-calibrated."""
-    from .sources import openmeteo
+    """Fetch REAL readings from a live open-data source, build the surface and dashboard sample,
+    and optionally serve. No API key, no hardware. ``--source openmeteo`` is Copernicus CAMS model
+    data for Sacramento neighborhoods; ``--source sensor-community`` is real community low-cost
+    sensors (uncalibrated, so shown raw/provisional — swelter's thesis made real)."""
+    from .sources import openmeteo, sensor_community
 
-    places = openmeteo.SACRAMENTO
-    _err(
-        f"swelter: fetching real readings for {len(places)} Sacramento neighborhoods "
-        "from Open-Meteo (Copernicus CAMS air quality + weather)…"
-    )
-    try:
-        observations = openmeteo.fetch(
-            places, past_days=args.past_days, forecast_days=args.forecast_days
+    if args.source == "sensor-community":
+        area = sensor_community.Area(args.area_name, args.lat, args.lon, args.radius)
+        _err(
+            f"swelter: fetching real community low-cost sensors near {area.name} "
+            f"(r={area.radius_km:g} km) from Sensor.Community…"
         )
-    except OSError as exc:
-        _err(f"swelter: fetch failed ({exc}); check your network connection")
-        return 1
-    if not observations:
-        _err("swelter: no readings returned")
-        return 1
-    observations = qc.apply(observations)
+        try:
+            observations, nodes = sensor_community.fetch(area)
+        except OSError as exc:
+            _err(f"swelter: fetch failed ({exc}); check your network connection")
+            return 1
+        if not observations:
+            _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
+            return 1
+        network = sensor_community.network_doc(area.name, nodes)
+        attribution = sensor_community.ATTRIBUTION
+        source_label = "Sensor.Community"
+    else:
+        places = openmeteo.SACRAMENTO
+        _err(
+            f"swelter: fetching real readings for {len(places)} Sacramento neighborhoods "
+            "from Open-Meteo (Copernicus CAMS air quality + weather)…"
+        )
+        try:
+            observations = openmeteo.fetch(
+                places, past_days=args.past_days, forecast_days=args.forecast_days
+            )
+        except OSError as exc:
+            _err(f"swelter: fetch failed ({exc}); check your network connection")
+            return 1
+        if not observations:
+            _err("swelter: no readings returned")
+            return 1
+        network = openmeteo.network_doc(places)
+        attribution = openmeteo.ATTRIBUTION
+        source_label = "Copernicus CAMS via Open-Meteo"
 
-    Path(args.config).write_text(
-        yaml.safe_dump(openmeteo.network_doc(places), sort_keys=False), encoding="utf-8"
-    )
+    observations = qc.apply(observations)
+    Path(args.config).write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
     config = load_config(args.config)
 
     paths = store_paths(args.store)
@@ -290,19 +310,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         paths["aggregate"].write_text(
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
-        _write_web_sample(
-            Path(args.web),
-            surface,
-            attribution=(
-                "Real hourly readings for Sacramento neighborhoods from the Copernicus "
-                "Atmosphere Monitoring Service (CAMS) via Open-Meteo — atmospheric model data, "
-                "not physical sensors, and not swelter-calibrated."
-            ),
-        )
+        _write_web_sample(Path(args.web), surface, attribution=attribution)
         all_obs = list(store.all())
         _err(
             f"swelter: stored {written.written} real observations from {len(config.nodes)} "
-            "neighborhoods (source: Copernicus CAMS via Open-Meteo)"
+            f"locations (source: {source_label})"
         )
         _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
 
@@ -310,7 +322,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         store = open_store(args.store)
         base = f"http://{args.host}:{args.port}"
         ctx = ServerContext(store=store, config=config, web_dir=Path(args.web), base_url=base)
-        _err(f"swelter: serving REAL Sacramento data at {base}  (Ctrl-C to stop)")
+        _err(f"swelter: serving REAL data ({source_label}) at {base}  (Ctrl-C to stop)")
         try:
             serve(ctx, host=args.host, port=args.port)
         finally:
@@ -423,13 +435,27 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_fetch = sub.add_parser(
         "fetch",
-        help="fetch REAL readings from Open-Meteo (Copernicus CAMS) and build the dashboard",
+        help="fetch REAL readings from a live open-data source and build the dashboard",
+    )
+    p_fetch.add_argument(
+        "--source",
+        choices=("openmeteo", "sensor-community"),
+        default="openmeteo",
+        help="openmeteo: Copernicus CAMS model data (Sacramento); "
+        "sensor-community: real community low-cost sensors (raw/provisional)",
     )
     p_fetch.add_argument("--store", default=f"{DEFAULT_STORE}/real")
     p_fetch.add_argument("--config", default="network.real.yaml", help="where to write the network")
     p_fetch.add_argument("--web", default=DEFAULT_WEB)
-    p_fetch.add_argument("--past-days", type=int, default=2)
+    p_fetch.add_argument(
+        "--past-days", type=int, default=2, help="openmeteo: history window (days)"
+    )
     p_fetch.add_argument("--forecast-days", type=int, default=1)
+    # sensor-community area (defaults to Stuttgart, where coverage is dense):
+    p_fetch.add_argument("--area-name", default="Stuttgart", help="sensor-community: area label")
+    p_fetch.add_argument("--lat", type=float, default=48.7758, help="sensor-community: centre lat")
+    p_fetch.add_argument("--lon", type=float, default=9.1829, help="sensor-community: centre lon")
+    p_fetch.add_argument("--radius", type=float, default=30.0, help="sensor-community: radius km")
     p_fetch.add_argument("--serve", action="store_true", help="serve the dashboard after fetching")
     p_fetch.add_argument("--host", default="127.0.0.1")
     p_fetch.add_argument("--port", type=int, default=8000)

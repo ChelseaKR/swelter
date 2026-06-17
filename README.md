@@ -61,12 +61,20 @@ fit against are documented in `docs/calibration.md` and queryable from the API, 
 trustworthiness is inspectable rather than asserted.
 
 **Synthetic demo vs. real data.** `swelter demo` replays a *synthetic* fixture (deterministic, the
-calibration story made checkable) — the dashboard now labels it as such. `swelter fetch` pulls
-**real** hourly air quality (Copernicus CAMS) and weather for real Sacramento neighborhoods from
-[Open-Meteo](https://open-meteo.com), no API key, and is what the live demo runs. That data is real
-and current but is *model/reanalysis* output, **not** physical sensors and **not** swelter-calibrated;
-every value carries that provenance, and the dashboard shows the source on screen. The pipeline —
-QC, aggregation, map/table/list, API, export — is identical either way.
+calibration story made checkable) — the dashboard labels it as such. `swelter fetch` pulls **real**
+current data from a live open-data source — no API key, no hardware — through the identical pipeline
+(QC, aggregation, map/table/list, API, export). Every value carries its provenance, and the
+dashboard shows the source on screen. Two real sources ship:
+
+- `swelter fetch --source openmeteo` — real hourly air quality (Copernicus CAMS) and weather for
+  Sacramento neighborhoods, from [Open-Meteo](https://open-meteo.com). Real and current, but
+  *model/reanalysis* output — **not** physical sensors and **not** swelter-calibrated.
+- `swelter fetch --source sensor-community` — real **physical low-cost sensors** from the community
+  [Sensor.Community](https://sensor.community) network (dense in Europe; defaults to Stuttgart, its
+  origin). These are exactly what swelter is built for: community-owned, low-cost, and *uncalibrated*
+  — so they ingest as **raw** and the dashboard shows them **provisional**, the honest posture for a
+  sensor that drifts until a reference monitor corrects it. The adapter also drops the SDS011's
+  999.9 µg/m³ over-range fault sentinel so a saturated sensor never reads as "Hazardous."
 
 ---
 

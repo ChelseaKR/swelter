@@ -30,6 +30,11 @@ from ..models import Observation, format_timestamp, heat_index_c, parse_timestam
 
 #: Provenance tag carried in the calibration field of every reading from this source.
 SOURCE = "copernicus-cams"
+ATTRIBUTION = (
+    "Real hourly readings for Sacramento neighborhoods from the Copernicus Atmosphere Monitoring "
+    "Service (CAMS) via Open-Meteo — atmospheric model data, not physical sensors, "
+    "and not swelter-calibrated."
+)
 
 AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
