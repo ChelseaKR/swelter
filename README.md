@@ -1,5 +1,10 @@
 # swelter — a community heat and air-quality sensing network with open data
 
+[![CI](https://github.com/ChelseaKR/swelter/actions/workflows/ci.yml/badge.svg)](https://github.com/ChelseaKR/swelter/actions/workflows/ci.yml)
+[![code: Apache-2.0](https://img.shields.io/badge/code-Apache--2.0-blue.svg)](LICENSE)
+[![data: CC0-1.0](https://img.shields.io/badge/data-CC0--1.0-brightgreen.svg)](DATA-LICENSE)
+[![accessibility: WCAG 2.2 AA](https://img.shields.io/badge/accessibility-WCAG%202.2%20AA-success.svg)](docs/accessibility/ACR.md)
+
 > A neighborhood-owned mesh of low-cost heat and air-quality sensors, a time-series pipeline that
 > ingests their readings, calibration that corrects sensor drift against reference monitors, and an
 > accessible public dashboard that maps urban heat islands and AQI block by block. Built for
@@ -310,3 +315,11 @@ in the store, run `swelter calibrate` to correct it against a reference monitor 
 corrections anyone else would get, open a dashboard that maps their block's heat and air with honest
 confidence and a full table alternative, and download the entire history as CC0 CSV — with every CI gate,
 including the accessibility gate, green.
+
+## For Claude Code
+
+[`CLAUDE.md`](CLAUDE.md) is the build spec and operating contract: the product framing, the hard
+rules as guardrails, the phased plan ([`docs/ROADMAP.md`](docs/ROADMAP.md)), and the quality bar.
+Execute phases in order, keep `make verify` green, and never weaken the hard rules — a change that
+adds a field able to hold a person, mixes calibrated and raw silently, or breaks the accessibility
+gate does not merge. Start at [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

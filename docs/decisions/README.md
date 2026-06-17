@@ -1,0 +1,17 @@
+# Architecture decision records
+
+Decisions of record for swelter, a community heat and air-quality sensing
+network. Each ADR captures one decision, why it was made, and what it costs.
+Format: `# ADR NNNN: <decision>`, then `## Decision`, `## Why`, and
+`## Known weakness / Consequences`. Accepted records are not edited in place; a
+later ADR supersedes an earlier one.
+
+| ADR | Decision | Status |
+| --- | --- | --- |
+| [0001](0001-sqlite-and-files-store.md) | Store observations in a copyable SQLite-and-files folder, not a database cluster | accepted |
+| [0002](0002-calibration-as-versioned-data.md) | Keep calibration corrections as versioned data with an audit trail, not as code | accepted |
+| [0003](0003-grid-snapped-public-locations.md) | Publish grid-snapped locations by default; precise coordinates are opt-in | accepted |
+| [0004](0004-framework-free-accessible-dashboard.md) | Ship a framework-free dashboard with three equal views, held to WCAG 2.2 AA | accepted |
+| [0005](0005-read-only-stdlib-server.md) | Serve over a single-threaded, GET-only stdlib HTTP server | accepted |
+| [0006](0006-apache-code-cc0-data.md) | License the code Apache-2.0 and the observations CC0-1.0 | accepted |
+| [0007](0007-ogc-sensorthings-export.md) | Expose a read-only OGC SensorThings 1.1 subset for interoperability | accepted |
