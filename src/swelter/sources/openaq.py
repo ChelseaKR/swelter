@@ -1,0 +1,212 @@
+"""Real block-level readings from OpenAQ v3 — dense physical sensors across California (API key).
+
+OpenAQ aggregates thousands of real air-quality stations (community PurpleAir nodes, regulatory
+reference monitors, and many other networks). In California these are dense — often several within a
+single neighborhood — so this is the source that actually delivers swelter's *block-by-block*
+promise with **real hardware**, not a coarse atmospheric model.
+
+Honesty, as always: these are real physical sensors, but swelter does not calibrate them, so their
+readings ingest as RAW and the dashboard shows them **provisional** — the same posture as any
+uncalibrated low-cost sensor. The reading is real; the trust is not yet earned by a swelter fit.
+
+Auth: OpenAQ v3 needs a free API key (sign up at https://explore.openaq.org/register), sent as the
+``X-API-Key`` header. Pass it via ``--api-key`` or the ``OPENAQ_API_KEY`` environment variable.
+
+The "latest" snapshot is one call per location, so a statewide pull is throttled and capped.
+
+Attribution: "Readings from the OpenAQ network (openaq.org), CC BY 4.0 — uncalibrated, provisional."
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import math
+import time
+import urllib.request
+from typing import Any
+
+from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+
+API = "https://api.openaq.org/v3"
+ATTRIBUTION = (
+    "Real readings from the OpenAQ network of physical air-quality sensors (openaq.org, CC BY 4.0) "
+    "— uncalibrated, so shown raw / provisional."
+)
+
+#: California bounding box (west, south, east, north).
+CALIFORNIA_BBOX = (-124.5, 32.5, -114.1, 42.05)
+
+#: OpenAQ parameter name → (swelter parameter, unit).
+_PARAM: dict[str, tuple[str, str]] = {
+    "pm25": ("pm25_ugm3", "ug/m3"),
+    "pm10": ("pm10_ugm3", "ug/m3"),
+    "temperature": ("temp_c", "degC"),
+    "relativehumidity": ("humidity_pct", "%"),
+}
+
+
+def _get_json(url: str, api_key: str, *, timeout: float = 45.0, retries: int = 4) -> Any:
+    """GET + parse JSON with the API-key header, retrying transient failures (incl. 429)."""
+    request = urllib.request.Request(url, headers={"X-API-Key": api_key})
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (fixed host)
+                return json.loads(response.read().decode("utf-8"))
+        except (OSError, ValueError) as exc:
+            last = exc
+            if attempt < retries - 1:
+                time.sleep(min(8.0, 2.0**attempt))
+    assert last is not None
+    raise last
+
+
+def _locations(
+    bbox: tuple[float, float, float, float],
+    api_key: str,
+    *,
+    max_locations: int,
+    per_page: int = 1000,
+) -> list[dict[str, Any]]:
+    """Page through the locations in the bbox up to ``max_locations``."""
+    west, south, east, north = bbox
+    out: list[dict[str, Any]] = []
+    page = 1
+    while len(out) < max_locations:
+        url = (
+            f"{API}/locations?bbox={west},{south},{east},{north}"
+            f"&limit={min(per_page, 1000)}&page={page}"
+        )
+        results = _get_json(url, api_key).get("results", [])
+        if not isinstance(results, list) or not results:
+            break
+        out += [r for r in results if isinstance(r, dict)]
+        if len(results) < per_page:
+            break
+        page += 1
+    return out[:max_locations]
+
+
+def _sensor_parameters(locations: list[dict[str, Any]]) -> dict[int, tuple[str, str]]:
+    """Map each sensor id to its (swelter parameter, unit), across all locations."""
+    sensor_param: dict[int, tuple[str, str]] = {}
+    for loc in locations:
+        for sensor in loc.get("sensors") or []:
+            if not isinstance(sensor, dict):
+                continue
+            name = (sensor.get("parameter") or {}).get("name")
+            sid = sensor.get("id")
+            if name in _PARAM and isinstance(sid, int):
+                sensor_param[sid] = _PARAM[name]
+    return sensor_param
+
+
+def parse_latest(
+    node_id: str, results: list[Any], sensor_param: dict[int, tuple[str, str]]
+) -> list[Observation]:
+    """Map a location's /latest results to raw observations (pure — no network)."""
+    out: list[Observation] = []
+    seen: dict[str, tuple[float, str]] = {}
+    for row in results:
+        if not isinstance(row, dict):
+            continue
+        sid = row.get("sensorsId", row.get("sensorId"))
+        param_unit = sensor_param.get(sid) if isinstance(sid, int) else None
+        if not param_unit:
+            continue
+        parameter, unit = param_unit
+        value = row.get("value")
+        when = (row.get("datetime") or {}).get("utc") or (row.get("date") or {}).get("utc")
+        if value is None or not when:
+            continue
+        try:
+            ts = format_timestamp(parse_timestamp(str(when)))
+            numeric = float(value)
+        except (TypeError, ValueError):
+            continue
+        if not math.isfinite(numeric):
+            continue
+        # RAW: real sensor, but not swelter-calibrated → the map shows it provisional.
+        out.append(
+            Observation(
+                node_id=node_id,
+                timestamp=ts,
+                parameter=parameter,
+                value=round(numeric, 2),
+                unit=unit,
+            )
+        )
+        seen[parameter] = (numeric, ts)
+    if "temp_c" in seen and "humidity_pct" in seen:
+        (temp, ts), (humid, _) = seen["temp_c"], seen["humidity_pct"]
+        with contextlib.suppress(TypeError, ValueError):
+            hi = heat_index_c(temp, humid)
+            out.append(
+                Observation(
+                    node_id=node_id,
+                    timestamp=ts,
+                    parameter="heat_index_c",
+                    value=round(hi, 2),
+                    unit="degC",
+                )
+            )
+    return out
+
+
+def fetch(
+    api_key: str,
+    *,
+    bbox: tuple[float, float, float, float] = CALIFORNIA_BBOX,
+    max_locations: int = 200,
+    throttle_s: float = 1.1,
+) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+    """Fetch the latest reading for each real sensor location in the bbox (one /latest call each).
+
+    Throttled to respect the free-tier rate limit and capped at ``max_locations`` so a statewide
+    pull is bounded. Returns (observations, node metadata). A single failing location is skipped.
+    """
+    locations = _locations(bbox, api_key, max_locations=max_locations)
+    sensor_param = _sensor_parameters(locations)
+    out: list[Observation] = []
+    nodes: dict[str, tuple[str, float, float]] = {}
+    for loc in locations:
+        coords = loc.get("coordinates") or {}
+        lid = loc.get("id")
+        try:
+            lat, lon = float(coords["latitude"]), float(coords["longitude"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not isinstance(lid, int):
+            continue
+        try:
+            results = _get_json(f"{API}/locations/{lid}/latest", api_key).get("results", [])
+        except (OSError, ValueError):
+            continue  # skip this site; one flaky location must not sink the run
+        if throttle_s:
+            time.sleep(throttle_s)
+        node_id = f"oaq-{lid}"
+        emitted = parse_latest(node_id, results if isinstance(results, list) else [], sensor_param)
+        if emitted:
+            out += emitted
+            nodes[node_id] = (str(loc.get("name") or f"Site {lid}"), lat, lon)
+    return out, nodes
+
+
+def network_doc(
+    name: str,
+    nodes: dict[str, tuple[str, float, float]],
+    languages: tuple[str, ...] = ("en", "es"),
+) -> dict[str, Any]:
+    """A ``network.yaml`` document for the discovered OpenAQ sensors (precise real locations)."""
+    return {
+        "name": f"swelter — {name} (real sensors, OpenAQ)",
+        "grid_resolution_m": 150,
+        "languages": list(languages),
+        "reference_monitors": [],
+        "nodes": [
+            {"node_id": nid, "label": label, "lat": lat, "lon": lon, "location": "precise"}
+            for nid, (label, lat, lon) in sorted(nodes.items())
+        ],
+        "calibration_windows": [],  # real sensors, but not swelter-calibrated (raw/provisional)
+    }

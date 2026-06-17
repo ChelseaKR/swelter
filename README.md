@@ -64,14 +64,26 @@ trustworthiness is inspectable rather than asserted.
 calibration story made checkable) — the dashboard labels it as such. `swelter fetch` pulls **real**
 current data from a live open-data source — no API key, no hardware — through the identical pipeline
 (QC, aggregation, map/table/list, API, export). Every value carries its provenance, and the
-dashboard shows the source on screen. Two real sources ship:
+dashboard shows the source on screen. Three real sources ship:
 
+- `swelter fetch --source openaq` — dense **real physical sensors across California** from
+  [OpenAQ](https://openaq.org) (community PurpleAir nodes, regulatory reference monitors, and more),
+  often several per neighborhood — the source that actually delivers swelter's **block-by-block**
+  promise with real hardware. Real but *uncalibrated*, so ingested **raw** and shown **provisional**.
+  Needs a free API key (`OPENAQ_API_KEY`, or `--api-key`; sign up at
+  [explore.openaq.org](https://explore.openaq.org/register)); throttled and capped for the free tier.
 - `swelter fetch --source openmeteo` — real hourly air quality (Copernicus CAMS) and weather for
   **337 cities across all of California**, from [Open-Meteo](https://open-meteo.com), drawn on a
-  California county-outline basemap. Real and current, but *model/reanalysis* output — **not**
-  physical sensors and **not** swelter-calibrated. (The place list is coordinate-checked
-  point-in-polygon against US Census county boundaries; the basemap is public-domain cartographic
-  data.)
+  California county-outline basemap. **Keyless**, real and current, but *model/reanalysis* output —
+  coarse (nearby cities share a grid cell), **not** physical sensors and **not** swelter-calibrated.
+  (The place list is coordinate-checked point-in-polygon against US Census county boundaries; the
+  basemap is public-domain cartographic data.) The live demo uses this when no OpenAQ key is set.
+- `swelter fetch --source sensor-community` — real **physical low-cost sensors** from the community
+  [Sensor.Community](https://sensor.community) network (dense in Europe; defaults to Stuttgart, its
+  origin). These are exactly what swelter is built for: community-owned, low-cost, and *uncalibrated*
+  — so they ingest as **raw** and the dashboard shows them **provisional**, the honest posture for a
+  sensor that drifts until a reference monitor corrects it. The adapter also drops the SDS011's
+  999.9 µg/m³ over-range fault sentinel so a saturated sensor never reads as "Hazardous."
 - `swelter fetch --source sensor-community` — real **physical low-cost sensors** from the community
   [Sensor.Community](https://sensor.community) network (dense in Europe; defaults to Stuttgart, its
   origin). These are exactly what swelter is built for: community-owned, low-cost, and *uncalibrated*

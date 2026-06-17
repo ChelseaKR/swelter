@@ -1,10 +1,10 @@
 # Publish the dashboard to GitHub Pages as a live demo with REAL open data on two pages:
-#   "/"         — Copernicus CAMS air quality + weather for all of California (Open-Meteo)
-#   "/sensors/" — real community low-cost sensors from Sensor.Community (Stuttgart)
-# Both are keyless. The dashboard is static, so each fetched surface is baked into the artifact with
-# a DATA-LICENSE and a CSV download. Runs on push and daily so the readings stay current; if a fetch
-# ever fails it falls back (CAMS → committed synthetic demo; sensors → the CAMS surface) so the page
-# never breaks.
+#   "/"         — California. Dense REAL physical sensors (OpenAQ, block-by-block) when the
+#                 OPENAQ_API_KEY repo secret is set; otherwise Copernicus CAMS model data (keyless).
+#   "/sensors/" — real community low-cost sensors from Sensor.Community (Stuttgart, keyless)
+# The dashboard is static, so each fetched surface is baked into the artifact with a DATA-LICENSE and
+# a CSV download. Runs on push and daily so the readings stay current; page 1 falls back
+# (OpenAQ → CAMS → committed synthetic demo) and sensors → the CAMS surface, so the page never breaks.
 name: demo
 
 on:
@@ -32,12 +32,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - name: Assemble the live demo (two real sources, synthetic fallback)
+      - name: Assemble the live demo (real sources, layered fallback)
+        env:
+          OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
         run: |
-          # Page 1 ("/"): real Copernicus CAMS air quality + weather for California cities (statewide).
-          # web/basemap.geojson (committed) draws the California county outlines behind the markers.
-          uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
-            --web web --past-days 1 || uv run swelter demo --store /tmp/cams --web web
+          # Page 1 ("/"): prefer dense REAL physical sensors across California (OpenAQ, block-by-block
+          # — needs the OPENAQ_API_KEY repo secret); else Copernicus CAMS model (keyless, coarse);
+          # else the committed synthetic demo. web/basemap.geojson draws the California outlines.
+          uv run swelter fetch --source openaq --store /tmp/cams --config /tmp/cams.yaml \
+              --web web --max-locations 250 \
+            || uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
+              --web web --past-days 1 \
+            || uv run swelter demo --store /tmp/cams --web web
           cp DATA-LICENSE web/DATA-LICENSE
           uv run swelter export --store /tmp/cams --format csv > web/export.csv
           # Page 2 ("/sensors/"): real community low-cost sensors (Sensor.Community, Stuttgart).

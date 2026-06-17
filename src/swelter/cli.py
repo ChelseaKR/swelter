@@ -256,12 +256,41 @@ def _write_web_sample(
 
 def cmd_fetch(args: argparse.Namespace) -> int:
     """Fetch REAL readings from a live open-data source, build the surface and dashboard sample,
-    and optionally serve. No API key, no hardware. ``--source openmeteo`` is Copernicus CAMS model
-    data for Sacramento neighborhoods; ``--source sensor-community`` is real community low-cost
-    sensors (uncalibrated, so shown raw/provisional — swelter's thesis made real)."""
-    from .sources import openmeteo, sensor_community
+    and optionally serve. ``--source openmeteo`` is Copernicus CAMS model data for California cities
+    (keyless, but coarse — not block-level); ``--source openaq`` is dense real physical sensors
+    across California (block-by-block, needs an API key); ``--source sensor-community`` is real
+    community low-cost sensors (dense in Europe). The two sensor sources are uncalibrated, so their
+    readings are shown raw/provisional — swelter's thesis made real."""
+    import os
 
-    if args.source == "sensor-community":
+    from .sources import openaq, openmeteo, sensor_community
+
+    if args.source == "openaq":
+        api_key = args.api_key or os.environ.get("OPENAQ_API_KEY", "")
+        if not api_key:
+            _err(
+                "swelter: --source openaq needs an API key (--api-key or OPENAQ_API_KEY); "
+                "get a free one at https://explore.openaq.org/register"
+            )
+            return 1
+        _err(
+            f"swelter: fetching real physical sensors across California from OpenAQ "
+            f"(up to {args.max_locations} sites, block-by-block)…"
+        )
+        try:
+            observations, nodes = openaq.fetch(
+                api_key, max_locations=args.max_locations, throttle_s=args.throttle
+            )
+        except OSError as exc:
+            _err(f"swelter: fetch failed ({exc}); check your network/API key")
+            return 1
+        if not observations:
+            _err("swelter: no readings returned from OpenAQ")
+            return 1
+        network = openaq.network_doc("California", nodes)
+        attribution = openaq.ATTRIBUTION
+        source_label = "OpenAQ"
+    elif args.source == "sensor-community":
         area = sensor_community.Area(args.area_name, args.lat, args.lon, args.radius)
         _err(
             f"swelter: fetching real community low-cost sensors near {area.name} "
@@ -439,10 +468,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_fetch.add_argument(
         "--source",
-        choices=("openmeteo", "sensor-community"),
+        choices=("openmeteo", "openaq", "sensor-community"),
         default="openmeteo",
-        help="openmeteo: Copernicus CAMS model data (Sacramento); "
-        "sensor-community: real community low-cost sensors (raw/provisional)",
+        help="openmeteo: Copernicus CAMS model data, California (keyless, coarse); "
+        "openaq: dense real sensors, California, block-by-block (needs API key); "
+        "sensor-community: real community low-cost sensors (dense in Europe)",
     )
     p_fetch.add_argument("--store", default=f"{DEFAULT_STORE}/real")
     p_fetch.add_argument("--config", default="network.real.yaml", help="where to write the network")
@@ -451,6 +481,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--past-days", type=int, default=2, help="openmeteo: history window (days)"
     )
     p_fetch.add_argument("--forecast-days", type=int, default=1)
+    # openaq (real California sensors — block-by-block):
+    p_fetch.add_argument("--api-key", default="", help="openaq: API key (or set OPENAQ_API_KEY)")
+    p_fetch.add_argument("--max-locations", type=int, default=200, help="openaq: site cap")
+    p_fetch.add_argument(
+        "--throttle", type=float, default=1.1, help="openaq: seconds between calls"
+    )
     # sensor-community area (defaults to Stuttgart, where coverage is dense):
     p_fetch.add_argument("--area-name", default="Stuttgart", help="sensor-community: area label")
     p_fetch.add_argument("--lat", type=float, default=48.7758, help="sensor-community: centre lat")
