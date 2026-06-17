@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
 
       # `--locked` fails if uv.lock is stale, so CI builds the same environment
       # that produced the local green run.
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
 
       # Audit the locked dependency set against known advisories. Run from the
       # project's resolved requirements so the audited tree matches what ships.
