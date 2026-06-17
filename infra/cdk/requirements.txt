@@ -1,0 +1,9 @@
+# Dependencies for the OPTIONAL swelter serverless CDK app. Nothing exotic: the AWS CDK library
+# and its constructs base, both standard. Install into a virtualenv before synthesizing:
+#
+#   python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+#
+# The CDK Toolkit itself (the `cdk` command) is a Node package, installed separately:
+#   npm install -g aws-cdk
+aws-cdk-lib>=2.130.0,<3.0.0
+constructs>=10.0.0,<11.0.0

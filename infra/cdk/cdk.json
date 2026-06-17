@@ -1,0 +1,13 @@
+{
+  "app": "python3 app.py",
+  "watch": {
+    "include": ["**"],
+    "exclude": [".venv", "cdk.out", "**/__pycache__"]
+  },
+  "context": {
+    "_comment": "OPTIONAL swelter serverless deploy. Override these per deployment with -c on the command line, e.g. cdk deploy -c budget_email=alerts@example.org -c monthly_budget_usd=5",
+    "budget_email": "REPLACE_ME@example.org",
+    "monthly_budget_usd": 5,
+    "@aws-cdk/core:newStyleStackSynthesis": true
+  }
+}
