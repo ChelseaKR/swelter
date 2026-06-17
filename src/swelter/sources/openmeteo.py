@@ -22,6 +22,8 @@ from __future__ import annotations
 
 import json
 import math
+import sys
+import time
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -61,9 +63,21 @@ CALIFORNIA: tuple[Neighborhood, ...] = tuple(
 )
 
 
-def _get_json(url: str, *, timeout: float = 30.0) -> Any:
-    with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 (fixed open-meteo host)
-        return json.loads(response.read().decode("utf-8"))
+def _get_json(url: str, *, timeout: float = 30.0, retries: int = 4) -> Any:
+    """GET + parse JSON, retrying transient network failures (timeouts, SSL handshake drops) with
+    exponential backoff. A statewide fetch is many calls; one flaky connection must not sink the
+    whole run and drop the live demo to its synthetic fallback."""
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 (fixed host)
+                return json.loads(response.read().decode("utf-8"))
+        except (OSError, ValueError) as exc:  # URLError, timeout, SSL, truncated body all subclass
+            last = exc
+            if attempt < retries - 1:
+                time.sleep(min(8.0, 2.0**attempt))
+    assert last is not None
+    raise last
 
 
 def _as_list(payload: Any) -> list[dict[str, Any]]:
@@ -94,15 +108,25 @@ def fetch(
     for i in range(0, len(places), chunk):
         group = places[i : i + chunk]
         lats, lons = _coords(group)
-        air += _as_list(
-            _get_json(f"{AIR_URL}?latitude={lats}&longitude={lons}&hourly=pm2_5,pm10{window}")
-        )
-        weather += _as_list(
-            _get_json(
-                f"{WEATHER_URL}?latitude={lats}&longitude={lons}"
-                f"&hourly=temperature_2m,relative_humidity_2m{window}"
+        try:
+            chunk_air = _as_list(
+                _get_json(f"{AIR_URL}?latitude={lats}&longitude={lons}&hourly=pm2_5,pm10{window}")
             )
-        )
+            chunk_weather = _as_list(
+                _get_json(
+                    f"{WEATHER_URL}?latitude={lats}&longitude={lons}"
+                    f"&hourly=temperature_2m,relative_humidity_2m{window}"
+                )
+            )
+        except (OSError, ValueError) as exc:
+            # One chunk failing (after retries) should not lose the whole state — keep the cities
+            # that did come back. Pad so air/weather stay index-aligned with `places`.
+            print(
+                f"swelter: open-meteo chunk {i // chunk} failed ({exc}); skipping", file=sys.stderr
+            )
+            chunk_air, chunk_weather = [], []
+        air += chunk_air if len(chunk_air) == len(group) else [{} for _ in group]
+        weather += chunk_weather if len(chunk_weather) == len(group) else [{} for _ in group]
     return to_observations(places, air, weather)
 
 

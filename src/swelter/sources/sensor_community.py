@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import json
 import math
+import time
 import urllib.request
 from dataclasses import dataclass
 from typing import Any
@@ -59,9 +60,19 @@ class Area:
 STUTTGART = Area("Stuttgart", 48.7758, 9.1829, 30.0)
 
 
-def _get_json(url: str, *, timeout: float = 30.0) -> Any:
-    with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 (fixed sensor.community host)
-        return json.loads(response.read().decode("utf-8"))
+def _get_json(url: str, *, timeout: float = 30.0, retries: int = 4) -> Any:
+    """GET + parse JSON, retrying transient network failures with exponential backoff."""
+    last: Exception | None = None
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 (fixed host)
+                return json.loads(response.read().decode("utf-8"))
+        except (OSError, ValueError) as exc:
+            last = exc
+            if attempt < retries - 1:
+                time.sleep(min(8.0, 2.0**attempt))
+    assert last is not None
+    raise last
 
 
 def _emit(
