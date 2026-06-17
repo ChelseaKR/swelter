@@ -150,6 +150,12 @@ h1 {
   font-size: 0.85rem;
 }
 
+.data-source {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .headline {
   margin: 1rem 0 0;
   padding: 0.85rem 1rem;

@@ -15,6 +15,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import yaml
+
 from . import __version__, aggregate, calibrate, export, ingest, qc
 from .config import NetworkConfig, load_config
 from .models import RAW
@@ -201,7 +203,11 @@ def cmd_demo(args: argparse.Namespace) -> int:
         paths["aggregate"].write_text(
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
-        _write_web_sample(Path(args.web), surface)
+        _write_web_sample(
+            Path(args.web),
+            surface,
+            attribution="Synthetic demonstration data — no real sensors (gen_demo_data.py).",
+        )
         all_obs = list(store.all())
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
@@ -218,7 +224,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
-def _write_web_sample(web_dir: Path, surface: aggregate.Surface, max_cells: int = 4000) -> None:
+def _write_web_sample(
+    web_dir: Path, surface: aggregate.Surface, *, attribution: str = "", max_cells: int = 4000
+) -> None:
     """Refresh the dashboard's offline fallback if web/ exists, capped to keep the static payload
     light on a host like GitHub Pages — the most recent hourly buckets up to ~``max_cells`` cells,
     so a large network does not bloat the committed sample (the live API has the full history)."""
@@ -237,8 +245,77 @@ def _write_web_sample(web_dir: Path, surface: aggregate.Surface, max_cells: int 
     keep = set(chosen)
     buckets = sorted(keep)
     records = [c.as_record() for c in surface.cells if c.bucket in keep]
-    payload = {"interval": surface.interval, "buckets": buckets, "cells": records}
+    payload = {
+        "interval": surface.interval,
+        "attribution": attribution,
+        "buckets": buckets,
+        "cells": records,
+    }
     (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    """Fetch REAL readings from Open-Meteo (Copernicus CAMS + weather) for real neighborhoods,
+    build the surface and the dashboard sample, and optionally serve. No API key, no hardware —
+    real current data, attributed to its source, not swelter-calibrated."""
+    from .sources import openmeteo
+
+    places = openmeteo.SACRAMENTO
+    _err(
+        f"swelter: fetching real readings for {len(places)} Sacramento neighborhoods "
+        "from Open-Meteo (Copernicus CAMS air quality + weather)…"
+    )
+    try:
+        observations = openmeteo.fetch(
+            places, past_days=args.past_days, forecast_days=args.forecast_days
+        )
+    except OSError as exc:
+        _err(f"swelter: fetch failed ({exc}); check your network connection")
+        return 1
+    if not observations:
+        _err("swelter: no readings returned")
+        return 1
+    observations = qc.apply(observations)
+
+    Path(args.config).write_text(
+        yaml.safe_dump(openmeteo.network_doc(places), sort_keys=False), encoding="utf-8"
+    )
+    config = load_config(args.config)
+
+    paths = store_paths(args.store)
+    paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
+    with SqliteStore(paths["db"]) as store:
+        written = store.write(observations)
+        surface = aggregate.aggregate(store.all(), config)
+        paths["aggregate"].write_text(
+            json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
+        )
+        _write_web_sample(
+            Path(args.web),
+            surface,
+            attribution=(
+                "Real hourly readings for Sacramento neighborhoods from the Copernicus "
+                "Atmosphere Monitoring Service (CAMS) via Open-Meteo — atmospheric model data, "
+                "not physical sensors, and not swelter-calibrated."
+            ),
+        )
+        all_obs = list(store.all())
+        _err(
+            f"swelter: stored {written.written} real observations from {len(config.nodes)} "
+            "neighborhoods (source: Copernicus CAMS via Open-Meteo)"
+        )
+        _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
+
+    if args.serve:
+        store = open_store(args.store)
+        base = f"http://{args.host}:{args.port}"
+        ctx = ServerContext(store=store, config=config, web_dir=Path(args.web), base_url=base)
+        _err(f"swelter: serving REAL Sacramento data at {base}  (Ctrl-C to stop)")
+        try:
+            serve(ctx, host=args.host, port=args.port)
+        finally:
+            store.close()
+    return 0
 
 
 def cmd_rebuild(args: argparse.Namespace) -> int:
@@ -343,6 +420,21 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_demo)
     add_interval(p_demo)
     p_demo.set_defaults(func=cmd_demo)
+
+    p_fetch = sub.add_parser(
+        "fetch",
+        help="fetch REAL readings from Open-Meteo (Copernicus CAMS) and build the dashboard",
+    )
+    p_fetch.add_argument("--store", default=f"{DEFAULT_STORE}/real")
+    p_fetch.add_argument("--config", default="network.real.yaml", help="where to write the network")
+    p_fetch.add_argument("--web", default=DEFAULT_WEB)
+    p_fetch.add_argument("--past-days", type=int, default=2)
+    p_fetch.add_argument("--forecast-days", type=int, default=1)
+    p_fetch.add_argument("--serve", action="store_true", help="serve the dashboard after fetching")
+    p_fetch.add_argument("--host", default="127.0.0.1")
+    p_fetch.add_argument("--port", type=int, default=8000)
+    add_interval(p_fetch)
+    p_fetch.set_defaults(func=cmd_fetch)
 
     p_rebuild = sub.add_parser("rebuild", help="rebuild calibrated + surface from immutable raw")
     add_store(p_rebuild)

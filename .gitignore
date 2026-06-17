@@ -3,6 +3,7 @@
 store/
 *.db
 *.sqlite
+network.real.yaml  # written by `swelter fetch` from live open data; not committed
 
 # python
 __pycache__/

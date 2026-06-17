@@ -1,5 +1,6 @@
 {
   "interval": "hour",
+  "attribution": "Synthetic demonstration data \u2014 no real sensors (gen_demo_data.py).",
   "buckets": [
     "2026-06-07T19:00:00Z",
     "2026-06-07T20:00:00Z",

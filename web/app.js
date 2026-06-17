@@ -101,6 +101,8 @@ function setData(doc) {
   slider.max = String(Math.max(0, state.buckets.length - 1));
   slider.value = String(state.bucketIdx);
   slider.setAttribute("aria-disabled", state.buckets.length <= 1 ? "true" : "false");
+  const src = $("#data-source");
+  if (src) src.textContent = doc.attribution ? `Data: ${doc.attribution}` : "";
 }
 
 function indexCells() {

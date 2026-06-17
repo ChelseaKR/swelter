@@ -1,14 +1,16 @@
-# Publish the dashboard to GitHub Pages as a live demo. The dashboard is static and falls back
-# to the committed sample-surface.json when there is no API, so Pages serves a fully working
-# demo (map/table/list, AQI + health context, search, °F, English/Spanish) at no cost. This job
-# also bakes a real DATA-LICENSE and a demo export.csv into the artifact so the footer's links
-# resolve on a static host (under `swelter serve` those are dynamic routes instead).
+# Publish the dashboard to GitHub Pages as a live demo, populated with REAL open data: current
+# hourly air quality (Copernicus CAMS) and weather for Sacramento neighborhoods, via Open-Meteo
+# (no API key). The dashboard is static, so the fetched surface is baked into the artifact along
+# with a DATA-LICENSE and a CSV download. Runs on push and daily so the readings stay current; if
+# the fetch ever fails it falls back to the committed synthetic demo so the page never breaks.
 name: demo
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "30 13 * * *"  # refresh the real readings daily
 
 permissions:
   contents: read
@@ -28,12 +30,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - name: Assemble the static demo site
+      - name: Assemble the live demo (real open data, synthetic fallback)
         run: |
-          uv run swelter demo --store /tmp/demo-store --web web
+          uv run swelter fetch --store /tmp/real --config /tmp/real-network.yaml --web web --past-days 3 \
+            || uv run swelter demo --store /tmp/real --web web
           cp DATA-LICENSE web/DATA-LICENSE
-          # A bounded slice (the demo week's last day) keeps the download small at any network size.
-          uv run swelter export --store /tmp/demo-store --format csv --since 2026-06-07 > web/export.csv
+          uv run swelter export --store /tmp/real --format csv > web/export.csv
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

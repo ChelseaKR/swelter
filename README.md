@@ -5,7 +5,7 @@
 [![data: CC0-1.0](https://img.shields.io/badge/data-CC0--1.0-brightgreen.svg)](DATA-LICENSE)
 [![accessibility: WCAG 2.2 AA](https://img.shields.io/badge/accessibility-WCAG%202.2%20AA-success.svg)](docs/accessibility/ACR.md)
 
-**[▶ Live demo](https://chelseakr.github.io/swelter/)** — the dashboard on the recorded demo week: a calibrated heat-island and AQI map, with table and list views, in English and Spanish.
+**[▶ Live demo](https://chelseakr.github.io/swelter/)** — the dashboard on **real, current** air quality and heat for Sacramento neighborhoods (Copernicus CAMS via Open-Meteo, refreshed daily): an AQI and heat-island map with table and list views, in English and Spanish.
 
 > A neighborhood-owned mesh of low-cost heat and air-quality sensors, a time-series pipeline that
 > ingests their readings, calibration that corrects sensor drift against reference monitors, and an
@@ -59,6 +59,14 @@ swelter: 177,050 observations from 150 nodes (100 calibrated, 50 raw-flagged)
 The calibration models, their training windows, error bounds, and the reference monitors they were
 fit against are documented in `docs/calibration.md` and queryable from the API, so a value's
 trustworthiness is inspectable rather than asserted.
+
+**Synthetic demo vs. real data.** `swelter demo` replays a *synthetic* fixture (deterministic, the
+calibration story made checkable) — the dashboard now labels it as such. `swelter fetch` pulls
+**real** hourly air quality (Copernicus CAMS) and weather for real Sacramento neighborhoods from
+[Open-Meteo](https://open-meteo.com), no API key, and is what the live demo runs. That data is real
+and current but is *model/reanalysis* output, **not** physical sensors and **not** swelter-calibrated;
+every value carries that provenance, and the dashboard shows the source on screen. The pipeline —
+QC, aggregation, map/table/list, API, export — is identical either way.
 
 ---
 
