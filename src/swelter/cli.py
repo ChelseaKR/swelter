@@ -279,9 +279,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         attribution = sensor_community.ATTRIBUTION
         source_label = "Sensor.Community"
     else:
-        places = openmeteo.SACRAMENTO
+        places = openmeteo.CALIFORNIA
         _err(
-            f"swelter: fetching real readings for {len(places)} Sacramento neighborhoods "
+            f"swelter: fetching real readings for {len(places)} California cities "
             "from Open-Meteo (Copernicus CAMS air quality + weather)…"
         )
         try:

@@ -27,11 +27,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+from ._california_places import CALIFORNIA as _CALIFORNIA_RAW
 
 #: Provenance tag carried in the calibration field of every reading from this source.
 SOURCE = "copernicus-cams"
 ATTRIBUTION = (
-    "Real hourly readings for Sacramento neighborhoods from the Copernicus Atmosphere Monitoring "
+    "Real hourly readings for California cities from the Copernicus Atmosphere Monitoring "
     "Service (CAMS) via Open-Meteo — atmospheric model data, not physical sensors, "
     "and not swelter-calibrated."
 )
@@ -53,40 +54,10 @@ class Neighborhood:
         return self.name.lower().replace(" ", "-").replace("/", "-")
 
 
-#: Real Sacramento-area neighborhoods (approximate real centroids). The names and places are real.
-SACRAMENTO: tuple[Neighborhood, ...] = (
-    Neighborhood("Downtown", 38.5816, -121.4944),
-    Neighborhood("Midtown", 38.5700, -121.4750),
-    Neighborhood("East Sacramento", 38.5680, -121.4520),
-    Neighborhood("Oak Park", 38.5470, -121.4630),
-    Neighborhood("Curtis Park", 38.5450, -121.4760),
-    Neighborhood("Land Park", 38.5380, -121.4980),
-    Neighborhood("Tahoe Park", 38.5440, -121.4400),
-    Neighborhood("Elmhurst", 38.5560, -121.4470),
-    Neighborhood("Fruitridge Manor", 38.5260, -121.4640),
-    Neighborhood("Meadowview", 38.4900, -121.4870),
-    Neighborhood("South Land Park", 38.5100, -121.5070),
-    Neighborhood("Pocket-Greenhaven", 38.4870, -121.5350),
-    Neighborhood("North Natomas", 38.6500, -121.5050),
-    Neighborhood("South Natomas", 38.6200, -121.5180),
-    Neighborhood("Del Paso Heights", 38.6470, -121.4480),
-    Neighborhood("Hagginwood", 38.6280, -121.4520),
-    Neighborhood("Arden-Arcade", 38.6000, -121.3900),
-    Neighborhood("Carmichael", 38.6260, -121.3290),
-    Neighborhood("Rancho Cordova", 38.5890, -121.3030),
-    Neighborhood("Colonial Heights", 38.5360, -121.4430),
-    Neighborhood("Valley Hi", 38.4500, -121.4400),
-    Neighborhood("Parkway", 38.4830, -121.4500),
-    Neighborhood("College-Glen", 38.5560, -121.3950),
-    Neighborhood("Rosemont", 38.5520, -121.3620),
-    Neighborhood("West Sacramento", 38.5800, -121.5300),
-    Neighborhood("Davis", 38.5449, -121.7405),
-    Neighborhood("North Sacramento", 38.6200, -121.4500),
-    Neighborhood("Gardenland", 38.6150, -121.5050),
-    Neighborhood("Robla", 38.6650, -121.4450),
-    Neighborhood("Florin", 38.4900, -121.4300),
-    Neighborhood("Mangan Park", 38.5300, -121.4750),
-    Neighborhood("Glen Elder", 38.5400, -121.4350),
+#: Every California place from the validated data module, wrapped as Neighborhoods. Public city
+#: centroids (no homes, no people); point-in-polygon checked against US Census county boundaries.
+CALIFORNIA: tuple[Neighborhood, ...] = tuple(
+    Neighborhood(name, lat, lon) for name, lat, lon in _CALIFORNIA_RAW
 )
 
 
@@ -108,23 +79,30 @@ def _coords(places: tuple[Neighborhood, ...]) -> tuple[str, str]:
 
 
 def fetch(
-    places: tuple[Neighborhood, ...] = SACRAMENTO,
+    places: tuple[Neighborhood, ...] = CALIFORNIA,
     *,
     past_days: int = 2,
     forecast_days: int = 1,
+    chunk: int = 100,
 ) -> list[Observation]:
-    """Fetch real hourly readings for each place (one batched call per endpoint)."""
-    lats, lons = _coords(places)
+    """Fetch real hourly readings for each place. Coordinates are batched, ``chunk`` places per
+    call, so a statewide list of hundreds of places stays a handful of requests (Open-Meteo caps
+    how many coordinates one URL may carry). Results stay index-aligned with ``places``."""
     window = f"&past_days={past_days}&forecast_days={forecast_days}"
-    air = _as_list(
-        _get_json(f"{AIR_URL}?latitude={lats}&longitude={lons}&hourly=pm2_5,pm10{window}")
-    )
-    weather = _as_list(
-        _get_json(
-            f"{WEATHER_URL}?latitude={lats}&longitude={lons}"
-            f"&hourly=temperature_2m,relative_humidity_2m{window}"
+    air: list[dict[str, Any]] = []
+    weather: list[dict[str, Any]] = []
+    for i in range(0, len(places), chunk):
+        group = places[i : i + chunk]
+        lats, lons = _coords(group)
+        air += _as_list(
+            _get_json(f"{AIR_URL}?latitude={lats}&longitude={lons}&hourly=pm2_5,pm10{window}")
         )
-    )
+        weather += _as_list(
+            _get_json(
+                f"{WEATHER_URL}?latitude={lats}&longitude={lons}"
+                f"&hourly=temperature_2m,relative_humidity_2m{window}"
+            )
+        )
     return to_observations(places, air, weather)
 
 
@@ -179,11 +157,14 @@ def to_observations(
 
 
 def network_doc(
-    places: tuple[Neighborhood, ...], languages: tuple[str, ...] = ("en", "es")
+    places: tuple[Neighborhood, ...] = CALIFORNIA,
+    *,
+    name: str = "swelter — California (real open data)",
+    languages: tuple[str, ...] = ("en", "es"),
 ) -> dict[str, Any]:
-    """A ``network.yaml`` document for the real neighborhoods (precise public centroids)."""
+    """A ``network.yaml`` document for the real places (precise public centroids)."""
     return {
-        "name": "swelter — Sacramento (real open data)",
+        "name": name,
         "grid_resolution_m": 150,
         "languages": list(languages),
         "reference_monitors": [],
@@ -193,7 +174,7 @@ def network_doc(
                 "label": p.name,
                 "lat": p.lat,
                 "lon": p.lon,
-                "location": "precise",  # public neighborhood centroids, not private homes
+                "location": "precise",  # public city/place centroids, not private homes
             }
             for p in places
         ],

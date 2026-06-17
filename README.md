@@ -5,7 +5,7 @@
 [![data: CC0-1.0](https://img.shields.io/badge/data-CC0--1.0-brightgreen.svg)](DATA-LICENSE)
 [![accessibility: WCAG 2.2 AA](https://img.shields.io/badge/accessibility-WCAG%202.2%20AA-success.svg)](docs/accessibility/ACR.md)
 
-**[▶ Live demo](https://chelseakr.github.io/swelter/)** — the dashboard on **real, current** data, refreshed daily, in two views you can switch between: **[Sacramento](https://chelseakr.github.io/swelter/)** (Copernicus CAMS air quality + heat) and **[Stuttgart](https://chelseakr.github.io/swelter/sensors/)** (real community low-cost sensors, Sensor.Community). AQI and heat-island map with table and list views, English and Spanish.
+**[▶ Live demo](https://chelseakr.github.io/swelter/)** — the dashboard on **real, current** data, refreshed daily, in two views you can switch between: **[all of California](https://chelseakr.github.io/swelter/)** (Copernicus CAMS air quality + heat across 337 cities, on a county-outline map) and **[Stuttgart](https://chelseakr.github.io/swelter/sensors/)** (real community low-cost sensors, Sensor.Community). AQI and heat-island map with table and list views, English and Spanish.
 
 > A neighborhood-owned mesh of low-cost heat and air-quality sensors, a time-series pipeline that
 > ingests their readings, calibration that corrects sensor drift against reference monitors, and an
@@ -67,8 +67,11 @@ current data from a live open-data source — no API key, no hardware — throug
 dashboard shows the source on screen. Two real sources ship:
 
 - `swelter fetch --source openmeteo` — real hourly air quality (Copernicus CAMS) and weather for
-  Sacramento neighborhoods, from [Open-Meteo](https://open-meteo.com). Real and current, but
-  *model/reanalysis* output — **not** physical sensors and **not** swelter-calibrated.
+  **337 cities across all of California**, from [Open-Meteo](https://open-meteo.com), drawn on a
+  California county-outline basemap. Real and current, but *model/reanalysis* output — **not**
+  physical sensors and **not** swelter-calibrated. (The place list is coordinate-checked
+  point-in-polygon against US Census county boundaries; the basemap is public-domain cartographic
+  data.)
 - `swelter fetch --source sensor-community` — real **physical low-cost sensors** from the community
   [Sensor.Community](https://sensor.community) network (dense in Europe; defaults to Stuttgart, its
   origin). These are exactly what swelter is built for: community-owned, low-cost, and *uncalibrated*

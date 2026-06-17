@@ -14,6 +14,8 @@
   --accent-fg: #ffffff;
   --focus: #11489c;
   --provisional: #6b5b4d;
+  --map-land: #ece3d6;
+  --map-line: #b3a294;
   --max-width: 70rem;
 }
 
@@ -28,6 +30,8 @@
     --accent-fg: #14110f;
     --focus: #9ec1ff;
     --provisional: #b8a695;
+    --map-land: #241d18;
+    --map-line: #5c4f44;
   }
 }
 
@@ -323,8 +327,26 @@ input[type="range"][aria-disabled="true"] {
   border-radius: 0.4rem;
 }
 
+/* Optional geographic basemap (e.g. California counties): decorative land fill + border lines,
+   drawn behind the markers. Non-scaling stroke keeps the lines crisp under the stretched viewBox. */
+.map .basemap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.basemap-land {
+  fill: var(--map-land);
+  stroke: var(--map-line);
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
 .cell {
   position: absolute;
+  z-index: 1;
   transform: translate(-50%, 50%);
   min-width: 3.6rem;
   min-height: 2.6rem;

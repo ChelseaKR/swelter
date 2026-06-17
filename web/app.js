@@ -46,6 +46,7 @@ const state = {
   search: "",
   strings: {},
   historyLoaded: false,
+  basemap: null, // optional geographic outline (e.g. California) drawn behind the markers
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -89,6 +90,44 @@ async function fetchSurface(url) {
     return doc && doc.cells ? doc : null;
   } catch {
     return null;
+  }
+}
+
+// Optional geographic basemap (e.g. California county outlines). If basemap.geojson sits next to
+// the page, the map draws it behind the markers; if not (404/parse error), the map stays a plain
+// schematic. Flattened to rings + a bbox once, so render stays cheap.
+async function loadBasemap() {
+  try {
+    const res = await fetch("basemap.geojson");
+    if (!res.ok) return;
+    const gj = await res.json();
+    const rings = [];
+    let minLon = Infinity;
+    let minLat = Infinity;
+    let maxLon = -Infinity;
+    let maxLat = -Infinity;
+    const addRing = (ring) => {
+      const r = [];
+      for (const pt of ring) {
+        const lon = +pt[0];
+        const lat = +pt[1];
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        r.push([lon, lat]);
+      }
+      if (r.length > 2) rings.push(r);
+    };
+    for (const f of gj.features || []) {
+      const g = f.geometry || {};
+      if (g.type === "Polygon") g.coordinates.forEach(addRing);
+      else if (g.type === "MultiPolygon") g.coordinates.forEach((p) => p.forEach(addRing));
+    }
+    if (rings.length) state.basemap = { rings, bbox: [minLon, minLat, maxLon, maxLat] };
+  } catch {
+    /* no basemap — the map falls back to its schematic plot */
   }
 }
 
@@ -286,19 +325,79 @@ function td(text) {
   return cell;
 }
 
+// Equirectangular projection over a bounding box, with a cos(latitude) longitude scale so the
+// shape isn't stretched east-west. When a basemap (e.g. California) is loaded we fit to ITS bbox so
+// the geography stays recognizable however few points there are; otherwise we fit to the data.
+function mapProjection(rows) {
+  const bm = state.basemap;
+  let minLon, minLat, maxLon, maxLat;
+  if (bm) {
+    [minLon, minLat, maxLon, maxLat] = bm.bbox;
+  } else {
+    const lats = rows.map((r) => r.lat);
+    const lons = rows.map((r) => r.lon);
+    [minLat, maxLat, minLon, maxLon] = [
+      Math.min(...lats),
+      Math.max(...lats),
+      Math.min(...lons),
+      Math.max(...lons),
+    ];
+  }
+  const pad = bm ? 0.04 : 0; // keep the coastline off the edge; data-only fit insets per-marker
+  const padLat = (maxLat - minLat || 1) * pad;
+  const padLon = (maxLon - minLon || 1) * pad;
+  minLat -= padLat;
+  maxLat += padLat;
+  minLon -= padLon;
+  maxLon += padLon;
+  const kx = Math.cos((((minLat + maxLat) / 2) * Math.PI) / 180);
+  return { minLon, minLat, maxLon, maxLat, kx, W: (maxLon - minLon) * kx, H: maxLat - minLat };
+}
+
+// The basemap polygons as one decorative, aria-hidden SVG path behind the markers, projected with
+// the same transform so the dots land on the right geography. preserveAspectRatio="none" is safe
+// because we set #map's aspect-ratio to W/H, so the viewBox maps 1:1 with no distortion.
+function buildBasemap(proj) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "basemap");
+  svg.setAttribute("viewBox", `0 0 ${proj.W} ${proj.H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  let d = "";
+  for (const ring of state.basemap.rings) {
+    for (let i = 0; i < ring.length; i++) {
+      const x = ((ring[i][0] - proj.minLon) * proj.kx).toFixed(2);
+      const y = (proj.maxLat - ring[i][1]).toFixed(2);
+      d += (i === 0 ? "M" : "L") + x + " " + y;
+    }
+    d += "Z";
+  }
+  const path = document.createElementNS(NS, "path");
+  path.setAttribute("d", d);
+  path.setAttribute("class", "basemap-land");
+  svg.appendChild(path);
+  return svg;
+}
+
 function renderMap(rows) {
   const map = $("#map");
   map.textContent = "";
   map.classList.toggle("dense", rows.length > 50); // shrink markers on a dense network
   if (!rows.length) return;
-  const lats = rows.map((r) => r.lat);
-  const lons = rows.map((r) => r.lon);
-  const [minLat, maxLat, minLon, maxLon] = [
-    Math.min(...lats),
-    Math.max(...lats),
-    Math.min(...lons),
-    Math.max(...lons),
-  ];
+  const proj = mapProjection(rows);
+  if (state.basemap) {
+    // Match the box to the projection so the outline isn't stretched, and cap its height.
+    map.style.aspectRatio = `${proj.W} / ${proj.H}`;
+    map.style.maxWidth = `${((proj.W / proj.H) * 34).toFixed(2)}rem`;
+    map.style.marginInline = "auto";
+    map.appendChild(buildBasemap(proj));
+  } else {
+    map.style.removeProperty("aspect-ratio");
+    map.style.removeProperty("max-width");
+    map.style.removeProperty("margin-inline");
+  }
   const span = (v, lo, hi) => (hi === lo ? 0.5 : (v - lo) / (hi - lo));
   for (const row of rows) {
     const btn = document.createElement("button");
@@ -311,8 +410,13 @@ function renderMap(rows) {
     }
     if (row.provisional) btn.classList.add("provisional");
     if (row.cell_id === state.selected) btn.classList.add("selected");
-    btn.style.left = `${(0.06 + 0.88 * span(row.lon, minLon, maxLon)) * 100}%`;
-    btn.style.bottom = `${(0.08 + 0.84 * span(row.lat, minLat, maxLat)) * 100}%`;
+    if (state.basemap) {
+      btn.style.left = `${span(row.lon, proj.minLon, proj.maxLon) * 100}%`;
+      btn.style.bottom = `${span(row.lat, proj.minLat, proj.maxLat) * 100}%`;
+    } else {
+      btn.style.left = `${(0.06 + 0.88 * span(row.lon, proj.minLon, proj.maxLon)) * 100}%`;
+      btn.style.bottom = `${(0.08 + 0.84 * span(row.lat, proj.minLat, proj.maxLat)) * 100}%`;
+    }
     btn.setAttribute("aria-label", describe(row));
     const value = document.createElement("span");
     value.textContent =
@@ -514,6 +618,7 @@ async function init() {
       .catch(() => {});
   }
   await loadStrings("en");
+  await loadBasemap();
   wireTabs();
   wireSort();
   wireControls();

@@ -1,5 +1,5 @@
 # Publish the dashboard to GitHub Pages as a live demo with REAL open data on two pages:
-#   "/"         — Copernicus CAMS air quality + weather for Sacramento neighborhoods (Open-Meteo)
+#   "/"         — Copernicus CAMS air quality + weather for all of California (Open-Meteo)
 #   "/sensors/" — real community low-cost sensors from Sensor.Community (Stuttgart)
 # Both are keyless. The dashboard is static, so each fetched surface is baked into the artifact with
 # a DATA-LICENSE and a CSV download. Runs on push and daily so the readings stay current; if a fetch
@@ -34,15 +34,17 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Assemble the live demo (two real sources, synthetic fallback)
         run: |
-          # Page 1 ("/"): real Copernicus CAMS air quality + weather for Sacramento neighborhoods.
+          # Page 1 ("/"): real Copernicus CAMS air quality + weather for California cities (statewide).
+          # web/basemap.geojson (committed) draws the California county outlines behind the markers.
           uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
-            --web web --past-days 3 || uv run swelter demo --store /tmp/cams --web web
+            --web web --past-days 1 || uv run swelter demo --store /tmp/cams --web web
           cp DATA-LICENSE web/DATA-LICENSE
           uv run swelter export --store /tmp/cams --format csv > web/export.csv
           # Page 2 ("/sensors/"): real community low-cost sensors (Sensor.Community, Stuttgart).
           rm -rf web/sensors && mkdir -p web/sensors
           find web -maxdepth 1 -type f -exec cp {} web/sensors/ \;
           cp -r web/i18n web/sensors/i18n
+          rm -f web/sensors/basemap.geojson  # Stuttgart is not California — keep its map schematic
           uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
             --web web/sensors || cp web/sample-surface.json web/sensors/sample-surface.json
           cp DATA-LICENSE web/sensors/DATA-LICENSE
