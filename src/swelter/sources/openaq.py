@@ -24,6 +24,8 @@ import json
 import math
 import time
 import urllib.request
+from dataclasses import replace
+from datetime import timedelta
 from typing import Any
 
 from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
@@ -190,7 +192,26 @@ def fetch(
         if emitted:
             out += emitted
             nodes[node_id] = (str(loc.get("name") or f"Site {lid}"), lat, lon)
+    out = _to_snapshot(out)
+    live = {o.node_id for o in out}
+    nodes = {nid: meta for nid, meta in nodes.items() if nid in live}
     return out, nodes
+
+
+def _to_snapshot(observations: list[Observation], *, window_h: float = 6.0) -> list[Observation]:
+    """Collapse "latest" readings to a single most-recent hour. Each sensor reports on its own
+    clock, so otherwise they scatter across hourly buckets and any single hour looks sparse.
+    /latest is a snapshot, so present it as one: drop readings staler than ``window_h`` before the
+    newest, and stamp the rest at the newest hour — the live network at once, like an AQI map."""
+    if not observations:
+        return observations
+    times = [parse_timestamp(o.timestamp) for o in observations]
+    newest = max(times)
+    cutoff = newest - timedelta(hours=window_h)
+    snap = format_timestamp(newest.replace(minute=0, second=0, microsecond=0))
+    return [
+        replace(o, timestamp=snap) for o, t in zip(observations, times, strict=True) if t >= cutoff
+    ]
 
 
 def network_doc(

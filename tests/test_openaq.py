@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from swelter.models import RAW
+from swelter.models import RAW, Observation
 from swelter.sources import openaq
 
 
@@ -64,3 +64,20 @@ def test_network_doc_marks_uncalibrated() -> None:
     assert node["location"] == "precise"  # real sensor coordinates
     assert doc["calibration_windows"] == []  # real, but not swelter-calibrated
     assert "OpenAQ" in doc["name"]
+
+
+def _pm(node: str, ts: str, value: float) -> Observation:
+    return Observation(node_id=node, timestamp=ts, parameter="pm25_ugm3", value=value, unit="ug/m3")
+
+
+def test_to_snapshot_collapses_to_one_hour_and_drops_stale() -> None:
+    # /latest readings arrive on each sensor's own clock; the snapshot collapses the live ones to
+    # one hour (so the whole network shows at once) and drops anything staler than the window.
+    obs = [
+        _pm("oaq-1", "2026-06-17T21:50:00Z", 10.0),
+        _pm("oaq-2", "2026-06-17T21:05:00Z", 20.0),
+        _pm("oaq-3", "2026-06-17T10:00:00Z", 99.0),  # >6h older than newest → dropped
+    ]
+    snap = openaq._to_snapshot(obs)
+    assert {o.timestamp for o in snap} == {"2026-06-17T21:00:00Z"}  # all on the newest hour
+    assert {o.node_id for o in snap} == {"oaq-1", "oaq-2"}  # the stale site is gone
