@@ -1,0 +1,46 @@
+"""Shared fixtures: a throwaway store, an observation factory, and paths to the demo data."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from pathlib import Path
+
+import pytest
+
+from swelter.models import RAW, Observation
+from swelter.store import SqliteStore
+
+ROOT = Path(__file__).resolve().parents[1]
+DEMO = ROOT / "data" / "demo"
+
+
+@pytest.fixture
+def store(tmp_path: Path) -> Iterator[SqliteStore]:
+    db = SqliteStore(tmp_path / "obs.db")
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def make_obs(
+    *,
+    node_id: str = "node-01",
+    timestamp: str = "2026-06-01T00:00:00Z",
+    parameter: str = "temp_c",
+    value: float = 25.0,
+    unit: str = "degC",
+    calibration: str = RAW,
+    qc: str = "ok",
+    uncertainty: float | None = None,
+) -> Observation:
+    return Observation(
+        node_id=node_id,
+        timestamp=timestamp,
+        parameter=parameter,
+        value=value,
+        unit=unit,
+        calibration=calibration,
+        qc=qc,
+        uncertainty=uncertainty,
+    )
