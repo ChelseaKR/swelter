@@ -20,7 +20,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 - A laptop with [`uv`](https://docs.astral.sh/uv/) installed (the project's only prerequisite; it
   manages Python and the dependencies for you).
 - A clone of this repository.
-- A list of the blocks you want to measure, with a rough lat/lon for each (a pin dropped on any map
+- A list of the locations you want to measure, with a rough lat/lon for each (a pin dropped on any map
   is fine — you are going to publish a coarse grid cell, not the exact pin; see step 3).
 - At least one **reference monitor** you can co-locate against for a few days: a nearby regulatory
   station (US EPA AQS or AirNow) or a trusted reference-grade instrument. Calibration is what earns
@@ -66,7 +66,7 @@ languages:
 
 - **`grid_resolution_m`** is the size of the published location grid cell, in meters. Every public
   coordinate is snapped to a cell of this size before it leaves the system, so a reader sees the
-  block, not the porch. The default `150` answers "is this block hotter than that one" without
+  area, not the porch. The default `150` answers "is this area hotter than that one" without
   publishing where anyone lives. Changing it is a **collective** decision, not a quiet edit — see
   [`governance.md`](governance.md) §3 (location-precision policy) and §7 (decision process).
 - **`languages`** lists the dashboard locales. Ship the languages the people you serve actually
@@ -76,26 +76,26 @@ languages:
 
 ## Step 3 — Register your nodes
 
-Replace the `nodes:` list with your blocks. Each node is four required fields plus a location
+Replace the `nodes:` list with your locations. Each node is four required fields plus a location
 precision:
 
 ```yaml
 nodes:
 - node_id: node-01          # stable, unique id; never a person's name
-  label: Cedar & 4th        # the block name residents will see on the map/table/list
-  lat: 38.575057            # a coordinate inside the block
+  label: Cedar & 4th        # the location name residents will see on the map/table/list
+  lat: 38.575057            # a coordinate inside the location
   lon: -121.509361
   location: coarse          # coarse (default, recommended) | precise
 ```
 
 - **`node_id`** — a short stable handle (`node-01`, `node-02`, …). It is published, so keep it
   generic. It must never encode a person or an address.
-- **`label`** — the human name for the block. This is the cell label that the dashboard surfaces
-  everywhere: the map marker's accessible name, the table row, the list sentence, the block-name
-  search, and the "use my location → nearest block" button. Pick a name residents say out loud
+- **`label`** — the human name for the location. This is the cell label that the dashboard surfaces
+  everywhere: the map marker's accessible name, the table row, the list sentence, the location-name
+  search, and the "use my location → nearest location" button. Pick a name residents say out loud
   ("Cedar & 4th", "Oak Park Commons"), not a code. When two nodes snap to the same grid cell, their
   labels are joined with `/`, so neighboring names read sensibly together.
-- **`lat` / `lon`** — any coordinate inside the block. It does not need to be the exact host
+- **`lat` / `lon`** — any coordinate inside the location's area. It does not need to be the exact host
   location; for a coarse node only the grid cell it falls in is ever published.
 - **`location`** — `coarse` (the default and the safe choice) snaps the published coordinate to the
   grid cell. `precise` publishes the node's real coordinates. **`precise` is a per-node, host opt-in
@@ -139,7 +139,7 @@ Notes:
 - Calibrate the parameters you care about. In the example, PM2.5 and PM10 get a humidity-aware
   correction and temperature gets an enclosure offset — three windows per co-located node.
 - A node with **no** co-location window stays **raw** and is shown **provisional** on the dashboard.
-  That is correct and honest, not a failure: a provisional block renders neutrally and never asserts
+  That is correct and honest, not a failure: a provisional location renders neutrally and never asserts
   an AQI category. You can ship a mostly-provisional network on day one and calibrate nodes as their
   windows complete.
 - Re-co-locating a node later and re-fitting produces a new correction recorded with its window —
@@ -167,7 +167,7 @@ $ uv run swelter serve --store store --config my-network.yaml
 `swelter serve` brings up everything at <http://127.0.0.1:8000>:
 
 - the dashboard (map, sortable table, plain list — three equal views of one surface, default List
-  view), with the block-name search, the "use my location" nearest-block button, the °F/°C toggle,
+  view), with the location-name search, the "use my location" nearest-location button, the °F/°C toggle,
   and the on-screen ± uncertainty;
 - the surface API: `/api/surface.json?hours=N` and `/api/surface.geojson` (each cell carries
   `label`, `uncertainty`, `aqi`, `aqi_window`, and `provisional`);
@@ -179,7 +179,7 @@ To regenerate the offline `web/sample-surface.json` (so the dashboard renders ev
 static files), run `make demo` — but note that target uses the bundled demo data; for your own
 network, serve from your own store as above.
 
-That is the whole afternoon: copy the file, register your blocks and reference monitor, record the
+That is the whole afternoon: copy the file, register your locations and reference monitor, record the
 windows, calibrate, and serve.
 
 ## Location precision and governance — read this before you go live
@@ -211,24 +211,24 @@ coarse locations mean. (A standalone version lives in
 
 > **About [Eastside Cooperative heat & air network]**
 >
-> This is a neighborhood-run network of small sensors that measure heat and air quality block by
-> block, so we can see which blocks get hottest and where the air is worst. It is run by us — the
+> This is a neighborhood-run network of small sensors that measure heat and air quality across the
+> neighborhood, so we can see which areas get hottest and where the air is worst. It is run by us — the
 > people who live here and host the sensors — not by a company. The readings are open data anyone
 > can download and check.
 >
-> **What the map shows.** Each marker is a *block*, named for a place you know. Tap one for its
+> **What the map shows.** Each marker is a *location*, named for a place you know. Tap one for its
 > reading. Air quality leads with the AQI number and a plain category (for example "Moderate"), with
 > a short "What is AQI?" note and health guidance from the US EPA. The AQI shown is an **hourly**
 > reading — a recent snapshot, not the official 24-hour average — and the map says so.
 >
 > **What "coarse location" means.** We never publish where a sensor actually sits. Every location is
-> rounded to roughly a [150-meter] block so the map answers "is this block hot?" without showing
+> rounded to roughly a [150-meter] grid cell so the map answers "is this area hot?" without showing
 > "there's a sensor on this house." Hosts' homes stay private by default.
 >
-> **Provisional readings.** A block whose sensor is not yet calibrated is marked **provisional** and
+> **Provisional readings.** A location whose sensor is not yet calibrated is marked **provisional** and
 > shown plainly as not-yet-confirmed — we never dress up an unverified reading as a fact.
 >
 > **The data is yours.** Readings are public-domain (CC0): download them, check our work, or take a
 > full copy and run the network elsewhere. Nobody can switch it off or fence the data away.
 >
-> Questions, or want to host a sensor on your block? [contact / meeting details].
+> Questions, or want to host a sensor near you? [contact / meeting details].

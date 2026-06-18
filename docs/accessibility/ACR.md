@@ -19,7 +19,7 @@ least every 6 months when no release ships.
 | Name of product | swelter dashboard (the `web/` single-page application) |
 | Version | Tracks the repository release; this report covers the dashboard as committed on the date below |
 | Report date | 2026-06-16 |
-| Product description | A framework-free, dependency-free web dashboard showing block-by-block heat and air quality from a community sensor network. One aggregated surface is rendered as three equal views — a schematic map, a sortable data table, and a plain readings list — plus an air-quality legend. Served by `swelter serve`; installable as a PWA; also openable as static files. |
+| Product description | A framework-free, dependency-free web dashboard showing neighborhood heat and air quality from a community sensor network. One aggregated surface is rendered as three equal views — a schematic map, a sortable data table, and a plain readings list — plus an air-quality legend. Served by `swelter serve`; installable as a PWA; also openable as static files. |
 | Contact information | Chelsea Kelly-Reif — github.com/ChelseaKR/swelter |
 | Notes | The dashboard is three static files (`web/index.html`, `web/styles.css`, `web/app.js`) plus per-language string bundles (`web/i18n/en.json`, `web/i18n/es.json`). No build step, no bundler, no runtime framework. |
 | Evaluation methods used | See below. |
