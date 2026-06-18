@@ -1,7 +1,7 @@
 /* swelter dashboard — framework-free, mobile-first, WCAG 2.2 AA.
    Severity is carried by text and pattern, not color alone; focus is always visible;
    motion respects prefers-reduced-motion. Colors are AA-contrast on their surfaces, but are
-   never the only signal. Provisional (uncalibrated) blocks are rendered neutrally so an
+   never the only signal. Provisional (uncalibrated) locations are rendered neutrally so an
    unconfirmed reading never "wears" a confirmed air-quality category. */
 
 :root {
@@ -427,7 +427,7 @@ input[type="range"][aria-disabled="true"] {
   font-weight: 700;
 }
 
-/* Provisional blocks read NEUTRAL — never wearing a confirmed category color. */
+/* Provisional locations read NEUTRAL — never wearing a confirmed category color. */
 .cell.provisional {
   border-style: dashed;
   background: repeating-linear-gradient(45deg, #e7ddd2 0 4px, #d9cdbf 4px 8px);

@@ -7,7 +7,7 @@
     <title>swelter — neighborhood heat &amp; air-quality map</title>
     <meta
       name="description"
-      content="Block-by-block heat and air quality from a community sensor network. Calibrated, open, and readable as a map, a table, or a plain list."
+      content="Neighborhood heat and air quality from a community sensor network. Calibrated, open, and readable as a map, a table, or a plain list."
     />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
@@ -20,7 +20,7 @@
       <div class="brand">
         <h1>swelter</h1>
         <p class="tagline" data-i18n="tagline">
-          Block-by-block heat and air quality, calibrated and open.
+          Neighborhood heat and air quality, calibrated and open.
         </p>
       </div>
       <div class="header-controls">
@@ -51,14 +51,14 @@
       <section class="controls" aria-labelledby="controls-heading">
         <h2 id="controls-heading" class="visually-hidden" data-i18n="controls">Controls</h2>
         <div class="control find">
-          <label for="place-search" data-i18n="search-label">Find your block</label>
+          <label for="place-search" data-i18n="search-label">Find your area</label>
           <div class="find-row">
             <input
               id="place-search"
               type="search"
               autocomplete="off"
               data-i18n-attr="placeholder:search-placeholder"
-              placeholder="Search a block name…"
+              placeholder="Search a location name…"
             />
             <button id="locate" type="button" data-i18n="locate">Use my location</button>
           </div>
@@ -101,11 +101,11 @@
 
       <section id="panel-table" role="tabpanel" aria-labelledby="tab-table" tabindex="-1" hidden>
         <table id="data-table">
-          <caption data-i18n="table-caption">Latest readings by neighborhood block</caption>
+          <caption data-i18n="table-caption">Latest readings by location</caption>
           <thead>
             <tr>
               <th scope="col" aria-sort="none">
-                <button type="button" data-sort="label" data-i18n="col-place">Block</button>
+                <button type="button" data-sort="label" data-i18n="col-place">Location</button>
               </th>
               <th scope="col" aria-sort="descending">
                 <button type="button" data-sort="value" data-i18n="col-value">Reading</button>
@@ -120,7 +120,7 @@
 
       <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" tabindex="-1" hidden>
         <p class="hint" data-i18n="map-hint">
-          An interactive map of sensor blocks — drag to pan, scroll or pinch to zoom, or use the
+          An interactive map of sensor locations — drag to pan, scroll or pinch to zoom, or use the
           buttons and arrow keys. Each marker states its reading in text; the same data is in the
           List and Table tabs for any reader the map does not serve.
         </p>
@@ -130,7 +130,7 @@
             class="map"
             role="group"
             data-i18n-attr="aria-label:map-aria"
-            aria-label="Sensor blocks. Drag to pan, scroll to zoom, arrow keys to move."
+            aria-label="Sensor locations. Drag to pan, scroll to zoom, arrow keys to move."
             tabindex="0"
           ></div>
           <div class="map-controls" role="group" data-i18n-attr="aria-label:map-zoom-group" aria-label="Map zoom">
@@ -142,7 +142,7 @@
       </section>
 
       <section id="detail" class="detail" aria-labelledby="detail-heading" hidden>
-        <h2 id="detail-heading" data-i18n="detail-title">Selected block</h2>
+        <h2 id="detail-heading" data-i18n="detail-title">Selected location</h2>
         <p id="detail-body" aria-live="polite"></p>
         <p id="detail-guidance" class="guidance"></p>
         <p class="guidance-source" data-i18n="guide-source">Health context: US EPA AirNow.</p>
@@ -166,10 +166,10 @@
           <li><span class="swatch aqi-hazardous" aria-hidden="true"></span><span data-i18n="aqi-haz">Hazardous — AQI 301+</span></li>
         </ul>
         <p class="legend-note" data-i18n="aqi-window">
-          The AQI shown is computed from each block's hourly mean, not a 24-hour average.
+          The AQI shown is computed from each location's hourly mean, not a 24-hour average.
         </p>
         <p class="provisional-note" data-i18n="provisional">
-          <strong>Provisional</strong> blocks have only early, uncalibrated readings — still being
+          <strong>Provisional</strong> locations have only early, uncalibrated readings — still being
           double-checked, and never shown as a confirmed category. Status is conveyed by text and
           pattern, not color alone.
         </p>
