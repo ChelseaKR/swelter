@@ -33,6 +33,24 @@ const CAT_SLUG = {
   Hazardous: "haz",
 };
 
+// Combined heat-and-air exposure (ADR 0009): severity is carried by the level NAME in text, never
+// by color alone, so exposure markers/tags stay visually neutral and rely on these labels.
+const EXP_SLUG = {
+  Minimal: "minimal",
+  Low: "low",
+  Elevated: "elevated",
+  High: "high",
+  Extreme: "extreme",
+};
+
+const HEAT_SLUG = {
+  None: "none",
+  Caution: "caution",
+  "Extreme Caution": "xcaution",
+  Danger: "danger",
+  "Extreme Danger": "xdanger",
+};
+
 const state = {
   cells: [],
   buckets: [],
@@ -175,6 +193,20 @@ function localCategory(category) {
   return slug ? t(`cat-${slug}`) : category;
 }
 
+function localExposure(level) {
+  const slug = EXP_SLUG[level];
+  return slug ? t(`exp-${slug}`) : level;
+}
+
+function localHeat(tier) {
+  const slug = HEAT_SLUG[tier];
+  return slug ? t(`heat-${slug}`) : tier;
+}
+
+function isExposure() {
+  return state.parameter === "exposure";
+}
+
 function unitLabel() {
   const base = PARAM_BASE_UNIT[state.parameter];
   if (base === "C") return state.unit === "F" ? "°F" : "°C";
@@ -215,8 +247,22 @@ function fmtBucket(bucket) {
   }
 }
 
+function exposureReading(row) {
+  // The level name carries severity in text; "~" marks a provisional (unconfirmed) level (F4).
+  return row.provisional ? `~${localExposure(row.category)}` : localExposure(row.category);
+}
+
 function describe(row) {
   const place = placeName(row);
+  if (isExposure()) {
+    const comp = row.compound ? ` — ${t("exp-compound")}` : "";
+    const ctx = [];
+    if (row.heat_category) ctx.push(`${t("exp-heat")}: ${localHeat(row.heat_category)}`);
+    if (row.air_category) ctx.push(`${t("exp-air")}: ${localCategory(row.air_category)}`);
+    const detail = ctx.length ? ` (${ctx.join(", ")})` : "";
+    const prov = row.provisional ? ` (${t("state-provisional")})` : "";
+    return `${place}: ${exposureReading(row)}${comp}${detail}${prov}`;
+  }
   if (state.parameter === "pm25_ugm3") {
     const aqi = row.provisional ? `~AQI ${row.aqi}` : `AQI ${row.aqi}`;
     // Provisional cells never assert a named category as fact (F4).
@@ -307,7 +353,10 @@ function renderTable(rows) {
     place.textContent = placeName(row);
     tr.appendChild(place);
 
-    tr.appendChild(td(`${fmtValue(row.mean)}${fmtUncertainty(row.uncertainty)}`));
+    const readingText = isExposure()
+      ? `${exposureReading(row)}${row.compound ? ` — ${t("exp-compound")}` : ""}`
+      : `${fmtValue(row.mean)}${fmtUncertainty(row.uncertainty)}`;
+    tr.appendChild(td(readingText));
 
     const aqi = document.createElement("td");
     if (state.parameter === "pm25_ugm3" && row.category) {
@@ -316,6 +365,12 @@ function renderTable(rows) {
       tag.textContent = row.provisional
         ? `~AQI ${row.aqi}`
         : `AQI ${row.aqi} — ${localCategory(row.category)}`;
+      aqi.appendChild(tag);
+    } else if (isExposure() && row.air_category) {
+      // Exposure: the Air-quality column shows its air component (the level itself is in Reading).
+      const tag = document.createElement("span");
+      tag.className = `tag ${row.provisional ? "" : AQI_CLASS[row.air_category] || ""}`;
+      tag.textContent = localCategory(row.air_category);
       aqi.appendChild(tag);
     } else {
       aqi.textContent = "—";
@@ -453,7 +508,11 @@ function renderMap(rows) {
     btn.setAttribute("aria-label", describe(row));
     const value = document.createElement("span");
     value.textContent =
-      state.parameter === "pm25_ugm3" ? `${row.aqi}` : `${Math.round(convert(row.mean))}`;
+      state.parameter === "pm25_ugm3"
+        ? `${row.aqi}`
+        : isExposure()
+          ? `${Math.round(row.mean)}`
+          : `${Math.round(convert(row.mean))}`;
     btn.appendChild(value);
     const cat = document.createElement("span");
     cat.className = "cell-cat";
@@ -462,7 +521,11 @@ function renderMap(rows) {
         ? row.provisional
           ? t("state-provisional")
           : localCategory(row.category)
-        : unitLabel();
+        : isExposure()
+          ? row.provisional
+            ? t("state-provisional")
+            : localExposure(row.category)
+          : unitLabel();
     btn.appendChild(cat);
     btn.addEventListener("click", () => {
       if (mapDidDrag || mapWasMultiTouch) return; // don't let a pan/pinch end as a marker select
@@ -738,7 +801,9 @@ function renderDetail() {
   panel.hidden = false;
   $("#detail-heading").textContent = placeName(row);
   $("#detail-body").textContent = describe(row);
-  const guidance = state.parameter === "pm25_ugm3" ? guidanceFor(row.category) : "";
+  // Exposure reuses the EPA air guidance for its air component; the level itself is in the body.
+  const guidanceCat = state.parameter === "pm25_ugm3" ? row.category : isExposure() ? row.air_category : null;
+  const guidance = guidanceCat ? guidanceFor(guidanceCat) : "";
   $("#detail-guidance").textContent = guidance;
   $(".guidance-source").hidden = !guidance;
 }

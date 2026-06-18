@@ -1,8 +1,13 @@
 """Spatial/temporal rollups: the gridded heat-island and AQI surfaces the map and API read.
 
 Aggregation snaps each node's reading to its *published* grid cell — never its precise
-location — and rolls values up by hour. Block-scale exposure is the question, so the grid is
-neighbourhood resolution, not a city average.
+location — and rolls values up by hour. Neighbourhood-scale exposure is the question, so the grid
+is neighbourhood resolution, not a city average.
+
+On top of the per-parameter cells, a derived ``exposure`` layer combines the calibrated heat index
+and the PM2.5 AQI into one published level per cell/hour (ADR 0009). It is built only where both
+halves exist, inherits their provisional flag, and never blends them into a fabricated number — the
+higher of the two concerns, plus a ``compound`` flag when both are elevated.
 
 Trust is preserved through the rollup. For a given cell, hour, and parameter, the mean is taken
 over *calibrated, QC-clean* values when any exist (and carries their mean 1-sigma uncertainty); a
@@ -20,10 +25,21 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from .config import NetworkConfig
-from .models import QC_REJECTED, Observation, parse_timestamp, pm25_aqi
+from .models import (
+    QC_REJECTED,
+    Observation,
+    exposure_level,
+    heat_index_category,
+    parse_timestamp,
+    pm25_aqi,
+)
 
 #: Parameters that appear on the map/surface (raw-only diagnostic fields are excluded).
 SURFACE_PARAMETERS = ("temp_c", "heat_index_c", "pm25_ugm3", "pm10_ugm3", "no2_ppb")
+
+#: The derived combined heat-and-air layer. Not an observed parameter — built per cell/hour from
+#: the calibrated heat-index and PM2.5 cells, so it inherits their trust (ADR 0009).
+EXPOSURE = "exposure"
 
 #: The averaging window behind the published AQI — hourly mean, not the EPA 24-hour/NowCast value.
 AQI_WINDOW = "hourly-mean"
@@ -50,6 +66,9 @@ class CellReading:
     uncertainty: float | None = None  # mean 1-sigma of the calibrated values; None when provisional
     aqi: int | None = None
     category: str | None = None
+    heat_category: str | None = None  # exposure only: NWS heat-index tier name
+    air_category: str | None = None  # exposure only: PM2.5 AQI category name
+    compound: bool = False  # exposure only: heat AND air both at least mid-tier
 
     def as_record(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -68,6 +87,10 @@ class CellReading:
         }
         if self.parameter == "pm25_ugm3":
             record["aqi_window"] = AQI_WINDOW
+        if self.parameter == EXPOSURE:
+            record["heat_category"] = self.heat_category
+            record["air_category"] = self.air_category
+            record["compound"] = self.compound
         return record
 
 
@@ -110,6 +133,12 @@ class Surface:
                     props["pm25_aqi"] = reading.aqi
                     props["aqi_category"] = reading.category
                     props["aqi_window"] = AQI_WINDOW
+                if parameter == EXPOSURE:
+                    props["exposure_level"] = int(reading.mean)
+                    props["exposure_category"] = reading.category
+                    props["exposure_heat"] = reading.heat_category
+                    props["exposure_air"] = reading.air_category
+                    props["compound"] = reading.compound
             features.append(
                 {
                     "type": "Feature",
@@ -205,4 +234,46 @@ def aggregate(
                 category=category,
             )
         )
+    cells.extend(_exposure_cells(cells))
+    cells.sort(key=lambda c: (c.cell_id, c.bucket, c.parameter))
     return Surface(interval="hour", cells=tuple(cells))
+
+
+def _exposure_cells(cells: list[CellReading]) -> list[CellReading]:
+    """Derive the combined heat-and-air exposure layer for every cell/hour that has both halves.
+
+    Built only where a calibrated-or-provisional heat-index cell *and* a PM2.5 cell exist for the
+    same cell and hour, so the compound claim is never made from a single axis. The exposure cell
+    is provisional whenever either component is, and carries no fabricated value — its ``mean`` is
+    the ordinal level used for sorting; the human signal is in ``category`` and the components.
+    """
+    by_cell_bucket: dict[tuple[str, str], dict[str, CellReading]] = defaultdict(dict)
+    for cell in cells:
+        by_cell_bucket[(cell.cell_id, cell.bucket)][cell.parameter] = cell
+    out: list[CellReading] = []
+    for (cell_id, bucket), params in by_cell_bucket.items():
+        heat = params.get("heat_index_c")
+        air = params.get("pm25_ugm3")
+        if heat is None or air is None or air.category is None:
+            continue
+        level, name, compound = exposure_level(heat.mean, air.category)
+        out.append(
+            CellReading(
+                cell_id=cell_id,
+                label=heat.label,
+                lat=heat.lat,
+                lon=heat.lon,
+                parameter=EXPOSURE,
+                bucket=bucket,
+                mean=float(level),
+                n=min(heat.n, air.n),
+                provisional=heat.provisional or air.provisional,
+                uncertainty=None,
+                aqi=None,
+                category=name,
+                heat_category=heat_index_category(heat.mean)[1],
+                air_category=air.category,
+                compound=compound,
+            )
+        )
+    return out

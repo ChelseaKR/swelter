@@ -135,10 +135,12 @@ The position (ADR 0008): swelter is the open, community-owned trust layer for ne
 heat-and-air exposure. The work below is the highest-leverage way to make that real, ordered by
 leverage.
 
-1. **Compound heat-and-air exposure surface** (ADR 0009) — combine the calibrated heat index and the
-   PM2.5 AQI into one published neighborhood surface, since the joint exposure is where the harm
-   concentrates and no incumbent publishes both together. Touches `aggregate.py`, `api.py`, `web/`,
-   and the a11y gate; keeps provisional flags and component uncertainties intact. This is the
+1. **Compound heat-and-air exposure surface** (ADR 0009) — **built.** Combines the calibrated heat
+   index and the PM2.5 AQI into one published neighborhood `exposure` level, since the joint exposure
+   is where the harm concentrates and no incumbent publishes both together. Lives in `models.py`
+   (`heat_index_category`, `exposure_level`), `aggregate.py` (the derived `exposure` cell), the
+   surface API and `api.md`, and the dashboard as a measurement option across map, table, and list —
+   provisional flags and the calibrated/raw line intact, severity in text not color alone. The
    flagship differentiator.
 2. **Make the trust layer visible** — surface the calibration version, ±uncertainty, QC verdict, and
    reference-monitor lineage as a first-class "show your work" view, not buried provenance. This is

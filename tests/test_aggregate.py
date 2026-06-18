@@ -40,6 +40,54 @@ def test_unplaced_node_is_excluded() -> None:
     assert surface.cells == ()
 
 
+def _exposure(surface: aggregate.Surface) -> list[aggregate.CellReading]:
+    return [c for c in surface.cells if c.parameter == aggregate.EXPOSURE]
+
+
+def test_exposure_needs_both_heat_and_air() -> None:
+    # Only PM2.5 present → no exposure cell (the compound claim needs both axes).
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0, calibration="v1")], _CONFIG
+    )
+    assert _exposure(surface) == []
+
+
+def test_exposure_combines_calibrated_heat_and_air() -> None:
+    surface = aggregate.aggregate(
+        [
+            make_obs(parameter="heat_index_c", value=35.0, calibration="v1"),  # Extreme Caution
+            make_obs(
+                parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v2"
+            ),  # USG (level 2)
+        ],
+        _CONFIG,
+    )
+    exposure = _exposure(surface)
+    assert len(exposure) == 1
+    cell = exposure[0]
+    assert cell.provisional is False
+    assert cell.category == "Elevated"
+    assert cell.compound is True
+    assert cell.heat_category == "Extreme Caution"
+    assert cell.air_category == "Unhealthy for Sensitive Groups"
+    record = cell.as_record()
+    assert record["compound"] is True
+    assert record["air_category"] == "Unhealthy for Sensitive Groups"
+
+
+def test_exposure_is_provisional_if_either_component_is() -> None:
+    surface = aggregate.aggregate(
+        [
+            make_obs(parameter="heat_index_c", value=35.0),  # raw → provisional
+            make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v2"),
+        ],
+        _CONFIG,
+    )
+    exposure = _exposure(surface)
+    assert len(exposure) == 1
+    assert exposure[0].provisional is True
+
+
 def test_snapshot_geojson_shape() -> None:
     surface = aggregate.aggregate(
         [
