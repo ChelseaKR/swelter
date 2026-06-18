@@ -34,7 +34,10 @@ a sensor's exact spot is only ever shown if that host specifically asks for it.
 
 **Provisional readings.** A location whose sensor has not yet been calibrated against a trusted
 reference is marked **provisional** and shown plainly as not-yet-confirmed. We never present an
-unverified reading as a confirmed fact, and a provisional location never claims an air-quality category.
+unverified reading as a confirmed fact, and a provisional location never claims an air-quality
+category. The combined heat-and-air exposure level stays provisional until *both* its heat and its
+air readings are confirmed — so until the heat sensors are calibrated, exposure shows provisional
+even where the air is confirmed.
 
 **The data is yours.** Every reading is dedicated to the public domain (CC0): you can download it,
 check our work, or take a full copy and run the network somewhere else. There is no company that can
