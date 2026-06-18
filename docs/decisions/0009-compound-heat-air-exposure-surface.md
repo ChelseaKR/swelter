@@ -1,6 +1,6 @@
 # ADR 0009: Add a compound heat-and-air exposure surface as the flagship differentiating feature
 
-Date: 2026-06-18. Status: proposed.
+Date: 2026-06-18. Status: accepted.
 
 ## Decision
 
@@ -14,8 +14,15 @@ current surface (`/api/surface.json`, the SensorThings subset, CSV/JSON export) 
 fourth measurement option across the map, table, and list — three equal views, no color-alone
 severity. The exact combination function (a documented index versus a two-axis "hot AND smoky" flag)
 is left to the implementing PR, which must publish the method and its limits the way calibration
-already does. This ADR records the direction and the guardrails; it is `proposed` until that PR
-lands.
+already does.
+
+As built, the layer is a two-axis flag rather than a blended number: the level is the higher of the
+heat tier (NWS heat-index categories) and the air tier (PM2.5 AQI category) on a shared 0–4 ordinal,
+with a separate `compound` flag when both are at least mid-tier. The combination lives in
+`models.exposure_level` / `models.heat_index_category` (unit-tested); `aggregate` derives an
+`exposure` cell per cell/hour only where both halves exist and marks it provisional if either is;
+`api.md` documents the surface fields; and the dashboard adds it as a measurement option across the
+map, table, and list, with severity carried in the level name, never color alone.
 
 ## Why
 
@@ -44,5 +51,5 @@ the dashboard, and the a11y gate; that is real surface area to keep green. And i
 back door around the hard rules: no new coordinate path that skips `public_location()`, and the
 combined cell stays provisional whenever either component is.
 
-Last verified: 2026-06-18. Recheck cadence: revisit when implemented (move to accepted or superseded)
-and whenever the EPA AQI breakpoints or the heat-index formula in `models.py` change.
+Last verified: 2026-06-18. Recheck cadence: revisit whenever the EPA AQI breakpoints, the NWS
+heat-index bands, or the heat-index formula in `models.py` change.

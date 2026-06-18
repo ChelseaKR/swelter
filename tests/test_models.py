@@ -8,8 +8,10 @@ import pytest
 
 from swelter.models import (
     RAW,
+    exposure_level,
     format_timestamp,
     heat_index_c,
+    heat_index_category,
     parse_timestamp,
     pm25_aqi,
 )
@@ -78,3 +80,25 @@ def test_pm25_aqi_categories(conc: float, category: str) -> None:
 def test_heat_index_passthrough_below_threshold() -> None:
     assert heat_index_c(20.0, 50.0) == 20.0  # regression not meaningful when cool
     assert heat_index_c(35.0, 70.0) > 35.0  # humid heat feels hotter
+
+
+def test_heat_index_category_bands() -> None:
+    assert heat_index_category(20.0) == (0, "None")  # below the Caution floor
+    assert heat_index_category(28.0) == (1, "Caution")
+    assert heat_index_category(35.0) == (2, "Extreme Caution")
+    assert heat_index_category(45.0) == (3, "Danger")
+    assert heat_index_category(52.0) == (4, "Extreme Danger")
+
+
+def test_exposure_takes_the_higher_concern() -> None:
+    # Air drives it: cool but Unhealthy air → level 3 "High", heat tier too low for compound.
+    assert exposure_level(20.0, "Unhealthy") == (3, "High", False)
+    # Heat drives it: Danger heat but Good air → level 3 "High", air too low for compound.
+    assert exposure_level(45.0, "Good") == (3, "High", False)
+
+
+def test_exposure_flags_compound_when_both_elevated() -> None:
+    # Extreme Caution heat (2) AND Unhealthy-for-Sensitive air (2): both mid-tier → compound.
+    level, name, compound = exposure_level(35.0, "Unhealthy for Sensitive Groups")
+    assert (level, name) == (2, "Elevated")
+    assert compound is True

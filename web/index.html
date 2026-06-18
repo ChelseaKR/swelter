@@ -67,6 +67,7 @@
           <label for="parameter-select" data-i18n="parameter">Measurement</label>
           <select id="parameter-select">
             <option value="pm25_ugm3" data-i18n="param-pm25">PM2.5 — fine particles</option>
+            <option value="exposure" data-i18n="param-exposure">Heat + air exposure</option>
             <option value="temp_c" data-i18n="param-temp">Temperature</option>
             <option value="heat_index_c" data-i18n="param-hi">Heat index</option>
             <option value="pm10_ugm3" data-i18n="param-pm10">PM10 — coarse particles</option>
@@ -172,6 +173,12 @@
           <strong>Provisional</strong> locations have only early, uncalibrated readings — still being
           double-checked, and never shown as a confirmed category. Status is conveyed by text and
           pattern, not color alone.
+        </p>
+        <p class="exp-note" data-i18n="exp-note">
+          <strong>Heat + air exposure</strong> combines the heat index and the PM2.5 AQI into one
+          level (Minimal to Extreme), taking the higher of the two and flagging when heat and air
+          are both elevated. It is decision-support, not a validated health index, and never a
+          claim that conditions are safe.
         </p>
       </section>
 
