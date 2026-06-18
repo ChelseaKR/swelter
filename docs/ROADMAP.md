@@ -123,6 +123,42 @@ registering its nodes, its reference monitors, and its co-location windows — a
 pipeline, gate, dashboard, and API. Nothing about the worked downtown example is hard-coded into the
 modules.
 
+## Phase 5 — differentiate and sustain (proposed, not built)
+
+Unlike phases 1–4, this phase is **not yet built**: it is the forward direction from the 2026 market,
+funding, and demand scan in [`POSITIONING.md`](POSITIONING.md). It is recorded here so a contributor
+sees where the project is headed and why; each item lands as its own PR with its own tests and ADR,
+not as a single drop. Nothing here changes a hard rule, and everything stays inside the existing
+calibration, privacy, openness, and accessibility discipline.
+
+The position (ADR 0008): swelter is the open, community-owned trust layer for neighborhood
+heat-and-air exposure. The work below is the highest-leverage way to make that real, ordered by
+leverage.
+
+1. **Compound heat-and-air exposure surface** (ADR 0009) — combine the calibrated heat index and the
+   PM2.5 AQI into one published neighborhood surface, since the joint exposure is where the harm
+   concentrates and no incumbent publishes both together. Touches `aggregate.py`, `api.py`, `web/`,
+   and the a11y gate; keeps provisional flags and component uncertainties intact. This is the
+   flagship differentiator.
+2. **Make the trust layer visible** — surface the calibration version, ±uncertainty, QC verdict, and
+   reference-monitor lineage as a first-class "show your work" view, not buried provenance. This is
+   the moat for the researcher and credibility audiences; mostly `web/` and `api.md`.
+3. **Register-your-own-network as the headline capability** — lean on `network.yaml`, the no-hosted-
+   dependency, scale-to-zero design, and `ADD-YOUR-NEIGHBORHOOD.md` as the replicability and
+   sustainability story (local ownership is the documented survival factor). Largely docs and
+   packaging, little new code.
+4. **Accessibility and bilingual as a certifiable asset** — the DOJ 2024 ADA Title II rule makes
+   WCAG 2.1 AA legally load-bearing for public agencies; swelter clears 2.2 AA and ships en + es
+   against a documented language-justice gap. Package this as a compliance hook for agency partners.
+5. **Close the data-to-action gap** — a lightweight plain-language neighborhood brief / advocacy
+   export, because the research is consistent that data alone is not the product. Builds on the
+   existing export surface.
+
+Definition of done is per-item and per-PR. The phase as a whole is done when swelter can point a
+funder at a working compound-exposure surface, an auditable trust view, and a one-afternoon
+register-your-network path — the three things the scan says the four audiences and the
+philanthropy-first funding path reward.
+
 ## Metrics ledger
 
 These are the numbers the project holds itself to. External-fact rows (the EPA breakpoint and AQI

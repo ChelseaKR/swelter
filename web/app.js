@@ -3,7 +3,7 @@
 // One data source (the aggregated surface) drives three equal views: a plain List (default), a
 // sortable Table, and a schematic Map. The map is never the only way in. Readings lead with the
 // AQI + a named category for PM2.5; severity is announced in text; provisional (uncalibrated)
-// blocks are rendered neutrally and never wear a confirmed category. Blocks are named, the time
+// locations are rendered neutrally and never wear a confirmed category. Locations are named, the time
 // and category are localized, temperature can be shown in °F, and a sourced health-context line
 // bridges the number to a decision without ever promising personal safety.
 
@@ -864,7 +864,7 @@ function locate() {
       if (best) {
         state.search = "";
         $("#place-search").value = "";
-        select(best.cell_id, true); // geolocation → center the map on the nearest block
+        select(best.cell_id, true); // geolocation → center the map on the nearest location
         $("#status").textContent = t("locate-found").replace("{place}", placeName(best));
       }
     },
