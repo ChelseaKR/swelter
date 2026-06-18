@@ -1,9 +1,9 @@
-"""Real block-level readings from OpenAQ v3 — dense physical sensors across California (API key).
+"""Real neighborhood-scale readings from OpenAQ v3 — physical sensors across California (API key).
 
 OpenAQ aggregates thousands of real air-quality stations (community PurpleAir nodes, regulatory
-reference monitors, and many other networks). In California these are dense — often several within a
-single neighborhood — so this is the source that actually delivers swelter's *block-by-block*
-promise with **real hardware**, not a coarse atmospheric model.
+reference monitors, and many other networks). Coverage is uneven: dense in some neighborhoods,
+sparse or absent elsewhere, and a statewide pull is capped at a few hundred sites — so this is
+real hardware at neighborhood resolution, not block-by-block and not a coarse atmospheric model.
 
 Honesty, as always: these are real physical sensors, but swelter does not calibrate them, so their
 readings ingest as RAW and the dashboard shows them **provisional** — the same posture as any
