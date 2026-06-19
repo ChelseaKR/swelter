@@ -1,0 +1,1399 @@
+{
+  "interval_s": 3600.0,
+  "latest": "2026-06-08T00:00:00Z",
+  "summary": {
+    "total": 150,
+    "ok": 149,
+    "degraded": 1,
+    "offline": 0
+  },
+  "nodes": [
+    {
+      "node_id": "node-01",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-02",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-03",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-04",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-05",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-06",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-07",
+      "status": "degraded",
+      "observations": 605,
+      "completeness": 0.716,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-08",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-09",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-10",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-100",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-101",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-102",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-103",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-104",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-105",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-106",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-107",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-108",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.002,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-109",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-11",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-110",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-111",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-112",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-113",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-114",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-115",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-116",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-117",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-118",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-119",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-12",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-120",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-121",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-122",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-123",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-124",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-125",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-126",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-127",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-128",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-129",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-13",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-130",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-131",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-132",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-133",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-134",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.014,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-135",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-136",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-137",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-138",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-139",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-14",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-140",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-141",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-142",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-143",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-144",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-145",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-146",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-147",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-148",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-149",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-15",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.009,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-150",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-16",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-17",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-18",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-19",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-20",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-21",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-22",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-23",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-24",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-25",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-26",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-27",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-28",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-29",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-30",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-31",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-32",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-33",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-34",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-35",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-36",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-37",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-38",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-39",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-40",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-41",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-42",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-43",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-44",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-45",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-46",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-47",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-48",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-49",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-50",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-51",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-52",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.002,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-53",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-54",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-55",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-56",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-57",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-58",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-59",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-60",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-61",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-62",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.004,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-63",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.017,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-64",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-65",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-66",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.001,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-67",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.014,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-68",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-69",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-70",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-71",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-72",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-73",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-74",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-75",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-76",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-77",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-78",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.009,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-79",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-80",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-81",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-82",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-83",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-84",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-85",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-86",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-87",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-88",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-89",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-90",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-91",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-92",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-93",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-94",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-95",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-96",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-97",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-98",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    },
+    {
+      "node_id": "node-99",
+      "status": "ok",
+      "observations": 845,
+      "completeness": 1.0,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    }
+  ],
+  "gaps": [
+    {
+      "node_id": "node-07",
+      "parameter": "heat_index_c",
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
+    },
+    {
+      "node_id": "node-07",
+      "parameter": "humidity_pct",
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
+    },
+    {
+      "node_id": "node-07",
+      "parameter": "pm10_ugm3",
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
+    },
+    {
+      "node_id": "node-07",
+      "parameter": "pm25_ugm3",
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
+    },
+    {
+      "node_id": "node-07",
+      "parameter": "temp_c",
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
+    }
+  ]
+}

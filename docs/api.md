@@ -28,6 +28,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | `/v1.1/Observations` | Readings (filterable, paginated) |
 | `/api/surface.geojson` | Latest gridded heat/AQI surface as GeoJSON |
 | `/api/surface.json?hours=N` | Flat per-cell/hour/parameter records |
+| `/api/health.json` | Per-node liveness/quality summary (coverage) |
 | `/export.csv` | Flat CSV dump (filterable) |
 | `/export.json` | Flat JSON dump (filterable) |
 | `/LICENSE`, `/DATA-LICENSE`, `/NOTICE` | The repo-root license/notice files, as `text/plain` |
@@ -411,6 +412,46 @@ null for other parameters. `exposure` records set `category` to the level name a
 ```
 
 `aqi`, `category`, and `aqi_window` are non-null / present only for `pm25_ugm3` records.
+
+### `GET /api/health.json`
+
+The network's sensor health, from the same QC the pipeline runs on the raw stream — what the
+dashboard's coverage panel and `swelter qc` both read. `summary` counts nodes by status; each node
+carries its status (`ok` / `degraded` / `offline`), observation count, completeness, flagged
+fraction, liveness, and last-seen time; `gaps` lists the longest reporting gaps. Computed over raw
+readings with an hourly expected interval.
+
+```json
+{
+  "interval_s": 3600.0,
+  "latest": "2026-06-08T00:00:00Z",
+  "summary": {"total": 150, "ok": 149, "degraded": 1, "offline": 0},
+  "nodes": [
+    {
+      "node_id": "node-07",
+      "status": "degraded",
+      "observations": 600,
+      "completeness": 0.86,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    }
+  ],
+  "gaps": [
+    {
+      "node_id": "node-07",
+      "parameter": "heat_index_c",
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
+    }
+  ]
+}
+```
+
+A node reads `degraded` when its completeness drops below 95% or it flags more than 10% of readings,
+and `offline` when it has been silent past three reporting intervals. The dashboard also ships a
+baked `sample-health.json` so the static (server-less) deployment shows coverage too.
 
 ## Export endpoints
 

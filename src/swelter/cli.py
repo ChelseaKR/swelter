@@ -19,7 +19,7 @@ import yaml
 
 from . import __version__, aggregate, calibrate, export, ingest, qc
 from .config import NetworkConfig, load_config
-from .models import RAW
+from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
 
@@ -247,6 +247,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             surface,
             attribution="Synthetic demonstration data — no real sensors (gen_demo_data.py).",
         )
+        _write_web_health(Path(args.web), store.read(calibration=RAW), args.interval)
         all_obs = list(store.all())
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
@@ -291,6 +292,14 @@ def _write_web_sample(
         "cells": records,
     }
     (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _write_web_health(web_dir: Path, raw: list[Observation], interval_s: float) -> None:
+    """Bake the node-health summary so the static dashboard shows coverage with no live API."""
+    if not web_dir.is_dir():
+        return
+    report = qc.health_report(raw, expected_interval_s=interval_s)
+    (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -379,6 +388,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
         _write_web_sample(Path(args.web), surface, attribution=attribution)
+        _write_web_health(Path(args.web), store.read(calibration=RAW), args.interval)
         all_obs = list(store.all())
         _err(
             f"swelter: stored {written.written} real observations from {len(config.nodes)} "

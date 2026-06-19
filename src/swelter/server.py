@@ -18,8 +18,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import aggregate, api, export
+from . import aggregate, api, export, qc
 from .config import NetworkConfig
+from .models import RAW
 from .store import Store
 
 
@@ -64,6 +65,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
                     self._surface()
                 elif path == "/api/surface.json":
                     self._surface_records(query)
+                elif path == "/api/health.json":
+                    self._health()
                 elif path == "/export.csv":
                     self._export(query, fmt="csv")
                 elif path == "/export.json":
@@ -135,6 +138,11 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             keep = set(buckets)
             records = [c.as_record() for c in surface.cells if c.bucket in keep]
             self._json({"interval": surface.interval, "buckets": buckets, "cells": records})
+
+        def _health(self) -> None:
+            # Per-node liveness/quality from the raw stream — the "how many sensors are reporting"
+            # coverage view. Heavy-ish (reads raw), but cached 60s like the other reads.
+            self._json(qc.health_report(ctx.store.read(calibration=RAW)))
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(

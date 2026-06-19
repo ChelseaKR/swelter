@@ -77,6 +77,14 @@ def test_negative_top_is_clamped(base_url: str) -> None:
     assert payload["@iot.count"] >= 0  # @iot.count is the true total, not the page size
 
 
+def test_health_endpoint_returns_summary(base_url: str) -> None:
+    status, body = _get(f"{base_url}/api/health.json")
+    payload: Any = json.loads(body)
+    assert status == 200
+    assert set(payload["summary"]) == {"total", "ok", "degraded", "offline"}
+    assert "nodes" in payload and "gaps" in payload
+
+
 def test_options_preflight_is_204_with_cors(base_url: str) -> None:
     request = urllib.request.Request(f"{base_url}/v1.1/Observations", method="OPTIONS")
     with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
