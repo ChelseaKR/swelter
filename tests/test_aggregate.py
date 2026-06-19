@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from swelter import aggregate
-from swelter.config import NetworkConfig, NodeConfig
+from swelter.config import CalibrationWindow, NetworkConfig, NodeConfig, ReferenceMonitor
 
 from .conftest import make_obs
 
@@ -86,6 +86,42 @@ def test_exposure_is_provisional_if_either_component_is() -> None:
     exposure = _exposure(surface)
     assert len(exposure) == 1
     assert exposure[0].provisional is True
+
+
+def test_confirmed_cell_carries_calibration_provenance() -> None:
+    config = NetworkConfig(
+        grid_resolution_m=150.0,
+        nodes=(_NODE,),
+        reference_monitors=(ReferenceMonitor(monitor_id="ref-aqs-0010", label="Regulatory AQS"),),
+        calibration_windows=(CalibrationWindow("node-01", "ref-aqs-0010", "pm25_ugm3", "s", "e"),),
+    )
+    surface = aggregate.aggregate(
+        [
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=12.0,
+                calibration="pm25_ugm3.epa-humidity.node-01",
+                uncertainty=0.9,
+            )
+        ],
+        config,
+    )
+    pm = next(c for c in surface.cells if c.parameter == "pm25_ugm3")
+    assert pm.provisional is False
+    assert pm.method == "epa-humidity"
+    assert pm.reference == "Regulatory AQS"
+    record = pm.as_record()
+    assert record["method"] == "epa-humidity"
+    assert record["reference"] == "Regulatory AQS"
+
+
+def test_provisional_cell_has_no_provenance_keys() -> None:
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0)], _CONFIG
+    )
+    record = surface.cells[0].as_record()
+    assert "method" not in record and "reference" not in record
 
 
 def test_snapshot_geojson_shape() -> None:

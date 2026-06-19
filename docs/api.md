@@ -289,7 +289,9 @@ parameter's most recent hourly value. Served as `Content-Type: application/geo+j
 Each feature carries the cell's host-assigned `label`, a top-level `provisional` flag (true if *any*
 parameter in the cell is provisional), and, per parameter, the value plus a `{param}_provisional`
 flag and — when the value is calibrated — a `{param}_uncertainty` (mean 1-sigma in the parameter's
-unit). PM2.5 cells add `pm25_aqi`, `aqi_category`, and `aqi_window` (always `"hourly-mean"`). A cell
+unit), a `{param}_method` (the calibration method), and a `{param}_reference` (the monitor it was
+fitted against). PM2.5 cells add `pm25_aqi`, `aqi_category`, and `aqi_window` (always
+`"hourly-mean"`). A cell
 with both a heat-index and a PM2.5 value adds the derived `exposure` level plus `exposure_level`,
 `exposure_category`, `exposure_heat`, `exposure_air`, and `compound`.
 
@@ -340,7 +342,10 @@ payload small. This is what the dashboard's time slider reads.
 | `hours` | Number of most-recent hourly buckets to include | `48` |
 
 Each record carries the cell's `label`, the rolled-up `mean`, the count `n`, a `provisional` flag,
-and the mean 1-sigma `uncertainty` (null when the cell is provisional). PM2.5 records also carry
+and the mean 1-sigma `uncertainty` (null when the cell is provisional). A confirmed record also
+carries `method` (the calibration method, e.g. `epa-humidity`) and `reference` (the monitor it was
+fitted against); both are omitted on provisional records — the "show your work" provenance the
+dashboard surfaces per location. PM2.5 records also carry
 `aqi`, `category`, and `aqi_window` (`"hourly-mean"`); `aqi`/`category`/`aqi_window` are absent or
 null for other parameters. `exposure` records set `category` to the level name and add
 `heat_category`, `air_category`, and `compound` (see Surface endpoints, above):
@@ -579,7 +584,7 @@ correction is fit. Treat it as indicative, not calibrated. Valid range −40 to 
 
 ---
 
-Last verified: 2026-06-18. Recheck cadence: review when the API surface, the export shape, or the
+Last verified: 2026-06-19. Recheck cadence: review when the API surface, the export shape, or the
 `PARAMETERS` registry change, and at least annually (the AQI applies US-EPA 2024 PM2.5 breakpoints
 to the cell's hourly mean — `aqi_window: "hourly-mean"`, not the official 24-hour AQI; recheck on
 each EPA revision).

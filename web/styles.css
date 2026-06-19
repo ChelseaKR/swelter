@@ -587,6 +587,24 @@ td .tag {
   font-size: 0.85rem;
 }
 
+.provenance {
+  font-size: 0.9rem;
+}
+
+.detail-actions {
+  margin: 0.6rem 0 0;
+}
+
+.detail-actions button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
 .explain {
   margin: 0.75rem 0;
 }
