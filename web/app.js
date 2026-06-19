@@ -517,6 +517,22 @@ function overviewRows() {
   return state.cells.filter((c) => c.parameter === state.parameter && c.bucket === bucket);
 }
 
+// How current the data actually is — the newest hour in the network and its age, with an honest
+// "this network may be behind" note when it's stale. A community/scale-to-zero network can lag, and
+// saying so plainly is the trustworthy thing a generic weather app's "live" badge won't.
+function freshnessLine() {
+  if (!state.buckets.length) return "";
+  const latest = state.buckets[state.buckets.length - 1];
+  const ageMin = Math.max(0, Math.round((Date.now() - new Date(latest).getTime()) / 60000));
+  let age;
+  if (ageMin < 60) age = t("fresh-min").replace("{m}", ageMin);
+  else if (ageMin < 2880) age = t("fresh-hr").replace("{h}", Math.round(ageMin / 60));
+  else age = t("fresh-day").replace("{d}", Math.round(ageMin / 1440));
+  let line = t("fresh-latest").replace("{time}", fmtBucket(latest)).replace("{age}", age);
+  if (ageMin > 180) line += " " + t("fresh-stale");
+  return line;
+}
+
 function worstButton(row, label) {
   const b = document.createElement("button");
   b.type = "button";
@@ -544,6 +560,7 @@ function renderOverview() {
     .replace("{confirmed}", confirmed.length)
     .replace("{provisional}", rows.length - confirmed.length);
 
+  $("#overview-fresh").textContent = freshnessLine();
   const spread = $("#overview-spread");
   const worstEl = $("#overview-worst");
   worstEl.textContent = "";
