@@ -546,6 +546,23 @@ function overviewRows() {
   return state.cells.filter((c) => c.parameter === state.parameter && c.bucket === bucket);
 }
 
+// Sensor coverage: how many of the network's known sensors are actually reporting this hour. "Known"
+// is every node seen anywhere in the loaded history; "now" is those reporting in the current hour. A
+// gap (e.g. a node offline) shows honestly — the coverage-equity question the audits care about.
+function coverageLine() {
+  const bucket = currentBucket();
+  const known = new Set();
+  const now = new Set();
+  for (const c of state.cells) {
+    for (const node of c.nodes || []) {
+      known.add(node);
+      if (c.bucket === bucket) now.add(node);
+    }
+  }
+  if (!known.size) return "";
+  return t("coverage").replace("{now}", now.size).replace("{total}", known.size);
+}
+
 // How current the data actually is — the newest hour in the network and its age, with an honest
 // "this network may be behind" note when it's stale. A community/scale-to-zero network can lag, and
 // saying so plainly is the trustworthy thing a generic weather app's "live" badge won't.
@@ -589,6 +606,7 @@ function renderOverview() {
     .replace("{confirmed}", confirmed.length)
     .replace("{provisional}", rows.length - confirmed.length);
 
+  $("#overview-coverage").textContent = coverageLine();
   $("#overview-fresh").textContent = freshnessLine();
   const spread = $("#overview-spread");
   const worstEl = $("#overview-worst");
