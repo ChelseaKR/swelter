@@ -25,6 +25,7 @@
   "status": "{n} locations",
   "overview-heading": "Right now across the network",
   "overview-counts": "{n} locations — {confirmed} confirmed, {provisional} provisional.",
+  "coverage": "{now} of {total} sensors reporting this hour.",
   "overview-spread": "Lowest {min} · typical {median} · highest {max} {unit}.",
   "overview-worst-label": "Worst now:",
   "overview-none-confirmed": "No confirmed readings yet — all provisional this hour.",
