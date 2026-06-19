@@ -1159,6 +1159,59 @@ function resetKey(e) {
   e.preventDefault();
 }
 
+// A tiny sparkline of this location's last ~24 h for the active parameter — the recent shape at a
+// glance, beside the text trend/day-over-day. The SVG is decorative (aria-hidden); the container is
+// role="img" with a text label giving the low/high, so screen readers get the same information.
+function renderSpark(row) {
+  const el = $("#detail-spark");
+  el.textContent = "";
+  el.removeAttribute("role");
+  el.removeAttribute("aria-label");
+  if (!state.historyLoaded) return;
+  const series = state.cells
+    .filter((c) => c.cell_id === row.cell_id && c.parameter === state.parameter)
+    .sort((a, b) => a.bucket.localeCompare(b.bucket))
+    .slice(-24);
+  if (series.length < 3) return;
+  const vals = series.map((c) => convert(c.mean));
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min || 1;
+  const W = 132;
+  const H = 30;
+  const pad = 3;
+  const points = vals
+    .map((v, i) => {
+      const x = pad + (i / (vals.length - 1)) * (W - 2 * pad);
+      const y = H - pad - ((v - min) / span) * (H - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("class", "spark-svg");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const poly = document.createElementNS(ns, "polyline");
+  poly.setAttribute("points", points);
+  poly.setAttribute("fill", "none");
+  poly.setAttribute("stroke", "currentColor");
+  poly.setAttribute("stroke-width", "1.5");
+  svg.appendChild(poly);
+  el.appendChild(svg);
+  const unit = isExposure() ? "" : ` ${unitLabel()}`;
+  el.setAttribute("role", "img");
+  el.setAttribute(
+    "aria-label",
+    t("spark-label")
+      .replace("{n}", series.length)
+      .replace("{low}", round1(min))
+      .replace("{high}", round1(max))
+      .replace("{unit}", unit),
+  );
+}
+
 function renderDetail() {
   const panel = $("#detail");
   if (!state.selected) {
@@ -1173,6 +1226,7 @@ function renderDetail() {
   panel.hidden = false;
   $("#detail-heading").textContent = placeName(row);
   $("#detail-body").textContent = describe(row);
+  renderSpark(row);
   $("#detail-context").textContent = contrastLine(row);
   $("#detail-trend").textContent = trendLine(row);
   $("#detail-yesterday").textContent = dayChangeLine(row);
