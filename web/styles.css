@@ -475,6 +475,27 @@ input[type="range"][aria-disabled="true"] {
   background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.5) 0 2px, transparent 2px 4px);
 }
 
+/* Heat map scale (cool → hot). The marker's number is the primary signal; colour + pattern are a
+   redundant cue so the heat island is legible without relying on colour alone. */
+.heat-1 { background-color: #dbe9f2; background-image: none; }
+.heat-2 {
+  background-color: #e6edcb;
+  background-image: radial-gradient(circle, rgba(0,0,0,0.3) 1px, transparent 1.2px);
+  background-size: 6px 6px;
+}
+.heat-3 {
+  background-color: #f4e3b0;
+  background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.28) 0 2px, transparent 2px 6px);
+}
+.heat-4 {
+  background-color: #f2c197;
+  background-image: repeating-linear-gradient(-45deg, rgba(0,0,0,0.32) 0 2px, transparent 2px 5px);
+}
+.heat-5 {
+  background-color: #e89887;
+  background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.4) 0 2px, transparent 2px 5px);
+}
+
 .swatch {
   display: inline-block;
   width: 1.4rem;

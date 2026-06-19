@@ -76,6 +76,20 @@ function heatTier(c) {
   return "None";
 }
 
+// Map shading scale (cool → hot) for temperature / heat-index markers, binned on the Celsius mean
+// regardless of the °F/°C display. The marker's number carries the exact value; this only makes the
+// heat island legible at a glance, and provisional cells never get a colour.
+const HEAT_SCALE = [
+  [36, "heat-5"],
+  [32, "heat-4"],
+  [28, "heat-3"],
+  [24, "heat-2"],
+];
+function heatClass(c) {
+  for (const [floor, cls] of HEAT_SCALE) if (c >= floor) return cls;
+  return "heat-1";
+}
+
 // Severity order (best → worst) for the network "at a glance" breakdown and its worst pick.
 const AQI_ORDER = [
   "Good",
@@ -850,6 +864,13 @@ function renderMap(rows) {
     // Provisional cells stay neutral — they never wear a confirmed AQI color (F4).
     if (!row.provisional && state.parameter === "pm25_ugm3" && AQI_CLASS[row.category]) {
       btn.classList.add(AQI_CLASS[row.category]);
+    } else if (
+      !row.provisional &&
+      (state.parameter === "temp_c" || state.parameter === "heat_index_c")
+    ) {
+      // Shade the heat map cool→hot so the urban heat island is visible; the number is always
+      // shown on the marker, so magnitude is never carried by color alone.
+      btn.classList.add(heatClass(row.mean));
     }
     if (row.provisional) btn.classList.add("provisional");
     if (row.cell_id === state.selected) btn.classList.add("selected");
