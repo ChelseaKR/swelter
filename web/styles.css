@@ -740,3 +740,57 @@ footer code {
     scroll-behavior: auto !important;
   }
 }
+
+/* Print as a community handout: ABOUT-THE-NETWORK.md tells networks to "copy this onto a flyer", so
+   printing drops the interactive chrome and keeps the title, the network overview, the readings
+   table, the AQI legend, and the data license — a self-describing, honest paper snapshot. */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  .skip-link,
+  .header-controls,
+  .source-switch,
+  .controls,
+  #viewtabs,
+  #panel-list,
+  #panel-map,
+  .map-controls,
+  .detail-actions,
+  #download-cell,
+  #time-play,
+  #place-search,
+  .provenance {
+    display: none !important;
+  }
+
+  /* The data table prints even if its tab wasn't the active view (it is always populated). */
+  #panel-table {
+    display: block !important;
+  }
+
+  body {
+    color: #000;
+    background: #fff;
+  }
+
+  .overview,
+  .detail,
+  .legend {
+    border: 1px solid #000;
+    break-inside: avoid;
+  }
+
+  tr,
+  .legend-items li {
+    break-inside: avoid;
+  }
+
+  /* AQI swatch patterns still carry severity on a black-and-white printer. */
+  .tag,
+  .swatch {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
