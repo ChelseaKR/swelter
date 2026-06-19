@@ -581,6 +581,11 @@ td .tag {
   margin: 0.2rem 0;
 }
 
+.overview-fresh {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 button.linklike {
   font: inherit;
   background: none;
