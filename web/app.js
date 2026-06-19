@@ -474,6 +474,35 @@ function contrastLine(row) {
   return text;
 }
 
+// "Is today worse than yesterday on my block?" — compare this location's reading to the same hour
+// ~24 h earlier (nearest within 90 min), from the loaded history. Day-over-day context the
+// short-term trend can't give, and a single regional weather value never could per location.
+function dayChangeLine(row) {
+  if (!state.historyLoaded) return "";
+  const target = new Date(currentBucket()).getTime() - 24 * 3600 * 1000;
+  let best = null;
+  let bestD = Infinity;
+  for (const c of state.cells) {
+    if (c.cell_id !== row.cell_id || c.parameter !== state.parameter) continue;
+    const d = Math.abs(new Date(c.bucket).getTime() - target);
+    if (d < bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  if (!best || bestD > 90 * 60 * 1000) return ""; // no comparable reading ~24 h ago
+  if (state.parameter === "pm25_ugm3" || isExposure()) {
+    const order = isExposure() ? EXP_ORDER : AQI_ORDER;
+    const cmp = order.indexOf(row.category) - order.indexOf(best.category);
+    return t(cmp > 0 ? "yesterday-worse" : cmp < 0 ? "yesterday-better" : "yesterday-same");
+  }
+  const d = round1(convert(row.mean) - convert(best.mean));
+  if (Math.abs(d) < 0.1) return t("yesterday-same");
+  return t(d > 0 ? "yesterday-higher" : "yesterday-lower")
+    .replace("{d}", Math.abs(d))
+    .replace("{unit}", unitLabel());
+}
+
 // Per-parameter "steady" band, so small wiggles don't read as a trend.
 const TREND_EPS = { exposure: 0.5, temp_c: 0.5, heat_index_c: 0.5, pm25_ugm3: 1, pm10_ugm3: 2, no2_ppb: 2 };
 
@@ -1076,6 +1105,7 @@ function renderDetail() {
   $("#detail-body").textContent = describe(row);
   $("#detail-context").textContent = contrastLine(row);
   $("#detail-trend").textContent = trendLine(row);
+  $("#detail-yesterday").textContent = dayChangeLine(row);
   // Guidance: EPA air for PM, NWS heat for the heat index, and the DOMINANT hazard for combined
   // exposure — so the advice matches whichever side is driving the level.
   let guidance = "";
