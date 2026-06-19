@@ -345,7 +345,9 @@ Each record carries the cell's `label`, the rolled-up `mean`, the count `n`, a `
 and the mean 1-sigma `uncertainty` (null when the cell is provisional). A confirmed record also
 carries `method` (the calibration method, e.g. `epa-humidity`) and `reference` (the monitor it was
 fitted against); both are omitted on provisional records — the "show your work" provenance the
-dashboard surfaces per location. PM2.5 records also carry
+dashboard surfaces per location. Every record also carries `nodes`, the published node id(s) in the
+cell, so a reader can pull the raw readings behind it (e.g. `GET /export.csv?node=<id>`). PM2.5
+records also carry
 `aqi`, `category`, and `aqi_window` (`"hourly-mean"`); `aqi`/`category`/`aqi_window` are absent or
 null for other parameters. `exposure` records set `category` to the level name and add
 `heat_category`, `air_category`, and `compound` (see Surface endpoints, above):

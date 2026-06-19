@@ -71,6 +71,7 @@ class CellReading:
     compound: bool = False  # exposure only: heat AND air both at least mid-tier
     method: str | None = None  # calibration method(s) behind a confirmed value
     reference: str | None = None  # reference monitor(s) the value was calibrated against
+    nodes: tuple[str, ...] = ()  # the node id(s) published into this cell (for the data download)
 
     def as_record(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -87,6 +88,8 @@ class CellReading:
             "aqi": self.aqi,
             "category": self.category,
         }
+        if self.nodes:
+            record["nodes"] = list(self.nodes)
         if self.method:
             record["method"] = self.method
         if self.reference:
@@ -130,6 +133,8 @@ class Surface:
                 "bucket": max(r.bucket for r in by_param.values()),
                 "provisional": any(r.provisional for r in by_param.values()),
             }
+            if any_reading.nodes:
+                props["nodes"] = list(any_reading.nodes)
             for parameter, reading in by_param.items():
                 props[parameter] = round(reading.mean, 3)
                 if reading.uncertainty is not None:
@@ -196,6 +201,7 @@ def aggregate(
     trusted_refs: dict[tuple[str, str, str], set[str]] = defaultdict(set)
     provisional_vals: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     coords: dict[str, tuple[float, float]] = {}
+    cell_nodes: dict[str, set[str]] = defaultdict(set)
 
     for obs in observations:
         if obs.parameter not in wanted:
@@ -208,6 +214,7 @@ def aggregate(
         lat, lon = loc
         cell_id = f"{lat:.6f},{lon:.6f}"
         coords[cell_id] = (lat, lon)
+        cell_nodes[cell_id].add(obs.node_id)
         key = (cell_id, hour_bucket(obs.timestamp), obs.parameter)
         if obs.is_trustworthy:
             trusted_vals[key].append(obs.value)
@@ -260,6 +267,7 @@ def aggregate(
                 category=category,
                 method=method,
                 reference=reference,
+                nodes=tuple(sorted(cell_nodes[cell_id])),
             )
         )
     cells.extend(_exposure_cells(cells))
@@ -302,6 +310,7 @@ def _exposure_cells(cells: list[CellReading]) -> list[CellReading]:
                 heat_category=heat_index_category(heat.mean)[1],
                 air_category=air.category,
                 compound=compound,
+                nodes=heat.nodes,
             )
         )
     return out
