@@ -120,6 +120,29 @@ let mapRafAnimate = false;
 
 const $ = (sel) => document.querySelector(sel);
 
+// Remember a returning resident's choices — language, units, and the last location they viewed — so
+// they land where they left off (and in their language; an equity win for non-English readers).
+// All wrapped: storage can throw in private mode or when blocked, and preferences just won't persist.
+const PREFS_KEY = "swelter.prefs";
+
+function loadPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function savePref(key, value) {
+  try {
+    const prefs = loadPrefs();
+    prefs[key] = value;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* storage unavailable — non-fatal, preferences simply don't persist */
+  }
+}
+
 // English text shipped in the HTML is the per-key fallback, captured before any swap.
 const I18N_DEFAULTS = new Map(
   [...document.querySelectorAll("[data-i18n]")].map((el) => [
@@ -1127,7 +1150,10 @@ function select(cellId, focusMap = false) {
   state.selected = cellId;
   // A shareable, bookmarkable deep link to this location — something a generic weather app's
   // single regional view can't give. replaceState keeps it out of the back-button history.
-  if (cellId) history.replaceState(null, "", `#l=${encodeURIComponent(cellId)}`);
+  if (cellId) {
+    history.replaceState(null, "", `#l=${encodeURIComponent(cellId)}`);
+    savePref("cell", cellId); // remember it for the next visit
+  }
   render();
   if (focusMap) zoomToCell(cellId, true);
   const sel = document.querySelector(`[role="tabpanel"]:not([hidden]) [data-cell="${cellId}"]`);
@@ -1141,6 +1167,16 @@ function selectFromHash() {
   if (!m) return;
   const id = decodeURIComponent(m[1]);
   if (state.cells.some((c) => c.cell_id === id)) select(id, true);
+}
+
+// Land on the right location: an explicit #l= shared link wins; otherwise fall back to the location
+// this browser last viewed. Does nothing if one is already selected (e.g. the snapshot already did).
+function restoreSelection() {
+  if (state.selected) return;
+  selectFromHash();
+  if (state.selected) return;
+  const saved = loadPrefs().cell;
+  if (saved && state.cells.some((c) => c.cell_id === saved)) select(saved, true);
 }
 
 // -- interaction -------------------------------------------------------------
@@ -1213,6 +1249,7 @@ function setUnit(unit) {
   state.unit = unit;
   $("#unit-f").setAttribute("aria-pressed", String(unit === "F"));
   $("#unit-c").setAttribute("aria-pressed", String(unit === "C"));
+  savePref("unit", unit);
   render();
 }
 
@@ -1268,6 +1305,7 @@ function wireControls() {
   });
   $("#time-play").addEventListener("click", togglePlay);
   $("#lang-select").addEventListener("change", async (e) => {
+    savePref("lang", e.target.value);
     await loadStrings(e.target.value);
     render();
   });
@@ -1326,7 +1364,16 @@ async function init() {
       .then((reg) => reg.update())
       .catch(() => {});
   }
-  await loadStrings("en");
+  const prefs = loadPrefs();
+  const startLang = prefs.lang === "es" ? "es" : "en"; // restore the reader's language
+  await loadStrings(startLang);
+  const langSel = $("#lang-select");
+  if (langSel) langSel.value = startLang;
+  if (prefs.unit === "C" || prefs.unit === "F") {
+    state.unit = prefs.unit;
+    $("#unit-f").setAttribute("aria-pressed", String(state.unit === "F"));
+    $("#unit-c").setAttribute("aria-pressed", String(state.unit === "C"));
+  }
   await loadBasemap();
   wireTabs();
   wireSort();
@@ -1346,14 +1393,14 @@ async function init() {
   }
   setData(snapshot);
   render();
-  selectFromHash();
+  restoreSelection();
 
   const full = await fetchSurface("api/surface.json?hours=72");
   if (full) {
     state.historyLoaded = true;
     setData(full);
     render();
-    selectFromHash();
+    restoreSelection();
   }
 }
 
