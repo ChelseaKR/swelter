@@ -636,6 +636,19 @@ button.linklike {
   margin-top: 0;
 }
 
+.spark {
+  display: block;
+  margin: 0.3rem 0;
+  color: var(--accent, #11489c);
+}
+
+.spark-svg {
+  display: block;
+  width: 8.5rem;
+  height: auto;
+  overflow: visible;
+}
+
 .context {
   font-weight: 600;
   margin: 0.35rem 0;

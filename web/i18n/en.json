@@ -51,6 +51,7 @@
   "map-reset": "Reset",
   "map-reset-label": "Reset map to fit California",
   "detail-title": "Selected location",
+  "spark-label": "Last {n} hours — low {low}, high {high}{unit}.",
   "guide-source": "Health context: US EPA AirNow.",
   "cell-word": "Location",
   "cat-good": "Good",
