@@ -328,6 +328,47 @@ function provenanceText(row) {
   return parts.join(" ");
 }
 
+// A ready-to-paste, plain-language summary of this location: the reading, how it compares, the
+// trend, its calibration state, an open-data attribution, and the shareable link. Closes the
+// data-to-action gap — something an advocate can drop into an email, a flyer, or testimony.
+function briefText(row) {
+  const lines = [`${placeName(row)} — ${fmtBucket(currentBucket())}`];
+  lines.push(describe(row).split(": ").slice(1).join(": "));
+  const c = contrastLine(row);
+  if (c) lines.push(c);
+  const tr = trendLine(row);
+  if (tr) lines.push(tr);
+  lines.push(provenanceText(row));
+  lines.push(t("brief-source"));
+  lines.push(location.href);
+  return lines.join("\n");
+}
+
+// A download link to the raw CC0 readings behind a location, filtered to one of its nodes. Served
+// by `swelter serve`; the node id is the only identifier and is already public in the API.
+function downloadLink(node, text) {
+  const a = document.createElement("a");
+  a.href = `export.csv?node=${encodeURIComponent(node)}`;
+  a.textContent = text;
+  a.setAttribute("download", "");
+  return a;
+}
+
+function renderDownload(row) {
+  const dl = $("#download-cell");
+  dl.textContent = "";
+  const nodes = row.nodes || [];
+  if (nodes.length === 1) {
+    dl.appendChild(downloadLink(nodes[0], t("download-cell")));
+  } else if (nodes.length > 1) {
+    dl.appendChild(document.createTextNode(t("download-cell-multi") + " "));
+    nodes.forEach((n, i) => {
+      dl.appendChild(downloadLink(n, n));
+      if (i < nodes.length - 1) dl.appendChild(document.createTextNode(", "));
+    });
+  }
+}
+
 function heatGuidanceFor(tier) {
   const slug = HEAT_SLUG[tier];
   return slug && slug !== "none" ? t(`heat-guide-${slug}`) : "";
@@ -936,6 +977,7 @@ function renderDetail() {
   src.textContent = heatSourced ? t("guide-source-heat") : t("guide-source");
   src.hidden = !guidance;
   $("#provenance-body").textContent = provenanceText(row);
+  renderDownload(row);
 }
 
 function render() {
@@ -1116,6 +1158,18 @@ function wireControls() {
       try {
         await navigator.clipboard.writeText(location.href);
         $("#status").textContent = t("copy-done");
+      } catch {
+        $("#status").textContent = t("copy-fail");
+      }
+    });
+  const summary = $("#copy-summary");
+  if (summary)
+    summary.addEventListener("click", async () => {
+      const row = current().find((r) => r.cell_id === state.selected);
+      if (!row) return;
+      try {
+        await navigator.clipboard.writeText(briefText(row));
+        $("#status").textContent = t("brief-done");
       } catch {
         $("#status").textContent = t("copy-fail");
       }

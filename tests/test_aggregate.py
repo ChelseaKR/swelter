@@ -111,9 +111,11 @@ def test_confirmed_cell_carries_calibration_provenance() -> None:
     assert pm.provisional is False
     assert pm.method == "epa-humidity"
     assert pm.reference == "Regulatory AQS"
+    assert pm.nodes == ("node-01",)
     record = pm.as_record()
     assert record["method"] == "epa-humidity"
     assert record["reference"] == "Regulatory AQS"
+    assert record["nodes"] == ["node-01"]
 
 
 def test_provisional_cell_has_no_provenance_keys() -> None:
