@@ -568,6 +568,16 @@ td .tag {
   margin-top: 0;
 }
 
+.context {
+  font-weight: 600;
+  margin: 0.35rem 0;
+}
+
+.trend {
+  margin: 0.35rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .guidance {
   font-size: 1rem;
 }

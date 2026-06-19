@@ -51,6 +51,31 @@ const HEAT_SLUG = {
   "Extreme Danger": "xdanger",
 };
 
+// Ordinal concern levels (mirror models.py) so the detail panel can pick the dominant hazard for
+// combined exposure. Higher = more concerning for every surface parameter.
+const HEAT_LEVEL = { None: 0, Caution: 1, "Extreme Caution": 2, Danger: 3, "Extreme Danger": 4 };
+const AIR_LEVEL = {
+  Good: 0,
+  Moderate: 1,
+  "Unhealthy for Sensitive Groups": 2,
+  Unhealthy: 3,
+  "Very Unhealthy": 4,
+  Hazardous: 4,
+};
+
+// NWS heat-index tier from a Celsius value (mirrors models.heat_index_category thresholds), so a
+// plain heat-index reading can show its tier and guidance without a round-trip to the server.
+const HEAT_BANDS = [
+  [51.1, "Extreme Danger"],
+  [39.4, "Danger"],
+  [32.2, "Extreme Caution"],
+  [26.7, "Caution"],
+];
+function heatTier(c) {
+  for (const [floor, name] of HEAT_BANDS) if (c >= floor) return name;
+  return "None";
+}
+
 const state = {
   cells: [],
   buckets: [],
@@ -278,6 +303,11 @@ function guidanceFor(category) {
   return slug ? t(`guide-${slug}`) : "";
 }
 
+function heatGuidanceFor(tier) {
+  const slug = HEAT_SLUG[tier];
+  return slug && slug !== "none" ? t(`heat-guide-${slug}`) : "";
+}
+
 // -- selection / current rows ------------------------------------------------
 
 function currentBucket() {
@@ -302,6 +332,66 @@ function current() {
 function pm25RowsNow() {
   const bucket = currentBucket();
   return state.cells.filter((c) => c.parameter === "pm25_ugm3" && c.bucket === bucket);
+}
+
+// Every location reporting the active parameter in the selected hour — the network-wide peer set a
+// generic weather app can't show, because it has one regional value, not a map of them.
+function peersNow(row) {
+  return state.cells.filter((c) => c.parameter === state.parameter && c.bucket === row.bucket);
+}
+
+// "How does my block compare right now?" — the urban-heat-island / air-inequity signal a regional
+// weather app can't give. Reported as an honest, tie-safe count (how many locations are worse) plus
+// the gap from the network median — never a percentile, which ties would overstate.
+function contrastLine(row) {
+  const peers = peersNow(row);
+  if (peers.length < 3) return ""; // not meaningful with only a couple of locations
+  const vals = peers.map((p) => p.mean);
+  const higher = vals.filter((v) => v > row.mean).length; // strictly worse/hotter than this one
+  const heatLike = state.parameter === "temp_c" || state.parameter === "heat_index_c";
+  let text;
+  if (higher === 0) {
+    text = t(heatLike ? "context-top-hot" : "context-top-bad");
+  } else {
+    text = t(heatLike ? "context-rank-hot" : "context-rank-bad")
+      .replace("{n}", higher)
+      .replace("{total}", peers.length);
+  }
+  if (!isExposure()) {
+    const sorted = [...vals].sort((a, b) => a - b);
+    const n = sorted.length;
+    const median = n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+    const d = round1(convert(row.mean) - convert(median));
+    if (Math.abs(d) >= 0.1) {
+      text +=
+        " " +
+        t("context-median")
+          .replace("{delta}", Math.abs(d))
+          .replace("{unit}", unitLabel())
+          .replace("{dir}", d > 0 ? t("context-above") : t("context-below"));
+    }
+  }
+  return text;
+}
+
+// Per-parameter "steady" band, so small wiggles don't read as a trend.
+const TREND_EPS = { exposure: 0.5, temp_c: 0.5, heat_index_c: 0.5, pm25_ugm3: 1, pm10_ugm3: 2, no2_ppb: 2 };
+
+// "Is it getting worse or clearing on my block?" — direction over the last few hours, from the same
+// time series the slider reads. Needs the loaded history; silent until it's there.
+function trendLine(row) {
+  if (!state.historyLoaded || state.bucketIdx < 1) return "";
+  const back = Math.min(3, state.bucketIdx);
+  const past = state.buckets[state.bucketIdx - back];
+  const prev = state.cells.find(
+    (c) => c.cell_id === row.cell_id && c.parameter === state.parameter && c.bucket === past,
+  );
+  if (!prev) return "";
+  const d = row.mean - prev.mean;
+  const eps = TREND_EPS[state.parameter] ?? 0.5;
+  const key = d > eps ? "trend-rising" : d < -eps ? "trend-falling" : "trend-steady";
+  const arrow = d > eps ? "↑" : d < -eps ? "↓" : "→";
+  return `${arrow} ${t(key).replace("{h}", back)}`;
 }
 
 // -- rendering ---------------------------------------------------------------
@@ -801,11 +891,25 @@ function renderDetail() {
   panel.hidden = false;
   $("#detail-heading").textContent = placeName(row);
   $("#detail-body").textContent = describe(row);
-  // Exposure reuses the EPA air guidance for its air component; the level itself is in the body.
-  const guidanceCat = state.parameter === "pm25_ugm3" ? row.category : isExposure() ? row.air_category : null;
-  const guidance = guidanceCat ? guidanceFor(guidanceCat) : "";
+  $("#detail-context").textContent = contrastLine(row);
+  $("#detail-trend").textContent = trendLine(row);
+  // Guidance: EPA air for PM, NWS heat for the heat index, and the DOMINANT hazard for combined
+  // exposure — so the advice matches whichever side is driving the level.
+  let guidance = "";
+  let heatSourced = false;
+  if (state.parameter === "pm25_ugm3") {
+    guidance = guidanceFor(row.category);
+  } else if (state.parameter === "heat_index_c") {
+    guidance = heatGuidanceFor(heatTier(row.mean));
+    heatSourced = !!guidance;
+  } else if (isExposure()) {
+    heatSourced = (HEAT_LEVEL[row.heat_category] ?? 0) > (AIR_LEVEL[row.air_category] ?? 0);
+    guidance = heatSourced ? heatGuidanceFor(row.heat_category) : guidanceFor(row.air_category);
+  }
   $("#detail-guidance").textContent = guidance;
-  $(".guidance-source").hidden = !guidance;
+  const src = $(".guidance-source");
+  src.textContent = heatSourced ? t("guide-source-heat") : t("guide-source");
+  src.hidden = !guidance;
 }
 
 function render() {

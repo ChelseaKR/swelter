@@ -226,7 +226,8 @@ coarse locations mean. (A standalone version lives in
 > "there's a sensor on this house." Hosts' homes stay private by default.
 >
 > **Provisional readings.** A location whose sensor is not yet calibrated is marked **provisional** and
-> shown plainly as not-yet-confirmed — we never dress up an unverified reading as a fact.
+> shown plainly as not-yet-confirmed — we never dress up an unverified reading as a fact. The combined
+> heat-and-air exposure level stays provisional until both its heat and air readings are confirmed.
 >
 > **The data is yours.** Readings are public-domain (CC0): download them, check our work, or take a
 > full copy and run the network elsewhere. Nobody can switch it off or fence the data away.
