@@ -303,6 +303,31 @@ function guidanceFor(category) {
   return slug ? t(`guide-${slug}`) : "";
 }
 
+// The "show your work" trust view: calibration state, published uncertainty, the method and the
+// reference monitor a confirmed value was fitted against, and how many readings stand behind it.
+// A weather app gives one number; swelter shows whether to believe it and why.
+function provenanceText(row) {
+  const parts = [];
+  if (row.provisional) {
+    parts.push(t("prov-provisional"));
+  } else {
+    parts.push(t("prov-confirmed"));
+    if (!isExposure() && row.uncertainty != null) {
+      const u =
+        PARAM_BASE_UNIT[state.parameter] === "C" && state.unit === "F"
+          ? (row.uncertainty * 9) / 5
+          : row.uncertainty;
+      parts.push(t("prov-uncertainty").replace("{u}", round1(u)).replace("{unit}", unitLabel()));
+    }
+    if (row.method && row.reference) {
+      parts.push(t("prov-method").replace("{method}", row.method).replace("{reference}", row.reference));
+    }
+  }
+  if (isExposure()) parts.push(t("prov-derived"));
+  parts.push(t("prov-readings").replace("{n}", row.n));
+  return parts.join(" ");
+}
+
 function heatGuidanceFor(tier) {
   const slug = HEAT_SLUG[tier];
   return slug && slug !== "none" ? t(`heat-guide-${slug}`) : "";
@@ -910,6 +935,7 @@ function renderDetail() {
   const src = $(".guidance-source");
   src.textContent = heatSourced ? t("guide-source-heat") : t("guide-source");
   src.hidden = !guidance;
+  $("#provenance-body").textContent = provenanceText(row);
 }
 
 function render() {
@@ -933,10 +959,22 @@ function render() {
 // plain List/Table row click leaves the map where it is so browsing never yanks a hidden map around.
 function select(cellId, focusMap = false) {
   state.selected = cellId;
+  // A shareable, bookmarkable deep link to this location — something a generic weather app's
+  // single regional view can't give. replaceState keeps it out of the back-button history.
+  if (cellId) history.replaceState(null, "", `#l=${encodeURIComponent(cellId)}`);
   render();
   if (focusMap) zoomToCell(cellId, true);
   const sel = document.querySelector(`[role="tabpanel"]:not([hidden]) [data-cell="${cellId}"]`);
   if (sel) sel.scrollIntoView({ block: "nearest" });
+}
+
+// Open straight to a shared location: if the URL carries #l=<cell_id> and we have that cell, select
+// it. Called once the data is in, so a bookmarked link lands on the right place.
+function selectFromHash() {
+  const m = location.hash.match(/^#l=(.+)$/);
+  if (!m) return;
+  const id = decodeURIComponent(m[1]);
+  if (state.cells.some((c) => c.cell_id === id)) select(id, true);
 }
 
 // -- interaction -------------------------------------------------------------
@@ -1072,6 +1110,16 @@ function wireControls() {
     state.search = e.target.value;
     render();
   });
+  const copy = $("#copy-link");
+  if (copy)
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        $("#status").textContent = t("copy-done");
+      } catch {
+        $("#status").textContent = t("copy-fail");
+      }
+    });
 }
 
 function smallScreen() {
@@ -1118,12 +1166,14 @@ async function init() {
   }
   setData(snapshot);
   render();
+  selectFromHash();
 
   const full = await fetchSurface("api/surface.json?hours=72");
   if (full) {
     state.historyLoaded = true;
     setData(full);
     render();
+    selectFromHash();
   }
 }
 

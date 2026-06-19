@@ -69,6 +69,8 @@ class CellReading:
     heat_category: str | None = None  # exposure only: NWS heat-index tier name
     air_category: str | None = None  # exposure only: PM2.5 AQI category name
     compound: bool = False  # exposure only: heat AND air both at least mid-tier
+    method: str | None = None  # calibration method(s) behind a confirmed value
+    reference: str | None = None  # reference monitor(s) the value was calibrated against
 
     def as_record(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -85,6 +87,10 @@ class CellReading:
             "aqi": self.aqi,
             "category": self.category,
         }
+        if self.method:
+            record["method"] = self.method
+        if self.reference:
+            record["reference"] = self.reference
         if self.parameter == "pm25_ugm3":
             record["aqi_window"] = AQI_WINDOW
         if self.parameter == EXPOSURE:
@@ -129,6 +135,10 @@ class Surface:
                 if reading.uncertainty is not None:
                     props[f"{parameter}_uncertainty"] = round(reading.uncertainty, 3)
                 props[f"{parameter}_provisional"] = reading.provisional
+                if reading.method:
+                    props[f"{parameter}_method"] = reading.method
+                if reading.reference:
+                    props[f"{parameter}_reference"] = reading.reference
                 if parameter == "pm25_ugm3":
                     props["pm25_aqi"] = reading.aqi
                     props["aqi_category"] = reading.category
@@ -175,9 +185,15 @@ def aggregate(
     locations = config.public_locations()
     labels = _cell_labels(config)
     wanted = set(parameters)
+    # Provenance lookups for the "show your work" trust view: which reference each node/parameter
+    # was calibrated against, and that monitor's human label.
+    ref_by_node_param = {(w.node_id, w.parameter): w.reference for w in config.calibration_windows}
+    monitor_label = {m.monitor_id: (m.label or m.monitor_id) for m in config.reference_monitors}
 
     trusted_vals: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     trusted_unc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    trusted_methods: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+    trusted_refs: dict[tuple[str, str, str], set[str]] = defaultdict(set)
     provisional_vals: dict[tuple[str, str, str], list[float]] = defaultdict(list)
     coords: dict[str, tuple[float, float]] = {}
 
@@ -196,6 +212,12 @@ def aggregate(
         if obs.is_trustworthy:
             trusted_vals[key].append(obs.value)
             trusted_unc[key].append(obs.uncertainty if obs.uncertainty is not None else 0.0)
+            parts = obs.calibration.split(".")  # "{parameter}.{method}.{node_id}"
+            if len(parts) >= 2:
+                trusted_methods[key].add(parts[1])
+            ref = ref_by_node_param.get((obs.node_id, obs.parameter))
+            if ref:
+                trusted_refs[key].add(monitor_label.get(ref, ref))
         else:
             provisional_vals[key].append(obs.value)
 
@@ -204,11 +226,15 @@ def aggregate(
         cell_id, bucket, parameter = key
         lat, lon = coords[cell_id]
         trustworthy = trusted_vals.get(key, [])
+        method: str | None = None
+        reference: str | None = None
         if trustworthy:
             values = trustworthy
             provisional = False
             uncs = trusted_unc[key]
             uncertainty: float | None = (sum(uncs) / len(uncs)) if any(uncs) else None
+            method = " / ".join(sorted(trusted_methods[key])) or None
+            reference = " / ".join(sorted(trusted_refs[key])) or None
         else:
             values = provisional_vals[key]
             provisional = True
@@ -232,6 +258,8 @@ def aggregate(
                 uncertainty=uncertainty,
                 aqi=aqi,
                 category=category,
+                method=method,
+                reference=reference,
             )
         )
     cells.extend(_exposure_cells(cells))
