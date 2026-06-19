@@ -161,6 +161,65 @@ class NodeHealth:
         return "ok"
 
 
+def health_report(
+    observations: Iterable[Observation],
+    *,
+    expected_interval_s: float = 3600.0,
+    max_gaps: int = 10,
+) -> dict[str, object]:
+    """A JSON-able network-health summary — per-node status, a count by status, and the worst gaps.
+
+    Backs the ``/api/health.json`` route and the dashboard's coverage panel; computed over raw
+    readings.
+    """
+    obs = list(observations)
+    if not obs:
+        return {
+            "interval_s": expected_interval_s,
+            "summary": {"total": 0, "ok": 0, "degraded": 0, "offline": 0},
+            "nodes": [],
+            "gaps": [],
+        }
+    latest = max(o.timestamp for o in obs)
+    gaps = detect_gaps(obs, expected_interval_s)
+    health = node_health(
+        obs,
+        latest,
+        offline_after_s=expected_interval_s * 3,
+        expected_interval_s=expected_interval_s,
+    )
+    summary = {"total": len(health), "ok": 0, "degraded": 0, "offline": 0}
+    for h in health:
+        summary[h.status] = summary.get(h.status, 0) + 1
+    return {
+        "interval_s": expected_interval_s,
+        "latest": latest,
+        "summary": summary,
+        "nodes": [
+            {
+                "node_id": h.node_id,
+                "status": h.status,
+                "observations": h.observations,
+                "completeness": h.completeness,
+                "flagged_fraction": round(h.flagged_fraction, 3),
+                "online": h.online,
+                "last_seen": h.last_seen,
+            }
+            for h in health
+        ],
+        "gaps": [
+            {
+                "node_id": g.node_id,
+                "parameter": g.parameter,
+                "start": g.start,
+                "end": g.end,
+                "minutes": round(g.seconds / 60),
+            }
+            for g in gaps[:max_gaps]
+        ],
+    }
+
+
 def node_health(
     observations: Iterable[Observation],
     latest_timestamp: str,

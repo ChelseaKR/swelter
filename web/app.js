@@ -100,6 +100,7 @@ const state = {
   search: "",
   strings: {},
   historyLoaded: false,
+  health: null, // node-health summary from /api/health.json (or the baked sample), once loaded
   basemap: null, // optional geographic outline (e.g. California) drawn behind the markers
   mapView: { zoom: 1, x: 0, y: 0 }, // pan (px) + zoom of the map canvas; 1 = fit, no pan
   pendingFocus: null, // a cell to center on once the map becomes visible/measurable
@@ -546,6 +547,35 @@ function overviewRows() {
   return state.cells.filter((c) => c.parameter === state.parameter && c.bucket === bucket);
 }
 
+// Node health (from /api/health.json, or the baked sample on the static site): the network's
+// sensors broken down by status — ok, degraded (backfilled sparsely or flagging a lot), offline.
+// The operator's "is my network healthy?" line, from the same QC the pipeline already runs.
+function healthLine() {
+  const s = state.health && state.health.summary;
+  if (!s || !s.total) return "";
+  return t("health-status")
+    .replace("{ok}", s.ok || 0)
+    .replace("{degraded}", s.degraded || 0)
+    .replace("{offline}", s.offline || 0);
+}
+
+async function loadHealth() {
+  const doc = (await fetchJson("api/health.json")) || (await fetchJson("sample-health.json"));
+  if (doc && doc.summary) {
+    state.health = doc;
+    renderOverview();
+  }
+}
+
+async function fetchJson(url) {
+  try {
+    const res = await fetch(url);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 // Sensor coverage: how many of the network's known sensors are actually reporting this hour. "Known"
 // is every node seen anywhere in the loaded history; "now" is those reporting in the current hour. A
 // gap (e.g. a node offline) shows honestly — the coverage-equity question the audits care about.
@@ -607,6 +637,7 @@ function renderOverview() {
     .replace("{provisional}", rows.length - confirmed.length);
 
   $("#overview-coverage").textContent = coverageLine();
+  $("#overview-health").textContent = healthLine();
   $("#overview-fresh").textContent = freshnessLine();
   const spread = $("#overview-spread");
   const worstEl = $("#overview-worst");
@@ -1459,6 +1490,8 @@ async function init() {
   setData(snapshot);
   render();
   restoreSelection();
+
+  loadHealth();
 
   const full = await fetchSurface("api/surface.json?hours=72");
   if (full) {

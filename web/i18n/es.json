@@ -26,6 +26,7 @@
   "overview-heading": "Ahora mismo en toda la red",
   "overview-counts": "{n} ubicaciones — {confirmed} confirmadas, {provisional} provisionales.",
   "coverage": "{now} de {total} sensores reportando esta hora.",
+  "health-status": "Salud de sensores: {ok} ok · {degraded} degradados · {offline} sin conexión.",
   "overview-spread": "Mínimo {min} · típico {median} · máximo {max} {unit}.",
   "overview-worst-label": "Lo peor ahora:",
   "overview-none-confirmed": "Aún no hay lecturas confirmadas — todas provisionales esta hora.",
