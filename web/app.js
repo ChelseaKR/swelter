@@ -1057,6 +1057,51 @@ function renderDetail() {
   renderDownload(row);
 }
 
+// Time-lapse: auto-advance the hour slider so you can watch heat build and air change across the
+// network — the continuous time series a one-day snapshot can't show. User-started and pausable
+// (WCAG 2.2.2), never autoplays; map transitions already honor prefers-reduced-motion.
+let playTimer = null;
+
+function isPlaying() {
+  return playTimer !== null;
+}
+
+function syncPlay() {
+  const b = $("#time-play");
+  if (!b) return;
+  if (state.buckets.length <= 1 && playTimer !== null) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
+  b.disabled = state.buckets.length <= 1;
+  b.textContent = isPlaying() ? t("time-pause") : t("time-play");
+  b.setAttribute("aria-pressed", String(isPlaying()));
+}
+
+function stopPlay() {
+  if (playTimer !== null) {
+    clearInterval(playTimer);
+    playTimer = null;
+  }
+  syncPlay();
+}
+
+function startPlay() {
+  if (state.buckets.length <= 1 || isPlaying()) return;
+  playTimer = window.setInterval(() => {
+    state.bucketIdx = (state.bucketIdx + 1) % state.buckets.length;
+    const slider = $("#time-slider");
+    if (slider) slider.value = String(state.bucketIdx);
+    render();
+  }, 1100);
+  syncPlay();
+}
+
+function togglePlay() {
+  if (isPlaying()) stopPlay();
+  else startPlay();
+}
+
 function render() {
   const bucket = currentBucket();
   $("#time-readout").textContent = fmtBucket(bucket);
@@ -1073,6 +1118,7 @@ function render() {
   if (mapVisible) renderMap(rows);
   else mapDirty = true;
   renderDetail();
+  syncPlay();
 }
 
 // focusMap=true centers the map on the pick (a map marker tap, geolocation, or a search hit). A
@@ -1216,9 +1262,11 @@ function wireControls() {
     render();
   });
   $("#time-slider").addEventListener("input", (e) => {
+    stopPlay(); // a manual scrub pauses the time-lapse
     state.bucketIdx = Number(e.target.value);
     render();
   });
+  $("#time-play").addEventListener("click", togglePlay);
   $("#lang-select").addEventListener("change", async (e) => {
     await loadStrings(e.target.value);
     render();

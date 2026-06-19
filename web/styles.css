@@ -591,6 +591,21 @@ button.linklike {
   text-decoration: underline;
 }
 
+#time-play {
+  font: inherit;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+#time-play[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .detail h2 {
   margin-top: 0;
 }
