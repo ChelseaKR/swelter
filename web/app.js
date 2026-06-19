@@ -76,6 +76,17 @@ function heatTier(c) {
   return "None";
 }
 
+// Severity order (best → worst) for the network "at a glance" breakdown and its worst pick.
+const AQI_ORDER = [
+  "Good",
+  "Moderate",
+  "Unhealthy for Sensitive Groups",
+  "Unhealthy",
+  "Very Unhealthy",
+  "Hazardous",
+];
+const EXP_ORDER = ["Minimal", "Low", "Elevated", "High", "Extreme"];
+
 const state = {
   cells: [],
   buckets: [],
@@ -475,6 +486,72 @@ function renderHeadline() {
     .replace("{aqi}", String(worst.aqi))
     .replace("{category}", localCategory(worst.category));
   el.textContent = `${lead} ${guidanceFor(worst.category)}`;
+}
+
+// Every location reporting the active parameter this hour — the network, not the search-filtered view.
+function overviewRows() {
+  const bucket = currentBucket();
+  return state.cells.filter((c) => c.parameter === state.parameter && c.bucket === bucket);
+}
+
+function worstButton(row, label) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "linklike";
+  b.textContent = label;
+  b.addEventListener("click", () => select(row.cell_id, true));
+  return b;
+}
+
+// "Right now across the network" — the shape of the whole network for the current measurement and
+// hour: how many confirmed vs provisional, the spread (a category breakdown, or low/typical/high for
+// a number), and the single worst confirmed location. The big-picture view officials and reporters
+// want, beside the per-location detail residents use.
+function renderOverview() {
+  const panel = $("#overview");
+  const rows = overviewRows();
+  if (!rows.length) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const confirmed = rows.filter((r) => !r.provisional);
+  $("#overview-counts").textContent = t("overview-counts")
+    .replace("{n}", rows.length)
+    .replace("{confirmed}", confirmed.length)
+    .replace("{provisional}", rows.length - confirmed.length);
+
+  const spread = $("#overview-spread");
+  const worstEl = $("#overview-worst");
+  worstEl.textContent = "";
+
+  if (state.parameter === "pm25_ugm3" || isExposure()) {
+    const order = isExposure() ? EXP_ORDER : AQI_ORDER;
+    const localize = isExposure() ? localExposure : localCategory;
+    const counts = new Map();
+    for (const r of confirmed) counts.set(r.category, (counts.get(r.category) || 0) + 1);
+    const parts = order.filter((c) => counts.get(c)).map((c) => `${localize(c)} ${counts.get(c)}`);
+    spread.textContent = parts.length ? parts.join(" · ") : t("overview-none-confirmed");
+    if (confirmed.length) {
+      const worst = confirmed.reduce((a, b) =>
+        order.indexOf(b.category) > order.indexOf(a.category) ? b : a,
+      );
+      worstEl.appendChild(document.createTextNode(t("overview-worst-label") + " "));
+      worstEl.appendChild(worstButton(worst, `${placeName(worst)} — ${localize(worst.category)}`));
+    }
+  } else {
+    const vals = rows.map((r) => r.mean).sort((a, b) => a - b);
+    const n = vals.length;
+    const median = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
+    spread.textContent = t("overview-spread")
+      .replace("{min}", round1(convert(vals[0])))
+      .replace("{median}", round1(convert(median)))
+      .replace("{max}", round1(convert(vals[n - 1])))
+      .replace("{unit}", unitLabel());
+    const worst = rows.reduce((a, b) => (b.mean > a.mean ? b : a));
+    worstEl.appendChild(document.createTextNode(t("overview-worst-label") + " "));
+    worstEl.appendChild(worstButton(worst, `${placeName(worst)} — ${fmtValue(worst.mean)}`));
+  }
 }
 
 function renderList(rows) {
@@ -988,6 +1065,7 @@ function render() {
   const rows = current();
   $("#status").textContent = t("status").replace("{n}", rows.length);
   renderHeadline();
+  renderOverview();
   renderList(rows);
   renderTable(rows);
   // The map (337 markers + a 2.6k-point SVG path) is the heaviest view; only rebuild it when it is
