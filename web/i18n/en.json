@@ -17,6 +17,8 @@
   "param-pm10": "PM10 — coarse particles",
   "param-exposure": "Heat + air exposure",
   "time": "Hour",
+  "time-play": "Play",
+  "time-pause": "Pause",
   "view-list": "List",
   "view-table": "Table",
   "view-map": "Map",

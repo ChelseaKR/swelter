@@ -17,6 +17,8 @@
   "param-pm10": "PM10 — partículas gruesas",
   "param-exposure": "Exposición a calor + aire",
   "time": "Hora",
+  "time-play": "Reproducir",
+  "time-pause": "Pausar",
   "view-list": "Lista",
   "view-table": "Tabla",
   "view-map": "Mapa",
