@@ -32,3 +32,4 @@ cdk.out/
 CLAUDE.local.md
 CLAUDE-*.md
 .claude/settings.local.json
+.claude/worktrees/
