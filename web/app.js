@@ -122,6 +122,7 @@ const state = {
   sortKey: "value",
   sortDir: -1, // worst-first by default
   selected: null,
+  compareCell: null, // a second location pinned for side-by-side comparison (equity view)
   search: "",
   strings: {},
   historyLoaded: false,
@@ -1337,6 +1338,66 @@ function renderSpark(row) {
   );
 }
 
+// Equity compare (the core "is my block worse than theirs?" question): pin a second location and
+// read the two side by side for the active measurement and hour. Calibrated and raw are never mixed
+// silently — each line shows its own reading, and if either is provisional the comparison is marked
+// rough rather than asserted. Severity is stated in words, never by color.
+function compareDiff(a, b) {
+  const an = placeName(a);
+  const bn = placeName(b);
+  let line;
+  if (state.parameter === "pm25_ugm3" || isExposure()) {
+    const order = isExposure() ? EXP_ORDER : AQI_ORDER;
+    const cmp = order.indexOf(a.category) - order.indexOf(b.category);
+    const key = cmp > 0 ? "compare-worse" : cmp < 0 ? "compare-better" : "compare-same";
+    line = t(key).replace("{a}", an).replace("{b}", bn);
+  } else {
+    const heatLike = state.parameter === "temp_c" || state.parameter === "heat_index_c";
+    const d = round1(convert(a.mean) - convert(b.mean));
+    if (Math.abs(d) < 0.1) {
+      line = t("compare-same").replace("{a}", an).replace("{b}", bn);
+    } else {
+      const key = d > 0 ? (heatLike ? "compare-hotter" : "compare-higher") : heatLike ? "compare-cooler" : "compare-lower";
+      line = t(key)
+        .replace("{a}", an)
+        .replace("{b}", bn)
+        .replace("{d}", Math.abs(d))
+        .replace("{unit}", unitLabel());
+    }
+  }
+  if (a.provisional || b.provisional) line += " " + t("compare-provisional");
+  return line;
+}
+
+function renderCompare(rowA) {
+  const sel = $("#compare-select");
+  const result = $("#compare-result");
+  const others = current()
+    .filter((r) => r.cell_id !== rowA.cell_id)
+    .sort((x, y) => placeName(x).localeCompare(placeName(y)));
+  // Rebuild the picker, keeping the current choice if it still exists for this measurement/hour.
+  sel.textContent = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = t("compare-none");
+  sel.appendChild(placeholder);
+  for (const r of others) {
+    const opt = document.createElement("option");
+    opt.value = r.cell_id;
+    opt.textContent = placeName(r);
+    if (r.cell_id === state.compareCell) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  result.textContent = "";
+  const b = others.find((r) => r.cell_id === state.compareCell);
+  if (!b) return;
+  for (const text of [describe(rowA), describe(b), compareDiff(rowA, b)]) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    result.appendChild(div);
+  }
+}
+
 function renderDetail() {
   const panel = $("#detail");
   if (!state.selected) {
@@ -1374,6 +1435,7 @@ function renderDetail() {
   src.hidden = !guidance;
   renderActions(row);
   $("#provenance-body").textContent = provenanceText(row);
+  renderCompare(row);
   renderDownload(row);
 }
 
@@ -1686,6 +1748,11 @@ function wireControls() {
   });
   $("#unit-f").addEventListener("click", () => setUnit("F"));
   $("#unit-c").addEventListener("click", () => setUnit("C"));
+  $("#compare-select")?.addEventListener("change", (e) => {
+    state.compareCell = e.target.value || null;
+    const row = current().find((r) => r.cell_id === state.selected);
+    if (row) renderCompare(row);
+  });
   $("#text-smaller")?.addEventListener("click", () => setTextStep(state.textStep - 1));
   $("#text-bigger")?.addEventListener("click", () => setTextStep(state.textStep + 1));
   $("#contrast-toggle")?.addEventListener("click", () => setContrast(!state.contrast));
