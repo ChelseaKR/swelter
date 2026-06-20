@@ -1910,6 +1910,7 @@ function updateHash() {
   const bucket = currentBucket();
   if (bucket) parts.push(`t=${encodeURIComponent(bucket)}`);
   if (state.selected) parts.push(`l=${encodeURIComponent(state.selected)}`);
+  if (state.compareCell) parts.push(`c=${encodeURIComponent(state.compareCell)}`);
   // replaceState keeps the evolving view out of the back-button history.
   history.replaceState(null, "", `#${parts.join("&")}`);
 }
@@ -1941,6 +1942,11 @@ function restoreView() {
   if (!state.selected) {
     const id = pendingView.l || loadPrefs().cell;
     if (id && state.cells.some((c) => c.cell_id === id)) select(id, true);
+  }
+  // Restore a shared comparison partner once its cell is present for this measurement/hour.
+  if (pendingView.c && !state.compareCell && state.cells.some((c) => c.cell_id === pendingView.c)) {
+    state.compareCell = pendingView.c;
+    if (state.selected) renderDetail();
   }
   updateHash(); // make the address bar reflect the resolved view, so the share link is correct
 }
@@ -2119,6 +2125,7 @@ function wireControls() {
   $("#unit-c").addEventListener("click", () => setUnit("C"));
   $("#compare-select")?.addEventListener("change", (e) => {
     state.compareCell = e.target.value || null;
+    updateHash(); // a shared link reopens the comparison too
     const row = current().find((r) => r.cell_id === state.selected);
     if (row) renderCompare(row);
   });
