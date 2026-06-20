@@ -20,16 +20,14 @@ Copernicus Atmosphere Monitoring Service (CAMS) via Open-Meteo; weather from Ope
 
 from __future__ import annotations
 
-import json
 import math
 import sys
-import time
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
 from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
 from ._california_places import CALIFORNIA as _CALIFORNIA_RAW
+from ._http import SourceError, get_json
 
 #: Provenance tag carried in the calibration field of every reading from this source.
 SOURCE = "copernicus-cams"
@@ -64,20 +62,11 @@ CALIFORNIA: tuple[Neighborhood, ...] = tuple(
 
 
 def _get_json(url: str, *, timeout: float = 30.0, retries: int = 4) -> Any:
-    """GET + parse JSON, retrying transient network failures (timeouts, SSL handshake drops) with
-    exponential backoff. A statewide fetch is many calls; one flaky connection must not sink the
-    whole run and drop the live demo to its synthetic fallback."""
-    last: Exception | None = None
-    for attempt in range(retries):
-        try:
-            with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 (fixed host)
-                return json.loads(response.read().decode("utf-8"))
-        except (OSError, ValueError) as exc:  # URLError, timeout, SSL, truncated body all subclass
-            last = exc
-            if attempt < retries - 1:
-                time.sleep(min(8.0, 2.0**attempt))
-    assert last is not None
-    raise last
+    """GET + parse JSON via the shared resilient fetch (timeouts, backoff, HTTP 429/5xx, bad JSON).
+
+    A statewide fetch is many calls; one flaky connection must not sink the whole run and drop the
+    live demo to its synthetic fallback. See :mod:`swelter.sources._http`."""
+    return get_json(url, timeout=timeout, retries=retries)
 
 
 def _as_list(payload: Any) -> list[dict[str, Any]]:
@@ -118,7 +107,7 @@ def fetch(
                     f"&hourly=temperature_2m,relative_humidity_2m{window}"
                 )
             )
-        except (OSError, ValueError) as exc:
+        except (SourceError, OSError, ValueError) as exc:
             # One chunk failing (after retries) should not lose the whole state — keep the cities
             # that did come back. Pad so air/weather stay index-aligned with `places`.
             print(

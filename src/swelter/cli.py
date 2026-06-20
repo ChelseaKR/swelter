@@ -315,6 +315,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     import os
 
     from .sources import openaq, openmeteo, sensor_community
+    from .sources._http import SourceError
 
     if args.source == "openaq":
         api_key = args.api_key or os.environ.get("OPENAQ_API_KEY", "")
@@ -332,7 +333,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             observations, nodes = openaq.fetch(
                 api_key, max_locations=args.max_locations, throttle_s=args.throttle
             )
-        except OSError as exc:
+        except (SourceError, OSError, ValueError) as exc:
             _err(f"swelter: fetch failed ({exc}); check your network/API key")
             return 1
         if not observations:
@@ -349,7 +350,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         )
         try:
             observations, nodes = sensor_community.fetch(area)
-        except OSError as exc:
+        except (SourceError, OSError, ValueError) as exc:
             _err(f"swelter: fetch failed ({exc}); check your network connection")
             return 1
         if not observations:
@@ -368,7 +369,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             observations = openmeteo.fetch(
                 places, past_days=args.past_days, forecast_days=args.forecast_days
             )
-        except OSError as exc:
+        except (SourceError, OSError, ValueError) as exc:
             _err(f"swelter: fetch failed ({exc}); check your network connection")
             return 1
         if not observations:

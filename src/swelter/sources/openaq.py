@@ -20,15 +20,14 @@ Attribution: "Readings from the OpenAQ network (openaq.org), CC BY 4.0 — uncal
 from __future__ import annotations
 
 import contextlib
-import json
 import math
 import time
-import urllib.request
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 
 from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+from ._http import SourceError, get_json
 
 API = "https://api.openaq.org/v3"
 ATTRIBUTION = (
@@ -49,19 +48,12 @@ _PARAM: dict[str, tuple[str, str]] = {
 
 
 def _get_json(url: str, api_key: str, *, timeout: float = 45.0, retries: int = 4) -> Any:
-    """GET + parse JSON with the API-key header, retrying transient failures (incl. 429)."""
-    request = urllib.request.Request(url, headers={"X-API-Key": api_key})
-    last: Exception | None = None
-    for attempt in range(retries):
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (fixed host)
-                return json.loads(response.read().decode("utf-8"))
-        except (OSError, ValueError) as exc:
-            last = exc
-            if attempt < retries - 1:
-                time.sleep(min(8.0, 2.0**attempt))
-    assert last is not None
-    raise last
+    """GET + parse JSON with the API-key header via the shared resilient fetch.
+
+    Retries transient failures (timeouts, dropped connections, bad JSON, HTTP 429/408/5xx),
+    honoring a 429 ``Retry-After``; raises :class:`SourceError` on exhaustion or a non-retryable
+    HTTP status. See :mod:`swelter.sources._http`."""
+    return get_json(url, headers={"X-API-Key": api_key}, timeout=timeout, retries=retries)
 
 
 def _locations(
@@ -80,7 +72,13 @@ def _locations(
             f"{API}/locations?bbox={west},{south},{east},{north}"
             f"&limit={min(per_page, 1000)}&page={page}"
         )
-        results = _get_json(url, api_key).get("results", [])
+        try:
+            payload = _get_json(url, api_key)
+        except SourceError:
+            # The first page failing leaves nothing to fetch; a later page failing keeps the
+            # locations already paged in. Either way, one bad page must not crash the whole run.
+            break
+        results = payload.get("results", []) if isinstance(payload, dict) else []
         if not isinstance(results, list) or not results:
             break
         out += [r for r in results if isinstance(r, dict)]
@@ -182,9 +180,10 @@ def fetch(
         if not isinstance(lid, int):
             continue
         try:
-            results = _get_json(f"{API}/locations/{lid}/latest", api_key).get("results", [])
-        except (OSError, ValueError):
+            payload = _get_json(f"{API}/locations/{lid}/latest", api_key)
+        except (SourceError, OSError, ValueError):
             continue  # skip this site; one flaky location must not sink the run
+        results = payload.get("results", []) if isinstance(payload, dict) else []
         if throttle_s:
             time.sleep(throttle_s)
         node_id = f"oaq-{lid}"
