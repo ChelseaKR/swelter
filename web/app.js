@@ -423,6 +423,65 @@ function heatGuidanceFor(tier) {
   return slug && slug !== "none" ? t(`heat-guide-${slug}`) : "";
 }
 
+// E2: "What to do now" — the EPA/NWS guidance for the dominant hazard, turned into a short list of
+// concrete protective steps a resident can act on. It pairs with R2 (no false safety): the calmest
+// tier never says "you're safe", only that no special precautions are needed *right now* and that
+// conditions change — and it stays silent on a provisional cell, where "calm" can't be asserted.
+const HEAT_ACTIONS = {
+  Caution: ["act-heat-water", "act-heat-shade"],
+  "Extreme Caution": ["act-heat-water", "act-heat-shade", "act-heat-easy", "act-heat-neighbors"],
+  Danger: ["act-heat-cool", "act-heat-signs", "act-heat-neighbors"],
+  "Extreme Danger": ["act-heat-ac", "act-heat-emergency", "act-heat-neighbors"],
+};
+const AIR_ACTIONS = {
+  Moderate: ["act-air-sensitive"],
+  "Unhealthy for Sensitive Groups": ["act-air-groups", "act-air-inhaler"],
+  Unhealthy: ["act-air-cutback", "act-air-windows", "act-air-mask"],
+  "Very Unhealthy": ["act-air-indoors", "act-air-windows", "act-air-mask"],
+  Hazardous: ["act-air-indoors", "act-air-windows", "act-air-mask"],
+};
+
+// The i18n keys for the action card, for the dominant hazard — mirrors the guidance logic above so
+// the steps match whichever side (heat or air) is driving the level. Returns null for parameters
+// that carry no hazard guidance (temperature/humidity/PM10 on their own), and null on a provisional
+// cell whose only message would be the calm line — we never assert "calm" on an unconfirmed reading.
+function actionKeysFor(row) {
+  let keys = null;
+  if (state.parameter === "pm25_ugm3") {
+    keys = AIR_ACTIONS[row.category] || null;
+  } else if (state.parameter === "heat_index_c") {
+    keys = HEAT_ACTIONS[heatTier(row.mean)] || null;
+  } else if (isExposure()) {
+    const heatDominant = (HEAT_LEVEL[row.heat_category] ?? 0) > (AIR_LEVEL[row.air_category] ?? 0);
+    keys = heatDominant
+      ? HEAT_ACTIONS[row.heat_category] || null
+      : AIR_ACTIONS[row.air_category] || null;
+  } else {
+    return null;
+  }
+  if (keys) return keys;
+  return row.provisional ? null : ["act-calm"];
+}
+
+function renderActions(row) {
+  const card = $("#action-card");
+  const keys = actionKeysFor(row);
+  if (!keys) {
+    card.hidden = true;
+    return;
+  }
+  const list = $("#action-list");
+  list.textContent = "";
+  for (const key of keys) {
+    const li = document.createElement("li");
+    li.textContent = t(key);
+    list.appendChild(li);
+  }
+  // The "not medical advice" note only reads sensibly beside protective steps, not the calm line.
+  $(".action-note").hidden = keys.length === 1 && keys[0] === "act-calm";
+  card.hidden = false;
+}
+
 // -- selection / current rows ------------------------------------------------
 
 function currentBucket() {
@@ -1281,6 +1340,7 @@ function renderDetail() {
   const src = $(".guidance-source");
   src.textContent = heatSourced ? t("guide-source-heat") : t("guide-source");
   src.hidden = !guidance;
+  renderActions(row);
   $("#provenance-body").textContent = provenanceText(row);
   renderDownload(row);
 }
