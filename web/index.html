@@ -36,7 +36,14 @@
             <option value="es">Español</option>
           </select>
         </div>
+        <div class="display" role="group" aria-labelledby="display-label">
+          <span id="display-label" data-i18n="display">Display</span>
+          <button id="text-smaller" type="button" data-i18n-attr="aria-label:text-smaller" aria-label="Smaller text">A−</button>
+          <button id="text-bigger" type="button" data-i18n-attr="aria-label:text-bigger" aria-label="Larger text">A+</button>
+          <button id="contrast-toggle" type="button" aria-pressed="false" data-i18n="contrast">High contrast</button>
+        </div>
       </div>
+      <p id="display-status" class="visually-hidden" role="status" aria-live="polite"></p>
     </header>
 
     <main id="main">
