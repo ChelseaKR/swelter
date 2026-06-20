@@ -35,8 +35,47 @@
   }
 }
 
+/* High-contrast theme (R6), opt-in via the Display control. Pushes text/UI to maximum contrast on a
+   pure background and darkens borders/focus; it works in both light and dark schemes. Severity is
+   carried by text and pattern (not these tokens), so the map's category cues stay legible. */
+:root[data-contrast="high"] {
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: #1c1c1c;
+  --surface: #ffffff;
+  --border: #000000;
+  --accent: #6a1410;
+  --accent-fg: #ffffff;
+  --focus: #0a33cc;
+  --provisional: #1c1c1c;
+  --map-land: #f2f2f2;
+  --map-line: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-contrast="high"] {
+    --bg: #000000;
+    --fg: #ffffff;
+    --muted: #ededed;
+    --surface: #000000;
+    --border: #ffffff;
+    --accent: #ffc4ba;
+    --accent-fg: #000000;
+    --focus: #a9c4ff;
+    --provisional: #ededed;
+    --map-land: #0a0a0a;
+    --map-line: #ffffff;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* In-page text-size control (R6). The whole UI is rem-based, so scaling the root font scales every
+   view proportionally. Default is 1; the control steps it up for readers who need larger type. */
+html {
+  font-size: calc(100% * var(--text-scale, 1));
 }
 
 body {
@@ -153,6 +192,34 @@ h1 {
   flex-direction: column;
   gap: 0.2rem;
   font-size: 0.85rem;
+}
+
+.display {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.display button {
+  font: inherit;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.display button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+
+.display button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .data-source {

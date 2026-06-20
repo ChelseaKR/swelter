@@ -108,6 +108,8 @@ const state = {
   parameter: "pm25_ugm3",
   bucketIdx: 0,
   unit: "F",
+  textStep: 0, // index into TEXT_STEPS; 0 = default size
+  contrast: false, // high-contrast theme on/off
   sortKey: "value",
   sortDir: -1, // worst-first by default
   selected: null,
@@ -1519,6 +1521,44 @@ function setUnit(unit) {
   render();
 }
 
+// R6: in-page display controls — text size and high contrast — so a reader who needs larger type or
+// stronger contrast gets it here, without hunting through browser or OS settings. Both choices
+// persist (with units and language) and ride along to the other source view. The layout is rem-based
+// and severity is never carried by color alone, so scaling the root font and swapping the colour
+// tokens stays within the WCAG contract.
+const TEXT_STEPS = [1, 1.15, 1.3];
+
+function applyTextScale(step) {
+  const i = Math.max(0, Math.min(TEXT_STEPS.length - 1, step));
+  state.textStep = i;
+  document.documentElement.style.setProperty("--text-scale", String(TEXT_STEPS[i]));
+  const smaller = $("#text-smaller");
+  const bigger = $("#text-bigger");
+  if (smaller) smaller.disabled = i === 0;
+  if (bigger) bigger.disabled = i === TEXT_STEPS.length - 1;
+  const status = $("#display-status");
+  if (status) {
+    status.textContent = t("text-size-set")
+      .replace("{n}", String(i + 1))
+      .replace("{max}", String(TEXT_STEPS.length));
+  }
+}
+
+function setTextStep(step) {
+  applyTextScale(step);
+  savePref("textStep", state.textStep);
+}
+
+function setContrast(on) {
+  state.contrast = !!on;
+  const root = document.documentElement;
+  if (state.contrast) root.setAttribute("data-contrast", "high");
+  else root.removeAttribute("data-contrast");
+  const btn = $("#contrast-toggle");
+  if (btn) btn.setAttribute("aria-pressed", String(state.contrast));
+  savePref("contrast", state.contrast);
+}
+
 function locate() {
   if (!navigator.geolocation) {
     $("#status").textContent = t("locate-unavailable");
@@ -1577,6 +1617,9 @@ function wireControls() {
   });
   $("#unit-f").addEventListener("click", () => setUnit("F"));
   $("#unit-c").addEventListener("click", () => setUnit("C"));
+  $("#text-smaller")?.addEventListener("click", () => setTextStep(state.textStep - 1));
+  $("#text-bigger")?.addEventListener("click", () => setTextStep(state.textStep + 1));
+  $("#contrast-toggle")?.addEventListener("click", () => setContrast(!state.contrast));
   $("#locate").addEventListener("click", locate);
   $("#place-search").addEventListener("input", (e) => {
     state.search = e.target.value;
@@ -1640,6 +1683,9 @@ async function init() {
     $("#unit-f").setAttribute("aria-pressed", String(state.unit === "F"));
     $("#unit-c").setAttribute("aria-pressed", String(state.unit === "C"));
   }
+  applyTextScale(Number(prefs.textStep) || 0); // restore saved text size (no status announce at boot)
+  $("#display-status").textContent = "";
+  setContrast(prefs.contrast === true);
   await loadBasemap();
   wireTabs();
   wireSort();
