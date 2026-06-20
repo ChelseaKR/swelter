@@ -875,6 +875,26 @@ button.linklike {
   font-size: 0.9rem;
 }
 
+/* Multi-day history: a per-location daily summary (high/low or worst category) under the sparkline. */
+.history {
+  margin: 0.6rem 0;
+}
+
+.history-heading {
+  font-size: 1rem;
+  margin: 0 0 0.3rem;
+}
+
+.history-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.95rem;
+}
+
+.history-list li {
+  margin: 0.15rem 0;
+}
+
 /* Equity compare: pick a second location and read the two side by side. */
 .compare {
   margin: 0.75rem 0;

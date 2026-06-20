@@ -1699,6 +1699,70 @@ function wireWatch() {
     });
 }
 
+// Multi-day history: group this location's readings for the active measurement by local calendar
+// day and summarize each — high/low for a number, the worst category for AQI/exposure. The hourly
+// sparkline shows within-a-day change; this shows the day-level pattern (which days ran hottest or
+// dirtiest here) that a single snapshot can't. Uses whatever history is loaded; silent until there
+// are at least two days to compare.
+function dailyHistory(row) {
+  const lang = document.documentElement.lang || "en";
+  const fmtDay = (d) => {
+    try {
+      return new Intl.DateTimeFormat(lang, { weekday: "short", month: "short", day: "numeric" }).format(d);
+    } catch {
+      return d.toISOString().slice(0, 10);
+    }
+  };
+  const byDay = new Map();
+  for (const c of state.cells) {
+    if (c.cell_id !== row.cell_id || c.parameter !== state.parameter) continue;
+    const d = new Date(c.bucket);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    let day = byDay.get(key);
+    if (!day) {
+      day = { t: d.getTime(), label: fmtDay(d), vals: [], cats: [] };
+      byDay.set(key, day);
+    }
+    if (typeof c.mean === "number") day.vals.push(c.mean);
+    if (c.category) day.cats.push(c.category);
+  }
+  return [...byDay.values()].sort((a, b) => a.t - b.t).slice(-7);
+}
+
+function renderHistory(row) {
+  const wrap = $("#history");
+  const list = $("#history-list");
+  if (!wrap || !list) return;
+  const days = dailyHistory(row);
+  list.textContent = "";
+  if (days.length < 2) {
+    wrap.hidden = true; // a single day is already covered by the hourly sparkline
+    return;
+  }
+  wrap.hidden = false;
+  const categorical = state.parameter === "pm25_ugm3" || isExposure();
+  const order = isExposure() ? EXP_ORDER : AQI_ORDER;
+  const localize = isExposure() ? localExposure : localCategory;
+  for (const day of days) {
+    const li = document.createElement("li");
+    if (categorical && day.cats.length) {
+      const worst = day.cats.reduce((a, b) => (order.indexOf(b) > order.indexOf(a) ? b : a));
+      li.textContent = t("history-worst").replace("{day}", day.label).replace("{cat}", localize(worst));
+    } else if (day.vals.length) {
+      const hi = round1(convert(Math.max(...day.vals)));
+      const lo = round1(convert(Math.min(...day.vals)));
+      li.textContent = t("history-highlow")
+        .replace("{day}", day.label)
+        .replace("{high}", hi)
+        .replace("{low}", lo)
+        .replace("{unit}", unitLabel());
+    } else {
+      continue;
+    }
+    list.appendChild(li);
+  }
+}
+
 function renderDetail() {
   const panel = $("#detail");
   if (!state.selected) {
@@ -1717,6 +1781,7 @@ function renderDetail() {
   $("#detail-context").textContent = contrastLine(row);
   $("#detail-trend").textContent = trendLine(row);
   $("#detail-yesterday").textContent = dayChangeLine(row);
+  renderHistory(row);
   // Guidance: EPA air for PM, NWS heat for the heat index, and the DOMINANT hazard for combined
   // exposure — so the advice matches whichever side is driving the level.
   let guidance = "";
@@ -2161,7 +2226,7 @@ async function init() {
 
   loadHealth();
 
-  const full = await fetchSurface("api/surface.json?hours=72");
+  const full = await fetchSurface("api/surface.json?hours=168");
   if (full) {
     state.historyLoaded = true;
     setData(full);
