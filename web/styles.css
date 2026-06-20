@@ -1076,6 +1076,36 @@ footer code {
   margin: 0.4rem 0 0;
 }
 
+.shortcuts {
+  margin-top: 0.6rem;
+}
+
+.shortcuts summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.shortcuts-toggle-row {
+  margin: 0.4rem 0;
+}
+
+.shortcuts-list {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.shortcuts-list li {
+  margin: 0.15rem 0;
+}
+
+.shortcuts-list kbd {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 @media (max-width: 40rem) {
   header,
   main,

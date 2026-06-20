@@ -226,5 +226,11 @@
   "settings-empty": "Aún no hay nada guardado en este dispositivo.",
   "settings-clear": "Borrar ajustes guardados",
   "settings-cleared": "Ajustes guardados borrados de este dispositivo.",
+  "sc-summary": "Atajos de teclado",
+  "sc-enable": "Activar atajos de teclado",
+  "sc-view-list": "Vista de lista",
+  "sc-view-table": "Vista de tabla",
+  "sc-view-map": "Vista de mapa",
+  "sc-search": "Ir a la búsqueda de ubicación",
   "no-data": "Aún no hay datos. Ejecute `swelter demo --serve` o `make demo`."
 }
