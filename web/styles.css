@@ -770,6 +770,42 @@ button.linklike {
   font-size: 0.9rem;
 }
 
+/* Equity compare: pick a second location and read the two side by side. */
+.compare {
+  margin: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.compare label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.compare select {
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--fg);
+  max-width: 22rem;
+}
+
+.compare-result {
+  font-size: 0.95rem;
+}
+
+.compare-result div {
+  margin: 0.2rem 0;
+}
+
+.compare-result div:last-child {
+  font-weight: 600;
+  margin-top: 0.4rem;
+}
+
 .detail-actions {
   margin: 0.6rem 0 0;
   display: flex;
@@ -896,6 +932,7 @@ footer code {
   .map-controls,
   .detail-actions,
   .overview-actions,
+  .compare,
   #download-cell,
   #time-play,
   #place-search,
