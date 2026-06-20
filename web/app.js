@@ -109,6 +109,12 @@ const AQI_ORDER = [
   "Hazardous",
 ];
 const EXP_ORDER = ["Minimal", "Low", "Elevated", "High", "Extreme"];
+// Heat-index tiers a resident can watch for (skips "None" — you don't set an alert for "no elevated
+// heat"). The index into this array is what a heat-index watch stores, mirroring heatTier().
+const HEAT_ORDER = ["Caution", "Extreme Caution", "Danger", "Extreme Danger"];
+// Category measurements share the same logic: a level picked from an ordered list. Plain numbers
+// (temperature, PM10) are watched by a numeric value instead.
+const CATEGORY_ORDER = { pm25_ugm3: AQI_ORDER, exposure: EXP_ORDER, heat_index_c: HEAT_ORDER };
 
 const state = {
   cells: [],
@@ -132,6 +138,15 @@ const state = {
   pendingFocus: null, // a cell to center on once the map becomes visible/measurable
   projSig: "", // signature of the last map projection; a change (no basemap) refits the view
 };
+
+// Personal alert thresholds: on-device only (localStorage, like the other prefs), no account, no
+// server, no PII — a watch holds only the public cell id, the parameter, and a level. While the page
+// is open, a watched location whose current-hour reading meets/exceeds its level surfaces in the
+// Alerts banner; if the reader has granted browser-notification permission and turned notifications
+// on, an under→over crossing fires one notification. `firing` tracks which watch keys are currently
+// over, so a notification fires once per crossing and never spams already-over watches on load.
+const firing = new Set();
+let notifyOn = false; // has the reader asked for on-device notifications this session?
 
 const MAX_ZOOM = 14;
 const reduceMotionMQL = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1398,6 +1413,292 @@ function renderCompare(rowA) {
   }
 }
 
+// -- personal alert thresholds -----------------------------------------------
+
+function watchKey(cellId, parameter) {
+  return `${cellId}|${parameter}`;
+}
+
+function loadWatches() {
+  const w = loadPrefs().watches;
+  return w && typeof w === "object" ? w : {};
+}
+
+function saveWatch(key, watch) {
+  const watches = loadWatches();
+  if (watch) watches[key] = watch;
+  else delete watches[key];
+  savePref("watches", watches);
+}
+
+// Does this row's current reading meet/exceed the saved level? Category watches compare ordinal
+// positions; numeric watches compare in BASE units, so the °F/°C toggle never changes the verdict.
+// A provisional reading can still cross — it is shown, but flagged rough rather than asserted (R: no
+// false safety, calibrated/raw never silently mixed).
+function watchCrossed(row, watch) {
+  const order = CATEGORY_ORDER[row.parameter];
+  if (order) {
+    if (watch.kind !== "cat") return false;
+    const pos = row.parameter === "heat_index_c" ? order.indexOf(heatTier(row.mean)) : order.indexOf(row.category);
+    return pos >= 0 && pos >= watch.idx;
+  }
+  return watch.kind === "num" && row.mean >= watch.value;
+}
+
+// The level a watch is set to, in plain words for the active language — a category name or a value
+// with its unit (converted for display; the stored value stays in base units).
+function watchThresholdText(parameter, watch) {
+  if (watch.kind === "cat") {
+    const name = (CATEGORY_ORDER[parameter] || [])[watch.idx];
+    if (parameter === "exposure") return localExposure(name);
+    if (parameter === "heat_index_c") return localHeat(name);
+    return localCategory(name);
+  }
+  const saved = state.parameter; // borrow the formatter for this parameter's unit/conversion
+  state.parameter = parameter;
+  const text = fmtValue(watch.value);
+  state.parameter = saved;
+  return text;
+}
+
+// The reading itself, in plain words, for an alert line — mirrors describe() but trimmed to the
+// number/level and the rough-vs-confirmed flag, so the banner reads like the rest of the page.
+function watchReadingText(row) {
+  const order = CATEGORY_ORDER[row.parameter];
+  if (order) {
+    let name;
+    if (row.parameter === "exposure") name = localExposure(row.category);
+    else if (row.parameter === "heat_index_c") name = localHeat(heatTier(row.mean));
+    else name = localCategory(row.category);
+    return row.provisional ? `~${name}` : name;
+  }
+  const saved = state.parameter;
+  state.parameter = row.parameter;
+  const text = fmtValue(row.mean);
+  state.parameter = saved;
+  return text;
+}
+
+// The full alert sentence for one crossed watch — place, measurement, the reading, and the level the
+// reader set. Severity is in WORDS, never color. Provisional readings carry the "rough" caveat so a
+// crossing is never asserted as a confirmed category (R: no false safety; calibrated/raw not mixed).
+function alertText(row, watch) {
+  const param = t(PARAM_I18N[row.parameter] || "parameter");
+  let line = t("alert-line")
+    .replace("{place}", placeName(row))
+    .replace("{param}", param)
+    .replace("{reading}", watchReadingText(row))
+    .replace("{threshold}", watchThresholdText(row.parameter, watch));
+  if (row.provisional) line += " " + t("alert-provisional");
+  return line;
+}
+
+// Every watched location whose current-hour reading is at/over its level, paired with its row.
+function activeAlerts() {
+  const watches = loadWatches();
+  const bucket = currentBucket();
+  const out = [];
+  for (const [key, watch] of Object.entries(watches)) {
+    const sep = key.lastIndexOf("|");
+    if (sep < 0) continue;
+    const cellId = key.slice(0, sep);
+    const parameter = key.slice(sep + 1);
+    const row = state.cells.find(
+      (c) => c.cell_id === cellId && c.parameter === parameter && c.bucket === bucket,
+    );
+    if (row && watchCrossed(row, watch)) out.push({ key, row, watch });
+  }
+  return out;
+}
+
+// The Alerts banner: every watched location that is at/over its level right now, in plain language,
+// with a button that selects it. It only ever reports crossings — it never says "you're safe" when
+// under (R: no false safety), it just shows nothing. Hidden when there are no alerts.
+function renderAlerts() {
+  const section = $("#alerts");
+  const list = $("#alerts-list");
+  if (!section || !list) return;
+  const alerts = activeAlerts();
+  list.textContent = "";
+  if (!alerts.length) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  for (const { row, watch } of alerts) {
+    const li = document.createElement("li");
+    const text = document.createElement("span");
+    text.className = "alert-text";
+    text.textContent = alertText(row, watch);
+    const go = document.createElement("button");
+    go.type = "button";
+    go.className = "linklike";
+    go.textContent = t("alert-go");
+    go.addEventListener("click", () => select(row.cell_id, true));
+    li.append(text, document.createTextNode(" "), go);
+    list.appendChild(li);
+  }
+}
+
+// Fire a browser notification once per under→over crossing this session. `firing` holds the keys
+// currently over; a key newly over notifies (if enabled + permission granted), and a key that drops
+// back under is cleared so a later re-crossing notifies again. Notifications never fire on load for
+// watches that were already over more than once, and the body carries ONLY the place + reading +
+// level — no personal data, no background push (which would need a hosted dependency the hard rules
+// forbid). Wrapped: a missing/ë throwing Notifications API must never break the page.
+function syncNotifications(alerts) {
+  const overNow = new Set(alerts.map((a) => a.key));
+  for (const key of firing) if (!overNow.has(key)) firing.delete(key); // dropped back under
+  const canNotify =
+    notifyOn &&
+    "Notification" in window &&
+    Notification.permission === "granted";
+  for (const { key, row, watch } of alerts) {
+    if (firing.has(key)) continue; // already firing — don't re-notify until it clears
+    firing.add(key);
+    if (!canNotify) continue;
+    try {
+      const body = t("notify-body")
+        .replace("{reading}", watchReadingText(row))
+        .replace("{threshold}", watchThresholdText(row.parameter, watch));
+      new Notification(`swelter — ${placeName(row)}`, { body, tag: key, lang: document.documentElement.lang || "en" });
+    } catch {
+      /* Notifications API unavailable or blocked — the in-page banner still shows the alert */
+    }
+  }
+}
+
+// Re-evaluate alerts on every render: refresh the banner and fire any new crossings.
+function updateAlerts() {
+  const alerts = activeAlerts();
+  renderAlerts();
+  syncNotifications(alerts);
+}
+
+// The watch control in the detail panel: a level picker for the active measurement (a category
+// <select> for PM2.5/exposure/heat index, a numeric <input> for temperature/PM10), a save/remove
+// pair, and an optional "notify on this device" button. It reflects any saved watch for this
+// location + measurement so a returning reader sees their setting. Graceful: the notify button hides
+// when the Notifications API is absent, and nothing here throws.
+function renderWatch(row) {
+  const wrap = $("#watch");
+  if (!wrap) return;
+  const order = CATEGORY_ORDER[state.parameter];
+  const sel = $("#watch-threshold");
+  const num = $("#watch-number");
+  const unit = $("#watch-unit");
+  const key = watchKey(row.cell_id, state.parameter);
+  const saved = loadWatches()[key] || null;
+
+  if (order) {
+    // Category measurements: "at [level] or worse", localized, best→worst.
+    sel.hidden = false;
+    num.hidden = true;
+    sel.textContent = "";
+    const localize =
+      state.parameter === "exposure"
+        ? localExposure
+        : state.parameter === "heat_index_c"
+          ? localHeat
+          : localCategory;
+    order.forEach((name, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = t("watch-at-or-worse").replace("{level}", localize(name));
+      if (saved && saved.kind === "cat" && saved.idx === i) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    unit.textContent = "";
+  } else {
+    // Plain numbers: a value in the displayed unit; stored in base units.
+    sel.hidden = true;
+    num.hidden = false;
+    if (saved && saved.kind === "num") num.value = String(round1(convert(saved.value)));
+    else if (!num.value) num.value = String(round1(convert(row.mean)));
+    unit.textContent = unitLabel();
+  }
+
+  $("#watch-clear").hidden = !saved;
+  $("#watch-save").textContent = saved ? t("watch-update") : t("watch-save");
+
+  // The notify button only makes sense where the API exists; hide it otherwise (graceful, F).
+  const notifyBtn = $("#watch-notify");
+  if ("Notification" in window) {
+    notifyBtn.hidden = false;
+    const granted = Notification.permission === "granted" && notifyOn;
+    notifyBtn.textContent = granted ? t("watch-notify-on") : t("watch-notify");
+    notifyBtn.disabled = Notification.permission === "denied";
+  } else {
+    notifyBtn.hidden = true;
+  }
+}
+
+// Read the control into a stored watch. Category → an index; number → a base-unit value (un-convert
+// the displayed value when the reader is on °F). Returns null on an empty/invalid number.
+function readWatchControl() {
+  const order = CATEGORY_ORDER[state.parameter];
+  if (order) {
+    const idx = Number($("#watch-threshold").value);
+    return Number.isInteger(idx) && idx >= 0 ? { kind: "cat", idx } : null;
+  }
+  const shown = Number($("#watch-number").value);
+  if (!Number.isFinite(shown)) return null;
+  // Invert the display conversion so the stored value is always base units (Celsius for temp).
+  let value = shown;
+  if (PARAM_BASE_UNIT[state.parameter] === "C" && state.unit === "F") value = ((shown - 32) * 5) / 9;
+  return { kind: "num", value };
+}
+
+function wireWatch() {
+  const save = $("#watch-save");
+  const clear = $("#watch-clear");
+  const notify = $("#watch-notify");
+  if (save)
+    save.addEventListener("click", () => {
+      if (!state.selected) return;
+      const watch = readWatchControl();
+      if (!watch) {
+        $("#watch-status").textContent = t("watch-need-value");
+        return;
+      }
+      const key = watchKey(state.selected, state.parameter);
+      // A fresh/changed watch starts un-fired so an immediate crossing still notifies once.
+      firing.delete(key);
+      saveWatch(key, watch);
+      $("#watch-status").textContent = t("watch-set");
+      const row = current().find((r) => r.cell_id === state.selected);
+      if (row) renderWatch(row);
+      updateAlerts();
+    });
+  if (clear)
+    clear.addEventListener("click", () => {
+      if (!state.selected) return;
+      const key = watchKey(state.selected, state.parameter);
+      saveWatch(key, null);
+      firing.delete(key);
+      $("#watch-status").textContent = t("watch-removed");
+      const row = current().find((r) => r.cell_id === state.selected);
+      if (row) renderWatch(row);
+      updateAlerts();
+    });
+  if (notify)
+    notify.addEventListener("click", async () => {
+      if (!("Notification" in window)) return;
+      try {
+        const perm =
+          Notification.permission === "granted"
+            ? "granted"
+            : await Notification.requestPermission();
+        notifyOn = perm === "granted";
+        $("#watch-status").textContent = notifyOn ? t("notify-granted") : t("notify-blocked");
+      } catch {
+        $("#watch-status").textContent = t("notify-blocked");
+      }
+      const row = current().find((r) => r.cell_id === state.selected);
+      if (row) renderWatch(row);
+    });
+}
+
 function renderDetail() {
   const panel = $("#detail");
   if (!state.selected) {
@@ -1436,6 +1737,7 @@ function renderDetail() {
   renderActions(row);
   $("#provenance-body").textContent = provenanceText(row);
   renderCompare(row);
+  renderWatch(row);
   renderDownload(row);
 }
 
@@ -1493,6 +1795,7 @@ function render() {
   $("#status").textContent = t("status").replace("{n}", rows.length);
   renderHeadline();
   updateLegend();
+  updateAlerts();
   renderOverview();
   renderList(rows);
   renderTable(rows);
@@ -1507,6 +1810,7 @@ function render() {
 // focusMap=true centers the map on the pick (a map marker tap, geolocation, or a search hit). A
 // plain List/Table row click leaves the map where it is so browsing never yanks a hidden map around.
 function select(cellId, focusMap = false) {
+  if (cellId !== state.selected) $("#watch-status").textContent = ""; // a new pick clears stale feedback
   state.selected = cellId;
   // A shareable, bookmarkable deep link — the measurement, hour, and location together, something a
   // generic weather app's single regional view can't give.
@@ -1836,6 +2140,7 @@ async function init() {
   wireTabs();
   wireSort();
   wireControls();
+  wireWatch();
   wireSourceSwitch();
   wireMap();
   // Phones/touch default to the List view; the map is the hardest view to operate (F17).

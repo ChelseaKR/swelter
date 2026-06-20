@@ -106,6 +106,14 @@
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
 
+      <section id="alerts" class="alerts" aria-labelledby="alerts-heading" role="status" aria-live="polite" hidden>
+        <h2 id="alerts-heading" data-i18n="alerts-heading">Your alerts</h2>
+        <ul id="alerts-list" class="alerts-list"></ul>
+        <p class="alerts-note" data-i18n="alerts-note">
+          Alerts update only while this page is open — there is no background push or account.
+        </p>
+      </section>
+
       <section id="overview" class="overview" aria-labelledby="overview-heading" hidden>
         <h2 id="overview-heading" data-i18n="overview-heading">Right now across the network</h2>
         <p id="overview-counts"></p>
@@ -187,6 +195,35 @@
           <label for="compare-select" data-i18n="compare-label">Compare with another location</label>
           <select id="compare-select"></select>
           <div id="compare-result" class="compare-result" aria-live="polite"></div>
+        </div>
+        <div id="watch" class="watch">
+          <h3 class="watch-heading" data-i18n="watch-heading">Alert me about this location</h3>
+          <p class="watch-intro" data-i18n="watch-intro">
+            Set a level for this measurement. While this page is open, you'll see an alert here when
+            this location reaches it. Saved on this device only — no account, no server.
+          </p>
+          <div class="watch-row">
+            <label for="watch-threshold" id="watch-label" data-i18n="watch-label">Alert at</label>
+            <select id="watch-threshold" class="watch-threshold" hidden></select>
+            <input
+              id="watch-number"
+              class="watch-number"
+              type="number"
+              step="any"
+              data-i18n-attr="aria-label:watch-number-label"
+              aria-label="Alert at this reading or higher"
+              hidden
+            />
+            <span id="watch-unit" class="watch-unit"></span>
+          </div>
+          <p class="watch-buttons">
+            <button id="watch-save" type="button" data-i18n="watch-save">Turn on alert</button>
+            <button id="watch-clear" type="button" data-i18n="watch-clear" hidden>Remove alert</button>
+            <button id="watch-notify" type="button" data-i18n="watch-notify" hidden>
+              Notify me on this device
+            </button>
+          </p>
+          <p id="watch-status" class="watch-status" role="status" aria-live="polite"></p>
         </div>
         <p class="detail-actions">
           <button id="copy-link" type="button" data-i18n="copy-link">Copy link to this location</button>
