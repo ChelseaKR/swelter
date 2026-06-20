@@ -674,6 +674,25 @@ td .tag {
   font-size: 0.85rem;
 }
 
+/* Per-node health detail — which sensors a host should go check. */
+.health-detail {
+  margin: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.health-detail summary {
+  cursor: pointer;
+}
+
+.health-list {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.health-list li {
+  margin: 0.15rem 0;
+}
+
 /* Personal alerts banner. The accent border is decorative only — every alert states its severity in
    words (the reading and the level the reader set), never by color (the map/legend rule applies). */
 .alerts {

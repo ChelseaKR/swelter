@@ -764,6 +764,50 @@ function freshnessLine() {
   return line;
 }
 
+// A reading's age in plain words from an ISO timestamp — minutes, hours, or days ago.
+function ageText(iso) {
+  const ageMin = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (ageMin < 60) return t("fresh-min").replace("{m}", ageMin);
+  if (ageMin < 2880) return t("fresh-hr").replace("{h}", Math.round(ageMin / 60));
+  return t("fresh-day").replace("{d}", Math.round(ageMin / 1440));
+}
+
+// Per-node health for the host: the overview line gives the ok/degraded/offline counts; this names
+// the sensors that need attention (offline first, then degraded), with completeness and when each
+// was last seen. node_id is the only, already-public identifier — no PII. When every node is fine it
+// says so plainly. The list answers a host's "which sensor do I go check?" the aggregate can't.
+function renderHealthDetail() {
+  const wrap = $("#health-detail");
+  const list = $("#health-list");
+  if (!wrap || !list) return;
+  const nodes = (state.health && state.health.nodes) || [];
+  if (!nodes.length) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  list.textContent = "";
+  const rank = { offline: 0, degraded: 1 };
+  const attention = nodes
+    .filter((n) => n.status === "offline" || n.status === "degraded")
+    .sort((a, b) => (rank[a.status] - rank[b.status]) || a.completeness - b.completeness);
+  if (!attention.length) {
+    const li = document.createElement("li");
+    li.textContent = t("health-all-ok").replace("{n}", String(nodes.length));
+    list.appendChild(li);
+    return;
+  }
+  for (const n of attention) {
+    const li = document.createElement("li");
+    li.textContent = t("health-node")
+      .replace("{node}", n.node_id)
+      .replace("{status}", t(n.status === "offline" ? "health-stat-offline" : "health-stat-degraded"))
+      .replace("{pct}", String(Math.round((n.completeness || 0) * 100)))
+      .replace("{age}", n.last_seen ? ageText(n.last_seen) : "—");
+    list.appendChild(li);
+  }
+}
+
 function worstButton(row, label) {
   const b = document.createElement("button");
   b.type = "button";
@@ -793,6 +837,7 @@ function renderOverview() {
 
   $("#overview-coverage").textContent = coverageLine();
   $("#overview-health").textContent = healthLine();
+  renderHealthDetail();
   $("#overview-fresh").textContent = freshnessLine();
   const spread = $("#overview-spread");
   const worstEl = $("#overview-worst");
