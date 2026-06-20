@@ -45,6 +45,7 @@
   "fresh-hr": "hace {h} h",
   "fresh-day": "hace {d} días",
   "fresh-stale": "Esta red puede estar atrasada — las lecturas no son en vivo.",
+  "offline-note": "Estás sin conexión — se muestran las últimas lecturas que cargó este dispositivo. Reconéctate para ver lo más reciente.",
   "sort-announce": "Ordenado por {col}, {dir}.",
   "dir-ascending": "ascendente",
   "dir-descending": "descendente",
