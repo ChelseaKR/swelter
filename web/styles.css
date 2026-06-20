@@ -1014,6 +1014,38 @@ footer code {
   border-radius: 0.2rem;
 }
 
+.settings {
+  margin-top: 1rem;
+}
+
+.settings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.settings-intro,
+.settings-state {
+  margin: 0.4rem 0;
+}
+
+.settings-actions {
+  margin: 0.5rem 0 0;
+}
+
+.settings-actions button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+.settings-status {
+  margin: 0.4rem 0 0;
+}
+
 @media (max-width: 40rem) {
   header,
   main,
