@@ -674,6 +674,17 @@ td .tag {
   font-size: 0.85rem;
 }
 
+/* Offline notice — the accent border is decorative; the message itself states the situation. */
+.offline {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+}
+
 /* Per-node health detail — which sensors a host should go check. */
 .health-detail {
   margin: 0.3rem 0;

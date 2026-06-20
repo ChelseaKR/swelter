@@ -45,6 +45,7 @@
   "fresh-hr": "{h} h ago",
   "fresh-day": "{d} days ago",
   "fresh-stale": "This network may be behind — readings are not live.",
+  "offline-note": "You're offline — showing the last readings this device loaded. Reconnect for the latest.",
   "sort-announce": "Sorted by {col}, {dir}.",
   "dir-ascending": "ascending",
   "dir-descending": "descending",

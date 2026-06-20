@@ -2266,6 +2266,21 @@ function smallScreen() {
   return window.matchMedia("(max-width: 40rem)").matches;
 }
 
+// Honesty about connectivity: this dashboard is a PWA and keeps working from cache, so when the
+// device drops offline it still shows the last readings it loaded — say so plainly rather than let a
+// reader trust possibly-stale numbers as live. navigator.onLine flips the banner; the network's own
+// freshness line still reports how old the data is.
+function updateOnline() {
+  const el = $("#offline");
+  if (el) el.hidden = navigator.onLine !== false;
+}
+
+function wireOnline() {
+  window.addEventListener("online", updateOnline);
+  window.addEventListener("offline", updateOnline);
+  updateOnline();
+}
+
 // The live demo deploys two pages: "/" (Sacramento, Copernicus CAMS model data) and "/sensors/"
 // (Stuttgart, real Sensor.Community low-cost sensors). Both share this file, so resolve the links
 // relative to wherever we are and mark the active one — base-path agnostic (works under /swelter/).
@@ -2305,6 +2320,7 @@ async function init() {
   wireControls();
   wireWatch();
   wireSourceSwitch();
+  wireOnline();
   wireMap();
   // Phones/touch default to the List view; the map is the hardest view to operate (F17).
   setView(smallScreen() ? "tab-list" : "tab-list");
