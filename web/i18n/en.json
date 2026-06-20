@@ -226,5 +226,11 @@
   "settings-empty": "Nothing is saved on this device yet.",
   "settings-clear": "Clear saved settings",
   "settings-cleared": "Saved settings cleared from this device.",
+  "sc-summary": "Keyboard shortcuts",
+  "sc-enable": "Enable keyboard shortcuts",
+  "sc-view-list": "List view",
+  "sc-view-table": "Table view",
+  "sc-view-map": "Map view",
+  "sc-search": "Jump to the location search",
   "no-data": "No data yet. Run `swelter demo --serve` or `make demo`."
 }

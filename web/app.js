@@ -2034,6 +2034,7 @@ function clearSettings() {
   $("#unit-f")?.setAttribute("aria-pressed", "true");
   $("#unit-c")?.setAttribute("aria-pressed", "false");
   firing.clear(); // drop any armed alert-notification state
+  $("#shortcuts-toggle") && ($("#shortcuts-toggle").checked = true); // back to the default (on)
   render(); // alerts banner, watch control, and comparison all re-read the now-empty prefs
   renderSettingsState();
   $("#settings-status").textContent = t("settings-cleared");
@@ -2281,6 +2282,50 @@ function wireOnline() {
   updateOnline();
 }
 
+// Keyboard shortcuts for the power user: switch views (l/t/m) and jump to search (/). Single-key
+// shortcuts must be defeatable to satisfy WCAG 2.1.4, so they are on by default but can be turned off
+// in the footer (persisted), and they never fire while typing in a field or with a modifier held.
+function shortcutsEnabled() {
+  return loadPrefs().shortcuts !== false; // default on
+}
+
+function setShortcuts(on) {
+  savePref("shortcuts", !!on);
+  const cb = $("#shortcuts-toggle");
+  if (cb) cb.checked = !!on;
+}
+
+function wireShortcuts() {
+  const cb = $("#shortcuts-toggle");
+  if (cb) {
+    cb.checked = shortcutsEnabled();
+    cb.addEventListener("change", () => setShortcuts(cb.checked));
+  }
+  document.addEventListener("keydown", (e) => {
+    if (!shortcutsEnabled() || e.metaKey || e.ctrlKey || e.altKey) return;
+    const el = e.target;
+    const tag = (el.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "select" || tag === "textarea" || el.isContentEditable) return;
+    switch (e.key) {
+      case "l":
+        setView("tab-list");
+        break;
+      case "t":
+        setView("tab-table");
+        break;
+      case "m":
+        setView("tab-map");
+        break;
+      case "/":
+        e.preventDefault();
+        $("#place-search")?.focus();
+        break;
+      default:
+        return;
+    }
+  });
+}
+
 // The live demo deploys two pages: "/" (Sacramento, Copernicus CAMS model data) and "/sensors/"
 // (Stuttgart, real Sensor.Community low-cost sensors). Both share this file, so resolve the links
 // relative to wherever we are and mark the active one — base-path agnostic (works under /swelter/).
@@ -2321,6 +2366,7 @@ async function init() {
   wireWatch();
   wireSourceSwitch();
   wireOnline();
+  wireShortcuts();
   wireMap();
   // Phones/touch default to the List view; the map is the hardest view to operate (F17).
   setView(smallScreen() ? "tab-list" : "tab-list");
