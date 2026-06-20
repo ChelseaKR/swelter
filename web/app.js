@@ -15,6 +15,15 @@ const PARAM_BASE_UNIT = {
   no2_ppb: "ppb",
 };
 
+// Parameter → its i18n label key, for the plain-language network brief.
+const PARAM_I18N = {
+  pm25_ugm3: "param-pm25",
+  exposure: "param-exposure",
+  temp_c: "param-temp",
+  heat_index_c: "param-hi",
+  pm10_ugm3: "param-pm10",
+};
+
 const AQI_CLASS = {
   Good: "aqi-good",
   Moderate: "aqi-moderate",
@@ -393,6 +402,27 @@ function briefText(row) {
   lines.push(t("brief-source"));
   lines.push(location.href);
   return lines.join("\n");
+}
+
+// A plain-language summary of the WHOLE network right now — the measurement and hour, the confirmed
+// vs provisional counts, sensor coverage and health, the spread, the single worst confirmed location,
+// and how current the data is — with open-data attribution and the shareable link. The data-to-action
+// bridge for a reporter or advocate who needs the big picture in words, not a screenshot. It reuses
+// exactly the lines the overview already shows, so the copy matches the screen.
+function networkBriefText() {
+  const param = t(PARAM_I18N[state.parameter] || "parameter");
+  const lines = [
+    t("brief-network-title").replace("{param}", param).replace("{time}", fmtBucket(currentBucket())),
+    $("#overview-counts").textContent,
+    $("#overview-coverage").textContent,
+    $("#overview-health").textContent,
+    $("#overview-spread").textContent,
+    $("#overview-worst").textContent,
+    $("#overview-fresh").textContent,
+    t("brief-source"),
+    location.href,
+  ];
+  return lines.filter((line) => line && line.trim()).join("\n");
 }
 
 // A download link to the raw CC0 readings behind a location, filtered to one of its nodes. Served
@@ -1643,6 +1673,16 @@ function wireControls() {
       try {
         await navigator.clipboard.writeText(briefText(row));
         $("#status").textContent = t("brief-done");
+      } catch {
+        $("#status").textContent = t("copy-fail");
+      }
+    });
+  const net = $("#copy-network");
+  if (net)
+    net.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(networkBriefText());
+        $("#status").textContent = t("brief-network-done");
       } catch {
         $("#status").textContent = t("copy-fail");
       }

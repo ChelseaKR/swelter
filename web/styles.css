@@ -782,7 +782,8 @@ button.linklike {
   font-size: 0.9rem;
 }
 
-.detail-actions button {
+.detail-actions button,
+.overview-actions button {
   font: inherit;
   padding: 0.35rem 0.7rem;
   border: 1px solid var(--border);
@@ -790,6 +791,10 @@ button.linklike {
   background: var(--bg);
   color: inherit;
   cursor: pointer;
+}
+
+.overview-actions {
+  margin: 0.6rem 0 0;
 }
 
 .explain {
@@ -890,6 +895,7 @@ footer code {
   #panel-map,
   .map-controls,
   .detail-actions,
+  .overview-actions,
   #download-cell,
   #time-play,
   #place-search,
