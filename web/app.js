@@ -540,6 +540,40 @@ function trendLine(row) {
 
 // -- rendering ---------------------------------------------------------------
 
+// The legend adapts to the active measurement so the marker colours are interpretable: PM2.5 shows
+// the AQI categories, temperature/heat index the cool→hot swatches, exposure the Minimal→Extreme
+// levels, and PM10/NO2 a plain "shown by value" note. Each block is prebuilt in the HTML and keyed
+// by data-legend; this swaps the visible one and retitles the heading. Severity is always carried by
+// the level NAME in text (and a swatch/pattern), never by colour alone.
+const LEGEND_BLOCK = {
+  pm25_ugm3: "pm25",
+  temp_c: "temp",
+  heat_index_c: "temp",
+  exposure: "exposure",
+  pm10_ugm3: "value",
+  no2_ppb: "value",
+};
+const LEGEND_TITLE = {
+  pm25_ugm3: "legend-title-pm25",
+  temp_c: "legend-title-temp",
+  heat_index_c: "legend-title-hi",
+  exposure: "legend-title-exposure",
+  pm10_ugm3: "legend-title-pm10",
+  no2_ppb: "legend-title-no2",
+};
+
+function updateLegend() {
+  const active = LEGEND_BLOCK[state.parameter] || "value";
+  for (const block of document.querySelectorAll(".legend-block")) {
+    block.hidden = block.getAttribute("data-legend") !== active;
+  }
+  const heading = $("#legend-heading");
+  if (heading) {
+    const key = LEGEND_TITLE[state.parameter] || "legend-title-pm25";
+    heading.textContent = t(key);
+  }
+}
+
 function renderHeadline() {
   const confirmed = pm25RowsNow().filter((r) => !r.provisional);
   const el = $("#headline");
@@ -1304,6 +1338,7 @@ function render() {
   const rows = current();
   $("#status").textContent = t("status").replace("{n}", rows.length);
   renderHeadline();
+  updateLegend();
   renderOverview();
   renderList(rows);
   renderTable(rows);

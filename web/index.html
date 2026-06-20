@@ -177,34 +177,73 @@
 
       <section class="legend" aria-labelledby="legend-heading">
         <h2 id="legend-heading" data-i18n="legend-title">Air-quality categories (PM2.5)</h2>
-        <details class="explain">
-          <summary data-i18n="what-is-aqi">What is AQI?</summary>
-          <p data-i18n="what-is-aqi-body">
-            The Air Quality Index (AQI) turns a pollution concentration into a 0–500 scale and a
-            named category. Higher is worse: 0–50 is Good, 100+ starts to affect sensitive people.
+
+        <!-- PM2.5 → AQI categories + explainer. Shown only when PM2.5 is the active measurement. -->
+        <div class="legend-block" data-legend="pm25">
+          <details class="explain">
+            <summary data-i18n="what-is-aqi">What is AQI?</summary>
+            <p data-i18n="what-is-aqi-body">
+              The Air Quality Index (AQI) turns a pollution concentration into a 0–500 scale and a
+              named category. Higher is worse: 0–50 is Good, 100+ starts to affect sensitive people.
+            </p>
+          </details>
+          <ul class="legend-items">
+            <li><span class="swatch aqi-good" aria-hidden="true"></span><span data-i18n="aqi-good">Good — AQI 0 to 50</span></li>
+            <li><span class="swatch aqi-moderate" aria-hidden="true"></span><span data-i18n="aqi-moderate">Moderate — AQI 51 to 100</span></li>
+            <li><span class="swatch aqi-usg" aria-hidden="true"></span><span data-i18n="aqi-usg">Unhealthy for sensitive groups — AQI 101 to 150</span></li>
+            <li><span class="swatch aqi-unhealthy" aria-hidden="true"></span><span data-i18n="aqi-unhealthy">Unhealthy — AQI 151 to 200</span></li>
+            <li><span class="swatch aqi-veryunhealthy" aria-hidden="true"></span><span data-i18n="aqi-vu">Very unhealthy — AQI 201 to 300</span></li>
+            <li><span class="swatch aqi-hazardous" aria-hidden="true"></span><span data-i18n="aqi-haz">Hazardous — AQI 301+</span></li>
+          </ul>
+          <p class="legend-note" data-i18n="aqi-window">
+            The AQI shown is computed from each location's hourly mean, not a 24-hour average.
           </p>
-        </details>
-        <ul class="legend-items">
-          <li><span class="swatch aqi-good" aria-hidden="true"></span><span data-i18n="aqi-good">Good — AQI 0 to 50</span></li>
-          <li><span class="swatch aqi-moderate" aria-hidden="true"></span><span data-i18n="aqi-moderate">Moderate — AQI 51 to 100</span></li>
-          <li><span class="swatch aqi-usg" aria-hidden="true"></span><span data-i18n="aqi-usg">Unhealthy for sensitive groups — AQI 101 to 150</span></li>
-          <li><span class="swatch aqi-unhealthy" aria-hidden="true"></span><span data-i18n="aqi-unhealthy">Unhealthy — AQI 151 to 200</span></li>
-          <li><span class="swatch aqi-veryunhealthy" aria-hidden="true"></span><span data-i18n="aqi-vu">Very unhealthy — AQI 201 to 300</span></li>
-          <li><span class="swatch aqi-hazardous" aria-hidden="true"></span><span data-i18n="aqi-haz">Hazardous — AQI 301+</span></li>
-        </ul>
-        <p class="legend-note" data-i18n="aqi-window">
-          The AQI shown is computed from each location's hourly mean, not a 24-hour average.
-        </p>
+        </div>
+
+        <!-- Temperature / heat index → the .heat-1..5 cool→hot swatches. Shown for temp_c & heat_index_c. -->
+        <div class="legend-block" data-legend="temp" hidden>
+          <ul class="legend-items">
+            <li><span class="swatch heat-1" aria-hidden="true"></span><span data-i18n="heat-band-1">Coolest — below about 24 °C (75 °F)</span></li>
+            <li><span class="swatch heat-2" aria-hidden="true"></span><span data-i18n="heat-band-2">Cool — about 24 to 28 °C (75 to 82 °F)</span></li>
+            <li><span class="swatch heat-3" aria-hidden="true"></span><span data-i18n="heat-band-3">Warm — about 28 to 32 °C (82 to 90 °F)</span></li>
+            <li><span class="swatch heat-4" aria-hidden="true"></span><span data-i18n="heat-band-4">Hot — about 32 to 36 °C (90 to 97 °F)</span></li>
+            <li><span class="swatch heat-5" aria-hidden="true"></span><span data-i18n="heat-band-5">Hottest — about 36 °C (97 °F) and up</span></li>
+          </ul>
+          <p class="legend-note" data-i18n="heat-band-note">
+            The shading is a coolest-to-hottest cue only — the number on each marker is the exact
+            reading, in your chosen units.
+          </p>
+        </div>
+
+        <!-- Heat + air exposure → Minimal→Extreme levels + the decision-support caveat. -->
+        <div class="legend-block" data-legend="exposure" hidden>
+          <ul class="legend-items">
+            <li><span data-i18n="exp-level-minimal">Minimal — little added heat or air stress</span></li>
+            <li><span data-i18n="exp-level-low">Low — mild conditions</span></li>
+            <li><span data-i18n="exp-level-elevated">Elevated — take some care outdoors</span></li>
+            <li><span data-i18n="exp-level-high">High — limit time and exertion outdoors</span></li>
+            <li><span data-i18n="exp-level-extreme">Extreme — avoid being outdoors</span></li>
+          </ul>
+          <p class="exp-note" data-i18n="exp-note">
+            <strong>Heat + air exposure</strong> combines the heat index and the PM2.5 AQI into one
+            level (Minimal to Extreme), taking the higher of the two and flagging when heat and air
+            are both elevated. It is decision-support, not a validated health index, and never a
+            claim that conditions are safe.
+          </p>
+        </div>
+
+        <!-- PM10 / NO2 → no severity scale; the marker carries the value. -->
+        <div class="legend-block" data-legend="value" hidden>
+          <p class="legend-note" data-i18n="legend-value-note">
+            This measurement is shown by its value on each marker, not by a severity category. Higher
+            numbers mean more of the pollutant; see the List or Table view for every location.
+          </p>
+        </div>
+
         <p class="provisional-note" data-i18n="provisional">
           <strong>Provisional</strong> locations have only early, uncalibrated readings — still being
           double-checked, and never shown as a confirmed category. Status is conveyed by text and
           pattern, not color alone.
-        </p>
-        <p class="exp-note" data-i18n="exp-note">
-          <strong>Heat + air exposure</strong> combines the heat index and the PM2.5 AQI into one
-          level (Minimal to Extreme), taking the higher of the two and flagging when heat and air
-          are both elevated. It is decision-support, not a validated health index, and never a
-          claim that conditions are safe.
         </p>
       </section>
 
