@@ -674,6 +674,111 @@ td .tag {
   font-size: 0.85rem;
 }
 
+/* Personal alerts banner. The accent border is decorative only — every alert states its severity in
+   words (the reading and the level the reader set), never by color (the map/legend rule applies). */
+.alerts {
+  margin: 0.5rem 0 1rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.6rem;
+}
+
+.alerts h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.alerts-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.alerts-list li {
+  margin: 0.3rem 0;
+}
+
+.alert-text {
+  font-weight: 600;
+}
+
+.alerts-note {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* The per-location alert-threshold control in the detail panel. */
+.watch {
+  margin: 0.75rem 0;
+}
+
+.watch-heading {
+  font-size: 1rem;
+  margin: 0 0 0.3rem;
+}
+
+.watch-intro {
+  margin: 0 0 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.watch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.watch-row label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.watch-threshold,
+.watch-number {
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.watch-number {
+  max-width: 8rem;
+}
+
+.watch-buttons {
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.watch-buttons button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+.watch-buttons button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.watch-status {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 button.linklike {
   font: inherit;
   background: none;
@@ -933,6 +1038,8 @@ footer code {
   .detail-actions,
   .overview-actions,
   .compare,
+  #watch,
+  #alerts,
   #download-cell,
   #time-play,
   #place-search,
