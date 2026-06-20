@@ -214,5 +214,11 @@
   "footer-license-link": "Leer la licencia de datos (CC0)",
   "footer-download": "Descargar CSV",
   "footer-note": "Cada lectura lleva su estado de calibración y, cuando está calibrada, una incertidumbre publicada.",
+  "settings-summary": "Tus ajustes guardados (este dispositivo)",
+  "settings-intro": "swelter guarda tus elecciones solo en este navegador — sin cuenta, sin servidor. Eso incluye tu idioma, unidades, tamaño de texto, contraste, las alertas que configures y la última ubicación que abriste.",
+  "settings-has": "Guardado en este dispositivo ahora: {n} alerta(s), además de tu idioma, unidades y opciones de visualización.",
+  "settings-empty": "Aún no hay nada guardado en este dispositivo.",
+  "settings-clear": "Borrar ajustes guardados",
+  "settings-cleared": "Ajustes guardados borrados de este dispositivo.",
   "no-data": "Aún no hay datos. Ejecute `swelter demo --serve` o `make demo`."
 }

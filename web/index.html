@@ -331,6 +331,19 @@
       <p data-i18n="footer-note">
         Each reading carries its calibration state and, when calibrated, a published uncertainty.
       </p>
+      <details class="settings" id="settings">
+        <summary data-i18n="settings-summary">Your saved settings (this device)</summary>
+        <p class="settings-intro" data-i18n="settings-intro">
+          swelter keeps your choices in this browser only — no account, no server. That's your
+          language, units, text size, contrast, any alert thresholds you set, and the last location
+          you opened.
+        </p>
+        <p id="settings-state" class="settings-state"></p>
+        <p class="settings-actions">
+          <button id="settings-clear" type="button" data-i18n="settings-clear">Clear saved settings</button>
+        </p>
+        <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
+      </details>
     </footer>
 
     <script src="app.js" type="module"></script>

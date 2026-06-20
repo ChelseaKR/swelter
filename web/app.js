@@ -1861,6 +1861,7 @@ function render() {
   renderHeadline();
   updateLegend();
   updateAlerts();
+  renderSettingsState();
   renderOverview();
   renderList(rows);
   renderTable(rows);
@@ -1943,12 +1944,54 @@ function restoreView() {
     const id = pendingView.l || loadPrefs().cell;
     if (id && state.cells.some((c) => c.cell_id === id)) select(id, true);
   }
-  // Restore a shared comparison partner once its cell is present for this measurement/hour.
-  if (pendingView.c && !state.compareCell && state.cells.some((c) => c.cell_id === pendingView.c)) {
-    state.compareCell = pendingView.c;
-    if (state.selected) renderDetail();
+  // Restore a comparison partner: a shared #c= wins, else the one this browser last compared.
+  if (!state.compareCell) {
+    const partner = pendingView.c || loadPrefs().compare;
+    if (partner && state.cells.some((c) => c.cell_id === partner)) {
+      state.compareCell = partner;
+      if (state.selected) renderDetail();
+    }
   }
   updateHash(); // make the address bar reflect the resolved view, so the share link is correct
+}
+
+// -- saved settings (on-device transparency + control) -----------------------
+
+// Plain statement of what swelter has stored in THIS browser right now — the community-owned, no-
+// lock-in promise made checkable. localStorage only; nothing leaves the device.
+function renderSettingsState() {
+  const el = $("#settings-state");
+  if (!el) return;
+  const prefs = loadPrefs();
+  const n = Object.keys(prefs.watches || {}).length;
+  const has = Object.keys(prefs).some((k) => (k === "watches" ? n > 0 : prefs[k] != null));
+  el.textContent = has
+    ? t("settings-has").replace("{n}", String(n))
+    : t("settings-empty");
+}
+
+// Forget everything stored on this device and return the UI to defaults, without writing anything
+// back — so storage is genuinely empty until the reader makes a new choice. Language is left as it
+// reads now (resetting it mid-visit would be jarring); it simply won't persist to the next visit.
+function clearSettings() {
+  try {
+    localStorage.removeItem(PREFS_KEY);
+  } catch {
+    /* storage unavailable — nothing to clear */
+  }
+  state.compareCell = null;
+  applyTextScale(0); // pure UI reset (does not persist)
+  $("#display-status").textContent = "";
+  state.contrast = false;
+  document.documentElement.removeAttribute("data-contrast");
+  $("#contrast-toggle")?.setAttribute("aria-pressed", "false");
+  state.unit = "F";
+  $("#unit-f")?.setAttribute("aria-pressed", "true");
+  $("#unit-c")?.setAttribute("aria-pressed", "false");
+  firing.clear(); // drop any armed alert-notification state
+  render(); // alerts banner, watch control, and comparison all re-read the now-empty prefs
+  renderSettingsState();
+  $("#settings-status").textContent = t("settings-cleared");
 }
 
 // -- interaction -------------------------------------------------------------
@@ -2125,6 +2168,7 @@ function wireControls() {
   $("#unit-c").addEventListener("click", () => setUnit("C"));
   $("#compare-select")?.addEventListener("change", (e) => {
     state.compareCell = e.target.value || null;
+    savePref("compare", state.compareCell); // remember the comparison for next visit
     updateHash(); // a shared link reopens the comparison too
     const row = current().find((r) => r.cell_id === state.selected);
     if (row) renderCompare(row);
@@ -2132,6 +2176,8 @@ function wireControls() {
   $("#text-smaller")?.addEventListener("click", () => setTextStep(state.textStep - 1));
   $("#text-bigger")?.addEventListener("click", () => setTextStep(state.textStep + 1));
   $("#contrast-toggle")?.addEventListener("click", () => setContrast(!state.contrast));
+  $("#settings-clear")?.addEventListener("click", clearSettings);
+  $("#settings")?.addEventListener("toggle", renderSettingsState); // refresh the count when opened
   $("#locate").addEventListener("click", locate);
   $("#place-search").addEventListener("input", (e) => {
     state.search = e.target.value;

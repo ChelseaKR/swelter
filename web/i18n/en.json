@@ -214,5 +214,11 @@
   "footer-license-link": "Read the data license (CC0)",
   "footer-download": "Download CSV",
   "footer-note": "Each reading carries its calibration state and, when calibrated, a published uncertainty.",
+  "settings-summary": "Your saved settings (this device)",
+  "settings-intro": "swelter keeps your choices in this browser only — no account, no server. That's your language, units, text size, contrast, any alert thresholds you set, and the last location you opened.",
+  "settings-has": "Saved on this device now: {n} alert(s), plus your language, units, and display choices.",
+  "settings-empty": "Nothing is saved on this device yet.",
+  "settings-clear": "Clear saved settings",
+  "settings-cleared": "Saved settings cleared from this device.",
   "no-data": "No data yet. Run `swelter demo --serve` or `make demo`."
 }
