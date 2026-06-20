@@ -668,6 +668,37 @@ button.linklike {
   font-size: 0.85rem;
 }
 
+/* "What to do now" action card. The neutral accent border is decorative only — severity is carried
+   by the action text, never by color (the map/legend rule applies here too). */
+.action-card {
+  margin: 0.7rem 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.4rem;
+  background: var(--surface);
+}
+
+.action-heading {
+  font-size: 1rem;
+  margin: 0 0 0.35rem;
+}
+
+.action-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.action-list li {
+  margin: 0.2rem 0;
+}
+
+.action-note {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 .provenance {
   font-size: 0.9rem;
 }
