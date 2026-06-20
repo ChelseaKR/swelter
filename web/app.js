@@ -1446,35 +1446,72 @@ function render() {
 // plain List/Table row click leaves the map where it is so browsing never yanks a hidden map around.
 function select(cellId, focusMap = false) {
   state.selected = cellId;
-  // A shareable, bookmarkable deep link to this location — something a generic weather app's
-  // single regional view can't give. replaceState keeps it out of the back-button history.
+  // A shareable, bookmarkable deep link — the measurement, hour, and location together, something a
+  // generic weather app's single regional view can't give.
   if (cellId) {
-    history.replaceState(null, "", `#l=${encodeURIComponent(cellId)}`);
     savePref("cell", cellId); // remember it for the next visit
   }
+  updateHash();
   render();
   if (focusMap) zoomToCell(cellId, true);
   const sel = document.querySelector(`[role="tabpanel"]:not([hidden]) [data-cell="${cellId}"]`);
   if (sel) sel.scrollIntoView({ block: "nearest" });
 }
 
-// Open straight to a shared location: if the URL carries #l=<cell_id> and we have that cell, select
-// it. Called once the data is in, so a bookmarked link lands on the right place.
-function selectFromHash() {
-  const m = location.hash.match(/^#l=(.+)$/);
-  if (!m) return;
-  const id = decodeURIComponent(m[1]);
-  if (state.cells.some((c) => c.cell_id === id)) select(id, true);
+// The URL fragment carries the whole view a reader is looking at — measurement (p), hour (t, the
+// bucket's ISO timestamp) and selected location (l) — so a shared or bookmarked link reopens that
+// exact snapshot, not just the page. A reporter who copies the network summary gets a link that
+// lands on the same measurement and hour they were reading. The legacy `#l=<cell>` form still parses.
+const VALID_PARAMS = new Set(Object.keys(PARAM_I18N));
+
+function parseHash() {
+  const out = {};
+  const raw = location.hash.replace(/^#/, "");
+  for (const part of raw.split("&")) {
+    const eq = part.indexOf("=");
+    if (eq > 0) out[part.slice(0, eq)] = decodeURIComponent(part.slice(eq + 1));
+  }
+  return out;
 }
 
-// Land on the right location: an explicit #l= shared link wins; otherwise fall back to the location
-// this browser last viewed. Does nothing if one is already selected (e.g. the snapshot already did).
-function restoreSelection() {
-  if (state.selected) return;
-  selectFromHash();
-  if (state.selected) return;
-  const saved = loadPrefs().cell;
-  if (saved && state.cells.some((c) => c.cell_id === saved)) select(saved, true);
+function updateHash() {
+  const parts = [`p=${encodeURIComponent(state.parameter)}`];
+  const bucket = currentBucket();
+  if (bucket) parts.push(`t=${encodeURIComponent(bucket)}`);
+  if (state.selected) parts.push(`l=${encodeURIComponent(state.selected)}`);
+  // replaceState keeps the evolving view out of the back-button history.
+  history.replaceState(null, "", `#${parts.join("&")}`);
+}
+
+// Apply a measurement from the hash (or the saved last view) before the first paint, so the page
+// opens on the shared parameter. Bucket and selection wait for data and are applied in restoreView.
+let pendingView = {};
+function applyHashParameter() {
+  pendingView = parseHash();
+  if (VALID_PARAMS.has(pendingView.p)) {
+    state.parameter = pendingView.p;
+    const sel = $("#parameter-select");
+    if (sel) sel.value = state.parameter;
+  }
+}
+
+// Once data is in: land on the shared hour (if that timestamp is present) and the shared/last
+// location. An explicit #l= wins; otherwise fall back to the location this browser last viewed.
+function restoreView() {
+  if (pendingView.t) {
+    const idx = state.buckets.indexOf(pendingView.t);
+    if (idx >= 0 && idx !== state.bucketIdx) {
+      state.bucketIdx = idx;
+      const slider = $("#time-slider");
+      if (slider) slider.value = String(idx);
+      render();
+    }
+  }
+  if (!state.selected) {
+    const id = pendingView.l || loadPrefs().cell;
+    if (id && state.cells.some((c) => c.cell_id === id)) select(id, true);
+  }
+  updateHash(); // make the address bar reflect the resolved view, so the share link is correct
 }
 
 // -- interaction -------------------------------------------------------------
@@ -1632,11 +1669,13 @@ function haversine(lat1, lon1, lat2, lon2) {
 function wireControls() {
   $("#parameter-select").addEventListener("change", (e) => {
     state.parameter = e.target.value;
+    updateHash();
     render();
   });
   $("#time-slider").addEventListener("input", (e) => {
     stopPlay(); // a manual scrub pauses the time-lapse
     state.bucketIdx = Number(e.target.value);
+    updateHash();
     render();
   });
   $("#time-play").addEventListener("click", togglePlay);
@@ -1743,9 +1782,10 @@ async function init() {
     $("#time-slider").setAttribute("aria-disabled", "true");
     return;
   }
+  applyHashParameter(); // open on the shared measurement before the first paint
   setData(snapshot);
   render();
-  restoreSelection();
+  restoreView();
 
   loadHealth();
 
@@ -1754,7 +1794,7 @@ async function init() {
     state.historyLoaded = true;
     setData(full);
     render();
-    restoreSelection();
+    restoreView();
   }
 }
 
