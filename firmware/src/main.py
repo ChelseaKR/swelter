@@ -41,6 +41,11 @@ DEFAULT_CONFIG = {
     "wifi_password": "",
     "buffer_path": "buffer.jsonl",
     "buffer_max_records": 20000,
+    # Bounded upload retry within one flush: retry a failed send up to this many times, backing off
+    # between tries, capped so one wait never runs away past the sample interval.
+    "upload_max_attempts": 3,
+    "upload_backoff_base_s": 1.0,
+    "upload_backoff_cap_s": 30.0,
 }
 
 
@@ -221,6 +226,9 @@ def run(cfg=None):  # pragma: no cover - the node entry point; the body is exerc
         cfg["buffer_path"],
         transport=build_transport(cfg),
         max_records=cfg["buffer_max_records"],
+        max_attempts=cfg.get("upload_max_attempts", 3),
+        backoff_base_s=cfg.get("upload_backoff_base_s", 1.0),
+        backoff_cap_s=cfg.get("upload_backoff_cap_s", 30.0),
     )
 
     while True:

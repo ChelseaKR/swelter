@@ -73,8 +73,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Node firmware is checked in alongside the Python code; syntax-compile the
-  # MicroPython sources so a broken node build is caught in CI.
+  # Node firmware is checked in alongside the Python code. Syntax-compile the
+  # MicroPython sources so a broken node build is caught in CI, then run the
+  # hardware-free firmware tests (store-and-forward buffering, bounded
+  # retry/backoff, sampler fault-tolerance) on desktop CPython. The firmware is
+  # not the installed package, so it needs only pytest, no project deps.
   firmware:
     name: firmware
     runs-on: ubuntu-latest
@@ -88,6 +91,11 @@ jobs:
 
       - name: Byte-compile firmware sources
         run: python -m compileall firmware/src
+
+      - name: Firmware tests (hardware-free, CPython)
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest firmware/tests -q
 
   # Advisory only: a real-browser axe pass over the built dashboard. The
   # structural gate in `checks` is the blocking one; this adds depth without

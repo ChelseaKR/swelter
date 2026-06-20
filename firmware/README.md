@@ -26,11 +26,26 @@ the sensors in `firmware/hardware/BOM.md`; otherwise every 12 months.
   Rothfusz regression, the same formula `models.heat_index_c()` uses, so the on-device value and the
   pipeline fallback agree. Below 26.7 degC the regression is not meaningful and the air temperature
   is returned unchanged.
-- **Store-and-forward buffering.** Every reading is appended to a flash-backed buffer before any
-  attempt to send it. A node that loses connectivity keeps sampling and keeps buffering; when it
-  reconnects it flushes the backlog oldest-first, so an outage becomes a backfilled gap rather than
-  lost data. Payloads are idempotent — re-sending one the ingest already stored is a no-op on the
-  server's idempotent store key, so a flush that overlaps an earlier partial send cannot duplicate.
+- **Store-and-forward buffering that survives power and network loss.** Every reading is appended to
+  a flash-backed buffer, flushed to flash, before any attempt to send it. A node that loses
+  connectivity keeps sampling and keeps buffering; when it reconnects it flushes the backlog
+  oldest-first, so an outage becomes a backfilled gap rather than lost data. The buffer survives an
+  abrupt reset: appends are flushed before they return, and the buffer is compacted by writing a
+  temp file and renaming it over the old one (atomic on flash), so a crash mid-housekeeping leaves a
+  complete buffer, never a truncated one. A torn trailing line from a power loss mid-write is
+  rejected on read, not forwarded. Payloads are idempotent — re-sending one the ingest already
+  stored is a no-op on the server's idempotent store key, so a flush that overlaps an earlier partial
+  send cannot duplicate.
+- **Bounded upload retry with backoff.** A send that fails (link down, endpoint error) is retried in
+  place a bounded number of times (`upload_max_attempts`, default 3) with exponential backoff
+  (`upload_backoff_base_s`, capped at `upload_backoff_cap_s`). If it still fails, that payload and
+  everything after it stay buffered and the flush stops, to be retried whole on the next cycle —
+  so one dead link never spins the radio for the whole sample interval, and the backlog is preserved
+  in order. Retries are safe because the payload is idempotent on the server's store key.
+- **Tolerates a single sensor failing.** A sensor read that errors drops only its own parameters for
+  that cycle; the rest of the payload still ships. A node whose PM sensor dies keeps reporting
+  temperature and humidity (and the derived heat index), and vice versa, rather than dropping the
+  whole reading — and never reports a stale or invented value in place of the failed sensor.
 - **Forwards by MQTT or HTTP.** One transport is chosen in config. The payload is the same either
   way: one JSON object per timestamp carrying `node_id`, `timestamp` (ISO-8601 UTC, `...Z`), and the
   parameters sampled at that timestamp.
@@ -151,8 +166,11 @@ is the planned update path, not a property of the code as shipped.
 - `firmware/src/sampler.py` — reads the sensors and computes the heat index into a wide payload.
 - `firmware/src/drivers/sht31.py` — Sensirion SHT31 temp/humidity driver over I2C (CRC-checked).
 - `firmware/src/drivers/pms5003.py` — Plantower PMS5003 PM2.5/PM10 driver over UART (checksummed).
-- `firmware/src/store_and_forward.py` — the flash-backed buffer; appends readings and flushes them
-  oldest-first on reconnect with idempotent payloads.
+- `firmware/src/store_and_forward.py` — the flash-backed buffer; appends readings durably and flushes
+  them oldest-first on reconnect with bounded retry/backoff and idempotent payloads.
+- `firmware/tests/test_store_and_forward.py` — hardware-free tests for the buffer (persistence,
+  retry/backoff, atomic rewrite, cap) and the sampler's tolerate-a-failing-sensor path; run on
+  desktop CPython in the CI `firmware` job.
 - `firmware/hardware/BOM.md` — the bill of materials with rough per-node cost and the reason for
   each part.
 - `firmware/hardware/assembly.md` — wiring, enclosure, and flashing guide.
