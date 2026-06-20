@@ -8,7 +8,9 @@ of commands.
 You can do the software setup in an afternoon with recorded demo data and no hardware at all. Putting
 real sensors on real porches takes longer, but the map, the API, and the dashboard are running and
 honest before a single physical node ships — which is the point: you decide the network's shape on
-screen first.
+screen first. When you are ready to build physical nodes, the hardware build doc
+([`HARDWARE.md`](HARDWARE.md)) covers the bill of materials, wiring, enclosure, siting, and how a
+reading gets home through store-and-forward.
 
 Audience: a non-specialist running the collective's laptop. Where a decision belongs to the people,
 not the tool, this guide says so and points at [`governance.md`](governance.md).

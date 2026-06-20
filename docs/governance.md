@@ -48,6 +48,11 @@ precision. That file is the committed, versioned record of where the network has
 A siting change is a change to `network.yaml` with a commit message, so the history of the network's
 footprint is auditable.
 
+Siting is also a data-quality decision — shade, airflow, and inlet placement decide whether a node
+calibrates well. The physical guidance (radiation shield, PM inlet down, representative spot) lives
+in the hardware build doc, [`HARDWARE.md`](HARDWARE.md), which also restates the coarse-location
+privacy point this section governs.
+
 ## 3. Location-precision policy
 
 This is the most sensitive policy in the system, so it is the most explicit.
