@@ -18,6 +18,7 @@ Two privacy rules are enforced *here*, before any value reaches the map:
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,28 @@ import yaml
 
 DEFAULT_GRID_M = 150.0
 _METRES_PER_DEGREE_LAT = 111_320.0
+
+# Node labels are PUBLISHED (map, table, API, exports), so they must name a place, not a person or
+# an address (hard rule #1). These heuristics catch the obvious leaks — a street address, apartment
+# unit, an email, a phone — so a host is warned before such a label ever goes out. Cross-street and
+# place names ("Cedar & 4th", "Oak Park Commons") do not match.
+_LABEL_PII_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(
+            r"\b\d{1,5}\s+\w+(\s+\w+)*\s+"
+            r"(st|street|ave|avenue|rd|road|blvd|boulevard|ln|lane|dr|drive|ct|court|"
+            r"way|pl|place|terrace|ter|hwy|highway)\b\.?",
+            re.IGNORECASE,
+        ),
+        "looks like a street address",
+    ),
+    (
+        re.compile(r"\b(apt|apartment|unit|suite|ste)\b\.?\s*\S+", re.IGNORECASE),
+        "looks like a unit number",
+    ),
+    (re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+"), "contains an email address"),
+    (re.compile(r"\b\d{3}[.\-\s]\d{3}[.\-\s]\d{4}\b"), "contains a phone number"),
+)
 
 
 @dataclass(frozen=True)
@@ -163,3 +186,26 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         reference_monitors=monitors,
         calibration_windows=windows,
     )
+
+
+def label_concerns(config: NetworkConfig) -> list[str]:
+    """Warn about node labels that look like they encode a person or an address.
+
+    Labels are published, so a street address, unit, email, or phone in one would leak exactly what
+    the coarse-grid rule protects against (hard rule #1). Heuristic and conservative — it warns, it
+    does not block — so a host can fix a label before it goes out; the CLI prints these on load.
+    """
+    out: list[str] = []
+    for node in config.nodes:
+        for field_name, value in (("node_id", node.node_id), ("label", node.label or "")):
+            for pattern, why in _LABEL_PII_PATTERNS:
+                if pattern.search(value):
+                    out.append(
+                        f"{node.node_id}: {field_name} {value!r} {why} — node ids and labels are "
+                        f"public; use a place name, not an address (hard rule #1)"
+                    )
+                    break
+            else:
+                continue
+            break
+    return out

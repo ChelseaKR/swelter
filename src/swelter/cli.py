@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 from . import __version__, aggregate, calibrate, export, ingest, qc
-from .config import NetworkConfig, load_config
+from .config import NetworkConfig, label_concerns, load_config
 from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
@@ -75,7 +75,10 @@ def _err(message: str) -> None:
 
 def _load_config(path: str) -> NetworkConfig:
     if Path(path).is_file():
-        return load_config(path)
+        config = load_config(path)
+        for concern in label_concerns(config):
+            _err(f"swelter: ⚠ {concern}")
+        return config
     _err(f"swelter: config {path} not found; using an empty network")
     return NetworkConfig()
 

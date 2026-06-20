@@ -89,7 +89,8 @@ nodes:
 ```
 
 - **`node_id`** — a short stable handle (`node-01`, `node-02`, …). It is published, so keep it
-  generic. It must never encode a person or an address.
+  generic. It must never encode a person or an address. swelter warns on load if a `node_id` or
+  `label` looks like a street address, unit, email, or phone — both are public (hard rule #1).
 - **`label`** — the human name for the location. This is the cell label that the dashboard surfaces
   everywhere: the map marker's accessible name, the table row, the list sentence, the location-name
   search, and the "use my location → nearest location" button. Pick a name residents say out loud
