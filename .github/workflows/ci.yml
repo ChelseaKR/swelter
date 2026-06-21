@@ -49,7 +49,11 @@ jobs:
     name: security
     runs-on: ubuntu-latest
     steps:
+      # Full history so the gitleaks Action can resolve the PR commit range
+      # (it diffs <sha>^..<sha>; a shallow clone lacks the parent commit).
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
 
       - name: Set up uv
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
