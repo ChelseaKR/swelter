@@ -18,10 +18,10 @@ jobs:
     name: checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       # `--locked` fails if uv.lock is stale, so CI builds the same environment
       # that produced the local green run.
@@ -49,10 +49,10 @@ jobs:
     name: security
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       # Audit the locked dependency set against known advisories. Run from the
       # project's resolved requirements so the audited tree matches what ships.
@@ -61,15 +61,17 @@ jobs:
 
       # Audit the project's runtime environment (PyYAML + the package), not an
       # isolated tool env. `--no-dev` keeps dev-tool noise out of the gate.
+      # Retry to ride out transient advisory-DB fetch failures rather than
+      # silencing the gate; a real finding still fails the build.
       - name: pip-audit (known-vulnerability scan)
-        run: uv run --no-dev --with pip-audit pip-audit
+        run: |
+          for a in 1 2 3; do uv run --no-dev --with pip-audit pip-audit && exit 0; sleep 10; done
+          uv run --no-dev --with pip-audit pip-audit
 
       # Secret scan. A repository scan needs a (free) GitLeaks license for the
-      # Action; continue-on-error keeps a missing license from blocking the
-      # gate while still surfacing any findings in the log.
+      # Action; any finding is now merge-blocking.
       - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        continue-on-error: true
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -82,10 +84,10 @@ jobs:
     name: firmware
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
 
@@ -105,10 +107,10 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
 
