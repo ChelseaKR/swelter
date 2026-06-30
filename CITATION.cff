@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+message: "If you use swelter, please cite it using this metadata."
+title: "swelter"
+abstract: >-
+  A community-owned network of low-cost heat and air-quality sensors with the
+  pipeline, calibration, and accessible map that make its readings trustworthy
+  and open. Nodes measure temperature, humidity, PM2.5/PM10, optional NO2, and a
+  derived heat index; a time-series pipeline ingests the readings, QC-flags the
+  bad ones, calibrates each node's drift against reference monitors, and maps
+  urban heat islands and AQI at neighborhood resolution through a framework-free
+  WCAG 2.2 AA dashboard. Observation data is open (CC0-1.0) and exports through
+  open standards (CSV, JSON, the read-only OGC SensorThings subset, and a
+  Datasette-openable store). Privacy invariants are merge-blocking: no field can
+  identify or locate a person, public coordinates snap to a coarse grid, and
+  calibrated and raw readings are never silently mixed.
+type: software
+authors:
+  - given-names: "Chelsea"
+    family-names: "Kelly-Reif"
+    email: "ckellyreif@gmail.com"
+    alias: "ChelseaKR"
+version: "0.1.0"
+date-released: "2026-06-16"
+license: "Apache-2.0"
+repository-code: "https://github.com/ChelseaKR/swelter"
+url: "https://github.com/ChelseaKR/swelter"
+keywords:
+  - "air-quality"
+  - "urban-heat"
+  - "environmental-justice"
+  - "sensor-network"
+  - "open-data"
+  - "sensorthings"
+  - "calibration"
+  - "civic-tech"
