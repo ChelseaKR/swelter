@@ -29,6 +29,9 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | `/api/surface.geojson` | Latest gridded heat/AQI surface as GeoJSON |
 | `/api/surface.json?hours=N` | Flat per-cell/hour/parameter records |
 | `/api/health.json` | Per-node liveness/quality summary (coverage) |
+| `/api/alerts.json` | Neighborhood heat/AQI alerts (areas past a danger threshold) |
+| `/api/alerts.xml` | The same alerts as a subscribable Atom 1.0 feed (`?area=<id>` to narrow) |
+| `/api/cooling-centers.geojson` | Curated cooling-center overlay (validated FeatureCollection) |
 | `/export.csv` | Flat CSV dump (filterable) |
 | `/export.json` | Flat JSON dump (filterable) |
 | `/LICENSE`, `/DATA-LICENSE`, `/NOTICE` | The repo-root license/notice files, as `text/plain` |
@@ -452,6 +455,27 @@ readings with an hourly expected interval.
 A node reads `degraded` when its completeness drops below 95% or it flags more than 10% of readings,
 and `offline` when it has been silent past three reporting intervals. The dashboard also ships a
 baked `sample-health.json` so the static (server-less) deployment shows coverage too.
+
+### `GET /api/alerts.json` and `GET /api/alerts.xml`
+
+The neighborhood heat/AQI alerts feed: every published cell whose latest-hour reading has crossed a
+documented danger floor (US-EPA AQI 101, US-NWS heat-index "Danger", or exposure "High"). The JSON
+form carries the active `thresholds`, a data-derived `generated` time, and an `alerts` array; the XML
+form is a standards **Atom 1.0** feed (a GeoRSS point per entry) so a resident subscribes in any
+RSS/Atom reader. `?area=<area_id>` narrows either form to one published cell. Floors are overridable
+per network via `alert_thresholds` in `network.yaml`. Alerts carry only public, aggregate fields — a
+cell id, centroid, area label, node ids, and the reading — and provisional readings are flagged, not
+hidden. Full reference: [`docs/alerts.md`](alerts.md). `swelter demo`/`fetch` bake `alerts.json` +
+`alerts.xml` for the static site.
+
+### `GET /api/cooling-centers.geojson`
+
+A curated, provenance-bearing overlay of public places to cool down (libraries, community/senior
+centers, cooled public buildings), as a GeoJSON FeatureCollection with set-level `metadata` (license,
+attribution, source, `last_verified`, count). It is validated on load — every feature needs a name and
+an in-range Point, and properties are held to a public-field allowlist — and is separately licensed
+civic data, **not** part of the CC0 observation stream. An unconfigured server returns a valid empty
+FeatureCollection. See [ADR 0011](decisions/0011-cooling-center-overlay.md).
 
 ## Export endpoints
 

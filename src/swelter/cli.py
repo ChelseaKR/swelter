@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-from . import __version__, aggregate, calibrate, export, ingest, qc
+from . import __version__, aggregate, alerts, calibrate, cooling_centers, export, ingest, qc
 from .config import NetworkConfig, label_concerns, load_config
 from .models import RAW, Observation
 from .server import ServerContext, serve
@@ -27,6 +27,7 @@ DEFAULT_STORE = "store"
 DEFAULT_CONFIG = "network.yaml"
 DEFAULT_WEB = "web"
 DEFAULT_DATA = "data/demo"
+DEFAULT_COOLING = "data/cooling_centers.geojson"
 DEFAULT_INTERVAL_S = 3600.0
 
 #: A minimal, commented starter network written by `swelter init`. __NAME__ is replaced with a
@@ -189,6 +190,28 @@ def cmd_aggregate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_alerts(args: argparse.Namespace) -> int:
+    """Build the neighborhood heat/AQI alerts feed (JSON + Atom) from the current surface."""
+    config = _load_config(args.config)
+    with open_store(args.store) as store:
+        surface = aggregate.aggregate(store.all(), config)
+    feed = alerts.build_feed(
+        surface,
+        network=config.name,
+        base_url=args.base_url,
+        thresholds=config.alert_thresholds or None,
+    )
+    if args.format == "atom":
+        sys.stdout.write(feed.to_atom())
+    elif args.format == "json":
+        sys.stdout.write(json.dumps(feed.to_json(), indent=2) + "\n")
+    if args.web:
+        _write_web_alerts(Path(args.web), surface, config)
+        _err(f"swelter: wrote alerts.json + alerts.xml → {args.web}/")
+    _err(f"swelter: {len(feed.alerts)} active alert(s) at {feed.bucket or 'no data'}")
+    return 0
+
+
 def cmd_export(args: argparse.Namespace) -> int:
     with open_store(args.store) as store:
         observations = store.read(
@@ -204,11 +227,23 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cooling_path(path: str) -> Path | None:
+    """The cooling-center dataset path if it exists, else ``None`` (overlay simply stays empty)."""
+    p = Path(path)
+    return p if p.is_file() else None
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
     store = open_store(args.store)
     base = f"http://{args.host}:{args.port}"
-    ctx = ServerContext(store=store, config=config, web_dir=Path(args.web), base_url=base)
+    ctx = ServerContext(
+        store=store,
+        config=config,
+        web_dir=Path(args.web),
+        base_url=base,
+        cooling_centers_path=_cooling_path(args.cooling_centers),
+    )
     _err(f"swelter: serving dashboard + API at {base}  (Ctrl-C to stop)")
     _err(f"  dashboard {base}/   ·   SensorThings {base}/v1.1   ·   export {base}/export.csv")
     try:
@@ -251,6 +286,8 @@ def cmd_demo(args: argparse.Namespace) -> int:
             attribution="Synthetic demonstration data — no real sensors (gen_demo_data.py).",
         )
         _write_web_health(Path(args.web), store.read(calibration=RAW), args.interval)
+        _write_web_alerts(Path(args.web), surface, config)
+        _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
@@ -258,7 +295,13 @@ def cmd_demo(args: argparse.Namespace) -> int:
     if args.serve:
         store = open_store(args.store)
         base = f"http://{args.host}:{args.port}"
-        ctx = ServerContext(store=store, config=config, web_dir=Path(args.web), base_url=base)
+        ctx = ServerContext(
+            store=store,
+            config=config,
+            web_dir=Path(args.web),
+            base_url=base,
+            cooling_centers_path=_cooling_path(args.cooling_centers),
+        )
         _err(f"swelter demo: serving at {base}  (Ctrl-C to stop)")
         try:
             serve(ctx, host=args.host, port=args.port)
@@ -303,6 +346,30 @@ def _write_web_health(web_dir: Path, raw: list[Observation], interval_s: float) 
         return
     report = qc.health_report(raw, expected_interval_s=interval_s)
     (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+
+def _write_web_alerts(web_dir: Path, surface: aggregate.Surface, config: NetworkConfig) -> None:
+    """Bake the neighborhood-alerts feed (JSON + Atom) so the static site can show and syndicate it.
+
+    Deployment-neutral relative links and data-derived timestamps keep the committed artifact
+    deterministic — re-running the pipeline on the same store reproduces it byte for byte."""
+    if not web_dir.is_dir():
+        return
+    feed = alerts.build_feed(
+        surface, network=config.name, base_url="", thresholds=config.alert_thresholds or None
+    )
+    (web_dir / "alerts.json").write_text(json.dumps(feed.to_json(), indent=2), encoding="utf-8")
+    (web_dir / "alerts.xml").write_text(feed.to_atom(), encoding="utf-8")
+
+
+def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
+    """Bake the validated cooling-center overlay next to the dashboard, if a dataset is present."""
+    if not web_dir.is_dir() or not source.is_file():
+        return
+    dataset = cooling_centers.load(source)  # validate before publishing
+    (web_dir / "cooling-centers.geojson").write_text(
+        json.dumps(dataset.to_geojson(), indent=2), encoding="utf-8"
+    )
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -393,6 +460,8 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         )
         _write_web_sample(Path(args.web), surface, attribution=attribution)
         _write_web_health(Path(args.web), store.read(calibration=RAW), args.interval)
+        _write_web_alerts(Path(args.web), surface, config)
+        _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
         _err(
             f"swelter: stored {written.written} real observations from {len(config.nodes)} "
@@ -403,7 +472,13 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if args.serve:
         store = open_store(args.store)
         base = f"http://{args.host}:{args.port}"
-        ctx = ServerContext(store=store, config=config, web_dir=Path(args.web), base_url=base)
+        ctx = ServerContext(
+            store=store,
+            config=config,
+            web_dir=Path(args.web),
+            base_url=base,
+            cooling_centers_path=_cooling_path(args.cooling_centers),
+        )
         _err(f"swelter: serving REAL data ({source_label}) at {base}  (Ctrl-C to stop)")
         try:
             serve(ctx, host=args.host, port=args.port)
@@ -477,6 +552,13 @@ def build_parser() -> argparse.ArgumentParser:
             "--interval", type=float, default=DEFAULT_INTERVAL_S, help="sampling interval, seconds"
         )
 
+    def add_cooling(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--cooling-centers",
+            default=DEFAULT_COOLING,
+            help="curated cooling-center GeoJSON for the map overlay (optional)",
+        )
+
     p_init = sub.add_parser("init", help="scaffold a starter network.yaml for a new community")
     p_init.add_argument(
         "--config", default=DEFAULT_CONFIG, help="path to write (default network.yaml)"
@@ -512,6 +594,20 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_agg)
     p_agg.set_defaults(func=cmd_aggregate)
 
+    p_alerts = sub.add_parser(
+        "alerts", help="build the neighborhood heat/AQI alerts feed (JSON + Atom)"
+    )
+    p_alerts.add_argument("--format", choices=("json", "atom", "none"), default="json")
+    p_alerts.add_argument(
+        "--web", default="", help="also bake alerts.json + alerts.xml into this web dir"
+    )
+    p_alerts.add_argument(
+        "--base-url", default="http://localhost:8000", help="base URL for feed self/links"
+    )
+    add_store(p_alerts)
+    add_config(p_alerts)
+    p_alerts.set_defaults(func=cmd_alerts)
+
     p_exp = sub.add_parser("export", help="export observations as CSV or JSON to stdout")
     p_exp.add_argument("--format", choices=("csv", "json"), default="csv")
     p_exp.add_argument("--since", default=None)
@@ -529,6 +625,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--web", default=DEFAULT_WEB)
     add_store(p_serve)
     add_config(p_serve)
+    add_cooling(p_serve)
     p_serve.set_defaults(func=cmd_serve)
 
     p_demo = sub.add_parser("demo", help="replay recorded data through the whole pipeline")
@@ -540,6 +637,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_demo.add_argument("--web", default=DEFAULT_WEB)
     add_config(p_demo)
     add_interval(p_demo)
+    add_cooling(p_demo)
     p_demo.set_defaults(func=cmd_demo)
 
     p_fetch = sub.add_parser(
@@ -576,6 +674,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.add_argument("--host", default="127.0.0.1")
     p_fetch.add_argument("--port", type=int, default=8000)
     add_interval(p_fetch)
+    add_cooling(p_fetch)
     p_fetch.set_defaults(func=cmd_fetch)
 
     p_rebuild = sub.add_parser("rebuild", help="rebuild calibrated + surface from immutable raw")

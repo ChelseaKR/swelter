@@ -137,6 +137,14 @@ const state = {
   mapView: { zoom: 1, x: 0, y: 0 }, // pan (px) + zoom of the map canvas; 1 = fit, no pan
   pendingFocus: null, // a cell to center on once the map becomes visible/measurable
   projSig: "", // signature of the last map projection; a change (no basemap) refits the view
+  areaAlerts: null, // the generated neighborhood-alerts feed (from /api/alerts.json or the baked copy)
+  alertsXmlUrl: "", // resolved URL of the Atom feed, for the "copy feed link" subscribe button
+  alertsLive: false, // did the feed come from the live API (so ?area= filtering works)?
+  areaSelected: "", // the area_id the neighborhood-alerts panel is filtered to ("" = whole network)
+  areaSelectKey: "", // signature of the area <select> contents, so it is rebuilt only when needed
+  coolingCenters: null, // the curated cooling-center overlay dataset (validated FeatureCollection)
+  coolingMeta: null, // the cooling-center dataset's provenance metadata
+  coolingVisible: false, // is the cooling-center overlay drawn on the map?
 };
 
 // Personal alert thresholds: on-device only (localStorage, like the other prefs), no account, no
@@ -1015,6 +1023,26 @@ function markerPos(row, proj) {
   };
 }
 
+// The cooling-center overlay: a distinct snowflake glyph per center, positioned with the same
+// projection as the readings. Decorative on the map (aria-hidden) — the accessible equivalent is the
+// always-present cooling-center list — but each carries a title so a sighted pointer user gets a name.
+function addCoolingOverlay(canvas, proj) {
+  for (const c of state.coolingCenters) {
+    if (!Number.isFinite(c.lat) || !Number.isFinite(c.lon)) continue;
+    const pos = markerPos(c, proj);
+    const left = Math.min(1, Math.max(0, pos.left));
+    const bottom = Math.min(1, Math.max(0, pos.bottom));
+    const mark = document.createElement("span");
+    mark.className = "cool-center";
+    mark.setAttribute("aria-hidden", "true");
+    mark.title = c.name;
+    mark.textContent = "❄";
+    mark.style.left = `${left * 100}%`;
+    mark.style.bottom = `${bottom * 100}%`;
+    canvas.appendChild(mark);
+  }
+}
+
 function renderMap(rows) {
   const map = $("#map");
   map.textContent = "";
@@ -1091,6 +1119,7 @@ function renderMap(rows) {
     });
     canvas.appendChild(btn);
   }
+  if (state.coolingVisible && state.coolingCenters) addCoolingOverlay(canvas, proj);
   lastK = -1; // force the next applyMapTransform to (re)write --k onto the fresh canvas
   map.appendChild(canvas);
   applyMapTransform(false);
@@ -1620,6 +1649,202 @@ function updateAlerts() {
   syncNotifications(alerts);
 }
 
+// -- neighborhood alerts (the generated, subscribable feed) ------------------
+//
+// Distinct from the personal "watch" above: this is the public, network-wide feed of areas that have
+// crossed a documented danger threshold (EPA AQI 101 / NWS Danger / exposure High). It loads from the
+// live API when served, or the baked alerts.json on the static site, and offers a per-area Atom feed
+// link so a resident subscribes to their neighborhood in any ordinary RSS/Atom reader — no account.
+async function loadAreaAlerts() {
+  const live = await fetchJson("api/alerts.json");
+  const feed = live || (await fetchJson("alerts.json"));
+  if (!feed || !Array.isArray(feed.alerts)) return;
+  state.areaAlerts = feed;
+  state.alertsLive = !!live;
+  // The Atom feed sits beside whichever JSON we loaded; resolve it to an absolute, shareable URL.
+  state.alertsXmlUrl = new URL(live ? "api/alerts.xml" : "alerts.xml", location.href).href;
+  $("#area-alerts").hidden = false;
+  renderAreaAlerts();
+}
+
+// Localize one alert's severity word using the same maps the rest of the UI uses.
+function alertSeverityText(alert) {
+  if (alert.parameter === "pm25_ugm3") return localCategory(alert.severity);
+  if (alert.parameter === "heat_index_c") return localHeat(alert.severity);
+  if (alert.parameter === "exposure") return localExposure(alert.severity);
+  return alert.severity;
+}
+
+function alertSentence(alert) {
+  const sev = alertSeverityText(alert);
+  if (alert.parameter === "pm25_ugm3") {
+    return t("aa-air").replace("{area}", alert.area).replace("{sev}", sev).replace("{aqi}", alert.aqi);
+  }
+  if (alert.parameter === "heat_index_c") {
+    return t("aa-heat").replace("{area}", alert.area).replace("{sev}", sev);
+  }
+  return t("aa-exposure").replace("{area}", alert.area).replace("{sev}", sev);
+}
+
+// Build the area <select> from every published cell (so a resident can pick their block and copy its
+// feed even on a calm day), rebuilt only when the cell set changes so a held selection survives.
+function buildAreaSelect() {
+  const sel = $("#area-select");
+  if (!sel) return;
+  const ids = [...new Set(state.cells.map((c) => c.cell_id))].sort();
+  const key = ids.join("|");
+  const whole0 = sel.querySelector('option[value=""]');
+  if (key === state.areaSelectKey && whole0) {
+    whole0.textContent = t("aa-whole-network"); // keep the first option localized on a language swap
+    return;
+  }
+  state.areaSelectKey = key;
+  const byId = new Map(state.cells.map((c) => [c.cell_id, c]));
+  sel.textContent = "";
+  const whole = document.createElement("option");
+  whole.value = "";
+  whole.textContent = t("aa-whole-network");
+  sel.appendChild(whole);
+  for (const id of ids) {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = placeName(byId.get(id));
+    sel.appendChild(opt);
+  }
+  sel.value = state.areaSelected;
+  if (sel.value !== state.areaSelected) state.areaSelected = sel.value; // selection was filtered out
+}
+
+function renderAreaAlerts() {
+  const feed = state.areaAlerts;
+  if (!feed) return;
+  buildAreaSelect();
+  const list = $("#area-alerts-list");
+  const status = $("#area-alerts-status");
+  list.textContent = "";
+  const scoped = state.areaSelected
+    ? feed.alerts.filter((a) => a.area_id === state.areaSelected)
+    : feed.alerts;
+  status.textContent = scoped.length
+    ? t("aa-count").replace("{n}", scoped.length)
+    : t("aa-none");
+  for (const alert of scoped) {
+    const li = document.createElement("li");
+    li.className = "aa-item";
+    if (alert.provisional) li.classList.add("provisional");
+    const text = document.createElement("span");
+    text.className = "aa-text";
+    text.textContent = alertSentence(alert);
+    li.appendChild(text);
+    if (alert.provisional) {
+      const prov = document.createElement("span");
+      prov.className = "aa-prov";
+      prov.textContent = ` ${t("aa-prov")}`;
+      li.appendChild(prov);
+    }
+    const go = document.createElement("button");
+    go.type = "button";
+    go.className = "aa-go";
+    go.textContent = t("aa-go");
+    go.addEventListener("click", () => {
+      setView("tab-list");
+      select(alert.area_id, true);
+    });
+    li.appendChild(go);
+    list.appendChild(li);
+  }
+}
+
+function areaFeedUrl() {
+  if (!state.alertsXmlUrl) return "";
+  // Per-area filtering is a query the live API honors; the static feed is whole-network only.
+  if (state.areaSelected && state.alertsLive) {
+    return `${state.alertsXmlUrl}?area=${encodeURIComponent(state.areaSelected)}`;
+  }
+  return state.alertsXmlUrl;
+}
+
+// -- cooling-center overlay --------------------------------------------------
+//
+// A curated, provenance-bearing dataset of public places to cool down. The list is the accessible
+// equivalent (always rendered when the section is shown); the map overlay is a visual enhancement on
+// top, toggled on demand. Loaded from the live API or the baked file; absent → the section stays hidden.
+async function loadCoolingCenters() {
+  const doc =
+    (await fetchJson("api/cooling-centers.geojson")) || (await fetchJson("cooling-centers.geojson"));
+  if (!doc || !Array.isArray(doc.features) || !doc.features.length) return;
+  state.coolingCenters = doc.features
+    .filter((f) => f.geometry && Array.isArray(f.geometry.coordinates))
+    .map((f) => ({
+      lon: +f.geometry.coordinates[0],
+      lat: +f.geometry.coordinates[1],
+      ...f.properties,
+    }));
+  state.coolingMeta = doc.metadata || {};
+  $("#cooling-centers").hidden = false;
+  renderCoolingCenters();
+}
+
+function coolingTypeLabel(type) {
+  const key = `cool-type-${type}`;
+  const text = t(key);
+  return text === key ? type : text;
+}
+
+function renderCoolingCenters() {
+  const centers = state.coolingCenters;
+  if (!centers) return;
+  const list = $("#cooling-list");
+  list.textContent = "";
+  // If a location is selected, sort by distance and annotate it — turns the list into "nearest cool
+  // place to where I am looking", the equity-relevant question on a hot day.
+  const sel = current().find((r) => r.cell_id === state.selected);
+  const withDist = centers.map((c) => ({
+    c,
+    km: sel ? haversine(sel.lat, sel.lon, c.lat, c.lon) : null,
+  }));
+  if (sel) withDist.sort((a, b) => a.km - b.km);
+  for (const { c, km } of withDist) {
+    const li = document.createElement("li");
+    li.className = "cool-item";
+    const name = document.createElement("strong");
+    name.textContent = c.name;
+    li.appendChild(name);
+    const meta = document.createElement("span");
+    meta.className = "cool-meta";
+    const bits = [coolingTypeLabel(c.type || "public")];
+    if (c.address) bits.push(c.address);
+    if (c.hours) bits.push(t("cool-hours").replace("{hours}", c.hours));
+    bits.push(c.air_conditioned === false ? t("cool-no-ac") : t("cool-ac"));
+    bits.push(c.accessible === false ? t("cool-not-accessible") : t("cool-accessible"));
+    if (km != null) bits.push(t("cool-distance").replace("{km}", km.toFixed(1)));
+    meta.textContent = ` — ${bits.join(" · ")}`;
+    li.appendChild(meta);
+    if (c.notes) {
+      const note = document.createElement("span");
+      note.className = "cool-note";
+      note.textContent = ` ${c.notes}`;
+      li.appendChild(note);
+    }
+    list.appendChild(li);
+  }
+  const meta = state.coolingMeta || {};
+  $("#cooling-source").textContent = t("cooling-source")
+    .replace("{attribution}", meta.attribution || meta.source || "")
+    .replace("{date}", meta.last_verified || "—");
+}
+
+function toggleCooling() {
+  state.coolingVisible = !state.coolingVisible;
+  const btn = $("#cooling-toggle");
+  btn.setAttribute("aria-pressed", String(state.coolingVisible));
+  btn.textContent = t(state.coolingVisible ? "cooling-hide" : "cooling-show");
+  // Re-render the map so the overlay appears/disappears; announce the change for screen readers.
+  if (mapVisible) renderMap(current());
+  else mapDirty = true;
+  $("#display-status").textContent = t(state.coolingVisible ? "cooling-shown" : "cooling-hidden");
+}
+
 // The watch control in the detail panel: a level picker for the active measurement (a category
 // <select> for PM2.5/exposure/heat index, a numeric <input> for temperature/PM10), a save/remove
 // pair, and an optional "notify on this device" button. It reflects any saved watch for this
@@ -1906,6 +2131,8 @@ function render() {
   renderHeadline();
   updateLegend();
   updateAlerts();
+  renderAreaAlerts();
+  renderCoolingCenters();
   renderSettingsState();
   renderOverview();
   renderList(rows);
@@ -2219,6 +2446,21 @@ function wireControls() {
     const row = current().find((r) => r.cell_id === state.selected);
     if (row) renderCompare(row);
   });
+  $("#area-select")?.addEventListener("change", (e) => {
+    state.areaSelected = e.target.value;
+    renderAreaAlerts();
+    $("#aa-copy-status").textContent = "";
+  });
+  $("#aa-copy-feed")?.addEventListener("click", async () => {
+    const url = areaFeedUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      $("#aa-copy-status").textContent = t("aa-copied");
+    } catch {
+      $("#aa-copy-status").textContent = t("aa-copy-fail");
+    }
+  });
+  $("#cooling-toggle")?.addEventListener("click", toggleCooling);
   $("#text-smaller")?.addEventListener("click", () => setTextStep(state.textStep - 1));
   $("#text-bigger")?.addEventListener("click", () => setTextStep(state.textStep + 1));
   $("#contrast-toggle")?.addEventListener("click", () => setContrast(!state.contrast));
@@ -2385,6 +2627,8 @@ async function init() {
   restoreView();
 
   loadHealth();
+  loadAreaAlerts();
+  loadCoolingCenters();
 
   const full = await fetchSurface("api/surface.json?hours=168");
   if (full) {

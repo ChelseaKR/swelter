@@ -1,0 +1,122 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "license": "CC-BY-4.0",
+    "attribution": "Illustrative cooling-center sample for the swelter demo network.",
+    "source": "Curated sample placed within the synthetic demo-network footprint. NOT a real facility list. Replace with your jurisdiction's published cooling-center dataset (e.g. a county OES / 211 list or city open-data portal) before deploying for a real community \u2014 see docs/decisions/0011-cooling-center-overlay.md.",
+    "last_verified": "2026-06-29",
+    "count": 5
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.5118,
+          38.5685
+        ]
+      },
+      "properties": {
+        "name": "Downtown Branch Library",
+        "type": "library",
+        "address": "Oak & 3rd",
+        "hours": "Mon-Sat 10:00-18:00",
+        "accessible": true,
+        "air_conditioned": true,
+        "notes": "Drinking water and seating available during heat events.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "last_verified": "2026-06-29"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.5065,
+          38.568
+        ]
+      },
+      "properties": {
+        "name": "Third Street Community Center",
+        "type": "community-center",
+        "address": "Pine & 3rd",
+        "hours": "Daily 08:00-20:00 (extended during heat advisories)",
+        "accessible": true,
+        "air_conditioned": true,
+        "notes": "Designated extended-hours cooling site during declared heat emergencies.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "last_verified": "2026-06-29"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.4992,
+          38.5682
+        ]
+      },
+      "properties": {
+        "name": "Eastside Senior Center",
+        "type": "senior-center",
+        "address": "Birch & 3rd",
+        "hours": "Mon-Fri 09:00-17:00",
+        "accessible": true,
+        "air_conditioned": true,
+        "notes": "Priority access for older adults; call ahead for transport.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "last_verified": "2026-06-29"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.4945,
+          38.5683
+        ]
+      },
+      "properties": {
+        "name": "Chestnut Street Recreation Hall",
+        "type": "cooling-center",
+        "address": "Chestnut & 3rd",
+        "hours": "Open when a heat advisory is in effect",
+        "accessible": false,
+        "air_conditioned": true,
+        "notes": "Heat-activated site only; not wheelchair accessible at the main entrance.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "last_verified": "2026-06-29"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -121.5089,
+          38.5703
+        ]
+      },
+      "properties": {
+        "name": "Civic Plaza (shaded public space)",
+        "type": "public",
+        "address": "4th & Plaza",
+        "hours": "Open 24h",
+        "accessible": true,
+        "air_conditioned": false,
+        "notes": "Outdoor shade and drinking fountains; not air-conditioned.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "last_verified": "2026-06-29"
+      }
+    }
+  ]
+}
