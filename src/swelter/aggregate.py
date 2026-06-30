@@ -180,6 +180,25 @@ def _cell_labels(config: NetworkConfig) -> dict[str, str]:
     return labels
 
 
+def node_cell_map(config: NetworkConfig) -> dict[str, tuple[str, str]]:
+    """node_id → (published cell_id, cell label) for every placed node.
+
+    The cell_id and label are exactly the ones the surface publishes — same grid snap, same
+    combined label — so a coverage-equity read (``qc.coverage_equity``) lines up cell-for-cell
+    with the map. A node the host has not placed (no coordinate) is omitted, because it has no
+    published cell to belong to.
+    """
+    labels = _cell_labels(config)
+    out: dict[str, tuple[str, str]] = {}
+    for node in config.nodes:
+        loc = node.public_location(config.grid_resolution_m)
+        if loc is None:
+            continue
+        cell_id = f"{loc[0]:.6f},{loc[1]:.6f}"
+        out[node.node_id] = (cell_id, labels.get(cell_id, ""))
+    return out
+
+
 def aggregate(
     observations: Iterable[Observation],
     config: NetworkConfig,

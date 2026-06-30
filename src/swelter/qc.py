@@ -12,7 +12,7 @@ unit-testable offline against recorded streams with no hardware and no clock.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from statistics import median
 
@@ -23,6 +23,7 @@ from .models import (
     QC_RANGE,
     QC_REJECTED,
     QC_SPIKE,
+    RAW,
     Observation,
     parse_timestamp,
 )
@@ -166,20 +167,25 @@ def health_report(
     *,
     expected_interval_s: float = 3600.0,
     max_gaps: int = 10,
+    coverage: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """A JSON-able network-health summary — per-node status, a count by status, and the worst gaps.
 
     Backs the ``/api/health.json`` route and the dashboard's coverage panel; computed over raw
-    readings.
+    readings. An optional ``coverage`` block (from :func:`coverage_equity`) rides along under
+    ``coverage_equity`` so the calibration-coverage read travels with the liveness read.
     """
     obs = list(observations)
     if not obs:
-        return {
+        report: dict[str, object] = {
             "interval_s": expected_interval_s,
             "summary": {"total": 0, "ok": 0, "degraded": 0, "offline": 0},
             "nodes": [],
             "gaps": [],
         }
+        if coverage is not None:
+            report["coverage_equity"] = coverage
+        return report
     latest = max(o.timestamp for o in obs)
     gaps = detect_gaps(obs, expected_interval_s)
     health = node_health(
@@ -191,7 +197,7 @@ def health_report(
     summary = {"total": len(health), "ok": 0, "degraded": 0, "offline": 0}
     for h in health:
         summary[h.status] = summary.get(h.status, 0) + 1
-    return {
+    report = {
         "interval_s": expected_interval_s,
         "latest": latest,
         "summary": summary,
@@ -217,6 +223,86 @@ def health_report(
             }
             for g in gaps[:max_gaps]
         ],
+    }
+    if coverage is not None:
+        report["coverage_equity"] = coverage
+    return report
+
+
+def coverage_equity(
+    observations: Iterable[Observation],
+    node_cells: Mapping[str, tuple[str, str]],
+) -> dict[str, object]:
+    """Calibrated-vs-raw node counts per published cell — the coverage-equity read.
+
+    The fairness stake in a community network is geographic: *which cells get a calibrated
+    (trustworthy) reading and which get only a provisional (raw / uncalibrated) one?* If the
+    calibrated nodes cluster in one part of the network and the raw nodes in another, the map
+    splits into a confident half and a provisional half. This surfaces that distribution from
+    data already on hand — per published grid cell (``node_cells`` maps each placed node to its
+    cell id and label), how many of its nodes are calibrated vs still raw, and whether the cell
+    has any calibrated node at all — so a steward can see where the next co-location should go
+    (Responsible-tech audit B3).
+
+    It is **descriptive coverage of calibration, not a ranking of neighborhoods** and not a claim
+    about who is most exposed. Whether a coverage gap correlates with the frontline blocks the
+    network is for (audit B4) needs demographic/redlining context swelter deliberately does not
+    hold, and is a governance judgment, never a number emitted here. A node is counted calibrated
+    when it has at least one calibrated (non-``raw``) observation in the data passed in.
+    """
+    calibrated_nodes = {o.node_id for o in observations if o.calibration != RAW}
+    counts: dict[str, list[int]] = {}  # cell_id -> [nodes, calibrated, raw]
+    label_of: dict[str, str] = {}
+    for node_id, (cell_id, label) in node_cells.items():
+        if cell_id not in counts:
+            counts[cell_id] = [0, 0, 0]
+            label_of[cell_id] = label
+        tally = counts[cell_id]
+        tally[0] += 1
+        if node_id in calibrated_nodes:
+            tally[1] += 1
+        else:
+            tally[2] += 1
+
+    cells: list[dict[str, object]] = []
+    for cell_id in sorted(counts):
+        nodes, calibrated, raw = counts[cell_id]
+        cells.append(
+            {
+                "cell_id": cell_id,
+                "label": label_of[cell_id],
+                "nodes": nodes,
+                "calibrated_nodes": calibrated,
+                "raw_nodes": raw,
+                "confirmed": calibrated > 0,
+            }
+        )
+
+    n_cells = len(counts)
+    confirmed_cells = sum(1 for t in counts.values() if t[1] > 0)
+    n_nodes = sum(t[0] for t in counts.values())
+    calibrated_total = sum(t[1] for t in counts.values())
+    summary: dict[str, object] = {
+        "cells": n_cells,
+        "confirmed_cells": confirmed_cells,
+        "provisional_cells": n_cells - confirmed_cells,
+        "nodes": n_nodes,
+        "calibrated_nodes": calibrated_total,
+        "raw_nodes": n_nodes - calibrated_total,
+        "calibrated_node_fraction": round(calibrated_total / n_nodes, 3) if n_nodes else 0.0,
+        "confirmed_cell_fraction": round(confirmed_cells / n_cells, 3) if n_cells else 0.0,
+        # True when at least one cell has no calibrated node yet — a coverage gap to close, not a
+        # statement about which neighborhood it lands on (see the docstring and audit B4).
+        "coverage_gap": confirmed_cells < n_cells,
+    }
+    return {
+        "summary": summary,
+        "cells": cells,
+        "note": (
+            "Descriptive coverage of calibration, not a ranking of neighborhoods. Whether a "
+            "coverage gap correlates with frontline blocks (audit B4) needs external context "
+            "swelter does not hold and is a governance decision."
+        ),
     }
 
 

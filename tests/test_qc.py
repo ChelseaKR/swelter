@@ -63,6 +63,52 @@ def test_health_report_handles_empty() -> None:
     assert report["nodes"] == []
 
 
+def test_coverage_equity_counts_calibrated_vs_raw_per_cell() -> None:
+    # node-01 has a fitted correction (a calibrated row); node-02 is raw-only.
+    obs = [
+        make_obs(node_id="node-01", calibration="temp_c.enclosure-offset.node-01"),
+        make_obs(node_id="node-02"),  # default calibration is raw
+    ]
+    node_cells = {"node-01": ("c1", "Cedar & 4th"), "node-02": ("c2", "Oak & 4th")}
+    report: Any = qc.coverage_equity(obs, node_cells)
+    s = report["summary"]
+    assert s["nodes"] == 2
+    assert s["calibrated_nodes"] == 1
+    assert s["raw_nodes"] == 1
+    assert s["confirmed_cells"] == 1
+    assert s["provisional_cells"] == 1
+    assert s["coverage_gap"] is True  # one cell has no calibrated node yet
+    cells = {c["cell_id"]: c for c in report["cells"]}
+    assert cells["c1"]["confirmed"] is True
+    assert cells["c2"]["confirmed"] is False
+
+
+def test_coverage_equity_groups_nodes_in_one_cell() -> None:
+    # Two nodes published into the same cell — one calibrated confirms the cell.
+    obs = [
+        make_obs(node_id="a", calibration="pm25_ugm3.epa-humidity.a"),
+        make_obs(node_id="b"),
+    ]
+    node_cells = {"a": ("c1", "Block"), "b": ("c1", "Block")}
+    report: Any = qc.coverage_equity(obs, node_cells)
+    cell = report["cells"][0]
+    assert cell["nodes"] == 2
+    assert cell["calibrated_nodes"] == 1
+    assert cell["raw_nodes"] == 1
+    assert cell["confirmed"] is True
+    assert report["summary"]["cells"] == 1
+    assert report["summary"]["coverage_gap"] is False  # every cell has a calibrated node
+
+
+def test_coverage_equity_rides_along_in_health_report() -> None:
+    obs = [make_obs(node_id="node-01", timestamp=f"2026-06-01T{h:02d}:00:00Z") for h in (0, 1, 2)]
+    coverage = qc.coverage_equity(obs, {"node-01": ("c1", "Cedar")})
+    report: Any = qc.health_report(obs, coverage=coverage)
+    assert report["coverage_equity"]["summary"]["nodes"] == 1
+    # The liveness summary is untouched by the coverage block riding along.
+    assert set(report["summary"]) == {"total", "ok", "degraded", "offline"}
+
+
 def test_gentle_drift_is_not_flagged() -> None:
     flagged = qc.apply(_series([25.0, 25.5, 26.0, 26.4, 27.0, 27.3]))
     assert all(o.qc == "ok" for o in flagged)

@@ -176,8 +176,11 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
 
         def _health(self) -> None:
             # Per-node liveness/quality from the raw stream — the "how many sensors are reporting"
-            # coverage view. Heavy-ish (reads raw), but cached 60s like the other reads.
-            self._json(qc.health_report(ctx.store.read(calibration=RAW)))
+            # coverage view. Heavy-ish (reads raw), but cached 60s like the other reads. The
+            # calibrated-vs-raw coverage-equity read rides along (needs the full stream + config to
+            # know which nodes are calibrated and which published cell each sits in).
+            coverage = qc.coverage_equity(ctx.store.all(), aggregate.node_cell_map(ctx.config))
+            self._json(qc.health_report(ctx.store.read(calibration=RAW), coverage=coverage))
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(
