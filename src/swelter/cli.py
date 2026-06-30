@@ -14,6 +14,7 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 
@@ -103,8 +104,10 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 
 def cmd_qc(args: argparse.Namespace) -> int:
+    config = _load_config(args.config)
     with open_store(args.store) as store:
         raw = store.read(calibration=RAW)
+        all_obs = list(store.all())
     if not raw:
         _err("swelter: store is empty")
         return 0
@@ -113,6 +116,11 @@ def cmd_qc(args: argparse.Namespace) -> int:
     health = qc.node_health(
         raw, latest, offline_after_s=args.interval * 3, expected_interval_s=args.interval
     )
+    # Coverage-equity: calibrated-vs-raw node counts per published cell, so an under-calibrated
+    # block is visible rather than hidden behind the network average (audit B3). Descriptive
+    # coverage, not a ranking of neighborhoods (see qc.coverage_equity / docs/RESEARCH-ROADMAP).
+    coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
+    cov = cast(dict[str, Any], coverage["summary"])
     if args.json:
         payload = {
             "nodes": [
@@ -137,6 +145,7 @@ def cmd_qc(args: argparse.Namespace) -> int:
                 }
                 for g in gaps
             ],
+            "coverage_equity": coverage,
         }
         print(json.dumps(payload, indent=2))
         return 0
@@ -155,6 +164,18 @@ def cmd_qc(args: argparse.Namespace) -> int:
             f"  {node.node_id:>10}  {node.status.upper():<8}  {node.observations:>6} obs  "
             f"{node.completeness * 100:5.1f}% complete  {node.flagged_fraction * 100:5.1f}% flagged"
         )
+    _err(
+        f"swelter: coverage — {cov['calibrated_nodes']}/{cov['nodes']} nodes calibrated, "
+        f"{cov['confirmed_cells']}/{cov['cells']} cells confirmed, "
+        f"{cov['provisional_cells']} provisional cell(s)"
+    )
+    for cell in cast(list[dict[str, Any]], coverage["cells"]):
+        if not cell["confirmed"]:
+            name = cell["label"] or cell["cell_id"]
+            _err(
+                f"  provisional cell  {name}  "
+                f"({cell['calibrated_nodes']}/{cell['nodes']} calibrated)"
+            )
     return 0
 
 
@@ -285,7 +306,10 @@ def cmd_demo(args: argparse.Namespace) -> int:
             surface,
             attribution="Synthetic demonstration data — no real sensors (gen_demo_data.py).",
         )
-        _write_web_health(Path(args.web), store.read(calibration=RAW), args.interval)
+        _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
+        _write_web_health(
+            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+        )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
@@ -340,11 +364,20 @@ def _write_web_sample(
     (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _write_web_health(web_dir: Path, raw: list[Observation], interval_s: float) -> None:
-    """Bake the node-health summary so the static dashboard shows coverage with no live API."""
+def _write_web_health(
+    web_dir: Path,
+    raw: list[Observation],
+    interval_s: float,
+    *,
+    coverage: dict[str, object] | None = None,
+) -> None:
+    """Bake the node-health summary so the static dashboard shows coverage with no live API.
+
+    A coverage-equity block (calibrated-vs-raw per cell) rides along when provided, so the static
+    site carries the same calibration-coverage read as the live ``/api/health.json``."""
     if not web_dir.is_dir():
         return
-    report = qc.health_report(raw, expected_interval_s=interval_s)
+    report = qc.health_report(raw, expected_interval_s=interval_s, coverage=coverage)
     (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
@@ -459,7 +492,10 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
         _write_web_sample(Path(args.web), surface, attribution=attribution)
-        _write_web_health(Path(args.web), store.read(calibration=RAW), args.interval)
+        _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
+        _write_web_health(
+            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+        )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
@@ -574,9 +610,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_ingest)
     p_ingest.set_defaults(func=cmd_ingest)
 
-    p_qc = sub.add_parser("qc", help="report node health, completeness, and data gaps")
+    p_qc = sub.add_parser("qc", help="report node health, completeness, and coverage equity")
     p_qc.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     add_store(p_qc)
+    add_config(p_qc)
     add_interval(p_qc)
     p_qc.set_defaults(func=cmd_qc)
 

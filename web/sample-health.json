@@ -1395,5 +1395,1221 @@
       "end": "2026-06-06T00:00:00Z",
       "minutes": 2940
     }
-  ]
+  ],
+  "coverage_equity": {
+    "summary": {
+      "cells": 150,
+      "confirmed_cells": 100,
+      "provisional_cells": 50,
+      "nodes": 150,
+      "calibrated_nodes": 100,
+      "raw_nodes": 50,
+      "calibrated_node_fraction": 0.667,
+      "confirmed_cell_fraction": 0.667,
+      "coverage_gap": true
+    },
+    "cells": [
+      {
+        "cell_id": "38.567867,-121.472799",
+        "label": "Laurel & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.476141",
+        "label": "Magnolia & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.479558",
+        "label": "Sycamore & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.483344",
+        "label": "Poplar & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.485036",
+        "label": "Ash & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.488263",
+        "label": "Willow & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.491349",
+        "label": "Spruce & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.495298",
+        "label": "Chestnut & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.498214",
+        "label": "Walnut & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.500534",
+        "label": "Birch & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.503915",
+        "label": "Cedar & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.506912",
+        "label": "Pine & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.510109",
+        "label": "Maple & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.512211",
+        "label": "Oak & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.567867,-121.515433",
+        "label": "Elm & 3rd",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.473804",
+        "label": "Laurel & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.475666",
+        "label": "Magnolia & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.483079",
+        "label": "Poplar & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.484440",
+        "label": "Ash & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.488190",
+        "label": "Willow & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.491706",
+        "label": "Spruce & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.494908",
+        "label": "Chestnut & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.496412",
+        "label": "Walnut & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.501470",
+        "label": "Birch & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.503084",
+        "label": "Cedar & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.506511",
+        "label": "Pine & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.570562,-121.515632",
+        "label": "Elm & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.571910,-121.479813",
+        "label": "Sycamore & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.571910,-121.508963",
+        "label": "Maple & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.571910,-121.512449",
+        "label": "Oak & 5th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.573257,-121.482298",
+        "label": "Poplar & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.573257,-121.489184",
+        "label": "Willow & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.573257,-121.494439",
+        "label": "Chestnut & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.573257,-121.499650",
+        "label": "Birch & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.573257,-121.503116",
+        "label": "Cedar & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.573257,-121.511622",
+        "label": "Oak & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.474358",
+        "label": "Laurel & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.475811",
+        "label": "Magnolia & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.479137",
+        "label": "Sycamore & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.486225",
+        "label": "Ash & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.491119",
+        "label": "Spruce & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.498126",
+        "label": "Walnut & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.507077",
+        "label": "Pine & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.508616",
+        "label": "Maple & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.574605,-121.515713",
+        "label": "Elm & 7th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.472344",
+        "label": "Laurel & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.475817",
+        "label": "Magnolia & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.478870",
+        "label": "Sycamore & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.482420",
+        "label": "Poplar & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.485778",
+        "label": "Ash & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.488132",
+        "label": "Willow & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.491520",
+        "label": "Spruce & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.495128",
+        "label": "Chestnut & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.498026",
+        "label": "Walnut & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.499689",
+        "label": "Birch & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.502945",
+        "label": "Cedar & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.506597",
+        "label": "Pine & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.510002",
+        "label": "Maple & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.511762",
+        "label": "Oak & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.577300,-121.515808",
+        "label": "Elm & 9th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.473915",
+        "label": "Laurel & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.475929",
+        "label": "Magnolia & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.478856",
+        "label": "Sycamore & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.482865",
+        "label": "Poplar & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.485757",
+        "label": "Ash & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.487809",
+        "label": "Willow & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.491290",
+        "label": "Spruce & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.494826",
+        "label": "Chestnut & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.497929",
+        "label": "Walnut & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.501226",
+        "label": "Birch & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.503271",
+        "label": "Cedar & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.506270",
+        "label": "Pine & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.510356",
+        "label": "Maple & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.511743",
+        "label": "Oak & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.579995,-121.515161",
+        "label": "Elm & 11th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.473801",
+        "label": "Laurel & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.475579",
+        "label": "Magnolia & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.478931",
+        "label": "Sycamore & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.485716",
+        "label": "Ash & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.489015",
+        "label": "Willow & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.491214",
+        "label": "Spruce & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.494181",
+        "label": "Chestnut & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.497803",
+        "label": "Walnut & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.501102",
+        "label": "Birch & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.502886",
+        "label": "Cedar & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.506368",
+        "label": "Pine & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.511815",
+        "label": "Oak & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.582690,-121.514849",
+        "label": "Elm & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.584037,-121.482971",
+        "label": "Poplar & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.584037,-121.508814",
+        "label": "Maple & 13th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.585384,-121.473394",
+        "label": "Laurel & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.585384,-121.485527",
+        "label": "Ash & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.585384,-121.490726",
+        "label": "Spruce & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.585384,-121.497577",
+        "label": "Walnut & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.585384,-121.499384",
+        "label": "Birch & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.585384,-121.502775",
+        "label": "Cedar & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.585384,-121.506303",
+        "label": "Pine & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.586732,-121.475873",
+        "label": "Magnolia & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.586732,-121.479329",
+        "label": "Sycamore & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.586732,-121.482411",
+        "label": "Poplar & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.586732,-121.487664",
+        "label": "Willow & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.586732,-121.494408",
+        "label": "Chestnut & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.586732,-121.508573",
+        "label": "Maple & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.586732,-121.511919",
+        "label": "Oak & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.586732,-121.515165",
+        "label": "Elm & 15th",
+        "nodes": 1,
+        "calibrated_nodes": 1,
+        "raw_nodes": 0,
+        "confirmed": true
+      },
+      {
+        "cell_id": "38.589427,-121.474142",
+        "label": "Laurel & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.476774",
+        "label": "Magnolia & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.479052",
+        "label": "Sycamore & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.482762",
+        "label": "Poplar & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.485277",
+        "label": "Ash & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.487593",
+        "label": "Willow & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.490851",
+        "label": "Spruce & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.493963",
+        "label": "Chestnut & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.497620",
+        "label": "Walnut & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.501320",
+        "label": "Birch & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.503443",
+        "label": "Cedar & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.506735",
+        "label": "Pine & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.509916",
+        "label": "Maple & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.513003",
+        "label": "Oak & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.589427,-121.514832",
+        "label": "Elm & 17th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.473151",
+        "label": "Laurel & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.476826",
+        "label": "Magnolia & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.478898",
+        "label": "Sycamore & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.482495",
+        "label": "Poplar & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.486126",
+        "label": "Ash & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.489046",
+        "label": "Willow & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.491284",
+        "label": "Spruce & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.494630",
+        "label": "Chestnut & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.497816",
+        "label": "Walnut & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.500843",
+        "label": "Birch & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.504368",
+        "label": "Cedar & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.505883",
+        "label": "Pine & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.509605",
+        "label": "Maple & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.513320",
+        "label": "Oak & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.592122,-121.514848",
+        "label": "Elm & 19th",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.473493",
+        "label": "Laurel & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.477271",
+        "label": "Magnolia & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.478899",
+        "label": "Sycamore & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.482581",
+        "label": "Poplar & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.485709",
+        "label": "Ash & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.488546",
+        "label": "Willow & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.492087",
+        "label": "Spruce & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.494170",
+        "label": "Chestnut & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.497686",
+        "label": "Walnut & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.500729",
+        "label": "Birch & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.503256",
+        "label": "Cedar & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.506277",
+        "label": "Pine & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.509825",
+        "label": "Maple & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.511666",
+        "label": "Oak & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      },
+      {
+        "cell_id": "38.594817,-121.514701",
+        "label": "Elm & 21st",
+        "nodes": 1,
+        "calibrated_nodes": 0,
+        "raw_nodes": 1,
+        "confirmed": false
+      }
+    ],
+    "note": "Descriptive coverage of calibration, not a ranking of neighborhoods. Whether a coverage gap correlates with frontline blocks (audit B4) needs external context swelter does not hold and is a governance decision."
+  }
 }
