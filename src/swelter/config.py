@@ -105,6 +105,9 @@ class NetworkConfig:
     nodes: tuple[NodeConfig, ...] = ()
     reference_monitors: tuple[ReferenceMonitor, ...] = ()
     calibration_windows: tuple[CalibrationWindow, ...] = field(default_factory=tuple)
+    #: Per-network danger floors for the alerts feed (keys: ``pm25_aqi``, ``heat_index_c``,
+    #: ``exposure``). Empty means "use the documented public-health defaults" (see ``alerts.py``).
+    alert_thresholds: dict[str, float] = field(default_factory=dict)
 
     def node(self, node_id: str) -> NodeConfig | None:
         return next((n for n in self.nodes if n.node_id == node_id), None)
@@ -178,6 +181,9 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         for w in doc.get("calibration_windows", []) or []
     )
     languages = tuple(str(lang) for lang in doc.get("languages", ["en"]) or ["en"])
+    thresholds = {
+        str(k): float(v) for k, v in (doc.get("alert_thresholds") or {}).items() if v is not None
+    }
     return NetworkConfig(
         name=_as_str(doc.get("name"), "swelter network"),
         grid_resolution_m=float(doc.get("grid_resolution_m", DEFAULT_GRID_M)),
@@ -185,6 +191,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         nodes=nodes,
         reference_monitors=monitors,
         calibration_windows=windows,
+        alert_thresholds=thresholds,
     )
 
 

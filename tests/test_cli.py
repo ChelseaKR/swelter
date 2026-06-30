@@ -63,6 +63,70 @@ def test_demo_pipeline_calibrates_and_aggregates(tmp_path: Path) -> None:
     assert (store_dir / "aggregate.geojson").is_file()
 
 
+def test_demo_bakes_alerts_and_cooling_into_web(tmp_path: Path) -> None:
+    import json
+
+    web = tmp_path / "web"
+    web.mkdir()
+    rc = main(
+        [
+            "demo",
+            "--data",
+            str(ROOT / "data" / "demo"),
+            "--store",
+            str(tmp_path / "store"),
+            "--config",
+            str(ROOT / "network.yaml"),
+            "--web",
+            str(web),
+            "--cooling-centers",
+            str(ROOT / "data" / "cooling_centers.geojson"),
+        ]
+    )
+    assert rc == 0
+    feed = json.loads((web / "alerts.json").read_text(encoding="utf-8"))
+    assert "alerts" in feed and "thresholds" in feed
+    assert feed["generated"]  # a data-derived timestamp, even on a calm week
+    assert (web / "alerts.xml").read_text(encoding="utf-8").startswith("<?xml")
+    cooling = json.loads((web / "cooling-centers.geojson").read_text(encoding="utf-8"))
+    assert cooling["type"] == "FeatureCollection"
+    assert len(cooling["features"]) >= 1
+
+
+def test_alerts_command_emits_atom(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    store_dir = tmp_path / "store"
+    main(
+        [
+            "demo",
+            "--data",
+            str(ROOT / "data" / "demo"),
+            "--store",
+            str(store_dir),
+            "--config",
+            str(ROOT / "network.yaml"),
+            "--web",
+            str(tmp_path / "web"),
+            "--cooling-centers",
+            str(ROOT / "data" / "cooling_centers.geojson"),
+        ]
+    )
+    capsys.readouterr()  # drop the demo's output
+    rc = main(
+        [
+            "alerts",
+            "--store",
+            str(store_dir),
+            "--config",
+            str(ROOT / "network.yaml"),
+            "--format",
+            "atom",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert out.startswith("<?xml") and "<feed" in out
+
+
 def test_ingest_then_export_csv(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     payloads = tmp_path / "in.jsonl"
     payloads.write_text(

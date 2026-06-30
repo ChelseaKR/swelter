@@ -17,3 +17,5 @@ later ADR supersedes an earlier one.
 | [0007](0007-ogc-sensorthings-export.md) | Expose a read-only OGC SensorThings 1.1 subset for interoperability | accepted |
 | [0008](0008-market-position-trust-layer.md) | Position swelter as the open trust layer for neighborhood heat-and-air, and hold claim discipline | accepted |
 | [0009](0009-compound-heat-air-exposure-surface.md) | Add a compound heat-and-air exposure surface as the flagship differentiating feature | accepted |
+| [0010](0010-neighborhood-alerts-feed.md) | Deliver neighborhood heat/AQI alerts as a generated public feed, not a subscriber list | accepted |
+| [0011](0011-cooling-center-overlay.md) | Add a curated, provenance-bearing cooling-center overlay with accessible list parity | accepted |

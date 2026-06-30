@@ -1,0 +1,13 @@
+{
+  "network": "swelter demo network (downtown)",
+  "generated": "2026-06-08T00:00:00Z",
+  "self": "/api/alerts.json",
+  "thresholds": {
+    "pm25_aqi": 101.0,
+    "heat_index_c": 39.4,
+    "exposure": 3.0
+  },
+  "count": 0,
+  "alerts": [],
+  "note": "Public, aggregate environmental alerts \u2014 no account, no PII. Subscribe via the Atom feed at /api/alerts.xml in any reader; live servers accept ?area=<area_id>."
+}

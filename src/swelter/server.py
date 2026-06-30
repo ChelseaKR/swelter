@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import aggregate, api, export, qc
+from . import aggregate, alerts, api, cooling_centers, export, qc
 from .config import NetworkConfig
 from .models import RAW
 from .store import Store
@@ -32,6 +32,7 @@ class ServerContext:
     config: NetworkConfig
     web_dir: Path
     base_url: str = "http://localhost:8000"
+    cooling_centers_path: Path | None = None  # curated cooling-center dataset (optional overlay)
 
 
 def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
@@ -67,6 +68,12 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
                     self._surface_records(query)
                 elif path == "/api/health.json":
                     self._health()
+                elif path == "/api/alerts.json":
+                    self._alerts(query, fmt="json")
+                elif path == "/api/alerts.xml":
+                    self._alerts(query, fmt="atom")
+                elif path == "/api/cooling-centers.geojson":
+                    self._cooling_centers()
                 elif path == "/export.csv":
                     self._export(query, fmt="csv")
                 elif path == "/export.json":
@@ -138,6 +145,34 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             keep = set(buckets)
             records = [c.as_record() for c in surface.cells if c.bucket in keep]
             self._json({"interval": surface.interval, "buckets": buckets, "cells": records})
+
+        def _alerts(self, query: dict[str, list[str]], *, fmt: str) -> None:
+            # The generated neighborhood-alerts feed: cells crossing a danger threshold in the
+            # latest hour. `?area=<area_id>` narrows it to one cell (the per-neighborhood feed).
+            surface = aggregate.aggregate(ctx.store.all(), ctx.config)
+            feed = alerts.build_feed(
+                surface,
+                network=ctx.config.name,
+                base_url=ctx.base_url,
+                thresholds=ctx.config.alert_thresholds or None,
+            )
+            area = _one(query, "area")
+            if area:
+                feed = feed.for_area(area)
+            if fmt == "atom":
+                self._body(feed.to_atom().encode("utf-8"), "application/atom+xml; charset=utf-8")
+            else:
+                self._json(feed.to_json())
+
+        def _cooling_centers(self) -> None:
+            # The curated cooling-center overlay. Served validated; an absent/empty dataset
+            # returns a valid empty FeatureCollection so the dashboard can simply hide it.
+            path = ctx.cooling_centers_path
+            if path is not None and path.is_file():
+                dataset = cooling_centers.load(path)
+            else:
+                dataset = cooling_centers.empty()
+            self._json(dataset.to_geojson(), content_type="application/geo+json")
 
         def _health(self) -> None:
             # Per-node liveness/quality from the raw stream — the "how many sensors are reporting"

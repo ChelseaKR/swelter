@@ -74,6 +74,15 @@ def test_parse_config_reads_nodes_and_languages() -> None:
     assert cfg.node("missing") is None
 
 
+def test_parse_config_reads_alert_thresholds() -> None:
+    cfg = parse_config({"alert_thresholds": {"pm25_aqi": 151, "heat_index_c": 41.0}})
+    assert cfg.alert_thresholds == {"pm25_aqi": 151.0, "heat_index_c": 41.0}
+
+
+def test_alert_thresholds_default_empty() -> None:
+    assert parse_config({"name": "x"}).alert_thresholds == {}
+
+
 def test_load_demo_network_yaml() -> None:
     cfg = load_config(ROOT / "network.yaml")
     assert len(cfg.nodes) >= 18  # a real demo network, count not hardcoded

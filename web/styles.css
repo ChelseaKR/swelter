@@ -739,6 +739,125 @@ td .tag {
   font-size: 0.85rem;
 }
 
+/* Neighborhood alerts: the generated, subscribable feed (distinct from the personal watch banner). */
+.area-alerts {
+  margin: 0.5rem 0 1rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.6rem;
+}
+
+.area-alerts h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.aa-intro,
+.aa-note {
+  margin: 0.3rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.aa-pick {
+  margin: 0.5rem 0;
+}
+
+.aa-list {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+
+.aa-item {
+  margin: 0.4rem 0;
+}
+
+/* Status is text-first, never color-only: provisional alerts get a dashed marker AND say so. */
+.aa-item.provisional {
+  list-style-type: "▢ ";
+}
+
+.aa-text {
+  font-weight: 600;
+}
+
+.aa-prov {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.aa-go {
+  margin-left: 0.4rem;
+}
+
+.aa-copy-status {
+  margin: 0.3rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Cooling-center overlay: the accessible parity list and its provenance line. */
+.cooling {
+  margin: 0.75rem 0;
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.cooling h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.cooling-intro {
+  margin: 0.3rem 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.cooling-list {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+
+.cool-item {
+  margin: 0.45rem 0;
+}
+
+.cool-meta {
+  color: var(--muted);
+}
+
+.cool-note {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.cooling-source {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* The map overlay glyph for a cooling center — a distinct shape (not color) layered over the dots. */
+.cool-center {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, 50%) scale(calc(1 / var(--k, 1)));
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #0b5cad;
+  text-shadow:
+    0 0 2px #fff,
+    0 0 2px #fff,
+    0 0 3px #fff;
+  pointer-events: none;
+}
+
 /* The per-location alert-threshold control in the detail panel. */
 .watch {
   margin: 0.75rem 0;

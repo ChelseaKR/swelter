@@ -51,8 +51,11 @@ jobs:
           find web -maxdepth 1 -type f -exec cp {} web/sensors/ \;
           cp -r web/i18n web/sensors/i18n
           rm -f web/sensors/basemap.geojson  # Stuttgart is not California — keep its map schematic
+          rm -f web/sensors/cooling-centers.geojson  # the sample centers are Sacramento, not Stuttgart
+          # --cooling-centers points at a path that doesn't exist so the sensors page won't re-bake them.
           uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
-            --web web/sensors || cp web/sample-surface.json web/sensors/sample-surface.json
+            --web web/sensors --cooling-centers /dev/null/none \
+            || cp web/sample-surface.json web/sensors/sample-surface.json
           cp DATA-LICENSE web/sensors/DATA-LICENSE
           uv run swelter export --store /tmp/sc --format csv > web/sensors/export.csv \
             || cp web/export.csv web/sensors/export.csv

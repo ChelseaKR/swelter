@@ -127,6 +127,31 @@ def test_surface_geojson(base_url: str) -> None:
     assert payload["type"] == "FeatureCollection"
 
 
+def test_alerts_json_endpoint(base_url: str) -> None:
+    status, body = _get(f"{base_url}/api/alerts.json")
+    payload: Any = json.loads(body)
+    assert status == 200
+    assert "alerts" in payload and "thresholds" in payload and "generated" in payload
+
+
+def test_alerts_atom_endpoint(base_url: str) -> None:
+    import xml.etree.ElementTree as ET
+
+    status, body = _get(f"{base_url}/api/alerts.xml")
+    assert status == 200
+    root = ET.fromstring(body)  # a malformed feed would raise here
+    assert root.tag.endswith("feed")
+
+
+def test_cooling_centers_endpoint_empty_when_unconfigured(base_url: str) -> None:
+    # The fixture builds a context with no cooling-center path, so the overlay is a valid empty set.
+    status, body = _get(f"{base_url}/api/cooling-centers.geojson")
+    payload: Any = json.loads(body)
+    assert status == 200
+    assert payload["type"] == "FeatureCollection"
+    assert payload["features"] == []
+
+
 def test_writes_are_refused(base_url: str) -> None:
     request = urllib.request.Request(f"{base_url}/v1.1/Observations", method="POST", data=b"{}")
     try:

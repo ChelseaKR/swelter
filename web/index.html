@@ -117,6 +117,28 @@
         </p>
       </section>
 
+      <section id="area-alerts" class="area-alerts" aria-labelledby="area-alerts-heading" hidden>
+        <h2 id="area-alerts-heading" data-i18n="aa-heading">Neighborhood alerts</h2>
+        <p class="aa-intro" data-i18n="aa-intro">
+          Areas where heat or air quality has crossed a public-health danger threshold this hour.
+          Aggregate environmental data — no account, no tracking.
+        </p>
+        <div class="control aa-pick">
+          <label for="area-select" data-i18n="aa-pick">Show alerts for</label>
+          <select id="area-select"></select>
+        </div>
+        <p id="area-alerts-status" class="aa-status" role="status" aria-live="polite"></p>
+        <ul id="area-alerts-list" class="aa-list"></ul>
+        <p class="aa-subscribe">
+          <button id="aa-copy-feed" type="button" data-i18n="aa-copy">Copy this area's alert-feed link</button>
+        </p>
+        <p id="aa-copy-status" class="aa-copy-status" role="status" aria-live="polite"></p>
+        <p class="aa-note" data-i18n="aa-note">
+          Subscribe by adding the alert feed to any RSS/Atom reader, or point an automation at it.
+          The feed is public and carries no personal data; thresholds follow US-EPA and US-NWS bands.
+        </p>
+      </section>
+
       <section id="overview" class="overview" aria-labelledby="overview-heading" hidden>
         <h2 id="overview-heading" data-i18n="overview-heading">Right now across the network</h2>
         <p id="overview-counts"></p>
@@ -178,6 +200,22 @@
             <button id="map-reset" type="button" data-i18n-attr="aria-label:map-reset-label" data-i18n="map-reset" aria-label="Reset map to fit">Reset</button>
           </div>
         </div>
+      </section>
+
+      <section id="cooling-centers" class="cooling" aria-labelledby="cooling-heading" hidden>
+        <h2 id="cooling-heading" data-i18n="cooling-heading">Cooling centers</h2>
+        <p class="cooling-intro" data-i18n="cooling-intro">
+          Public places to cool down — libraries, community and senior centers, and cooled public
+          buildings. The list below is the accessible equivalent of the map overlay; everything shown
+          on the map is here in text.
+        </p>
+        <p class="cooling-actions">
+          <button id="cooling-toggle" type="button" aria-pressed="false" data-i18n="cooling-show">
+            Show cooling centers on the map
+          </button>
+        </p>
+        <ul id="cooling-list" class="cooling-list"></ul>
+        <p id="cooling-source" class="cooling-source"></p>
       </section>
 
       <section id="detail" class="detail" aria-labelledby="detail-heading" hidden>

@@ -7,7 +7,21 @@ schema (see [`docs/VERSIONING.md`](docs/VERSIONING.md)).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Neighborhood heat/AQI alerts.** A generated, public alerts feed: `swelter.alerts` scans the
+  latest hour of the surface and raises one alert per published cell that crosses a documented danger
+  floor (US-EPA AQI 101, US-NWS heat "Danger", or exposure "High"; overridable via `alert_thresholds`
+  in `network.yaml`). Served at `/api/alerts.json` and as a subscribable **Atom 1.0** feed at
+  `/api/alerts.xml` (`?area=<id>` to narrow), baked into the static site, and exposed via a new
+  `swelter alerts` command. The dashboard adds a "Neighborhood alerts" panel with an area picker and a
+  copy-the-feed-link subscribe affordance. No account, no PII — the subscription lives in the reader's
+  own tooling ([ADR 0010](docs/decisions/0010-neighborhood-alerts-feed.md), [`docs/alerts.md`](docs/alerts.md)).
+- **Cooling-center overlay.** A curated, validated, provenance-bearing cooling-center dataset
+  (`data/cooling_centers.geojson`) served at `/api/cooling-centers.geojson`, with a toggleable map
+  overlay and an always-present accessible parity list on the dashboard. Loader enforces a public-field
+  allowlist so no private contact can reach the map
+  ([ADR 0011](docs/decisions/0011-cooling-center-overlay.md)).
 
 ## [0.1.0] — 2026-06-16
 
