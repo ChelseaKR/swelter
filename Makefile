@@ -50,8 +50,8 @@ lint:  ## Lint (ruff)
 typecheck:  ## Type-check (mypy, strict)
 	uv run mypy
 
-test:  ## Run the test suite
-	uv run pytest
+test:  ## Run the test suite with branch coverage, gated at the floor
+	uv run pytest --cov=swelter --cov-branch --cov-report=term-missing --cov-fail-under=90
 
 a11y:  ## Structural accessibility gate on the dashboard (WCAG 2.2 AA subset)
 	uv run python scripts/a11y_check.py

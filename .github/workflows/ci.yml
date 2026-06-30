@@ -42,8 +42,8 @@ jobs:
       - name: Accessibility gate (structural WCAG 2.2 AA subset)
         run: uv run python scripts/a11y_check.py
 
-      - name: Tests
-        run: uv run pytest -q
+      - name: Tests (branch coverage, gated)
+        run: uv run pytest -q --cov=swelter --cov-branch --cov-report=term-missing --cov-fail-under=90
 
   # Supply-chain checks. Separate job so a dependency or secret finding is
   # reported on its own, not tangled with the functional gate.
