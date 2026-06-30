@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from swelter import qc
 from swelter.models import Observation
 
@@ -36,6 +38,29 @@ def test_spike_is_isolated_departure() -> None:
 def test_flatline_detects_stuck_sensor() -> None:
     flagged = qc.apply(_series([41.0] * 6, parameter="humidity_pct", unit="%"))
     assert all(o.qc == "flatline" for o in flagged)
+
+
+def test_health_report_summarizes_status_and_gaps() -> None:
+    live = [
+        make_obs(node_id="node-01", timestamp=f"2026-06-01T{h:02d}:00:00Z", value=25.0)
+        for h in (10, 11, 12)  # hourly, complete, recent → ok
+    ]
+    # node-07 reports, goes silent for 12 hours, then resumes — an internal gap and a sparse record.
+    gappy = [
+        make_obs(node_id="node-07", timestamp="2026-06-01T00:00:00Z", value=24.0),
+        make_obs(node_id="node-07", timestamp="2026-06-01T12:00:00Z", value=24.0),
+    ]
+    report: Any = qc.health_report([*live, *gappy], expected_interval_s=3600.0)
+    assert report["summary"]["total"] == 2
+    assert report["summary"]["degraded"] == 1  # node-07 backfilled sparsely → degraded
+    assert any(g["node_id"] == "node-07" for g in report["gaps"])
+    assert {n["node_id"] for n in report["nodes"]} == {"node-01", "node-07"}
+
+
+def test_health_report_handles_empty() -> None:
+    report: Any = qc.health_report([])
+    assert report["summary"] == {"total": 0, "ok": 0, "degraded": 0, "offline": 0}
+    assert report["nodes"] == []
 
 
 def test_gentle_drift_is_not_flagged() -> None:

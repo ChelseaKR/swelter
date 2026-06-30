@@ -1,7 +1,7 @@
 /* swelter dashboard — framework-free, mobile-first, WCAG 2.2 AA.
    Severity is carried by text and pattern, not color alone; focus is always visible;
    motion respects prefers-reduced-motion. Colors are AA-contrast on their surfaces, but are
-   never the only signal. Provisional (uncalibrated) blocks are rendered neutrally so an
+   never the only signal. Provisional (uncalibrated) locations are rendered neutrally so an
    unconfirmed reading never "wears" a confirmed air-quality category. */
 
 :root {
@@ -35,8 +35,47 @@
   }
 }
 
+/* High-contrast theme (R6), opt-in via the Display control. Pushes text/UI to maximum contrast on a
+   pure background and darkens borders/focus; it works in both light and dark schemes. Severity is
+   carried by text and pattern (not these tokens), so the map's category cues stay legible. */
+:root[data-contrast="high"] {
+  --bg: #ffffff;
+  --fg: #000000;
+  --muted: #1c1c1c;
+  --surface: #ffffff;
+  --border: #000000;
+  --accent: #6a1410;
+  --accent-fg: #ffffff;
+  --focus: #0a33cc;
+  --provisional: #1c1c1c;
+  --map-land: #f2f2f2;
+  --map-line: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-contrast="high"] {
+    --bg: #000000;
+    --fg: #ffffff;
+    --muted: #ededed;
+    --surface: #000000;
+    --border: #ffffff;
+    --accent: #ffc4ba;
+    --accent-fg: #000000;
+    --focus: #a9c4ff;
+    --provisional: #ededed;
+    --map-land: #0a0a0a;
+    --map-line: #ffffff;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* In-page text-size control (R6). The whole UI is rem-based, so scaling the root font scales every
+   view proportionally. Default is 1; the control steps it up for readers who need larger type. */
+html {
+  font-size: calc(100% * var(--text-scale, 1));
 }
 
 body {
@@ -153,6 +192,34 @@ h1 {
   flex-direction: column;
   gap: 0.2rem;
   font-size: 0.85rem;
+}
+
+.display {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.display button {
+  font: inherit;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.display button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 700;
+}
+
+.display button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .data-source {
@@ -427,7 +494,7 @@ input[type="range"][aria-disabled="true"] {
   font-weight: 700;
 }
 
-/* Provisional blocks read NEUTRAL — never wearing a confirmed category color. */
+/* Provisional locations read NEUTRAL — never wearing a confirmed category color. */
 .cell.provisional {
   border-style: dashed;
   background: repeating-linear-gradient(45deg, #e7ddd2 0 4px, #d9cdbf 4px 8px);
@@ -473,6 +540,27 @@ input[type="range"][aria-disabled="true"] {
 .aqi-hazardous {
   background-color: #c79a9a;
   background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.5) 0 2px, transparent 2px 4px);
+}
+
+/* Heat map scale (cool → hot). The marker's number is the primary signal; colour + pattern are a
+   redundant cue so the heat island is legible without relying on colour alone. */
+.heat-1 { background-color: #dbe9f2; background-image: none; }
+.heat-2 {
+  background-color: #e6edcb;
+  background-image: radial-gradient(circle, rgba(0,0,0,0.3) 1px, transparent 1.2px);
+  background-size: 6px 6px;
+}
+.heat-3 {
+  background-color: #f4e3b0;
+  background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.28) 0 2px, transparent 2px 6px);
+}
+.heat-4 {
+  background-color: #f2c197;
+  background-image: repeating-linear-gradient(-45deg, rgba(0,0,0,0.32) 0 2px, transparent 2px 5px);
+}
+.heat-5 {
+  background-color: #e89887;
+  background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.4) 0 2px, transparent 2px 5px);
 }
 
 .swatch {
@@ -564,8 +652,213 @@ td .tag {
   border-radius: 0.6rem;
 }
 
+.overview {
+  margin: 0.5rem 0 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.overview h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.overview p {
+  margin: 0.2rem 0;
+}
+
+.overview-fresh {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* Offline notice — the accent border is decorative; the message itself states the situation. */
+.offline {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+}
+
+/* Per-node health detail — which sensors a host should go check. */
+.health-detail {
+  margin: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.health-detail summary {
+  cursor: pointer;
+}
+
+.health-list {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.health-list li {
+  margin: 0.15rem 0;
+}
+
+/* Personal alerts banner. The accent border is decorative only — every alert states its severity in
+   words (the reading and the level the reader set), never by color (the map/legend rule applies). */
+.alerts {
+  margin: 0.5rem 0 1rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.6rem;
+}
+
+.alerts h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.alerts-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.alerts-list li {
+  margin: 0.3rem 0;
+}
+
+.alert-text {
+  font-weight: 600;
+}
+
+.alerts-note {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* The per-location alert-threshold control in the detail panel. */
+.watch {
+  margin: 0.75rem 0;
+}
+
+.watch-heading {
+  font-size: 1rem;
+  margin: 0 0 0.3rem;
+}
+
+.watch-intro {
+  margin: 0 0 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.watch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.watch-row label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.watch-threshold,
+.watch-number {
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.watch-number {
+  max-width: 8rem;
+}
+
+.watch-buttons {
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.watch-buttons button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+.watch-buttons button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.watch-status {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+button.linklike {
+  font: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+#time-play {
+  font: inherit;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+#time-play[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .detail h2 {
   margin-top: 0;
+}
+
+.spark {
+  display: block;
+  margin: 0.3rem 0;
+  color: var(--accent, #11489c);
+}
+
+.spark-svg {
+  display: block;
+  width: 8.5rem;
+  height: auto;
+  overflow: visible;
+}
+
+.context {
+  font-weight: 600;
+  margin: 0.35rem 0;
+}
+
+.trend {
+  margin: 0.35rem 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .guidance {
@@ -577,6 +870,124 @@ td .tag {
   font-size: 0.85rem;
 }
 
+/* "What to do now" action card. The neutral accent border is decorative only — severity is carried
+   by the action text, never by color (the map/legend rule applies here too). */
+.action-card {
+  margin: 0.7rem 0;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 0.4rem;
+  background: var(--surface);
+}
+
+.action-heading {
+  font-size: 1rem;
+  margin: 0 0 0.35rem;
+}
+
+.action-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.action-list li {
+  margin: 0.2rem 0;
+}
+
+.action-note {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.provenance {
+  font-size: 0.9rem;
+}
+
+/* Multi-day history: a per-location daily summary (high/low or worst category) under the sparkline. */
+.history {
+  margin: 0.6rem 0;
+}
+
+.history-heading {
+  font-size: 1rem;
+  margin: 0 0 0.3rem;
+}
+
+.history-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.95rem;
+}
+
+.history-list li {
+  margin: 0.15rem 0;
+}
+
+/* Equity compare: pick a second location and read the two side by side. */
+.compare {
+  margin: 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.compare label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.compare select {
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--fg);
+  max-width: 22rem;
+}
+
+.compare-result {
+  font-size: 0.95rem;
+}
+
+.compare-result div {
+  margin: 0.2rem 0;
+}
+
+.compare-result div:last-child {
+  font-weight: 600;
+  margin-top: 0.4rem;
+}
+
+.detail-actions {
+  margin: 0.6rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.download-cell {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
+.detail-actions button,
+.overview-actions button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+.overview-actions {
+  margin: 0.6rem 0 0;
+}
+
 .explain {
   margin: 0.75rem 0;
 }
@@ -584,6 +995,20 @@ td .tag {
 .explain summary {
   cursor: pointer;
   font-weight: 600;
+}
+
+.method-heading {
+  margin: 0.6rem 0 0.2rem;
+  font-weight: 600;
+}
+
+.method-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.method-list li {
+  margin: 0.2rem 0;
 }
 
 .trust {
@@ -633,6 +1058,68 @@ footer code {
   border-radius: 0.2rem;
 }
 
+.settings {
+  margin-top: 1rem;
+}
+
+.settings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.settings-intro,
+.settings-state {
+  margin: 0.4rem 0;
+}
+
+.settings-actions {
+  margin: 0.5rem 0 0;
+}
+
+.settings-actions button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+.settings-status {
+  margin: 0.4rem 0 0;
+}
+
+.shortcuts {
+  margin-top: 0.6rem;
+}
+
+.shortcuts summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.shortcuts-toggle-row {
+  margin: 0.4rem 0;
+}
+
+.shortcuts-list {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.shortcuts-list li {
+  margin: 0.15rem 0;
+}
+
+.shortcuts-list kbd {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 @media (max-width: 40rem) {
   header,
   main,
@@ -655,5 +1142,63 @@ footer code {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* Print as a community handout: ABOUT-THE-NETWORK.md tells networks to "copy this onto a flyer", so
+   printing drops the interactive chrome and keeps the title, the network overview, the readings
+   table, the AQI legend, and the data license — a self-describing, honest paper snapshot. */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  .skip-link,
+  .header-controls,
+  .source-switch,
+  .controls,
+  #viewtabs,
+  #panel-list,
+  #panel-map,
+  .map-controls,
+  .detail-actions,
+  .overview-actions,
+  .compare,
+  #watch,
+  #alerts,
+  #download-cell,
+  #time-play,
+  #place-search,
+  .provenance {
+    display: none !important;
+  }
+
+  /* The data table prints even if its tab wasn't the active view (it is always populated). */
+  #panel-table {
+    display: block !important;
+  }
+
+  body {
+    color: #000;
+    background: #fff;
+  }
+
+  .overview,
+  .detail,
+  .legend {
+    border: 1px solid #000;
+    break-inside: avoid;
+  }
+
+  tr,
+  .legend-items li {
+    break-inside: avoid;
+  }
+
+  /* AQI swatch patterns still carry severity on a black-and-white printer. */
+  .tag,
+  .swatch {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

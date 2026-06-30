@@ -20,9 +20,12 @@ jobs:
     name: build + sign
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
       - name: Set up uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5 # Reproducible build from the locked environment, into ./dist.
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+
+      # Reproducible build from the locked environment, into ./dist.
       - name: Build sdist + wheel
         run: |
           uv sync --locked
@@ -39,7 +42,7 @@ jobs:
       # SLSA-style build provenance, kept native to GitHub so no extra trust
       # root is introduced. Produces a signed attestation bound to ./dist.
       - name: Generate build provenance attestation
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018  # v1
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
         with:
           subject-path: "dist/*"
 
@@ -47,7 +50,8 @@ jobs:
       # id-token permission above), signs each artifact, and records it in the
       # public transparency log. No long-lived private key is stored.
       - name: Install cosign
-        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac  # v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
       - name: Sign artifacts (keyless)
         run: |
           for artifact in dist/*.tar.gz dist/*.whl; do
@@ -60,7 +64,7 @@ jobs:
       # Attach the wheel, sdist, checksums, and the cosign signature +
       # certificate for each to the Release for the pushed tag.
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
             dist/*.tar.gz

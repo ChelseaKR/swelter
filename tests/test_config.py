@@ -2,9 +2,34 @@
 
 from __future__ import annotations
 
-from swelter.config import NodeConfig, load_config, parse_config, snap_to_grid
+from swelter.config import (
+    NetworkConfig,
+    NodeConfig,
+    label_concerns,
+    load_config,
+    parse_config,
+    snap_to_grid,
+)
 
 from .conftest import ROOT
+
+
+def test_label_concerns_flags_address_like_labels() -> None:
+    config = NetworkConfig(
+        nodes=(
+            NodeConfig(node_id="node-01", label="Cedar & 4th"),  # place name — fine
+            NodeConfig(node_id="node-02", label="Oak Park Commons"),  # fine
+            NodeConfig(node_id="node-03", label="742 Evergreen Terrace"),  # street address
+            NodeConfig(node_id="node-04", label="Rosa's place, Apt 3B"),  # unit
+            NodeConfig(node_id="node-05", label="contact me@example.com"),  # email
+        )
+    )
+    flagged = {c.split(":")[0] for c in label_concerns(config)}
+    assert flagged == {"node-03", "node-04", "node-05"}  # the place names are not flagged
+
+
+def test_demo_network_has_no_label_concerns() -> None:
+    assert label_concerns(load_config(str(ROOT / "network.yaml"))) == []
 
 
 def test_snap_to_grid_coarsens_within_one_cell() -> None:

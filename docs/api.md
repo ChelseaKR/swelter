@@ -28,6 +28,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | `/v1.1/Observations` | Readings (filterable, paginated) |
 | `/api/surface.geojson` | Latest gridded heat/AQI surface as GeoJSON |
 | `/api/surface.json?hours=N` | Flat per-cell/hour/parameter records |
+| `/api/health.json` | Per-node liveness/quality summary (coverage) |
 | `/export.csv` | Flat CSV dump (filterable) |
 | `/export.json` | Flat JSON dump (filterable) |
 | `/LICENSE`, `/DATA-LICENSE`, `/NOTICE` | The repo-root license/notice files, as `text/plain` |
@@ -271,6 +272,15 @@ Gridded hourly rollups of the readings. A cell's mean is taken over **calibrated
 when any exist; a cell with only raw or flagged readings is still shown but marked `provisional`.
 PM2.5 cells carry their US-EPA AQI value and category.
 
+A derived **`exposure`** layer combines the heat index and the PM2.5 AQI into one level per cell and
+hour (ADR 0009). It appears only where a cell has both a heat-index and a PM2.5 reading for that
+hour, is `provisional` whenever either component is, and never blends the two into a fabricated
+number — its `mean` is the ordinal level `0`–`4` (`category` is the matching name `Minimal`, `Low`,
+`Elevated`, `High`, `Extreme`), taken as the **higher** of the heat and air concern. It adds
+`heat_category` (the NWS heat-index tier), `air_category` (the PM2.5 AQI category), and a `compound`
+flag (true when heat *and* air are each at least the mid tier). It is decision-support, not a
+validated health index, and never a claim that conditions are safe.
+
 ### `GET /api/surface.geojson`
 
 The latest snapshot: one GeoJSON point feature per published grid cell, its properties carrying each
@@ -280,7 +290,11 @@ parameter's most recent hourly value. Served as `Content-Type: application/geo+j
 Each feature carries the cell's host-assigned `label`, a top-level `provisional` flag (true if *any*
 parameter in the cell is provisional), and, per parameter, the value plus a `{param}_provisional`
 flag and — when the value is calibrated — a `{param}_uncertainty` (mean 1-sigma in the parameter's
-unit). PM2.5 cells add `pm25_aqi`, `aqi_category`, and `aqi_window` (always `"hourly-mean"`).
+unit), a `{param}_method` (the calibration method), and a `{param}_reference` (the monitor it was
+fitted against). PM2.5 cells add `pm25_aqi`, `aqi_category`, and `aqi_window` (always
+`"hourly-mean"`). A cell
+with both a heat-index and a PM2.5 value adds the derived `exposure` level plus `exposure_level`,
+`exposure_category`, `exposure_heat`, `exposure_air`, and `compound`.
 
 ```json
 {
@@ -329,9 +343,35 @@ payload small. This is what the dashboard's time slider reads.
 | `hours` | Number of most-recent hourly buckets to include | `48` |
 
 Each record carries the cell's `label`, the rolled-up `mean`, the count `n`, a `provisional` flag,
-and the mean 1-sigma `uncertainty` (null when the cell is provisional). PM2.5 records also carry
+and the mean 1-sigma `uncertainty` (null when the cell is provisional). A confirmed record also
+carries `method` (the calibration method, e.g. `epa-humidity`) and `reference` (the monitor it was
+fitted against); both are omitted on provisional records — the "show your work" provenance the
+dashboard surfaces per location. Every record also carries `nodes`, the published node id(s) in the
+cell, so a reader can pull the raw readings behind it (e.g. `GET /export.csv?node=<id>`). PM2.5
+records also carry
 `aqi`, `category`, and `aqi_window` (`"hourly-mean"`); `aqi`/`category`/`aqi_window` are absent or
-null for other parameters.
+null for other parameters. `exposure` records set `category` to the level name and add
+`heat_category`, `air_category`, and `compound` (see Surface endpoints, above):
+
+```json
+{
+  "cell_id": "38.567867,-121.515433",
+  "label": "Elm & 3rd",
+  "lat": 38.567867,
+  "lon": -121.515433,
+  "parameter": "exposure",
+  "bucket": "2026-06-07T23:00:00Z",
+  "mean": 2.0,
+  "n": 1,
+  "provisional": false,
+  "uncertainty": null,
+  "aqi": null,
+  "category": "Elevated",
+  "heat_category": "Extreme Caution",
+  "air_category": "Unhealthy for Sensitive Groups",
+  "compound": true
+}
+```
 
 ```json
 {
@@ -372,6 +412,46 @@ null for other parameters.
 ```
 
 `aqi`, `category`, and `aqi_window` are non-null / present only for `pm25_ugm3` records.
+
+### `GET /api/health.json`
+
+The network's sensor health, from the same QC the pipeline runs on the raw stream — what the
+dashboard's coverage panel and `swelter qc` both read. `summary` counts nodes by status; each node
+carries its status (`ok` / `degraded` / `offline`), observation count, completeness, flagged
+fraction, liveness, and last-seen time; `gaps` lists the longest reporting gaps. Computed over raw
+readings with an hourly expected interval.
+
+```json
+{
+  "interval_s": 3600.0,
+  "latest": "2026-06-08T00:00:00Z",
+  "summary": {"total": 150, "ok": 149, "degraded": 1, "offline": 0},
+  "nodes": [
+    {
+      "node_id": "node-07",
+      "status": "degraded",
+      "observations": 600,
+      "completeness": 0.86,
+      "flagged_fraction": 0.0,
+      "online": true,
+      "last_seen": "2026-06-08T00:00:00Z"
+    }
+  ],
+  "gaps": [
+    {
+      "node_id": "node-07",
+      "parameter": "heat_index_c",
+      "start": "2026-06-03T23:00:00Z",
+      "end": "2026-06-06T00:00:00Z",
+      "minutes": 2940
+    }
+  ]
+}
+```
+
+A node reads `degraded` when its completeness drops below 95% or it flags more than 10% of readings,
+and `offline` when it has been silent past three reporting intervals. The dashboard also ships a
+baked `sample-health.json` so the static (server-less) deployment shows coverage too.
 
 ## Export endpoints
 
@@ -547,7 +627,7 @@ correction is fit. Treat it as indicative, not calibrated. Valid range −40 to 
 
 ---
 
-Last verified: 2026-06-17. Recheck cadence: review when the API surface, the export shape, or the
+Last verified: 2026-06-19. Recheck cadence: review when the API surface, the export shape, or the
 `PARAMETERS` registry change, and at least annually (the AQI applies US-EPA 2024 PM2.5 breakpoints
 to the cell's hourly mean — `aqi_window: "hourly-mean"`, not the official 24-hour AQI; recheck on
 each EPA revision).

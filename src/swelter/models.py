@@ -190,3 +190,62 @@ def heat_index_c(temp_c: float, humidity_pct: float) -> float:
         - 0.00000199 * t * t * r * r
     )
     return round((hi - 32) * 5 / 9, 2)
+
+
+# NWS heat-index categories. The thresholds are the NWS band floors in °C, converted from the
+# published °F values: 80 °F (Caution), 90 °F (Extreme Caution), 103 °F (Danger), 125 °F
+# (Extreme Danger). Below the first floor there is no elevated heat risk.
+_HEAT_BANDS: Final[tuple[tuple[float, str], ...]] = (
+    (26.7, "Caution"),
+    (32.2, "Extreme Caution"),
+    (39.4, "Danger"),
+    (51.1, "Extreme Danger"),
+)
+
+#: PM2.5 AQI category → a 0–4 air concern level, matched to the heat scale so the two hazards sit
+#: on one ordinal. "Very Unhealthy" and "Hazardous" both top out at 4 (the scale's ceiling).
+_AIR_CONCERN: Final[dict[str, int]] = {
+    "Good": 0,
+    "Moderate": 1,
+    "Unhealthy for Sensitive Groups": 2,
+    "Unhealthy": 3,
+    "Very Unhealthy": 4,
+    "Hazardous": 4,
+}
+
+#: The five combined heat-and-air exposure levels, indexed by the 0–4 ordinal.
+EXPOSURE_LEVELS: Final[tuple[str, ...]] = ("Minimal", "Low", "Elevated", "High", "Extreme")
+
+
+def heat_index_category(heat_index_c: float) -> tuple[int, str]:
+    """NWS heat-index category as a 0–4 concern level and its name.
+
+    0 is ``"None"`` (below the 26.7 °C / 80 °F Caution floor); 1–4 are Caution, Extreme Caution,
+    Danger, Extreme Danger. NaN is rejected so a missing reading cannot pose as a measurement.
+    """
+    if math.isnan(heat_index_c):
+        raise ValueError("heat index is NaN")
+    level = 0
+    name = "None"
+    for floor, label in _HEAT_BANDS:
+        if heat_index_c >= floor:
+            level += 1
+            name = label
+    return level, name
+
+
+def exposure_level(heat_index_c: float, aqi_category: str) -> tuple[int, str, bool]:
+    """Combine a heat-index value and a PM2.5 AQI category into one exposure level.
+
+    Returns ``(level, name, compound)``: ``level`` is the 0–4 ordinal, ``name`` the matching
+    :data:`EXPOSURE_LEVELS` entry. The level is the **higher** of the heat and air concern — the
+    two hazards are placed on one ordinal, never blended into a fabricated number — and
+    ``compound`` is true when heat *and* air are each at least the mid (level-2) tier, the joint
+    case the evidence flags as worse than either hazard alone. This is decision-support, not a
+    validated health index (see ADR 0009).
+    """
+    heat = heat_index_category(heat_index_c)[0]
+    air = _AIR_CONCERN.get(aqi_category, 0)
+    level = max(heat, air)
+    compound = heat >= 2 and air >= 2
+    return level, EXPOSURE_LEVELS[level], compound

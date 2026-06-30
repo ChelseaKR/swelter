@@ -17,14 +17,12 @@ Attribution: "Readings from the Sensor.Community network (https://sensor.communi
 from __future__ import annotations
 
 import contextlib
-import json
 import math
-import time
-import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
 from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+from ._http import get_json
 
 AREA_URL = "https://data.sensor.community/airrohr/v1/filter/area="
 ATTRIBUTION = (
@@ -61,18 +59,11 @@ STUTTGART = Area("Stuttgart", 48.7758, 9.1829, 30.0)
 
 
 def _get_json(url: str, *, timeout: float = 30.0, retries: int = 4) -> Any:
-    """GET + parse JSON, retrying transient network failures with exponential backoff."""
-    last: Exception | None = None
-    for attempt in range(retries):
-        try:
-            with urllib.request.urlopen(url, timeout=timeout) as response:  # noqa: S310 (fixed host)
-                return json.loads(response.read().decode("utf-8"))
-        except (OSError, ValueError) as exc:
-            last = exc
-            if attempt < retries - 1:
-                time.sleep(min(8.0, 2.0**attempt))
-    assert last is not None
-    raise last
+    """GET + parse JSON via the shared resilient fetch (timeouts, backoff, HTTP 429/5xx, bad JSON).
+
+    Raises :class:`swelter.sources._http.SourceError` on exhaustion. See
+    :mod:`swelter.sources._http`."""
+    return get_json(url, timeout=timeout, retries=retries)
 
 
 def _emit(

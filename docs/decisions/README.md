@@ -15,3 +15,5 @@ later ADR supersedes an earlier one.
 | [0005](0005-read-only-stdlib-server.md) | Serve over a single-threaded, GET-only stdlib HTTP server | accepted |
 | [0006](0006-apache-code-cc0-data.md) | License the code Apache-2.0 and the observations CC0-1.0 | accepted |
 | [0007](0007-ogc-sensorthings-export.md) | Expose a read-only OGC SensorThings 1.1 subset for interoperability | accepted |
+| [0008](0008-market-position-trust-layer.md) | Position swelter as the open trust layer for neighborhood heat-and-air, and hold claim discipline | accepted |
+| [0009](0009-compound-heat-air-exposure-surface.md) | Add a compound heat-and-air exposure surface as the flagship differentiating feature | accepted |

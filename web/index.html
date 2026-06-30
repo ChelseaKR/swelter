@@ -7,7 +7,7 @@
     <title>swelter — neighborhood heat &amp; air-quality map</title>
     <meta
       name="description"
-      content="Block-by-block heat and air quality from a community sensor network. Calibrated, open, and readable as a map, a table, or a plain list."
+      content="Neighborhood heat and air quality from a community sensor network. Calibrated, open, and readable as a map, a table, or a plain list."
     />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
@@ -20,7 +20,7 @@
       <div class="brand">
         <h1>swelter</h1>
         <p class="tagline" data-i18n="tagline">
-          Block-by-block heat and air quality, calibrated and open.
+          Neighborhood heat and air quality, calibrated and open.
         </p>
       </div>
       <div class="header-controls">
@@ -36,10 +36,20 @@
             <option value="es">Español</option>
           </select>
         </div>
+        <div class="display" role="group" aria-labelledby="display-label">
+          <span id="display-label" data-i18n="display">Display</span>
+          <button id="text-smaller" type="button" data-i18n-attr="aria-label:text-smaller" aria-label="Smaller text">A−</button>
+          <button id="text-bigger" type="button" data-i18n-attr="aria-label:text-bigger" aria-label="Larger text">A+</button>
+          <button id="contrast-toggle" type="button" aria-pressed="false" data-i18n="contrast">High contrast</button>
+        </div>
       </div>
+      <p id="display-status" class="visually-hidden" role="status" aria-live="polite"></p>
     </header>
 
     <main id="main">
+      <p id="offline" class="offline" role="status" aria-live="polite" data-i18n="offline-note" hidden>
+        You're offline — showing the last readings this device loaded. Reconnect for the latest.
+      </p>
       <p id="headline" class="headline" role="status" aria-live="polite"></p>
       <p id="data-source" class="data-source"></p>
 
@@ -51,14 +61,14 @@
       <section class="controls" aria-labelledby="controls-heading">
         <h2 id="controls-heading" class="visually-hidden" data-i18n="controls">Controls</h2>
         <div class="control find">
-          <label for="place-search" data-i18n="search-label">Find your block</label>
+          <label for="place-search" data-i18n="search-label">Find your area</label>
           <div class="find-row">
             <input
               id="place-search"
               type="search"
               autocomplete="off"
               data-i18n-attr="placeholder:search-placeholder"
-              placeholder="Search a block name…"
+              placeholder="Search a location name…"
             />
             <button id="locate" type="button" data-i18n="locate">Use my location</button>
           </div>
@@ -67,6 +77,7 @@
           <label for="parameter-select" data-i18n="parameter">Measurement</label>
           <select id="parameter-select">
             <option value="pm25_ugm3" data-i18n="param-pm25">PM2.5 — fine particles</option>
+            <option value="exposure" data-i18n="param-exposure">Heat + air exposure</option>
             <option value="temp_c" data-i18n="param-temp">Temperature</option>
             <option value="heat_index_c" data-i18n="param-hi">Heat index</option>
             <option value="pm10_ugm3" data-i18n="param-pm10">PM10 — coarse particles</option>
@@ -84,6 +95,9 @@
             aria-describedby="time-readout"
           />
           <output id="time-readout" for="time-slider">—</output>
+          <button id="time-play" type="button" data-i18n="time-play" aria-pressed="false" disabled>
+            Play
+          </button>
         </div>
       </section>
 
@@ -95,17 +109,42 @@
 
       <p id="status" class="status" role="status" aria-live="polite"></p>
 
+      <section id="alerts" class="alerts" aria-labelledby="alerts-heading" role="status" aria-live="polite" hidden>
+        <h2 id="alerts-heading" data-i18n="alerts-heading">Your alerts</h2>
+        <ul id="alerts-list" class="alerts-list"></ul>
+        <p class="alerts-note" data-i18n="alerts-note">
+          Alerts update only while this page is open — there is no background push or account.
+        </p>
+      </section>
+
+      <section id="overview" class="overview" aria-labelledby="overview-heading" hidden>
+        <h2 id="overview-heading" data-i18n="overview-heading">Right now across the network</h2>
+        <p id="overview-counts"></p>
+        <p id="overview-coverage"></p>
+        <p id="overview-health"></p>
+        <details id="health-detail" class="health-detail" hidden>
+          <summary data-i18n="health-detail-summary">Which sensors need attention</summary>
+          <ul id="health-list" class="health-list"></ul>
+        </details>
+        <p id="overview-spread"></p>
+        <p id="overview-worst"></p>
+        <p id="overview-fresh" class="overview-fresh"></p>
+        <p class="overview-actions">
+          <button id="copy-network" type="button" data-i18n="brief-network">Copy a summary of the whole network</button>
+        </p>
+      </section>
+
       <section id="panel-list" role="tabpanel" aria-labelledby="tab-list" tabindex="-1">
         <ul id="data-list" class="readings"></ul>
       </section>
 
       <section id="panel-table" role="tabpanel" aria-labelledby="tab-table" tabindex="-1" hidden>
         <table id="data-table">
-          <caption data-i18n="table-caption">Latest readings by neighborhood block</caption>
+          <caption data-i18n="table-caption">Latest readings by location</caption>
           <thead>
             <tr>
               <th scope="col" aria-sort="none">
-                <button type="button" data-sort="label" data-i18n="col-place">Block</button>
+                <button type="button" data-sort="label" data-i18n="col-place">Location</button>
               </th>
               <th scope="col" aria-sort="descending">
                 <button type="button" data-sort="value" data-i18n="col-value">Reading</button>
@@ -120,7 +159,7 @@
 
       <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" tabindex="-1" hidden>
         <p class="hint" data-i18n="map-hint">
-          An interactive map of sensor blocks — drag to pan, scroll or pinch to zoom, or use the
+          An interactive map of sensor locations — drag to pan, scroll or pinch to zoom, or use the
           buttons and arrow keys. Each marker states its reading in text; the same data is in the
           List and Table tabs for any reader the map does not serve.
         </p>
@@ -130,7 +169,7 @@
             class="map"
             role="group"
             data-i18n-attr="aria-label:map-aria"
-            aria-label="Sensor blocks. Drag to pan, scroll to zoom, arrow keys to move."
+            aria-label="Sensor locations. Drag to pan, scroll to zoom, arrow keys to move."
             tabindex="0"
           ></div>
           <div class="map-controls" role="group" data-i18n-attr="aria-label:map-zoom-group" aria-label="Map zoom">
@@ -142,34 +181,135 @@
       </section>
 
       <section id="detail" class="detail" aria-labelledby="detail-heading" hidden>
-        <h2 id="detail-heading" data-i18n="detail-title">Selected block</h2>
+        <h2 id="detail-heading" data-i18n="detail-title">Selected location</h2>
         <p id="detail-body" aria-live="polite"></p>
+        <span id="detail-spark" class="spark"></span>
+        <p id="detail-context" class="context"></p>
+        <p id="detail-trend" class="trend"></p>
+        <p id="detail-yesterday" class="trend"></p>
+        <div id="history" class="history" hidden>
+          <h3 class="history-heading" data-i18n="history-heading">Recent days here</h3>
+          <ul id="history-list" class="history-list"></ul>
+        </div>
         <p id="detail-guidance" class="guidance"></p>
         <p class="guidance-source" data-i18n="guide-source">Health context: US EPA AirNow.</p>
+        <div id="action-card" class="action-card" hidden>
+          <h3 class="action-heading" data-i18n="act-heading">What to do now</h3>
+          <ul id="action-list" class="action-list"></ul>
+          <p class="action-note" data-i18n="act-note">Practical steps drawn from US EPA and NWS guidance — not medical advice.</p>
+        </div>
+        <details class="explain provenance" id="provenance">
+          <summary data-i18n="prov-summary">Show your work</summary>
+          <p id="provenance-body"></p>
+        </details>
+        <div id="compare" class="compare">
+          <label for="compare-select" data-i18n="compare-label">Compare with another location</label>
+          <select id="compare-select"></select>
+          <div id="compare-result" class="compare-result" aria-live="polite"></div>
+        </div>
+        <div id="watch" class="watch">
+          <h3 class="watch-heading" data-i18n="watch-heading">Alert me about this location</h3>
+          <p class="watch-intro" data-i18n="watch-intro">
+            Set a level for this measurement. While this page is open, you'll see an alert here when
+            this location reaches it. Saved on this device only — no account, no server.
+          </p>
+          <div class="watch-row">
+            <label for="watch-threshold" id="watch-label" data-i18n="watch-label">Alert at</label>
+            <select id="watch-threshold" class="watch-threshold" hidden></select>
+            <input
+              id="watch-number"
+              class="watch-number"
+              type="number"
+              step="any"
+              data-i18n-attr="aria-label:watch-number-label"
+              aria-label="Alert at this reading or higher"
+              hidden
+            />
+            <span id="watch-unit" class="watch-unit"></span>
+          </div>
+          <p class="watch-buttons">
+            <button id="watch-save" type="button" data-i18n="watch-save">Turn on alert</button>
+            <button id="watch-clear" type="button" data-i18n="watch-clear" hidden>Remove alert</button>
+            <button id="watch-notify" type="button" data-i18n="watch-notify" hidden>
+              Notify me on this device
+            </button>
+          </p>
+          <p id="watch-status" class="watch-status" role="status" aria-live="polite"></p>
+        </div>
+        <p class="detail-actions">
+          <button id="copy-link" type="button" data-i18n="copy-link">Copy link to this location</button>
+          <button id="copy-summary" type="button" data-i18n="brief-copy">Copy a plain-language summary</button>
+        </p>
+        <p id="download-cell" class="download-cell"></p>
       </section>
 
       <section class="legend" aria-labelledby="legend-heading">
         <h2 id="legend-heading" data-i18n="legend-title">Air-quality categories (PM2.5)</h2>
-        <details class="explain">
-          <summary data-i18n="what-is-aqi">What is AQI?</summary>
-          <p data-i18n="what-is-aqi-body">
-            The Air Quality Index (AQI) turns a pollution concentration into a 0–500 scale and a
-            named category. Higher is worse: 0–50 is Good, 100+ starts to affect sensitive people.
+
+        <!-- PM2.5 → AQI categories + explainer. Shown only when PM2.5 is the active measurement. -->
+        <div class="legend-block" data-legend="pm25">
+          <details class="explain">
+            <summary data-i18n="what-is-aqi">What is AQI?</summary>
+            <p data-i18n="what-is-aqi-body">
+              The Air Quality Index (AQI) turns a pollution concentration into a 0–500 scale and a
+              named category. Higher is worse: 0–50 is Good, 100+ starts to affect sensitive people.
+            </p>
+          </details>
+          <ul class="legend-items">
+            <li><span class="swatch aqi-good" aria-hidden="true"></span><span data-i18n="aqi-good">Good — AQI 0 to 50</span></li>
+            <li><span class="swatch aqi-moderate" aria-hidden="true"></span><span data-i18n="aqi-moderate">Moderate — AQI 51 to 100</span></li>
+            <li><span class="swatch aqi-usg" aria-hidden="true"></span><span data-i18n="aqi-usg">Unhealthy for sensitive groups — AQI 101 to 150</span></li>
+            <li><span class="swatch aqi-unhealthy" aria-hidden="true"></span><span data-i18n="aqi-unhealthy">Unhealthy — AQI 151 to 200</span></li>
+            <li><span class="swatch aqi-veryunhealthy" aria-hidden="true"></span><span data-i18n="aqi-vu">Very unhealthy — AQI 201 to 300</span></li>
+            <li><span class="swatch aqi-hazardous" aria-hidden="true"></span><span data-i18n="aqi-haz">Hazardous — AQI 301+</span></li>
+          </ul>
+          <p class="legend-note" data-i18n="aqi-window">
+            The AQI shown is computed from each location's hourly mean, not a 24-hour average.
           </p>
-        </details>
-        <ul class="legend-items">
-          <li><span class="swatch aqi-good" aria-hidden="true"></span><span data-i18n="aqi-good">Good — AQI 0 to 50</span></li>
-          <li><span class="swatch aqi-moderate" aria-hidden="true"></span><span data-i18n="aqi-moderate">Moderate — AQI 51 to 100</span></li>
-          <li><span class="swatch aqi-usg" aria-hidden="true"></span><span data-i18n="aqi-usg">Unhealthy for sensitive groups — AQI 101 to 150</span></li>
-          <li><span class="swatch aqi-unhealthy" aria-hidden="true"></span><span data-i18n="aqi-unhealthy">Unhealthy — AQI 151 to 200</span></li>
-          <li><span class="swatch aqi-veryunhealthy" aria-hidden="true"></span><span data-i18n="aqi-vu">Very unhealthy — AQI 201 to 300</span></li>
-          <li><span class="swatch aqi-hazardous" aria-hidden="true"></span><span data-i18n="aqi-haz">Hazardous — AQI 301+</span></li>
-        </ul>
-        <p class="legend-note" data-i18n="aqi-window">
-          The AQI shown is computed from each block's hourly mean, not a 24-hour average.
-        </p>
+        </div>
+
+        <!-- Temperature / heat index → the .heat-1..5 cool→hot swatches. Shown for temp_c & heat_index_c. -->
+        <div class="legend-block" data-legend="temp" hidden>
+          <ul class="legend-items">
+            <li><span class="swatch heat-1" aria-hidden="true"></span><span data-i18n="heat-band-1">Coolest — below about 24 °C (75 °F)</span></li>
+            <li><span class="swatch heat-2" aria-hidden="true"></span><span data-i18n="heat-band-2">Cool — about 24 to 28 °C (75 to 82 °F)</span></li>
+            <li><span class="swatch heat-3" aria-hidden="true"></span><span data-i18n="heat-band-3">Warm — about 28 to 32 °C (82 to 90 °F)</span></li>
+            <li><span class="swatch heat-4" aria-hidden="true"></span><span data-i18n="heat-band-4">Hot — about 32 to 36 °C (90 to 97 °F)</span></li>
+            <li><span class="swatch heat-5" aria-hidden="true"></span><span data-i18n="heat-band-5">Hottest — about 36 °C (97 °F) and up</span></li>
+          </ul>
+          <p class="legend-note" data-i18n="heat-band-note">
+            The shading is a coolest-to-hottest cue only — the number on each marker is the exact
+            reading, in your chosen units.
+          </p>
+        </div>
+
+        <!-- Heat + air exposure → Minimal→Extreme levels + the decision-support caveat. -->
+        <div class="legend-block" data-legend="exposure" hidden>
+          <ul class="legend-items">
+            <li><span data-i18n="exp-level-minimal">Minimal — little added heat or air stress</span></li>
+            <li><span data-i18n="exp-level-low">Low — mild conditions</span></li>
+            <li><span data-i18n="exp-level-elevated">Elevated — take some care outdoors</span></li>
+            <li><span data-i18n="exp-level-high">High — limit time and exertion outdoors</span></li>
+            <li><span data-i18n="exp-level-extreme">Extreme — avoid being outdoors</span></li>
+          </ul>
+          <p class="exp-note" data-i18n="exp-note">
+            <strong>Heat + air exposure</strong> combines the heat index and the PM2.5 AQI into one
+            level (Minimal to Extreme), taking the higher of the two and flagging when heat and air
+            are both elevated. It is decision-support, not a validated health index, and never a
+            claim that conditions are safe.
+          </p>
+        </div>
+
+        <!-- PM10 / NO2 → no severity scale; the marker carries the value. -->
+        <div class="legend-block" data-legend="value" hidden>
+          <p class="legend-note" data-i18n="legend-value-note">
+            This measurement is shown by its value on each marker, not by a severity category. Higher
+            numbers mean more of the pollutant; see the List or Table view for every location.
+          </p>
+        </div>
+
         <p class="provisional-note" data-i18n="provisional">
-          <strong>Provisional</strong> blocks have only early, uncalibrated readings — still being
+          <strong>Provisional</strong> locations have only early, uncalibrated readings — still being
           double-checked, and never shown as a confirmed category. Status is conveyed by text and
           pattern, not color alone.
         </p>
@@ -183,6 +323,15 @@
           readings are; it does not tell anyone they are safe. Use it alongside how you feel and
           official advisories.
         </p>
+        <p class="method-heading" data-i18n="method-heading">How the numbers are made</p>
+        <ul class="method-list">
+          <li data-i18n="method-calibration">Confirmed means calibrated against a reference monitor; a sensor with no fit stays raw and is shown provisional.</li>
+          <li data-i18n="method-uncertainty">Every confirmed reading carries a ± 1-sigma uncertainty, published alongside it.</li>
+          <li data-i18n="method-location">Published locations snap to a ~150 m grid, so the map shows the area, not the porch.</li>
+          <li data-i18n="method-aqi">The AQI shown comes from each location's hourly mean, not the official 24-hour average.</li>
+          <li data-i18n="method-exposure">Heat + air exposure takes the higher of the heat and air levels — it never blends them into one number.</li>
+          <li data-i18n="method-open">All readings are public-domain (CC0) and downloadable — no account, no key.</li>
+        </ul>
       </details>
     </main>
 
@@ -198,6 +347,32 @@
       <p data-i18n="footer-note">
         Each reading carries its calibration state and, when calibrated, a published uncertainty.
       </p>
+      <details class="settings" id="settings">
+        <summary data-i18n="settings-summary">Your saved settings (this device)</summary>
+        <p class="settings-intro" data-i18n="settings-intro">
+          swelter keeps your choices in this browser only — no account, no server. That's your
+          language, units, text size, contrast, any alert thresholds you set, and the last location
+          you opened.
+        </p>
+        <p id="settings-state" class="settings-state"></p>
+        <p class="settings-actions">
+          <button id="settings-clear" type="button" data-i18n="settings-clear">Clear saved settings</button>
+        </p>
+        <p id="settings-status" class="settings-status" role="status" aria-live="polite"></p>
+      </details>
+      <details class="shortcuts" id="shortcuts">
+        <summary data-i18n="sc-summary">Keyboard shortcuts</summary>
+        <p class="shortcuts-toggle-row">
+          <input type="checkbox" id="shortcuts-toggle" />
+          <label for="shortcuts-toggle" data-i18n="sc-enable">Enable keyboard shortcuts</label>
+        </p>
+        <ul class="shortcuts-list">
+          <li><kbd>l</kbd> — <span data-i18n="sc-view-list">List view</span></li>
+          <li><kbd>t</kbd> — <span data-i18n="sc-view-table">Table view</span></li>
+          <li><kbd>m</kbd> — <span data-i18n="sc-view-map">Map view</span></li>
+          <li><kbd>/</kbd> — <span data-i18n="sc-search">Jump to the location search</span></li>
+        </ul>
+      </details>
     </footer>
 
     <script src="app.js" type="module"></script>
