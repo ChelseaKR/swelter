@@ -43,6 +43,7 @@ swelter = "swelter.cli:main"
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.11",
     "types-PyYAML",
@@ -75,3 +76,22 @@ disallow_untyped_decorators = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+source = ["swelter"]
+# `python -m swelter` and the `swelter` console script are exercised in real use;
+# the 4-line module-execution entrypoint is not worth a coverage-instrumented
+# subprocess, so it is omitted rather than padded with a trivial test.
+omit = ["src/swelter/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+# Lines that are structurally unreachable under test: the `__main__` guard and
+# Protocol method stubs (`...` bodies in store.Store) carry no behavior to assert.
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise SystemExit",
+    "^\\s*\\.\\.\\.\\s*$",
+]
