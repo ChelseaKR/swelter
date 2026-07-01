@@ -2,7 +2,7 @@
 # `make verify` reproduces the full merge gate end to end.
 
 .PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild \
-        fmt fmt-check lint typecheck test a11y verify check clean
+        fmt fmt-check lint typecheck test a11y i18n verify check clean
 
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -56,7 +56,10 @@ test:  ## Run the test suite with branch coverage, gated at the floor
 a11y:  ## Structural accessibility gate on the dashboard (WCAG 2.2 AA subset)
 	uv run python scripts/a11y_check.py
 
-verify: fmt-check lint typecheck a11y test  ## The full merge gate, end to end
+i18n:  ## EN/ES locale key-parity gate (keys match recursively, no empty ES values)
+	uv run python scripts/i18n_parity.py
+
+verify: fmt-check lint typecheck a11y i18n test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
 
 check: verify  ## Alias for verify
