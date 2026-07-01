@@ -56,8 +56,11 @@ test:  ## Run the test suite with branch coverage, gated at the floor
 a11y:  ## Structural accessibility gate on the dashboard (WCAG 2.2 AA subset)
 	uv run python scripts/a11y_check.py
 
-i18n:  ## EN/ES locale key-parity gate (keys match recursively, no empty ES values)
+i18n:  ## Mechanical i18n gates: UTF-8 (G1), BCP-47 tags (G3/G4), EN/ES parity (G6), CLDR pin (G12)
+	uv run python scripts/i18n_encoding_check.py
+	uv run python scripts/i18n_bcp47_check.py
 	uv run python scripts/i18n_parity.py
+	uv run python scripts/i18n_cldr_pin_check.py
 
 verify: fmt-check lint typecheck a11y i18n test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
