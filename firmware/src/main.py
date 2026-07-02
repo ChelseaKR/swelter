@@ -34,6 +34,11 @@ DEFAULT_CONFIG = {
     "sample_interval_s": 300,  # 5 minutes
     "transport": "https",  # "https" or "mqtt"
     "ingest_url": "https://ingest.example.org/v1/observations",  # HTTP forwarder POST target
+    # Per-node ingest key (hex), issued on the operator's side by `swelter node-key <node_id>`.
+    # When set, every HTTP POST is signed (HMAC over node_id, timestamp, body — see signing.py).
+    # Empty sends unsigned, which the authenticated listener refuses with 401. It is a secret:
+    # it lives only here in the uncommitted config.py, never in network.yaml or the repo.
+    "ingest_key": "",
     "mqtt_host": "ingest.example.org",
     "mqtt_port": 8883,
     "mqtt_topic": "swelter/observations",
@@ -65,10 +70,19 @@ def load_config():
 
 
 class HttpForwarder:
-    """Forward one payload per HTTP POST as JSON. Idempotent on the server's store key."""
+    """Forward one payload per HTTP POST as JSON, signed per node when a key is configured.
 
-    def __init__(self, url):
+    Idempotent on the server's store key. With ``key_hex`` set, each attempt carries the three
+    HMAC headers from ``signing.py`` — signed fresh at send time, so a backfilled payload passes
+    the listener's replay window. A 401 (missing/rotated key) is a :class:`TransportError` like
+    any other failure: the payload stays buffered until the operator fixes the key, so a key
+    rotation never loses readings.
+    """
+
+    def __init__(self, url, node_id="", key_hex=""):
         self.url = url
+        self.node_id = node_id
+        self.key_hex = key_hex
 
     def send(self, payload):
         try:
@@ -76,11 +90,13 @@ class HttpForwarder:
 
             import urequests  # MicroPython HTTP client
 
-            response = urequests.post(
-                self.url,
-                data=json.dumps(payload),
-                headers={"Content-Type": "application/json"},
-            )
+            body = json.dumps(payload)
+            headers = {"Content-Type": "application/json"}
+            if self.key_hex:
+                import signing
+
+                headers.update(signing.headers(self.key_hex, self.node_id, body))
+            response = urequests.post(self.url, data=body, headers=headers)
             status = response.status_code
             response.close()
             if status >= 300:
@@ -132,7 +148,9 @@ def build_transport(cfg):
         return MqttForwarder(
             cfg["mqtt_host"], cfg["mqtt_port"], cfg["mqtt_topic"], cfg["node_id"]
         )
-    return HttpForwarder(cfg["ingest_url"])
+    return HttpForwarder(
+        cfg["ingest_url"], node_id=cfg["node_id"], key_hex=cfg.get("ingest_key", "")
+    )
 
 
 # -- hardware bring-up (guarded; no-ops off the node) ----------------------------------------------

@@ -1,4 +1,5 @@
-"""The ``swelter`` command line: ingest, qc, calibrate, aggregate, export, serve, demo, rebuild.
+"""The ``swelter`` command line: ingest, qc, calibrate, aggregate, export, serve, demo, rebuild —
+plus the operator-side write path (ingest-serve, node-key).
 
 This is the one-command surface a neighbourhood collective actually touches. Every subcommand
 is a thin wrapper over the library functions, so anything the CLI does is equally scriptable
@@ -18,7 +19,17 @@ from typing import Any, cast
 
 import yaml
 
-from . import __version__, aggregate, alerts, calibrate, cooling_centers, export, ingest, qc
+from . import (
+    __version__,
+    aggregate,
+    alerts,
+    calibrate,
+    cooling_centers,
+    export,
+    ingest,
+    ingest_server,
+    qc,
+)
 from .config import NetworkConfig, label_concerns, load_config
 from .models import RAW, Observation
 from .server import ServerContext, serve
@@ -30,6 +41,7 @@ DEFAULT_WEB = "web"
 DEFAULT_DATA = "data/demo"
 DEFAULT_COOLING = "data/cooling_centers.geojson"
 DEFAULT_INTERVAL_S = 3600.0
+DEFAULT_KEYS = "node-keys.yaml"  # operator-local; outside network.yaml and the copyable store
 
 #: A minimal, commented starter network written by `swelter init`. __NAME__ is replaced with a
 #: YAML-safe quoted name. Two nodes, one reference monitor, one co-location window — the smallest
@@ -271,6 +283,66 @@ def cmd_serve(args: argparse.Namespace) -> int:
         serve(ctx, host=args.host, port=args.port)
     finally:
         store.close()
+    return 0
+
+
+def cmd_ingest_serve(args: argparse.Namespace) -> int:
+    """Run the authenticated node write path: a write-only listener, per-node HMAC keys.
+
+    Kept out of ``swelter serve`` on purpose — the public read surface and the node write
+    surface are different trust boundaries and stay in different processes.
+    """
+    keys_path = Path(args.keys)
+    if not keys_path.is_file():
+        _err(f"swelter: keys file {args.keys} not found")
+        _err(f"  issue one key per node first:  swelter node-key <node_id> --keys {args.keys}")
+        return 1
+    try:
+        keys = ingest_server.load_keys(keys_path)
+    except ingest_server.KeyfileError as exc:
+        _err(f"swelter: {exc}")
+        return 1
+    if not keys:
+        _err(f"swelter: keys file {args.keys} holds no node keys; issue them with swelter node-key")
+        return 1
+    paths = store_paths(args.store)
+    store = open_store(args.store)
+    ctx = ingest_server.IngestServerContext(
+        store=store,
+        keys=keys,
+        quarantine_path=paths["quarantine"],
+        skew_s=args.skew,
+    )
+    base = f"http://{args.host}:{args.port}"
+    _err(f"swelter: ingest listener (write-only, per-node HMAC) at {base}{ingest_server.INGEST_ROUTE}")
+    _err(
+        f"  {len(keys)} node key(s) from {args.keys} · replay window ±{int(args.skew)}s · "
+        f"auth failures → {paths['quarantine']}  (Ctrl-C to stop)"
+    )
+    try:
+        ingest_server.serve(ctx, host=args.host, port=args.port)
+    finally:
+        store.close()
+    return 0
+
+
+def cmd_node_key(args: argparse.Namespace) -> int:
+    """Issue (or rotate) a node's ingest key into the operator-local keys file.
+
+    Prints the key to stdout — the one moment it is visible — for the operator to copy into the
+    node's uncommitted ``config.py``. Who gets a key, and when one is rotated or revoked, is a
+    collective decision (docs/governance.md); this command is just the mechanism.
+    """
+    try:
+        key = ingest_server.issue_key(Path(args.keys), args.node_id)
+    except ingest_server.KeyfileError as exc:
+        _err(f"swelter: {exc}")
+        return 1
+    _err(f"swelter: issued ingest key for {args.node_id} → {args.keys} (owner-only, mode 0600)")
+    _err("  copy the key below into the node's uncommitted config.py as `ingest_key`.")
+    _err("  never commit it, never put it in network.yaml, never publish the keys file;")
+    _err("  re-running this command for the same node rotates (replaces) the key.")
+    print(key)
     return 0
 
 
@@ -664,6 +736,33 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_serve)
     add_cooling(p_serve)
     p_serve.set_defaults(func=cmd_serve)
+
+    p_iserve = sub.add_parser(
+        "ingest-serve",
+        help="run the authenticated node write path (write-only listener, per-node HMAC)",
+    )
+    p_iserve.add_argument("--host", default="127.0.0.1")
+    p_iserve.add_argument("--port", type=int, default=8100)
+    p_iserve.add_argument(
+        "--keys", default=DEFAULT_KEYS, help="operator-local node-keys file (swelter node-key)"
+    )
+    p_iserve.add_argument(
+        "--skew",
+        type=float,
+        default=ingest_server.DEFAULT_SKEW_S,
+        help="replay window: max seconds between a request's signed timestamp and server time",
+    )
+    add_store(p_iserve)
+    p_iserve.set_defaults(func=cmd_ingest_serve)
+
+    p_key = sub.add_parser(
+        "node-key", help="issue or rotate a node's ingest HMAC key (operator-local keys file)"
+    )
+    p_key.add_argument("node_id", help="the host-assigned node id the key authenticates")
+    p_key.add_argument(
+        "--keys", default=DEFAULT_KEYS, help="operator-local node-keys file to create/update"
+    )
+    p_key.set_defaults(func=cmd_node_key)
 
     p_demo = sub.add_parser("demo", help="replay recorded data through the whole pipeline")
     p_demo.add_argument("--data", default=DEFAULT_DATA)

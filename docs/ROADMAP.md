@@ -161,6 +161,57 @@ funder at a working compound-exposure surface, an auditable trust view, and a on
 register-your-network path — the three things the scan says the four audiences and the
 philanthropy-first funding path reward.
 
+## Fixes (security, audit, governance)
+
+Separate from phases 1–5, these are targeted fixes addressing audit findings, security
+requirements, or governance commitments. Each ships as its own PR with its own tests and ADR.
+
+### FIX-01 — Authenticated node write path (ingest-serve with per-node HMAC)
+
+**Status: ✅ Done** (merged 2026-07-01)
+
+The node→ingest write boundary was documented as authenticated (RESPONSIBLE-TECH-AUDITS.md) but
+not implemented. Fixed:
+
+- **Per-node key provisioning:** `swelter node-key <node_id>` issues or rotates a 256-bit HMAC
+  key in an operator-local `node-keys.yaml` (never in `network.yaml`, never committed). The key is
+  printed once for the operator to copy into the node's uncommitted `config.py` as `ingest_key`.
+- **Request signing:** Firmware (`firmware/src/signing.py`) signs every HTTP POST over
+  `(node_id, timestamp, body_hash)` with RFC 2104 HMAC-SHA256. Three headers carry the node id,
+  signing timestamp, and signature. The same module runs on MicroPython and desktop CPython.
+- **Signature verification:** `swelter ingest-serve` (write-only listener on 127.0.0.1:8100)
+  verifies each request: unknown node → 401, signature mismatch → 401, timestamp outside the
+  ±300s replay window → 401. Failed requests land in `quarantine.jsonl` with an `auth:` reason.
+- **Replay protection:** The signed timestamp is the sending time (not observation time), so
+  backfill after an outage works; the store's idempotency (`INSERT OR IGNORE`) ensures a captured
+  and replayed request cannot alter the record.
+- **Tests:** two layers, not one. Function-level: key provisioning, signing/verification, and
+  every `verify_request()` refusal reason (missing headers, unknown node, replay window,
+  signature mismatch) are unit-tested directly, plus server-firmware signature compatibility.
+  Handler-level: a real `make_server()` listener is started on a background thread and driven
+  with genuine HTTP POSTs to prove the *running server*, not just the crypto function, does the
+  right thing — a validly-signed request is written to the store and returns 200; a missing or
+  bad signature returns 401 and lands in `quarantine.jsonl`; a payload `node_id` that
+  impersonates a different node than the one authenticated is refused by the handler's
+  post-auth impersonation check (`claimed != node` in `_post()`), not just accepted by
+  `verify_request()`; an unknown node with an otherwise well-formed signature is refused before
+  any crypto compare runs. The `ingest-serve`/`node-key` CLI subcommands are covered too: the
+  missing- and empty-keys-file error paths, and an end-to-end check that a key issued by
+  `swelter node-key` is the exact key `swelter ingest-serve` loads and a real listener built
+  from it authenticates against.
+
+Files touched:
+- `firmware/src/signing.py` — RFC 2104 HMAC-SHA256 (MicroPython-compatible)
+- `firmware/src/main.py` — HttpForwarder signs requests when `ingest_key` is set
+- `src/swelter/ingest_server.py` — New module: authenticated listener, key storage, verification
+- `src/swelter/cli.py` — `ingest-serve` and `node-key` subcommands
+- `tests/test_ingest_server.py` — function-level auth/crypto tests plus real-listener HTTP
+  integration tests (valid write, refused/quarantined auth failures, handler-level impersonation
+  rejection, unknown-node rejection)
+- `tests/test_firmware_signing.py` — 10 tests for firmware-server signature compatibility
+- `tests/test_cli.py` — `ingest-serve`/`node-key` CLI coverage (error paths + an issued key
+  authenticating against a real listener)
+
 ## Metrics ledger
 
 These are the numbers the project holds itself to. External-fact rows (the EPA breakpoint and AQI
