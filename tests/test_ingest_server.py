@@ -1,12 +1,16 @@
 """Tests for the authenticated ingest listener and per-node HMAC authentication."""
 
 import json
+import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
-from unittest import mock
 
 import pytest
+import yaml
 
 from swelter import ingest_server
 from swelter.models import parse_timestamp
@@ -76,7 +80,7 @@ class TestKeyProvisioning:
     def test_load_keys_malformed_yaml(self, keys_file: Path) -> None:
         """Loading a malformed YAML file raises an error (KeyfileError or yaml.error)."""
         keys_file.write_text("{ invalid yaml }[")
-        with pytest.raises(Exception):  # Could be KeyfileError or yaml.ParserError
+        with pytest.raises((ingest_server.KeyfileError, yaml.YAMLError)):
             ingest_server.load_keys(keys_file)
 
     def test_load_keys_missing_keys_block(self, keys_file: Path) -> None:
@@ -288,14 +292,20 @@ class TestFirmwareSigningCompat:
             sys.path.pop(0)
 
 
-class TestIngestServerIntegration:
-    """Integration tests for the ingest listener."""
+class TestIngestServerConstruction:
+    """Object-construction sanity checks — no socket involved.
 
-    def test_ingest_server_context_creation(self, store_path: Path, store_dir: Path, keys_file: Path) -> None:
+    Real network-facing coverage (a live listener, actual HTTP requests) lives in
+    :class:`TestIngestServerHandlerIntegration` below.
+    """
+
+    def test_ingest_server_context_creation(
+        self, store_path: Path, store_dir: Path, keys_file: Path
+    ) -> None:
         """Create an IngestServerContext."""
         store = SqliteStore(store_path)
         try:
-            key = ingest_server.issue_key(keys_file, "node-1")
+            ingest_server.issue_key(keys_file, "node-1")
             keys = ingest_server.load_keys(keys_file)
             ctx = ingest_server.IngestServerContext(
                 store=store,
@@ -320,94 +330,257 @@ class TestIngestServerIntegration:
                 keys=keys,
                 quarantine_path=store_dir / "quarantine.jsonl",
             )
-            server = ingest_server.make_server(ctx, "127.0.0.1", 8100)
+            server = ingest_server.make_server(ctx, "127.0.0.1", 0)
             assert server is not None
             server.server_close()
         finally:
             store.close()
 
-    def test_authenticated_payload_accepted(self, store_path: Path, store_dir: Path, keys_file: Path) -> None:
-        """Test that an authenticated payload is accepted."""
-        store = SqliteStore(store_path)
-        try:
-            ingest_server.issue_key(keys_file, "node-1")
-            keys = ingest_server.load_keys(keys_file)
 
-            node_id = "node-1"
-            timestamp = "2026-07-01T12:00:00Z"
-            now = parse_timestamp(timestamp).timestamp()
+# -- real listener, real HTTP requests --------------------------------------------------------
+#
+# Everything above (and TestSigningAndVerification) exercises verify_request() directly — the
+# pure crypto function. That is necessary but not sufficient: it never proves the *handler*
+# (src/swelter/ingest_server.py's `_post()`) does the right thing with a real socket, real
+# headers, and a real response code. The fixture below starts the actual server returned by
+# `make_server()` on a background thread and every test in this section talks to it over
+# real HTTP, exactly as a node (or an operator's curl backfill) would.
 
-            body = json.dumps(
-                {
-                    "node_id": "node-1",
-                    "readings": {
-                        "timestamp": "2026-07-01T11:55:00Z",
-                        "pm25_ugm3": 23.5,
-                    },
-                }
-            ).encode()
+#: A fixed signing instant so tests are deterministic regardless of wall-clock time — the
+#: fixture below wires this in as `IngestServerContext.now`, which is the injectable clock the
+#: module docstring calls out as "so the replay window is testable".
+FIXED_TIMESTAMP = "2026-07-01T12:00:00Z"
+FIXED_NOW = parse_timestamp(FIXED_TIMESTAMP).timestamp()
 
-            key = keys[node_id]
-            signature = ingest_server.sign(key, node_id, timestamp, body)
 
-            # Verify the request passes authentication
-            reason = ingest_server.verify_request(
-                keys, node_id, timestamp, signature, body, now=now, skew_s=300
-            )
-            assert reason is None
-        finally:
-            store.close()
+def _post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
+    """POST over a real socket and return (status, parsed-JSON-body) whether it's a 2xx or not."""
+    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 (localhost)
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
 
-    def test_unauthenticated_request_refused(self, store_path: Path, keys_file: Path) -> None:
-        """Test that a request with invalid signature is refused."""
-        store = SqliteStore(store_path)
-        try:
-            ingest_server.issue_key(keys_file, "node-1")
-            keys = ingest_server.load_keys(keys_file)
 
-            node_id = "node-1"
-            timestamp = "2026-07-01T12:00:00Z"
-            body = b'{"node_id": "node-1", "readings": {"pm25_ugm3": 23.5}}'
-            now = parse_timestamp(timestamp).timestamp()
+def _quarantine_records(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
-            # Verify with invalid signature is refused
-            reason = ingest_server.verify_request(
-                keys, node_id, timestamp, "0" * 64, body, now=now, skew_s=300
-            )
-            assert "signature mismatch" in reason.lower()
-        finally:
-            store.close()
 
-    def test_impersonation_detected(self, store_path: Path, keys_file: Path) -> None:
-        """Test that payload node_id mismatch with authenticat node is detectable."""
-        store = SqliteStore(store_path)
-        try:
-            ingest_server.issue_key(keys_file, "node-1")
-            ingest_server.issue_key(keys_file, "node-2")
-            keys = ingest_server.load_keys(keys_file)
+@pytest.fixture
+def running_server(store_path: Path, store_dir: Path, keys_file: Path):  # type: ignore[no-untyped-def]
+    """A real ingest listener, bound to 127.0.0.1 on an OS-assigned port, on a daemon thread.
 
-            # Sign as node-1 but claim to be node-2 in the payload
-            node_id = "node-1"
-            timestamp = "2026-07-01T12:00:00Z"
-            body = json.dumps(
-                {
-                    "node_id": "node-2",  # Try to impersonate
-                    "readings": {
-                        "timestamp": "2026-07-01T11:55:00Z",
-                        "pm25_ugm3": 23.5,
-                    },
-                }
-            ).encode()
+    Two nodes (``node-1``, ``node-2``) are pre-provisioned so impersonation-style tests have a
+    second real, registered node to claim.
+    """
+    store = SqliteStore(store_path)
+    quarantine_path = store_dir / "quarantine.jsonl"
+    ingest_server.issue_key(keys_file, "node-1")
+    ingest_server.issue_key(keys_file, "node-2")
+    keys = ingest_server.load_keys(keys_file)  # {node_id: key_bytes} — what `sign()` needs
+    ctx = ingest_server.IngestServerContext(
+        store=store,
+        keys=keys,
+        quarantine_path=quarantine_path,
+        skew_s=300,
+        now=lambda: FIXED_NOW,  # deterministic: matches FIXED_TIMESTAMP above
+    )
+    httpd = ingest_server.make_server(ctx, "127.0.0.1", 0)
+    port = httpd.server_address[1]
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield SimpleNamespace(
+            url=f"http://127.0.0.1:{port}{ingest_server.INGEST_ROUTE}",
+            store=store,
+            quarantine_path=quarantine_path,
+            keys=keys,
+        )
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        store.close()
 
-            key = keys[node_id]
-            signature = ingest_server.sign(key, node_id, timestamp, body)
-            now = parse_timestamp(timestamp).timestamp()
 
-            # Signature verifies (it was signed by node-1)
-            reason = ingest_server.verify_request(
-                keys, node_id, timestamp, signature, body, now=now, skew_s=300
-            )
-            assert reason is None  # Auth passes at crypto level
-            # But the handler checks payload node_id matches authenticated node
-        finally:
-            store.close()
+class TestIngestServerHandlerIntegration:
+    """Real HTTP requests against a real running listener — the coverage gap this closes.
+
+    Each test drives ``do_POST`` / ``_post()`` end to end over a socket, not `verify_request()`
+    in isolation, and checks the observable side effects (store rows, quarantine.jsonl) that a
+    unit-level call to `verify_request()` can never confirm.
+    """
+
+    def test_valid_signature_is_written_and_returns_200(
+        self, running_server: SimpleNamespace
+    ) -> None:
+        node_id = "node-1"
+        body = json.dumps(
+            {
+                "node_id": node_id,
+                "timestamp": "2026-07-01T11:55:00Z",
+                "readings": {"pm25_ugm3": 23.5},
+            }
+        ).encode()
+        signature = ingest_server.sign(running_server.keys[node_id], node_id, FIXED_TIMESTAMP, body)
+
+        status, payload = _post(
+            running_server.url,
+            body,
+            {
+                ingest_server.NODE_HEADER: node_id,
+                ingest_server.TIMESTAMP_HEADER: FIXED_TIMESTAMP,
+                ingest_server.SIGNATURE_HEADER: signature,
+                "Content-Type": "application/json",
+            },
+        )
+
+        assert status == 200
+        assert payload["status"] == "ok"
+        assert payload["written"] == 1
+
+        # The row actually landed in the store — queried back over the real Store API, not
+        # inferred from the response body.
+        rows = running_server.store.read(node_id=node_id, parameter="pm25_ugm3")
+        assert len(rows) == 1
+        assert rows[0].value == 23.5
+        assert running_server.quarantine_path.is_file() is False  # nothing refused, nothing logged
+
+    def test_missing_signature_headers_returns_401_and_quarantines(
+        self, running_server: SimpleNamespace
+    ) -> None:
+        node_id = "node-1"
+        body = json.dumps(
+            {
+                "node_id": node_id,
+                "timestamp": "2026-07-01T11:55:00Z",
+                "readings": {"pm25_ugm3": 9.0},
+            }
+        ).encode()
+
+        # No X-Swelter-Timestamp / X-Swelter-Signature headers at all.
+        status, payload = _post(
+            running_server.url,
+            body,
+            {ingest_server.NODE_HEADER: node_id, "Content-Type": "application/json"},
+        )
+
+        assert status == 401
+        assert "missing" in payload["error"].lower()
+        assert running_server.store.count() == 0  # never written
+
+        records = _quarantine_records(running_server.quarantine_path)
+        assert records, "a refused request must leave evidence in quarantine.jsonl"
+        assert records[-1]["reason"].startswith("auth: missing")
+        assert records[-1]["node_id"] == node_id
+
+    def test_bad_signature_returns_401_and_quarantines(
+        self, running_server: SimpleNamespace
+    ) -> None:
+        node_id = "node-1"
+        body = json.dumps(
+            {
+                "node_id": node_id,
+                "timestamp": "2026-07-01T11:55:00Z",
+                "readings": {"pm25_ugm3": 9.0},
+            }
+        ).encode()
+
+        status, payload = _post(
+            running_server.url,
+            body,
+            {
+                ingest_server.NODE_HEADER: node_id,
+                ingest_server.TIMESTAMP_HEADER: FIXED_TIMESTAMP,
+                ingest_server.SIGNATURE_HEADER: "0" * 64,  # well-formed hex, wrong signature
+                "Content-Type": "application/json",
+            },
+        )
+
+        assert status == 401
+        assert "signature mismatch" in payload["error"].lower()
+        assert running_server.store.count() == 0
+
+        records = _quarantine_records(running_server.quarantine_path)
+        assert records[-1]["reason"] == "auth: signature mismatch"
+        assert records[-1]["node_id"] == node_id
+
+    def test_impersonation_rejected_by_the_handlers_impersonation_branch(
+        self, running_server: SimpleNamespace
+    ) -> None:
+        """node-1 signs correctly (crypto passes) but the payload claims to be node-2.
+
+        This is the scenario the docstring of the old (removed) `test_impersonation_detected`
+        claimed to cover but never did — that test only re-confirmed `verify_request()` accepts
+        a validly-signed request. `verify_request()` doesn't even see the payload body's
+        node_id; the impersonation check is a handler-level guard in `_post()` (the
+        `claimed != node` block) applied *after* auth passes. This test drives that branch for
+        real, over the real listener.
+        """
+        node_id = "node-1"
+        body = json.dumps(
+            {
+                "node_id": "node-2",  # impersonation: signed by node-1, claims to be node-2
+                "timestamp": "2026-07-01T11:55:00Z",
+                "readings": {"pm25_ugm3": 9.0},
+            }
+        ).encode()
+        signature = ingest_server.sign(running_server.keys[node_id], node_id, FIXED_TIMESTAMP, body)
+
+        status, payload = _post(
+            running_server.url,
+            body,
+            {
+                ingest_server.NODE_HEADER: node_id,  # authenticated as node-1
+                ingest_server.TIMESTAMP_HEADER: FIXED_TIMESTAMP,
+                ingest_server.SIGNATURE_HEADER: signature,  # a genuinely valid node-1 signature
+                "Content-Type": "application/json",
+            },
+        )
+
+        assert status == 401
+        assert "does not match authenticated" in payload["error"]
+        assert (
+            running_server.store.count() == 0
+        )  # the impersonated row never lands, for either node
+
+        records = _quarantine_records(running_server.quarantine_path)
+        assert "payload node_id" in records[-1]["reason"]
+        assert records[-1]["node_id"] == node_id
+
+    def test_unknown_node_well_formed_signature_returns_401(
+        self, running_server: SimpleNamespace
+    ) -> None:
+        """A node id that is not registered at all — refused before any crypto compare runs."""
+        node_id = "ghost-node"
+        body = json.dumps(
+            {
+                "node_id": node_id,
+                "timestamp": "2026-07-01T11:55:00Z",
+                "readings": {"pm25_ugm3": 9.0},
+            }
+        ).encode()
+        # A well-formed HMAC, just computed with a key nobody registered — proves the "unknown
+        # node" refusal isn't just a signature-mismatch in disguise.
+        bogus_key = bytes(32)
+        signature = ingest_server.sign(bogus_key, node_id, FIXED_TIMESTAMP, body)
+
+        status, payload = _post(
+            running_server.url,
+            body,
+            {
+                ingest_server.NODE_HEADER: node_id,
+                ingest_server.TIMESTAMP_HEADER: FIXED_TIMESTAMP,
+                ingest_server.SIGNATURE_HEADER: signature,
+                "Content-Type": "application/json",
+            },
+        )
+
+        assert status == 401
+        assert "unknown node" in payload["error"].lower()
+        assert running_server.store.count() == 0
+
+        records = _quarantine_records(running_server.quarantine_path)
+        assert "unknown node" in records[-1]["reason"]
