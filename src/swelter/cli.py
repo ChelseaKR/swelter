@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
+import shutil
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -44,6 +46,12 @@ DEFAULT_DATA = "data/demo"
 DEFAULT_COOLING = "data/cooling_centers.geojson"
 DEFAULT_INTERVAL_S = 3600.0
 DEFAULT_KEYS = "node-keys.yaml"  # operator-local; outside network.yaml and the copyable store
+
+#: Repo root, resolved from this file's location rather than the process cwd, so `publish` can
+#: find LICENSE/DATA-LICENSE to bundle into a static deploy no matter where `swelter` is invoked
+#: from. In an installed (non-checkout) package these simply won't exist, and publish skips them —
+#: the same optional-source pattern as `_write_web_cooling_centers`.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: A minimal, commented starter network written by `swelter init`. __NAME__ is replaced with a
 #: YAML-safe quoted name. Two nodes, one reference monitor, one co-location window — the smallest
@@ -441,6 +449,27 @@ def _write_web_sample(
     (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _write_web_surface_slice(
+    web_dir: Path, surface: aggregate.Surface, hours: int, filename: str, *, attribution: str = ""
+) -> None:
+    """Bake a trailing-window surface slice (``surface-24h.json``, ``surface-7d.json``) so a fully
+    static deploy carries the same time-sliced views the live ``/api/surface.json?hours=N`` route
+    serves — same payload shape as ``_write_web_sample``, windowed the same way server.py windows
+    it: the most recent ``hours`` hourly buckets, not a literal duration cutoff."""
+    if not web_dir.is_dir():
+        return
+    buckets = sorted({c.bucket for c in surface.cells})[-hours:] if hours else []
+    keep = set(buckets)
+    records = [c.as_record() for c in surface.cells if c.bucket in keep]
+    payload = {
+        "interval": surface.interval,
+        "attribution": attribution,
+        "buckets": buckets,
+        "cells": records,
+    }
+    (web_dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def _write_web_health(
     web_dir: Path,
     raw: list[Observation],
@@ -674,6 +703,83 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+#: Files `publish` may emit into `--web`, in manifest order. Not every run writes every entry —
+#: cooling-centers.geojson needs a dataset, DATA-LICENSE/LICENSE need a checkout — so the manifest
+#: only lists what actually landed on disk (checked by _write_publish_manifest, not assumed here).
+_PUBLISH_FILES = (
+    "sample-surface.json",
+    "sample-health.json",
+    "alerts.json",
+    "alerts.xml",
+    "cooling-centers.geojson",
+    "surface-24h.json",
+    "surface-7d.json",
+    "export.csv",
+    "DATA-LICENSE",
+    "LICENSE",
+)
+
+
+def _write_publish_manifest(
+    web_dir: Path, filenames: Sequence[str], *, interval_s: float, data_hour: str
+) -> list[dict[str, object]]:
+    """Enumerate the files ``publish`` just baked, with a content hash and size for each, so a
+    deploy is auditable — a CI artifact or a mirrored bucket can be checked against this manifest
+    rather than trusted blind (FIX-11). Deterministic: the files it hashes are themselves
+    deterministic for an unchanged store (see ``_write_web_alerts``), so re-running ``publish``
+    against the same store reproduces this manifest byte for byte."""
+    files: list[dict[str, object]] = []
+    for name in filenames:
+        path = web_dir / name
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        files.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    manifest = {"interval_s": interval_s, "data_hour": data_hour, "files": files}
+    (web_dir / "publish-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return files
+
+
+def cmd_publish(args: argparse.Namespace) -> int:
+    """Bake a complete, fully static site from an existing store: every artifact ``fetch``/``demo``
+    already write into ``--web`` as a side effect, promoted into its own first-class, tested command
+    so a CI workflow (the GitHub Pages build) or an operator can regenerate a static deploy from any
+    store in one call — the pages.yml bash choreography, as tested Python, plus an auditable
+    manifest of what shipped."""
+    config = _load_config(args.config)
+    web_dir = Path(args.web)
+    web_dir.mkdir(parents=True, exist_ok=True)
+
+    with open_store(args.store) as store:
+        raw = store.read(calibration=RAW)
+        all_obs = list(store.all())
+        surface = aggregate.aggregate(all_obs, config)
+        coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
+
+        _write_web_sample(web_dir, surface)
+        _write_web_surface_slice(web_dir, surface, 24, "surface-24h.json")
+        _write_web_surface_slice(web_dir, surface, 24 * 7, "surface-7d.json")
+        _write_web_health(web_dir, raw, args.interval, coverage=coverage)
+        _write_web_alerts(web_dir, surface, config)
+        _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
+        (web_dir / "export.csv").write_text(export.to_csv(all_obs), encoding="utf-8")
+
+    for name in ("DATA-LICENSE", "LICENSE"):
+        source = _REPO_ROOT / name
+        if source.is_file():
+            shutil.copyfile(source, web_dir / name)
+
+    data_hour = max((cell.bucket for cell in surface.cells), default="")
+    written = _write_publish_manifest(
+        web_dir, _PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
+    )
+    _err(
+        f"swelter publish: wrote {len(written)} files "
+        f"({len(surface.cells)} cell-hours, data hour {data_hour or 'n/a'}) → {web_dir}/"
+    )
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffold a starter network.yaml so a community can stand up its own instance fast."""
     path = Path(args.config)
@@ -895,6 +1001,16 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_rebuild)
     add_config(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild)
+
+    p_publish = sub.add_parser(
+        "publish", help="bake a complete static site from an existing store into --web"
+    )
+    p_publish.add_argument("--web", default=DEFAULT_WEB)
+    add_store(p_publish)
+    add_config(p_publish)
+    add_interval(p_publish)
+    add_cooling(p_publish)
+    p_publish.set_defaults(func=cmd_publish)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)

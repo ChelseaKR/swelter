@@ -83,6 +83,20 @@ right predictors each; the model string appears in the trust view lineage (ROADM
 
 ### EXP-04 — `swelter publish`: the fully static instance
 
+**Status: done.** `cli.cmd_publish` opens a store, rebuilds the surface via `aggregate` (the same
+path `fetch`/`demo` use), and bakes a complete static site into `--web`: the existing
+`_write_web_*` bakers, two new per-window slices (`surface-24h.json`, `surface-7d.json` via a new
+`_write_web_surface_slice()` helper, windowed to match `server.py`'s `/api/surface.json?hours=N`
+exactly), `export.csv` (via `export.to_csv()`), `DATA-LICENSE`/`LICENSE` copied from the repo root,
+and a `publish-manifest.json` enumerating every emitted file with a sha256 and byte size plus the
+store's interval and latest data-hour. `pages.yml` now runs `swelter fetch … && swelter publish
+--store … --web …` for both the `/` and `/sensors/` artifacts — the remaining bash is only the
+static-shell bootstrap `publish` cannot do (copying `index.html`/`app.js`/`i18n/` into
+`web/sensors/` before the sensor-specific fetch), not data assembly. See ADR 0016 and
+`tests/test_publish.py` (expected-files coverage, 24h/7d subset assertions against the live
+surface, manifest determinism across two runs, and an `export.csv` byte-parity check against
+`export.to_csv()`). `roadmap/exp-04-swelter-publish-fully-static-inst`.
+
 **Pitch.** Promote the bash choreography in `.github/workflows/pages.yml` into a tested first-class
 command that emits a complete static site — sliced surface/history JSON, alerts feeds, exports,
 licenses — so a community can host on any static host with *no server process at all*.

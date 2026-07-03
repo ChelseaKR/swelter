@@ -2,9 +2,11 @@
 #   "/"         — California. Dense REAL physical sensors (OpenAQ, block-by-block) when the
 #                 OPENAQ_API_KEY repo secret is set; otherwise Copernicus CAMS model data (keyless).
 #   "/sensors/" — real community low-cost sensors from Sensor.Community (Stuttgart, keyless)
-# The dashboard is static, so each fetched surface is baked into the artifact with a DATA-LICENSE and
-# a CSV download. Runs on push and daily so the readings stay current; page 1 falls back
-# (OpenAQ → CAMS → committed synthetic demo) and sensors → the CAMS surface, so the page never breaks.
+# The dashboard is static: `swelter fetch` populates the store and `swelter publish` bakes the
+# complete static artifact (sample surface, 24h/7d slices, health, alerts, export.csv, DATA-LICENSE,
+# publish-manifest.json) from it — see cli.cmd_publish / ADR 0016. Runs on push and daily so the
+# readings stay current; page 1 falls back (OpenAQ → CAMS → committed synthetic demo) and sensors
+# falls back to page 1's own artifact, so neither page ever breaks.
 # The store persists across runs (actions/cache, keyed by day with a most-recent fallback) and
 # `--accumulate` keeps rather than wipes it (ADR 0013/EXP-01), so the time slider covers weeks of
 # real history instead of one day's snapshot. A cache miss just degrades to a fresh fetch.
@@ -59,31 +61,40 @@ jobs:
         env:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
         run: |
+          set -e
           # Page 1 ("/"): prefer dense REAL physical sensors across California (OpenAQ, block-by-block
           # — needs the OPENAQ_API_KEY repo secret); else Copernicus CAMS model (keyless, coarse);
           # else the committed synthetic demo. web/basemap.geojson draws the California outlines.
           # --accumulate keeps the cache-restored store instead of wiping it, so the time slider
           # covers weeks of real history, not just today's fetch (a cache miss just starts fresh).
-          uv run swelter fetch --source openaq --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --max-locations 250 --accumulate \
-            || uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --past-days 1 --accumulate \
-            || uv run swelter demo --store /tmp/cams --web web
-          cp DATA-LICENSE web/DATA-LICENSE
-          uv run swelter export --store /tmp/cams --format csv > web/export.csv
+          # `fetch` writes network.yaml (real sources) or leaves it to `demo`'s own default, so publish
+          # needs to know which config the store was built against.
+          if uv run swelter fetch --source openaq --store /tmp/cams --config /tmp/cams.yaml \
+              --web web --max-locations 250 --accumulate; then
+            CAMS_CONFIG=/tmp/cams.yaml
+          elif uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
+              --web web --past-days 1 --accumulate; then
+            CAMS_CONFIG=/tmp/cams.yaml
+          else
+            uv run swelter demo --store /tmp/cams --web web
+            CAMS_CONFIG=network.yaml
+          fi
+          uv run swelter publish --store /tmp/cams --web web --config "$CAMS_CONFIG"
+
           # Page 2 ("/sensors/"): real community low-cost sensors (Sensor.Community, Stuttgart).
+          # Seed it from page 1's already-published static shell + data as a fallback, then try to
+          # overwrite with sensor-specific data; if that fetch fails, page 1's baked artifact stands.
           rm -rf web/sensors && mkdir -p web/sensors
           find web -maxdepth 1 -type f -exec cp {} web/sensors/ \;
           cp -r web/i18n web/sensors/i18n
           rm -f web/sensors/basemap.geojson  # Stuttgart is not California — keep its map schematic
           rm -f web/sensors/cooling-centers.geojson  # the sample centers are Sacramento, not Stuttgart
           # --cooling-centers points at a path that doesn't exist so the sensors page won't re-bake them.
-          uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
-            --web web/sensors --cooling-centers /dev/null/none --accumulate \
-            || cp web/sample-surface.json web/sensors/sample-surface.json
-          cp DATA-LICENSE web/sensors/DATA-LICENSE
-          uv run swelter export --store /tmp/sc --format csv > web/sensors/export.csv \
-            || cp web/export.csv web/sensors/export.csv
+          if uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
+              --web web/sensors --cooling-centers /dev/null/none --accumulate; then
+            uv run swelter publish --store /tmp/sc --web web/sensors --config /tmp/sc.yaml \
+              --cooling-centers /dev/null/none
+          fi
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
