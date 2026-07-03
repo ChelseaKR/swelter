@@ -37,6 +37,7 @@ def test_parse_maps_values_as_raw() -> None:
         "temp_c",
         "humidity_pct",
         "heat_index_c",
+        "wbgt_c",
     }
     # Honesty: community low-cost sensors are uncalibrated, so every value stays RAW (provisional).
     assert all(o.calibration == RAW for o in obs)

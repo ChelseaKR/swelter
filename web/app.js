@@ -10,6 +10,7 @@
 const PARAM_BASE_UNIT = {
   temp_c: "C",
   heat_index_c: "C",
+  wbgt_c: "C",
   pm25_ugm3: "ug",
   pm10_ugm3: "ug",
   no2_ppb: "ppb",
@@ -21,8 +22,13 @@ const PARAM_I18N = {
   exposure: "param-exposure",
   temp_c: "param-temp",
   heat_index_c: "param-hi",
+  wbgt_c: "param-wbgt",
   pm10_ugm3: "param-pm10",
 };
+
+// Parameters whose value is an *estimate*, not a direct or calibrated measurement — the caveat
+// word must travel with every rendered value (R5), never live only in the legend or the label.
+const ESTIMATED_PARAMS = new Set(["wbgt_c"]);
 
 const AQI_CLASS = {
   Good: "aqi-good",
@@ -333,7 +339,10 @@ function round1(x) {
 }
 
 function fmtValue(mean) {
-  return `${round1(convert(mean))} ${unitLabel()}`;
+  const value = `${round1(convert(mean))} ${unitLabel()}`;
+  // The "estimated" caveat is glued to the value itself, not left to the label or the legend
+  // (R5) — it survives copy-paste into a brief, an alert line, or a table cell.
+  return ESTIMATED_PARAMS.has(state.parameter) ? t("estimated-value").replace("{value}", value) : value;
 }
 
 function fmtUncertainty(u) {
@@ -671,7 +680,15 @@ function dayChangeLine(row) {
 }
 
 // Per-parameter "steady" band, so small wiggles don't read as a trend.
-const TREND_EPS = { exposure: 0.5, temp_c: 0.5, heat_index_c: 0.5, pm25_ugm3: 1, pm10_ugm3: 2, no2_ppb: 2 };
+const TREND_EPS = {
+  exposure: 0.5,
+  temp_c: 0.5,
+  heat_index_c: 0.5,
+  wbgt_c: 0.5,
+  pm25_ugm3: 1,
+  pm10_ugm3: 2,
+  no2_ppb: 2,
+};
 
 // "Is it getting worse or clearing on my block?" — direction over the last few hours, from the same
 // time series the slider reads. Needs the loaded history; silent until it's there.
@@ -704,6 +721,9 @@ const LEGEND_BLOCK = {
   exposure: "exposure",
   pm10_ugm3: "value",
   no2_ppb: "value",
+  // No color band: guidance thresholds for estimated WBGT are SME-gated (ADR 0012), so it gets
+  // its own "shown by value" block with its own caveat text, not the generic pollutant one.
+  wbgt_c: "wbgt",
 };
 const LEGEND_TITLE = {
   pm25_ugm3: "legend-title-pm25",
@@ -712,6 +732,7 @@ const LEGEND_TITLE = {
   exposure: "legend-title-exposure",
   pm10_ugm3: "legend-title-pm10",
   no2_ppb: "legend-title-no2",
+  wbgt_c: "legend-title-wbgt",
 };
 
 function updateLegend() {
@@ -906,11 +927,16 @@ function renderOverview() {
     const vals = rows.map((r) => r.mean).sort((a, b) => a - b);
     const n = vals.length;
     const median = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
-    spread.textContent = t("overview-spread")
+    const spreadText = t("overview-spread")
       .replace("{min}", round1(convert(vals[0])))
       .replace("{median}", round1(convert(median)))
       .replace("{max}", round1(convert(vals[n - 1])))
       .replace("{unit}", unitLabel());
+    // The composite min/median/max line has no single "value" to glue the caveat to — attach it
+    // once, to the whole line, so the estimate is never read as a direct measurement (R5).
+    spread.textContent = ESTIMATED_PARAMS.has(state.parameter)
+      ? t("estimated-value").replace("{value}", spreadText)
+      : spreadText;
     const worst = rows.reduce((a, b) => (b.mean > a.mean ? b : a));
     worstEl.appendChild(document.createTextNode(t("overview-worst-label") + " "));
     worstEl.appendChild(worstButton(worst, `${placeName(worst)} — ${fmtValue(worst.mean)}`));

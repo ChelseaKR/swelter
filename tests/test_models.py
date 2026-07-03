@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import FrozenInstanceError
 
 import pytest
 
 from swelter.models import (
+    PARAMETERS,
     RAW,
     exposure_level,
     format_timestamp,
@@ -14,6 +16,7 @@ from swelter.models import (
     heat_index_category,
     parse_timestamp,
     pm25_aqi,
+    wbgt_c,
 )
 
 from .conftest import make_obs
@@ -80,6 +83,29 @@ def test_pm25_aqi_categories(conc: float, category: str) -> None:
 def test_heat_index_passthrough_below_threshold() -> None:
     assert heat_index_c(20.0, 50.0) == 20.0  # regression not meaningful when cool
     assert heat_index_c(35.0, 70.0) > 35.0  # humid heat feels hotter
+
+
+def test_wbgt_c_is_registered_and_plausible() -> None:
+    assert "wbgt_c" in PARAMETERS
+    assert PARAMETERS["wbgt_c"].unit == "degC"
+
+    temp_c, humidity_pct = 35.0, 50.0
+    tw = (
+        temp_c * math.atan(0.151977 * math.sqrt(humidity_pct + 8.313659))
+        + math.atan(temp_c + humidity_pct)
+        - math.atan(humidity_pct - 1.676331)
+        + 0.00391838 * humidity_pct**1.5 * math.atan(0.023101 * humidity_pct)
+        - 4.686035
+    )
+    estimate = wbgt_c(temp_c, humidity_pct)
+    # Shade WBGT sits strictly between the natural wet-bulb temperature and the dry-bulb (air)
+    # temperature — a weighted blend of the two — and never above the dry-bulb reading.
+    assert round(tw, 2) < estimate < temp_c
+
+
+def test_wbgt_c_nan_propagates() -> None:
+    assert math.isnan(wbgt_c(float("nan"), 50.0))
+    assert math.isnan(wbgt_c(35.0, float("nan")))
 
 
 def test_heat_index_category_bands() -> None:

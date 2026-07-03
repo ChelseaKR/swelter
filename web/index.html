@@ -80,6 +80,7 @@
             <option value="exposure" data-i18n="param-exposure">Heat + air exposure</option>
             <option value="temp_c" data-i18n="param-temp">Temperature</option>
             <option value="heat_index_c" data-i18n="param-hi">Heat index</option>
+            <option value="wbgt_c" data-i18n="param-wbgt">Estimated WBGT — heat stress</option>
             <option value="pm10_ugm3" data-i18n="param-pm10">PM10 — coarse particles</option>
           </select>
         </div>
@@ -343,6 +344,18 @@
           <p class="legend-note" data-i18n="legend-value-note">
             This measurement is shown by its value on each marker, not by a severity category. Higher
             numbers mean more of the pollutant; see the List or Table view for every location.
+          </p>
+        </div>
+
+        <!-- Estimated WBGT → no severity scale (guidance bands are SME-gated, ADR 0012); the
+             caveat travels with every value, never just here. -->
+        <div class="legend-block" data-legend="wbgt" hidden>
+          <p class="legend-note" data-i18n="legend-wbgt-note">
+            This is an <strong>estimated</strong> wet-bulb globe temperature, from air temperature
+            and humidity only — there is no black-globe sensor and no solar-radiation term, so it
+            reads cooler than a true outdoor WBGT in direct sun. Shown by its value on each marker,
+            with "estimated" always alongside the number; see the List or Table view for every
+            location.
           </p>
         </div>
 

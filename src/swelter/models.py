@@ -47,6 +47,7 @@ PARAMETERS: Final[dict[str, Parameter]] = {
     "pm10_ugm3": Parameter("pm10_ugm3", "ug/m3", 0.0, 2000.0),
     "no2_ppb": Parameter("no2_ppb", "ppb", 0.0, 2000.0),
     "heat_index_c": Parameter("heat_index_c", "degC", -40.0, 60.0),  # ~137 °F NWS ceiling
+    "wbgt_c": Parameter("wbgt_c", "degC", -40.0, 60.0),
 }
 
 # QC verdicts. A reading is published with exactly one of these, never silently dropped.
@@ -190,6 +191,33 @@ def heat_index_c(temp_c: float, humidity_pct: float) -> float:
         - 0.00000199 * t * t * r * r
     )
     return round((hi - 32) * 5 / 9, 2)
+
+
+def wbgt_c(temp_c: float, humidity_pct: float) -> float:
+    """**Estimated** wet-bulb globe temperature, Celsius in and out — shade approximation only.
+
+    This is not a measured WBGT: it has no black-globe radiometer and no solar-radiation term, so
+    it will read cooler than the true outdoor WBGT in direct sun and must never be presented as
+    equivalent to a black-globe instrument reading. It is the natural-wet-bulb approximation from
+    air temperature and relative humidity (Stull, R., 2011, "Wet-Bulb Temperature from Relative
+    Humidity and Air Temperature," *Journal of Applied Meteorology and Climatology* 50(11):
+    2267-2269), combined into the *shade* (indoor/outdoor-no-sun) WBGT form from ISO 7243
+    (``WBGT = 0.7*Tw + 0.3*Td``, the two-term shade equation that drops the missing globe term).
+    Every caller-facing label for this value must say "estimated WBGT," never bare "WBGT" — the
+    occupational-heat guidance the metric is used for (e.g. OSHA/NIOSH heat standards) is written
+    against a radiometer-measured value this approximation does not reproduce in direct sun.
+
+    NaN inputs propagate to a NaN result (matching :func:`heat_index_c`) rather than raising —
+    a missing reading is a missing derived reading, not an error.
+    """
+    tw = (
+        temp_c * math.atan(0.151977 * math.sqrt(humidity_pct + 8.313659))
+        + math.atan(temp_c + humidity_pct)
+        - math.atan(humidity_pct - 1.676331)
+        + 0.00391838 * math.pow(humidity_pct, 1.5) * math.atan(0.023101 * humidity_pct)
+        - 4.686035
+    )
+    return round(0.7 * tw + 0.3 * temp_c, 2)
 
 
 # NWS heat-index categories. The thresholds are the NWS band floors in °C, converted from the
