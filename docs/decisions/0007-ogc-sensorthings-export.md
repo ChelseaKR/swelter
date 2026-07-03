@@ -50,3 +50,15 @@ periodically.
 
 Last verified: 2026-06-16. Recheck cadence: every 12 months or on a SensorThings
 spec revision.
+
+## Addendum (2026-07): outbound crosswalk + round-trip proof
+
+`swelter.crosswalk` closes the loop this ADR opened: it maps swelter's parameter vocabulary
+outbound to OpenAQ and Sensor.Community's own parameter names/units (the inverse of the inbound
+maps in `sources/openaq.py`/`sources/sensor_community.py`), so data leaving over this
+SensorThings export is translatable back into the commons vocabulary swelter draws from — a
+label/vocabulary mapping only, with no unit conversion and an honest `None` where a parameter
+(`heat_index_c`; NO2 against Sensor.Community) has no equivalent. `tests/test_roundtrip_interop.py`
+proves the full round trip — swelter model → SensorThings JSON → a generic dict-walking client →
+commons vocabulary — end to end. See [`docs/interop-crosswalk.md`](../interop-crosswalk.md) and
+`swelter crosswalk` (read-only CLI, static table, no network).
