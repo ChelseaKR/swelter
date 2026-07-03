@@ -22,7 +22,7 @@ from swelter.models import RAW, Observation
 from swelter.server import ServerContext
 from swelter.sources import openaq, openmeteo, sensor_community
 from swelter.sources._http import SourceError
-from swelter.store import open_store
+from swelter.store import open_store, store_paths
 
 from .conftest import DEMO, ROOT, make_obs
 
@@ -86,6 +86,65 @@ def test_qc_on_empty_store_says_so(tmp_path: Path, capsys: pytest.CaptureFixture
     rc = main(["qc", "--store", str(tmp_path / "empty"), "--config", NETWORK])
     assert rc == 0
     assert "store is empty" in capsys.readouterr().err
+
+
+# -- status (steward plan, EXP-05) --------------------------------------------
+
+
+def test_status_plan_text_reports_ranked_actions(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["status", "--plan", "--store", str(demo_store), "--config", NETWORK])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "steward plan" in err
+    assert "collective disposes" in err  # the audit B4/B5 disclaimer always prints
+
+
+def test_status_plan_json_is_machine_readable(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["status", "--plan", "--json", "--store", str(demo_store), "--config", NETWORK])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert {"generated_for", "actions", "disclaimer"} <= payload.keys()
+    assert payload["actions"], "demo network has offline/degraded nodes and coverage gaps"
+    for action in payload["actions"]:
+        assert action["evidence"], "every action names its evidence source"
+    # priorities are non-decreasing: offline/expired-correction bands sort before coverage gaps.
+    priorities = [a["priority"] for a in payload["actions"]]
+    assert priorities == sorted(priorities)
+
+
+def test_status_on_empty_store_says_so(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(["status", "--plan", "--store", str(tmp_path / "empty"), "--config", NETWORK])
+    assert rc == 0
+    assert "store is empty" in capsys.readouterr().err
+
+
+def test_status_on_empty_store_json_is_still_valid(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        ["status", "--plan", "--json", "--store", str(tmp_path / "empty"), "--config", NETWORK]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["actions"] == []
+    assert "collective disposes" in payload["disclaimer"]
+
+
+def test_status_with_no_registry_file_treats_corrections_as_empty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A store with raw data but no committed corrections.yaml still produces a plan (guard)."""
+    store_dir = tmp_path / "store"
+    _demo_into(store_dir, tmp_path / "web")
+    store_paths(store_dir)["registry"].unlink(missing_ok=True)
+    rc = main(["status", "--plan", "--json", "--store", str(store_dir), "--config", NETWORK])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert not any(a["kind"].startswith("correction_") for a in payload["actions"])
 
 
 # -- config loading (PII + missing) ------------------------------------------

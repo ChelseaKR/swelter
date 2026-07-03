@@ -31,6 +31,7 @@ from . import (
     ingest,
     ingest_server,
     qc,
+    steward,
 )
 from .config import NetworkConfig, consent_concerns, label_concerns, load_config
 from .models import RAW, Observation
@@ -192,6 +193,47 @@ def cmd_qc(args: argparse.Namespace) -> int:
                 f"  provisional cell  {name}  "
                 f"({cell['calibrated_nodes']}/{cell['nodes']} calibrated)"
             )
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """The steward console: a ranked, evidence-cited "what needs doing" list.
+
+    Composes signals the pipeline already produces — node health/liveness, correction age
+    (FIX-03), coverage-equity — into one ranked plan (EXP-05). Nothing here fetches or computes a
+    new number; ``steward.plan`` is a pure function over the same reports ``qc`` prints.
+    """
+    config = _load_config(args.config)
+    paths = store_paths(args.store)
+    with open_store(args.store) as store:
+        raw = store.read(calibration=RAW)
+        all_obs = list(store.all())
+    if not raw:
+        _err("swelter: store is empty")
+        if args.json:
+            empty = {"generated_for": "", "actions": [], "disclaimer": steward.DISCLAIMER}
+            print(json.dumps(empty, indent=2))
+        return 0
+    latest = max(o.timestamp for o in raw)
+    coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
+    health = qc.health_report(raw, expected_interval_s=args.interval, coverage=coverage)
+
+    if paths["registry"].is_file():
+        registry = calibrate.CorrectionRegistry.from_yaml(paths["registry"])
+    else:
+        registry = calibrate.CorrectionRegistry()
+
+    result = steward.plan(health, coverage, registry.all(), latest=latest)
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+
+    actions = cast(list[dict[str, Any]], result["actions"])
+    _err(f"swelter: steward plan for {result['generated_for']} — {len(actions)} action(s)")
+    for i, action in enumerate(actions, start=1):
+        _err(f"  {i:>2}. [{action['kind']}] {action['reason']}")
+    _err(f"swelter: {result['disclaimer']}")
     return 0
 
 
@@ -760,6 +802,20 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_qc)
     add_interval(p_qc)
     p_qc.set_defaults(func=cmd_qc)
+
+    p_status = sub.add_parser(
+        "status", help="ranked steward plan: offline nodes, correction age, coverage gaps"
+    )
+    p_status.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_status.add_argument(
+        "--plan",
+        action="store_true",
+        help="explicit flag documenting intent (status is always the ranked plan)",
+    )
+    add_store(p_status)
+    add_config(p_status)
+    add_interval(p_status)
+    p_status.set_defaults(func=cmd_status)
 
     p_cal = sub.add_parser("calibrate", help="fit corrections from co-location data and apply them")
     p_cal.add_argument("--colocation", default=f"{DEFAULT_DATA}/colocation.jsonl")
