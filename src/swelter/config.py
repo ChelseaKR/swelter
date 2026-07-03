@@ -60,6 +60,8 @@ class NodeConfig:
     lat: float | None = None
     lon: float | None = None
     location: str = "coarse"  # "coarse" (snap to grid) or "precise" (host opted in)
+    # governance-log entry recording host consent for a precise location (governance.md §4)
+    consent_ref: str = ""
 
     def public_location(self, grid_m: float) -> tuple[float, float] | None:
         """The coordinate swelter is allowed to publish for this node.
@@ -159,6 +161,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
             lat=_as_float(n.get("lat")),
             lon=_as_float(n.get("lon")),
             location=_as_str(n.get("location"), "coarse"),
+            consent_ref=_as_str(n.get("consent_ref")),
         )
         for n in doc.get("nodes", []) or []
     )
@@ -215,4 +218,23 @@ def label_concerns(config: NetworkConfig) -> list[str]:
             else:
                 continue
             break
+    return out
+
+
+def consent_concerns(config: NetworkConfig) -> list[str]:
+    """Warn about precise nodes with no recorded host consent.
+
+    Disclosing a precise location is a decision only the host of that node may make, and
+    governance.md §4 requires it be written down as a dated entry in the governance log. This
+    does not gate ``public_location`` — a node missing ``consent_ref`` still publishes its precise
+    coordinate — it only warns, so a host or steward can go record the consent that governance
+    already requires; the CLI prints these on load.
+    """
+    out: list[str] = []
+    for node in config.nodes:
+        if node.location == "precise" and not node.consent_ref.strip():
+            out.append(
+                f"{node.node_id}: location is 'precise' but no consent_ref recorded — a precise "
+                f"location requires a dated governance-log consent entry (governance.md §4)"
+            )
     return out

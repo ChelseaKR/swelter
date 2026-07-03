@@ -30,7 +30,7 @@ from . import (
     ingest_server,
     qc,
 )
-from .config import NetworkConfig, label_concerns, load_config
+from .config import NetworkConfig, consent_concerns, label_concerns, load_config
 from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
@@ -91,6 +91,8 @@ def _load_config(path: str) -> NetworkConfig:
     if Path(path).is_file():
         config = load_config(path)
         for concern in label_concerns(config):
+            _err(f"swelter: ⚠ {concern}")
+        for concern in consent_concerns(config):
             _err(f"swelter: ⚠ {concern}")
         return config
     _err(f"swelter: config {path} not found; using an empty network")

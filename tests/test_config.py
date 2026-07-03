@@ -5,6 +5,7 @@ from __future__ import annotations
 from swelter.config import (
     NetworkConfig,
     NodeConfig,
+    consent_concerns,
     label_concerns,
     load_config,
     parse_config,
@@ -59,18 +60,67 @@ def test_unplaced_node_has_no_public_location() -> None:
     assert node.public_location(150.0) is None
 
 
+def test_consent_concerns_flags_precise_node_without_consent_ref() -> None:
+    config = NetworkConfig(
+        nodes=(NodeConfig(node_id="node-07", lat=1.0, lon=2.0, location="precise"),)
+    )
+    flagged = {c.split(":")[0] for c in consent_concerns(config)}
+    assert flagged == {"node-07"}
+
+
+def test_consent_concerns_silent_when_consent_ref_recorded() -> None:
+    config = NetworkConfig(
+        nodes=(
+            NodeConfig(
+                node_id="node-07",
+                lat=1.0,
+                lon=2.0,
+                location="precise",
+                consent_ref="2026-05-01/node-07",
+            ),
+        )
+    )
+    assert consent_concerns(config) == []
+
+
+def test_consent_concerns_ignores_coarse_nodes_regardless_of_consent_ref() -> None:
+    config = NetworkConfig(
+        nodes=(
+            NodeConfig(node_id="node-01", lat=1.0, lon=2.0, location="coarse"),
+            NodeConfig(
+                node_id="node-02",
+                lat=1.0,
+                lon=2.0,
+                location="coarse",
+                consent_ref="2026-05-01/node-02",
+            ),
+        )
+    )
+    assert consent_concerns(config) == []
+
+
 def test_parse_config_reads_nodes_and_languages() -> None:
     cfg = parse_config(
         {
             "name": "test net",
             "grid_resolution_m": 200,
             "languages": ["en", "es"],
-            "nodes": [{"node_id": "node-01", "lat": 1.0, "lon": 2.0}],
+            "nodes": [
+                {
+                    "node_id": "node-01",
+                    "lat": 1.0,
+                    "lon": 2.0,
+                    "location": "precise",
+                    "consent_ref": "2026-05-01/node-01",
+                }
+            ],
         }
     )
     assert cfg.grid_resolution_m == 200
     assert cfg.languages == ("en", "es")
-    assert cfg.node("node-01") is not None
+    node = cfg.node("node-01")
+    assert node is not None
+    assert node.consent_ref == "2026-05-01/node-01"
     assert cfg.node("missing") is None
 
 
