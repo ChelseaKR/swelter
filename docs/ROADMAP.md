@@ -212,6 +212,63 @@ Files touched:
 - `tests/test_cli.py` — `ingest-serve`/`node-key` CLI coverage (error paths + an issued key
   authenticating against a real listener)
 
+### FIX-11 — Structured logs and per-run pipeline manifests
+
+**Status: ✅ Done** (2026-07-02)
+
+Before this, every pipeline stage's success/failure was only human-readable `_err` banners on
+stderr — nothing machine-parseable, and no way for a published surface to name the run that
+built it. Fixed:
+
+- **JSON-lines event logging:** `src/swelter/obs.py` — `JsonLinesFormatter`, a stdlib
+  `logging.Formatter` emitting one JSON object per line (`ts`, `level`, `stage`, `event`, plus
+  whatever counter fields the caller passes). Attached to the `"swelter"` logger via
+  `configure_json_logging()`; opt-in only (per `docs/standards/OBSERVABILITY-STANDARD.md` §3's
+  Tier-C carve-out) — nothing changes for the default human-readable CLI experience.
+- **Per-run manifests:** `RunManifest` accumulates counters per stage —
+  `payloads_accepted`/`payloads_quarantined` (ingest), `corrections_applied`/
+  `corrections_skipped_stale` (calibrate), `cells_built`/`cells_provisional` (aggregate) —
+  plus a `run_id` (uuid4), `started_at`/`finished_at`, and `pipeline_versions`.
+  `write_manifest(store_dir)` persists it as `run-manifest.json` beside the store; each CLI
+  invocation writes a fresh one (a "run" is one invocation, not a cross-invocation total).
+- **Wired into `ingest`/`calibrate`/`aggregate`/`demo`:** each command's existing `_err`
+  banners are unchanged; a `RunManifest` rides alongside, reusing the numbers already computed
+  (`IngestResult.accepted_payloads`/`.quarantined`, `WriteResult.written`, `len(surface.cells)`),
+  and is written at the end of the invocation.
+- **`/api/health.json` names its run:** `ServerContext.store_dir` (new, optional) lets
+  `server.py`'s `_health()` read the latest `run-manifest.json` and add a `run` block
+  (`run_id`, `finished_at`, `counters`) to the health report — a store predating this feature,
+  or with `store_dir` unset, simply omits the block.
+- **Optional request logging:** behind `SWELTER_LOG_REQUESTS` (env var, off by default),
+  `server.py` logs `method`, `path`, `status`, `ms` per request as a JSON line — never the
+  client address.
+- **Hard rule 1 (no PII, no IPs) extends into the log stream:** every field `obs.py` writes is
+  a count, a timestamp, a run id, or a version string; `_scrub()` is a defensive last line
+  (drops any field whose name looks person- or network-shaped) behind the actual guarantee,
+  which is that nothing in the pipeline ever hands this module a name or an address.
+- **Tests:** `tests/test_obs.py` — manifest JSON schema, counter correctness, the scrub, and
+  determinism of the manifest the `data/demo` replay fixture produces (excluding
+  `run_id`/timestamps) across two independent replays.
+
+Files touched:
+- `src/swelter/obs.py` — new module: `JsonLinesFormatter`, `configure_json_logging`,
+  `log_event`, `RunManifest`, `write_manifest`, `read_manifest`
+- `src/swelter/cli.py` — `cmd_ingest`/`cmd_calibrate`/`cmd_aggregate`/`cmd_demo` build and
+  write a `RunManifest`; `ServerContext` construction in `cmd_serve`/`cmd_demo`/`cmd_fetch`
+  passes `store_dir`
+- `src/swelter/server.py` — `ServerContext.store_dir`; `_health()` adds the `run` block;
+  optional `SWELTER_LOG_REQUESTS` request logging
+- `tests/test_obs.py` — new: formatter, manifest, CLI wiring, health-endpoint `run` block,
+  and request-logging tests
+
+**Observability:** Tier C (library/CLI) per `docs/standards/OBSERVABILITY-STANDARD.md` — OTel
+tracing/metrics/SLOs/health probes are N/A (no long-lived network surface between services;
+`swelter serve` is a single read-only stdlib HTTP process, not a service mesh). `--log-format
+json` is realized as the opt-in `obs.configure_json_logging()` + `SWELTER_LOG_REQUESTS` pair
+rather than a CLI flag, matching this repo's existing subcommand-per-stage shape. The
+PII-in-logs gate (§3, the one non-tiered control) is enforced by construction — this module
+never receives person-shaped fields — with `obs._scrub()` as a defensive backstop.
+
 ## Metrics ledger
 
 These are the numbers the project holds itself to. External-fact rows (the EPA breakpoint and AQI
