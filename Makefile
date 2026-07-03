@@ -2,7 +2,7 @@
 # `make verify` reproduces the full merge gate end to end.
 
 .PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild \
-        fmt fmt-check lint typecheck test a11y i18n verify check clean
+        fmt fmt-check lint typecheck test a11y i18n docs-figures verify check clean
 
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -62,7 +62,10 @@ i18n:  ## Mechanical i18n gates: UTF-8 (G1), BCP-47 tags (G3/G4), EN/ES parity (
 	uv run python scripts/i18n_parity.py
 	uv run python scripts/i18n_cldr_pin_check.py
 
-verify: fmt-check lint typecheck a11y i18n test  ## The full merge gate, end to end
+docs-figures:  ## Re-prove countable claims in docs against their sources of truth (report-only where prose is agent-do-not-modify)
+	uv run python scripts/docs_figures_check.py
+
+verify: fmt-check lint typecheck a11y i18n docs-figures test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
 
 check: verify  ## Alias for verify

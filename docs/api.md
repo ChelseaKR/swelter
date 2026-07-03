@@ -20,6 +20,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | Path | Returns |
 | --- | --- |
 | `/health` | Liveness and observation count |
+| `/healthz` | Alias of `/health` (Kubernetes-style liveness probe convention) |
 | `/v1.1` | SensorThings service document |
 | `/v1.1/Things` | Nodes, with published (grid-snapped) locations |
 | `/v1.1/Locations` | The published cell centres |
