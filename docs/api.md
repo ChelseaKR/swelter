@@ -29,6 +29,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | `/api/surface.geojson` | Latest gridded heat/AQI surface as GeoJSON |
 | `/api/surface.json?hours=N` | Flat per-cell/hour/parameter records |
 | `/api/health.json` | Per-node liveness/quality summary (coverage) |
+| `/api/schema.json` | Machine-readable data dictionary + `data_schema_version` (generated, never hand-copied) |
 | `/api/alerts.json` | Neighborhood heat/AQI alerts (areas past a danger threshold) |
 | `/api/alerts.xml` | The same alerts as a subscribable Atom 1.0 feed (`?area=<id>` to narrow) |
 | `/api/cooling-centers.geojson` | Curated cooling-center overlay (validated FeatureCollection) |
@@ -455,6 +456,53 @@ readings with an hourly expected interval.
 A node reads `degraded` when its completeness drops below 95% or it flags more than 10% of readings,
 and `offline` when it has been silent past three reporting intervals. The dashboard also ships a
 baked `sample-health.json` so the static (server-less) deployment shows coverage too.
+
+### `GET /api/schema.json`
+
+A machine-readable **data dictionary** for the observation fields, the `/export.csv` column set (in
+its exact, fixed order), the `PARAMETERS` registry, and the QC verdicts — plus the two version
+signals an integrator pins against. It is **generated**, not hand-written: every list in the
+response is built from the same constants the pipeline runs on (`models.PARAMETERS`, the `QC_*`
+verdicts, `export._CSV_FIELDS`), so it can never drift from what the running code actually does.
+
+`data_schema_version` is the pin target: an integer, starting at `1`, that only moves when a change
+to the observation fields, the CSV column set/order, or a QC verdict's meaning crosses the line
+`docs/VERSIONING.md` ("Data schema — what counts as breaking") calls MAJOR. It is independent of the
+package's `MAJOR.MINOR.PATCH` (`package_version` here) — the data schema and the package can version
+at different rates, same as the rest of this policy. The same integer is echoed at the SensorThings
+entry point (`GET /v1.1` → `serverSettings.dataSchemaVersion`), so a generic SensorThings client sees
+it without a second request.
+
+```json
+{
+  "data_schema_version": 1,
+  "package_version": "0.1.0",
+  "generated_from": "swelter",
+  "license": "CC0-1.0 (observations) · see DATA-LICENSE",
+  "observation_fields": [
+    {
+      "name": "calibration",
+      "type": "string",
+      "unit": null,
+      "nullable": false,
+      "description": "Calibration provenance. Never empty: it is either the RAW sentinel ('raw', an uncorrected reading) or a correction version id of the form '{parameter}.{method}.{node_id}' ..."
+    }
+  ],
+  "csv_columns": ["node_id", "timestamp", "parameter", "value", "unit", "calibration", "qc", "uncertainty", "trustworthy"],
+  "parameters": [
+    {"name": "temp_c", "unit": "degC", "valid_min": -40.0, "valid_max": 60.0}
+  ],
+  "qc_verdicts": [
+    {"name": "ok", "description": "The reading passed every QC check ...", "rejected": false},
+    {"name": "range", "description": "The value fell outside the parameter's physically plausible range.", "rejected": true}
+  ],
+  "calibration": {
+    "raw_sentinel": "raw",
+    "correction_version_format": "{parameter}.{method}.{node_id}",
+    "description": "A value's `calibration` field is either the raw sentinel above (uncorrected) or a correction version id in the format shown ..."
+  }
+}
+```
 
 ### `GET /api/alerts.json` and `GET /api/alerts.xml`
 

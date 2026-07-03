@@ -147,7 +147,7 @@ see what is corroboration vs net-new.
 | R8 | **Manual a11y pass as a first-class artifact** — surface the dated NVDA/VoiceOver/contrast review and a "known a11y gaps" note alongside the auto gate | D1, A5 | P2 | S | **[a11y]** · **[corroborates audit E6/E7]** |
 | R9 | **Point-of-use gloss of "uncertainty" and "provisional"** — one screen-reader-friendly line each, so the honesty is legible to non-experts | A5, A1 | P1 | S | **[trust][a11y]** · **[NET-NEW]** |
 | R10 | **Precise-opt-in consent reference** — a field/check linking a `precise` node to its governance-log consent entry; flag a precise node with no recorded consent | D3 | P2 | S | privacy · **[corroborates governance §4]** |
-| R11 | **Machine-readable data dictionary + data-schema version signal** for surface/export fields, so integrators can pin against the README's semver promise | E3, D4 | P2 | M | **[reuse][commons]** · **[corroborates README semver + ADR 0007]** |
+| R11 | **Machine-readable data dictionary + data-schema version signal** for surface/export fields, so integrators can pin against the README's semver promise. ✅ Implemented 2026-07-03 — `src/swelter/dictionary.py` generates the dictionary from `models.PARAMETERS`, the `QC_*` constants, and `export._CSV_FIELDS` (no second copy to drift); served at `GET /api/schema.json` and echoed as `serverSettings.dataSchemaVersion` on `GET /v1.1`; `tests/test_dictionary.py` enforces the drift guards | E3, D4 | P2 | M | **[reuse][commons]** · **[corroborates README semver + ADR 0007]** |
 
 ## Expansion backlog (new capability)
 

@@ -68,6 +68,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
                     self._surface_records(query)
                 elif path == "/api/health.json":
                     self._health()
+                elif path == "/api/schema.json":
+                    self._schema()
                 elif path == "/api/alerts.json":
                     self._alerts(query, fmt="json")
                 elif path == "/api/alerts.xml":
@@ -181,6 +183,13 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             # know which nodes are calibrated and which published cell each sits in).
             coverage = qc.coverage_equity(ctx.store.all(), aggregate.node_cell_map(ctx.config))
             self._json(qc.health_report(ctx.store.read(calibration=RAW), coverage=coverage))
+
+        def _schema(self) -> None:
+            # The machine-readable data dictionary: generated from the running code's own
+            # source-of-truth constants (PARAMETERS, the QC_* verdicts, export._CSV_FIELDS), so it
+            # cannot drift from what the pipeline actually does. `data_schema_version` is the pin
+            # target — see docs/VERSIONING.md.
+            self._json(api.schema_document())
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(

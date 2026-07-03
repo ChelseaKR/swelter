@@ -144,6 +144,25 @@ A correction is itself versioned data, not code: re-co-locating a node and re-fi
 correction under the same version-id scheme, recorded with its window — an audit trail, not a schema
 change.
 
+## The published data dictionary and `data_schema_version`
+
+`GET /api/schema.json` (`src/swelter/dictionary.py`) publishes a machine-readable data dictionary
+— the observation fields, the `/export.csv` column set, the `PARAMETERS` registry, and the QC
+verdicts — generated from the same constants the pipeline runs on, so it cannot drift from this
+document or from the running code. It carries an integer `data_schema_version` (starting at `1`,
+independent of the package's `MAJOR.MINOR.PATCH`) that is the pin target for an integrator who
+wants a cheap, machine-checkable signal that the data schema underneath them changed: poll
+`/api/schema.json` (or read `serverSettings.dataSchemaVersion` off `GET /v1.1`) and compare against
+the value last seen.
+
+Bumping `DATA_SCHEMA_VERSION` follows exactly the "Data schema — what counts as breaking" rules
+above: it moves only when a change to the observation fields, the CSV column set/order, or a QC
+verdict's meaning would be MAJOR under those rules. A MINOR, additive change to the schema (a new
+optional field, a new `PARAMETERS` entry, a new QC verdict) does **not** require bumping the
+integer — the dictionary's contents change to reflect the addition, but the version number is
+reserved for breaking schema changes, matching how the rest of this policy treats additive changes
+as non-breaking.
+
 ## Deprecation path
 
 The same path applies to both surfaces.
@@ -201,6 +220,17 @@ through `uncertainty` is unaffected; a parser that asserts the exact column coun
 recorded here explicitly rather than waved through as minor, and consumers with additive needs are
 pointed at the JSON export (where `trustworthy` is unambiguously MINOR), consistent with the
 guidance above.
+
+### `/api/schema.json` and `serverSettings.dataSchemaVersion` — MINOR (backward compatible)
+
+A new endpoint (`GET /api/schema.json`, the generated data dictionary) and a new field on an
+existing response object (`serverSettings.dataSchemaVersion` on `GET /v1.1`). Both are additions: no
+existing endpoint, field, or default changed, and a consumer that ignores them keeps working
+untouched. Under "Public API — what counts as breaking" ("Adding a new endpoint ... or a new field
+to an existing response object"), this is explicitly **MINOR**. `DATA_SCHEMA_VERSION` itself starts
+at `1` and is not, by its introduction, a schema change — it is a new descriptive signal about the
+existing schema, not a change to the schema; only a future bump of the integer would need
+evaluating against the "Data schema — what counts as breaking" rules above.
 
 ### Heat-index plausibility ceiling (60 degC) — data-quality fix, PATCH
 
