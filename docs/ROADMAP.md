@@ -142,9 +142,13 @@ leverage.
    surface API and `api.md`, and the dashboard as a measurement option across map, table, and list —
    provisional flags and the calibrated/raw line intact, severity in text not color alone. The
    flagship differentiator.
-2. **Make the trust layer visible** — surface the calibration version, ±uncertainty, QC verdict, and
-   reference-monitor lineage as a first-class "show your work" view, not buried provenance. This is
-   the moat for the researcher and credibility audiences; mostly `web/` and `api.md`.
+2. **Make the trust layer visible** (Phase 5.2 + E2) — **built.** Surfaces the QC verdict,
+   calibration state, ±uncertainty, calibration method, reference-monitor lineage, and reading
+   count as a first-class, always-visible "show your work" panel (`#provenance` in
+   `web/index.html`), not buried in a collapsed `<details>`. Lives in `web/app.js`
+   (`renderProvenance`, alongside the unchanged `provenanceText` used by the plain-text brief
+   export), `web/styles.css`, and the `prov-*` keys in `web/i18n/{en,es}.json`. This is the moat
+   for the researcher and credibility audiences.
 3. **Register-your-own-network as the headline capability** — lean on `network.yaml`, the no-hosted-
    dependency, scale-to-zero design, and `ADD-YOUR-NEIGHBORHOOD.md` as the replicability and
    sustainability story (local ownership is the documented survival factor). Largely docs and
