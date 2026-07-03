@@ -109,6 +109,9 @@ def test_demo_bakes_alerts_and_cooling_into_web(tmp_path: Path) -> None:
     assert "alerts" in feed and "thresholds" in feed
     assert feed["generated"]  # a data-derived timestamp, even on a calm week
     assert (web / "alerts.xml").read_text(encoding="utf-8").startswith("<?xml")
+    es_atom = (web / "alerts.es.xml").read_text(encoding="utf-8")
+    assert es_atom.startswith("<?xml")
+    assert 'xml:lang="es"' in es_atom
     cooling = json.loads((web / "cooling-centers.geojson").read_text(encoding="utf-8"))
     assert cooling["type"] == "FeatureCollection"
     assert len(cooling["features"]) >= 1

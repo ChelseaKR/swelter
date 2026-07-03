@@ -76,6 +76,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                     self._alerts(query, fmt="json")
                 elif path == "/api/alerts.xml":
                     self._alerts(query, fmt="atom")
+                elif path == "/api/alerts.es.xml":
+                    self._alerts(query, fmt="atom", lang="es")
                 elif path == "/api/cooling-centers.geojson":
                     self._cooling_centers()
                 elif path == "/export.csv":
@@ -150,9 +152,11 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             records = [c.as_record() for c in surface.cells if c.bucket in keep]
             self._json({"interval": surface.interval, "buckets": buckets, "cells": records})
 
-        def _alerts(self, query: dict[str, list[str]], *, fmt: str) -> None:
+        def _alerts(self, query: dict[str, list[str]], *, fmt: str, lang: str = "en") -> None:
             # The generated neighborhood-alerts feed: cells crossing a danger threshold in the
             # latest hour. `?area=<area_id>` narrows it to one cell (the per-neighborhood feed).
+            # `lang="es"` (the /api/alerts.es.xml route) renders the Atom feed via the
+            # machine-translated swelter.i18n_alerts catalog; see AlertFeed.to_atom.
             surface = aggregate.aggregate(ctx.store.all(), ctx.config)
             feed = alerts.build_feed(
                 surface,
@@ -164,7 +168,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             if area:
                 feed = feed.for_area(area)
             if fmt == "atom":
-                self._body(feed.to_atom().encode("utf-8"), "application/atom+xml; charset=utf-8")
+                body = feed.to_atom(lang=lang).encode("utf-8")
+                self._body(body, "application/atom+xml; charset=utf-8")
             else:
                 self._json(feed.to_json())
 

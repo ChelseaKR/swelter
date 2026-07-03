@@ -200,6 +200,9 @@ def test_alerts_json_and_web_baking(
     assert "alerts" in feed and "thresholds" in feed
     assert (web / "alerts.json").is_file()
     assert (web / "alerts.xml").read_text(encoding="utf-8").startswith("<?xml")
+    es_atom = (web / "alerts.es.xml").read_text(encoding="utf-8")
+    assert es_atom.startswith("<?xml")
+    assert 'xml:lang="es"' in es_atom
 
 
 # -- calibrate / rebuild (hard rule #3: rebuild from immutable raw) -----------
