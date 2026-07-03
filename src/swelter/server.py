@@ -33,6 +33,7 @@ class ServerContext:
     web_dir: Path
     base_url: str = "http://localhost:8000"
     cooling_centers_path: Path | None = None  # curated cooling-center dataset (optional overlay)
+    store_dir: Path | None = None  # store folder, for the /api/health.json integrity chain head
 
 
 def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
@@ -180,7 +181,11 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             # calibrated-vs-raw coverage-equity read rides along (needs the full stream + config to
             # know which nodes are calibrated and which published cell each sits in).
             coverage = qc.coverage_equity(ctx.store.all(), aggregate.node_cell_map(ctx.config))
-            self._json(qc.health_report(ctx.store.read(calibration=RAW), coverage=coverage))
+            self._json(
+                qc.health_report(
+                    ctx.store.read(calibration=RAW), coverage=coverage, store_dir=ctx.store_dir
+                )
+            )
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(

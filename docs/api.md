@@ -28,7 +28,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | `/v1.1/Observations` | Readings (filterable, paginated) |
 | `/api/surface.geojson` | Latest gridded heat/AQI surface as GeoJSON |
 | `/api/surface.json?hours=N` | Flat per-cell/hour/parameter records |
-| `/api/health.json` | Per-node liveness/quality summary (coverage) |
+| `/api/health.json` | Per-node liveness/quality summary (coverage), plus the archive integrity chain head |
 | `/api/alerts.json` | Neighborhood heat/AQI alerts (areas past a danger threshold) |
 | `/api/alerts.xml` | The same alerts as a subscribable Atom 1.0 feed (`?area=<id>` to narrow) |
 | `/api/cooling-centers.geojson` | Curated cooling-center overlay (validated FeatureCollection) |
@@ -456,6 +456,26 @@ A node reads `degraded` when its completeness drops below 95% or it flags more t
 and `offline` when it has been silent past three reporting intervals. The dashboard also ships a
 baked `sample-health.json` so the static (server-less) deployment shows coverage too.
 
+An `integrity` block rides along, cheap to compute on every request — it reads whatever
+`swelter verify-archive --write` last published to `digests.jsonl` rather than re-hashing the
+store (see [`docs/ARCHITECTURE.md`](ARCHITECTURE.md#verifiable-integrity-swelter-verify-archive-and-the-daily-digest-chain)):
+
+```json
+{
+  "integrity": {
+    "available": true,
+    "head": "7c9c2e…",
+    "last_verified_day": "2026-06-08",
+    "days": 16
+  }
+}
+```
+
+`available` is `false` (head/last_verified_day/days omitted) until a steward has run
+`swelter verify-archive --write` at least once. `head` is the chained daily-digest hash — anyone
+can re-run `swelter verify-archive --store <store>` against their own copy of the archive and
+compare the printed head against this field to check the copy has not been altered.
+
 ### `GET /api/alerts.json` and `GET /api/alerts.xml`
 
 The neighborhood heat/AQI alerts feed: every published cell whose latest-hour reading has crossed a
@@ -595,6 +615,24 @@ Add `--json` for the machine-readable form — a `nodes` list and a `gaps` list 
   ]
 }
 ```
+
+## `swelter verify-archive` (CLI)
+
+Not an HTTP endpoint either: the tamper-evidence check, run against a copy of the store. Recomputes
+every row's content hash and compares it to what is stored; `--write` (re)publishes the chained
+daily digest as `digests.jsonl` in the store folder (only on success — a known-corrupted archive
+never gets a fresh, misleadingly clean head written over it). Exits nonzero the moment any row's
+hash disagrees. Full procedure and what a single-byte mutation looks like:
+[`docs/ARCHITECTURE.md`](ARCHITECTURE.md#verifiable-integrity-swelter-verify-archive-and-the-daily-digest-chain).
+
+```
+swelter: verify-archive OK — 141696 row(s) match their stored hash across 16 day(s)
+  head chain  7c9c2e...
+  wrote store/digests.jsonl
+```
+
+Add `--json` for the machine-readable form (`ok`, `rows_checked`, `days`, `head`, `mismatches`,
+`digests_path`) for CI or an audit script.
 
 ## Observed properties
 
