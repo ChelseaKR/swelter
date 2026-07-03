@@ -4,10 +4,33 @@ The swelter HTTP surface is **read-only**. It only ever answers `GET` (and `OPTI
 (`POST`/`PUT`/`PATCH`/`DELETE`) returns `405` with a JSON body. There is no write path to expose, and
 no account or API key. CORS is open (`Access-Control-Allow-Origin: *`) because the data is open.
 
-The observation **data is CC0** (CC0-1.0 Public Domain Dedication; see `DATA-LICENSE`). You can
-copy, modify, redistribute, and build on it, including commercially, without asking. Attribution is
-not required but appreciated: "Environmental data from the swelter community sensing network." The
-swelter source code is licensed separately under Apache-2.0 (see `LICENSE`).
+The observation **data is CC0** (CC0-1.0 Public Domain Dedication; see `DATA-LICENSE`) — for a
+network's own nodes. You can copy, modify, redistribute, and build on it, including commercially,
+without asking. Attribution is not required but appreciated: "Environmental data from the swelter
+community sensing network." The swelter source code is licensed separately under Apache-2.0 (see
+`LICENSE`).
+
+**Mixed stores (native + fetched third-party data).** The store itself is source-agnostic: it has
+no license field, and a store can hold a network's own CC0 observations, readings fetched from a
+third-party source (`swelter fetch`), or both. CC0 is true only for a network's own observations.
+A fetched source keeps its own terms — OpenAQ and Copernicus CAMS (via Open-Meteo) are CC BY 4.0;
+Sensor.Community is CC BY-SA 4.0 — and `export.py` does **not** infer or track which rows came from
+where, so it cannot safely emit a single license for a store that mixes sources. The `--license`
+(and `--attribution`) flags on `swelter export`, and the matching keyword arguments on
+`export.to_json()` / `to_csv()` / `summarize()`, let the caller state the license explicitly at
+export time; the default remains CC0-1.0 so a network's own store is unchanged. **If you run `swelter
+fetch` into a store that already holds other observations, export that store per source** (e.g. one
+store per fetch, as the Pages workflow does) rather than trusting a single export to get a mixed
+store's license right — nothing today prevents `swelter export` from mislabeling a mixed store, so
+that discipline is on the operator, not (yet) enforced by the store.
+
+**CC BY-SA 4.0 and downstream reuse.** Sensor.Community's terms are share-alike: if you redistribute
+a derivative of *that* data (the `/sensors/` page's export, not a network's own CC0 readings), your
+redistribution must itself carry CC BY-SA 4.0 (or a compatible license) and credit Sensor.Community.
+This is stricter than CC0 or plain CC BY, and it is easy to violate by accident if a downstream
+project merges CC BY-SA rows into an otherwise-CC0 dataset and republishes the merge under CC0 — that
+merge is a share-alike violation, not a harmless simplification. Keep a CC BY-SA source's rows (and
+its license) distinguishable through any pipeline that redistributes them further.
 
 The server is the standard library's `http.server`, single-threaded and stateless: it reads the
 store and answers. It is scale-to-zero friendly and runs as well on a Raspberry-Pi-class host with

@@ -253,10 +253,16 @@ def cmd_export(args: argparse.Namespace) -> int:
         raw = store.read(calibration=RAW)
     gaps = qc.detect_gaps(raw, args.interval)
     if args.format == "json":
-        sys.stdout.write(export.to_json(observations, indent=2))
+        sys.stdout.write(
+            export.to_json(
+                observations, indent=2, license=args.license, attribution=args.attribution
+            )
+        )
     else:
-        sys.stdout.write(export.to_csv(observations))
-    _err(export.summarize(observations, gaps=gaps))
+        sys.stdout.write(
+            export.to_csv(observations, license=args.license, attribution=args.attribution)
+        )
+    _err(export.summarize(observations, gaps=gaps, license=args.license))
     return 0
 
 
@@ -513,6 +519,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             return 1
         network = openaq.network_doc("California", nodes)
         attribution = openaq.ATTRIBUTION
+        license = openaq.LICENSE
         source_label = "OpenAQ"
     elif args.source == "sensor-community":
         area = sensor_community.Area(args.area_name, args.lat, args.lon, args.radius)
@@ -530,6 +537,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             return 1
         network = sensor_community.network_doc(area.name, nodes)
         attribution = sensor_community.ATTRIBUTION
+        license = sensor_community.LICENSE
         source_label = "Sensor.Community"
     else:
         places = openmeteo.CALIFORNIA
@@ -549,6 +557,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             return 1
         network = openmeteo.network_doc(places)
         attribution = openmeteo.ATTRIBUTION
+        license = openmeteo.LICENSE
         source_label = "Copernicus CAMS via Open-Meteo"
 
     observations = qc.apply(observations)
@@ -575,7 +584,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             f"swelter: stored {written.written} real observations from {len(config.nodes)} "
             f"locations (source: {source_label})"
         )
-        _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
+        _err(
+            export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval), license=license)
+        )
 
     if args.serve:
         store = open_store(args.store)
@@ -724,6 +735,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--node", default=None)
     p_exp.add_argument("--parameter", default=None)
     p_exp.add_argument("--bbox", default=None, help="named area (reserved; see docs/api.md)")
+    p_exp.add_argument(
+        "--license",
+        default=export.DEFAULT_LICENSE,
+        help="license of the exported data (default: CC0-1.0, the store's native default; "
+        "pass the source's real terms — e.g. 'CC BY-SA 4.0' — for a fetched third-party store)",
+    )
+    p_exp.add_argument(
+        "--attribution", default=None, help="attribution text to carry alongside --license"
+    )
     add_store(p_exp)
     add_interval(p_exp)
     p_exp.set_defaults(func=cmd_export)

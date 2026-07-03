@@ -25,6 +25,8 @@ from ..models import Observation, format_timestamp, heat_index_c, parse_timestam
 from ._http import get_json
 
 AREA_URL = "https://data.sensor.community/airrohr/v1/filter/area="
+#: Sensor.Community's stated terms for network data (sensor.community).
+LICENSE = "CC BY-SA 4.0"
 ATTRIBUTION = (
     "Real readings from the Sensor.Community network of community low-cost sensors "
     "(sensor.community, CC BY-SA 4.0) — uncalibrated, so shown raw / provisional."

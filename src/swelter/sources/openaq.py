@@ -30,6 +30,8 @@ from ..models import Observation, format_timestamp, heat_index_c, parse_timestam
 from ._http import SourceError, get_json
 
 API = "https://api.openaq.org/v3"
+#: OpenAQ's stated terms for API data (openaq.org).
+LICENSE = "CC BY 4.0"
 ATTRIBUTION = (
     "Real readings from the OpenAQ network of physical air-quality sensors (openaq.org, CC BY 4.0) "
     "— uncalibrated, so shown raw / provisional."

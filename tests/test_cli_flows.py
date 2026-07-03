@@ -154,7 +154,11 @@ def test_export_filters_by_parameter(demo_store: Path, capsys: pytest.CaptureFix
     rc = main(["export", "--store", str(demo_store), "--format", "csv", "--parameter", "pm25_ugm3"])
     assert rc == 0
     body = capsys.readouterr().out
-    rows = [line for line in body.splitlines() if line and not line.startswith("node_id,")]
+    rows = [
+        line
+        for line in body.splitlines()
+        if line and not line.startswith("node_id,") and not line.startswith("#")
+    ]
     assert rows, "at least one pm25 row"
     assert all(",pm25_ugm3," in row for row in rows)
 
