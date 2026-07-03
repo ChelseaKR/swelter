@@ -157,6 +157,20 @@ def snap_to_grid(lat: float, lon: float, grid_m: float) -> tuple[float, float]:
     return (round(snapped_lat, 6), round(snapped_lon, 6))
 
 
+def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Ground distance in metres between two coordinates (haversine formula).
+
+    Used to show a host how far the published (possibly grid-snapped) coordinate sits from
+    their sensor's exact location — see ``swelter node-preview``.
+    """
+    earth_radius_m = _METRES_PER_DEGREE_LAT * 180.0 / math.pi
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return 2 * earth_radius_m * math.asin(math.sqrt(a))
+
+
 def _as_str(value: Any, default: str = "") -> str:
     return str(value) if value is not None else default
 

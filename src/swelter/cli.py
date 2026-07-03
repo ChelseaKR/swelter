@@ -1,5 +1,6 @@
 """The ``swelter`` command line: ingest, qc, calibrate, aggregate, export, serve, demo, rebuild —
-plus the operator-side write path (ingest-serve, node-key).
+plus the operator-side write path (ingest-serve, node-key) and the host-facing preview
+(node-preview).
 
 This is the one-command surface a neighbourhood collective actually touches. Every subcommand
 is a thin wrapper over the library functions, so anything the CLI does is equally scriptable
@@ -32,7 +33,14 @@ from . import (
     ingest_server,
     qc,
 )
-from .config import NetworkConfig, consent_concerns, label_concerns, load_config
+from .config import (
+    NetworkConfig,
+    NodeConfig,
+    consent_concerns,
+    haversine_m,
+    label_concerns,
+    load_config,
+)
 from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
@@ -348,6 +356,56 @@ def cmd_node_key(args: argparse.Namespace) -> int:
     _err("  never commit it, never put it in network.yaml, never publish the keys file;")
     _err("  re-running this command for the same node rotates (replaces) the key.")
     print(key)
+    return 0
+
+
+def _print_node_preview(node: NodeConfig, config: NetworkConfig) -> None:
+    """Print what the map/API publishes for one node, versus its private exact coordinate."""
+    label = f" ({node.label})" if node.label else ""
+    print(f"node {node.node_id}{label}")
+    if node.lat is None or node.lon is None:
+        print("  not placed — publishes nothing (no location on record)")
+        print()
+        return
+    print(f"  your private coordinate — never published: {node.lat:.6f}, {node.lon:.6f}")
+    published = node.public_location(config.grid_resolution_m)
+    assert published is not None  # noqa: S101 (lat/lon set, so this cannot be None)
+    cell_id, cell_label = aggregate.node_cell_map(config).get(node.node_id, ("", ""))
+    label_suffix = f" ({cell_label})" if cell_label else ""
+    print(f"  published coordinate: {published[0]:.6f}, {published[1]:.6f}")
+    print(f"  published cell: {cell_id}{label_suffix}")
+    offset_m = haversine_m(node.lat, node.lon, published[0], published[1])
+    print(f"  map shows a point ~{offset_m:.0f} m from your sensor")
+    print(f"  location mode: {node.location}")
+    if node.location == "precise":
+        print(
+            "  ⚠ WARNING: location is 'precise' — your EXACT coordinate is published as-is. "
+            "Coarse-by-default grid-snap protection is OFF for this node. Switch `location` "
+            "back to 'coarse' in network.yaml to publish only the grid cell."
+        )
+    print()
+
+
+def cmd_node_preview(args: argparse.Namespace) -> int:
+    """Show a host exactly what the map/API publishes for their node(s).
+
+    Read-only and host-facing: it never changes a node's location or its published mode, it
+    just makes visible — in the host's own terminal — the same coordinate the map and API
+    already publish, so "coarse by default" is a fact a host can verify, not just a promise.
+    """
+    config = _load_config(args.config)
+    if args.node_id:
+        node = config.node(args.node_id)
+        if node is None:
+            _err(f"swelter: node {args.node_id} not found in {args.config}")
+            return 1
+        _print_node_preview(node, config)
+        return 0
+    if not config.nodes:
+        _err(f"swelter: no nodes registered in {args.config}")
+        return 0
+    for node in config.nodes:
+        _print_node_preview(node, config)
     return 0
 
 
@@ -835,6 +893,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--keys", default=DEFAULT_KEYS, help="operator-local node-keys file to create/update"
     )
     p_key.set_defaults(func=cmd_node_key)
+
+    p_preview = sub.add_parser(
+        "node-preview", help="show a host the exact coordinate the map/API publishes for a node"
+    )
+    p_preview.add_argument(
+        "node_id", nargs="?", default=None, help="show one node (default: every placed node)"
+    )
+    add_config(p_preview)
+    p_preview.set_defaults(func=cmd_node_preview)
 
     p_demo = sub.add_parser("demo", help="replay recorded data through the whole pipeline")
     p_demo.add_argument("--data", default=DEFAULT_DATA)
