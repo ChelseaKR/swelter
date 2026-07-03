@@ -85,10 +85,28 @@ def _emit(
     )
 
 
-def fetch(area: Area = STUTTGART) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+def fetch(
+    area: Area = STUTTGART,
+) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
     """Fetch each sensor's latest reading in the area. Returns (observations, node metadata)."""
     rows = _get_json(f"{AREA_URL}{area.lat},{area.lon},{area.radius_km}")
     return parse_measurements(rows if isinstance(rows, list) else [])
+
+
+def _sensor_model(sensor: dict[str, Any]) -> str:
+    """The sensor's hardware family name (e.g. "SDS011", "SPS30"), or "" if unknown.
+
+    Sensor.Community's API nests this as ``sensor.sensor_type.name``. Preserving it lets a
+    generated ``network.yaml`` carry ``NodeConfig.sensor_model``, so the adapter's own knowledge of
+    which PM sensor produced a reading survives into calibration instead of being discarded — the
+    known hardware type is exactly what a (parameter, model) calibration family is keyed on.
+    """
+    sensor_type = sensor.get("sensor_type")
+    if isinstance(sensor_type, dict):
+        name = sensor_type.get("name")
+        if isinstance(name, str):
+            return name.strip()
+    return ""
 
 
 def _latest_by_sensor(rows: list[Any]) -> dict[int, dict[str, Any]]:
@@ -111,7 +129,7 @@ def _emit_sensor_readings(
     sid: int,
     row: dict[str, Any],
     out: list[Observation],
-    nodes: dict[str, tuple[str, float, float]],
+    nodes: dict[str, tuple[str, float, float, str]],
 ) -> None:
     """Parse one sensor's latest row into raw observations, appended to ``out``/``nodes``."""
     loc = row.get("location") or {}
@@ -120,7 +138,7 @@ def _emit_sensor_readings(
     except (KeyError, TypeError, ValueError):
         return
     node_id = f"sc-{sid}"
-    nodes[node_id] = (f"Sensor {sid}", lat, lon)
+    nodes[node_id] = (f"Sensor {sid}", lat, lon, _sensor_model(row.get("sensor") or {}))
     ts = format_timestamp(parse_timestamp(str(row["timestamp"]).replace(" ", "T")))
     values: dict[str, Any] = {}
     for value in row.get("sensordatavalues") or []:
@@ -141,11 +159,11 @@ def _emit_sensor_readings(
 
 def parse_measurements(
     rows: list[Any],
-) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
     """Map Sensor.Community measurements to raw observations + node metadata (pure — no network)."""
     latest = _latest_by_sensor(rows)
     out: list[Observation] = []
-    nodes: dict[str, tuple[str, float, float]] = {}
+    nodes: dict[str, tuple[str, float, float, str]] = {}
     for sid, row in latest.items():
         _emit_sensor_readings(sid, row, out, nodes)
     return out, nodes
@@ -153,18 +171,34 @@ def parse_measurements(
 
 def network_doc(
     name: str,
-    nodes: dict[str, tuple[str, float, float]],
+    nodes: dict[str, tuple[str, float, float, str]],
     languages: tuple[str, ...] = ("en", "es"),
 ) -> dict[str, Any]:
-    """A ``network.yaml`` document for the discovered community sensors (precise real locations)."""
+    """A ``network.yaml`` document for the discovered community sensors (precise real locations).
+
+    Each node's ``sensor_model`` (the PM hardware family Sensor.Community reports, e.g. "SDS011",
+    "SPS30") is carried through when known, so a future co-location and calibration of one of these
+    real sensors can select the right (parameter, model) correction family. These sensors are still
+    uncalibrated here — ``calibration_windows`` stays empty — so this never promotes a reading past
+    raw/provisional; it only preserves hardware provenance for when calibration evidence exists.
+    """
+    node_entries: list[dict[str, Any]] = []
+    for nid, (label, lat, lon, model) in sorted(nodes.items()):
+        entry: dict[str, Any] = {
+            "node_id": nid,
+            "label": label,
+            "lat": lat,
+            "lon": lon,
+            "location": "precise",
+        }
+        if model:
+            entry["sensor_model"] = model
+        node_entries.append(entry)
     return {
         "name": f"swelter — {name} (real community sensors, Sensor.Community)",
         "grid_resolution_m": 150,
         "languages": list(languages),
         "reference_monitors": [],
-        "nodes": [
-            {"node_id": nid, "label": label, "lat": lat, "lon": lon, "location": "precise"}
-            for nid, (label, lat, lon) in sorted(nodes.items())
-        ],
+        "nodes": node_entries,
         "calibration_windows": [],  # community sensors here are uncalibrated (raw/provisional)
     }

@@ -17,7 +17,7 @@ The implementation is `src/swelter/calibrate.py`. The committed evidence is
 registry). Nothing in this document is hand-computed prose detached from the code: the worked example
 at the end reproduces a real registry entry.
 
-Last verified: 2026-06-16. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
+Last verified: 2026-07-03. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
 registry, or the US-EPA PurpleAir correction lineage referenced below; otherwise every 12 months.
 
 ---
@@ -121,6 +121,67 @@ The predictor-to-method mapping, verbatim from the engine:
 
 ---
 
+## Per-model bias: sensor-model-aware calibration families
+
+The predictor-to-method mapping above is keyed by parameter alone, but the EPA-PurpleAir humidity
+lineage it borrows from is sensor-family-specific: different low-cost PM sensors have measurably
+different humidity responses because they differ in optics, onboard firmware, and whether they
+apply their own RH compensation before a reading ever leaves the device. A node can optionally
+register which hardware family produced its readings — `NodeConfig.sensor_model` in
+`network.yaml`, e.g. `sensor_model: PMS5003` — and `calibrate.py` uses it to select a
+(parameter, model) correction family when one is registered, falling back to the per-parameter
+default above for a node with no model or an unrecognized one. **This changes nothing about the
+raw/calibrated boundary (hard rule #3):** a model-aware correction is still fit from that node's
+own co-location evidence, the same as every other correction in this document; the model only
+picks which regression form to fit. `network.yaml`'s `sensor_model` field is public and must never
+hold a serial number or other per-device identifier — `swelter.config` rejects values that look
+like one (a long digit run, an explicit "serial"/"S/N" marker, a MAC address, a UUID) at load time
+(hard rule #1).
+
+The known families and the typical bias each is registered for:
+
+| Model | Onboard RH compensation | Registered family | Predictors | Method id |
+|---|---|---|---|---|
+| PMS5003 (Plantower) | No | humidity-aware, EPA-PurpleAir lineage | `raw`, `humidity` | `epa-humidity-pms5003` |
+| SDS011 (Nova Fitness) | No | humidity-aware, EPA-PurpleAir lineage | `raw`, `humidity` | `epa-humidity-sds011` |
+| SPS30 (Sensirion) | Yes (firmware-side) | linear, no humidity term | `raw` | `linear-onboard-rh-sps30` |
+
+- **PMS5003 and SDS011** are both optical particle counters with no onboard humidity correction, so
+  they fit the same humidity-aware form as the per-parameter default — the model-specific method id
+  exists so the registry and every calibrated observation's `calibration` version id trace which
+  family's bias the fit corrected, even though the regression form is identical.
+- **SPS30** applies its own RH compensation in firmware before the reading reaches swelter, so most
+  of the humidity-driven inflation described above is already removed by the time the raw value is
+  read. Adding a second humidity term at the network level would just fit noise against an already-
+  compensated signal, so the SPS30 family drops it and fits a plain linear correction instead.
+- These are *typical* biases for each hardware family, described qualitatively here and encoded as
+  a difference in predictor set / method id — not as a numeric prior a node can borrow instead of
+  its own co-location fit. Every coefficient in the registry, model-aware or not, is still earned
+  from that specific node's own training pairs (see **Co-location training** above); a model only
+  changes which regression form those pairs are fit against.
+
+### A model-typical bias is not calibration
+
+**A registered `sensor_model` alone never promotes a node past provisional.** Knowing a node runs a
+PMS5003 tells you the *shape* of correction a co-location fit for that node is likely to need — the
+family it borrows from — not what that node's actual coefficients are. A node with a
+`sensor_model` and no co-location fit has exactly the same `calibration: raw` status, the same
+provisional presentation on the map and table, and the same absence from the registry as a node
+with no model set at all (audit A1: raw and calibrated must never be silently blurred). If a future
+feature ever surfaces a "typical PMS5003 bias band" as a documented prior for context, it must be
+labeled explicitly as a prior, sourced independently of any specific node's evidence, and rendered
+in a way that cannot be mistaken for a fitted, node-specific correction — hard rule #3 forbids
+treating it as one.
+
+`src/swelter/sources/sensor_community.py` is where this field's provenance often originates: the
+Sensor.Community API already reports each sensor's hardware type (`sensor.sensor_type.name`), and
+the adapter maps it onto the discovered node's `sensor_model` in the generated `network.yaml`
+instead of discarding it — the readings stay raw/provisional exactly as they did before (that
+adapter has no co-location evidence to fit from), but the hardware family survives for the day a
+co-location window is recorded for one of these real sensors.
+
+---
+
 ## Honest error bars: residual standard deviation as 1-sigma uncertainty
 
 A correction is only as good as how tightly the node tracks the reference after it is applied. swelter
@@ -217,6 +278,7 @@ corrections:                     # list, one entry per fitted node/parameter
     reference: string            # the reference monitor / source identifier
     window_start: string         # ISO-8601 UTC timestamp of the first training pair
     window_end: string           # ISO-8601 UTC timestamp of the last training pair
+    model: string                # OPTIONAL — sensor family, e.g. "PMS5003"; omitted when unknown
 ```
 
 `coefficients` is positional: `coefficients[i]` multiplies `predictors[i]`, and the prediction is
@@ -225,6 +287,12 @@ there is one coefficient; for a PM entry `predictors` is `[raw, humidity]`, so t
 co-located node contributes three corrections (temp, PM2.5, PM10), so the demo registry holds 300
 corrections from the 100 co-located nodes. The remaining third of the network has no co-location
 records, so those nodes appear nowhere in the registry and their readings publish raw.
+
+`model` is a schema addition (EXP-03): it is only written when the node that produced the
+correction had a `sensor_model` registered in `network.yaml`, so every existing entry — including
+the whole committed demo registry, since none of its nodes register a model — parses and
+round-trips identically to before this field existed. A reader can treat a missing `model` key
+exactly as an empty string.
 
 ---
 

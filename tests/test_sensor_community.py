@@ -12,9 +12,14 @@ from swelter.models import RAW
 from swelter.sources import sensor_community
 
 
-def _row(sid: int, ts: str, *, p2: str, p1: str, temp: str, humid: str) -> dict[str, object]:
+def _row(
+    sid: int, ts: str, *, p2: str, p1: str, temp: str, humid: str, sensor_type: str = ""
+) -> dict[str, object]:
+    sensor: dict[str, object] = {"id": sid}
+    if sensor_type:
+        sensor["sensor_type"] = {"name": sensor_type}
     return {
-        "sensor": {"id": sid},
+        "sensor": sensor,
         "timestamp": ts,
         "location": {"latitude": "48.7758", "longitude": "9.1829"},
         "sensordatavalues": [
@@ -30,7 +35,7 @@ def test_parse_maps_values_as_raw() -> None:
     obs, nodes = sensor_community.parse_measurements(
         [_row(123, "2026-06-17 23:00:00", p2="12.3", p1="20.0", temp="28.1", humid="40.0")]
     )
-    assert nodes == {"sc-123": ("Sensor 123", 48.7758, 9.1829)}
+    assert nodes == {"sc-123": ("Sensor 123", 48.7758, 9.1829, "")}
     assert {o.parameter for o in obs} == {
         "pm25_ugm3",
         "pm10_ugm3",
@@ -81,7 +86,34 @@ def test_parse_skips_rows_without_coords_or_sensor() -> None:
 
 
 def test_network_doc_marks_uncalibrated() -> None:
-    doc = sensor_community.network_doc("Stuttgart", {"sc-9": ("Sensor 9", 48.0, 9.0)})
+    doc = sensor_community.network_doc("Stuttgart", {"sc-9": ("Sensor 9", 48.0, 9.0, "")})
     assert doc["nodes"][0]["location"] == "precise"  # real sensor coordinates
     assert doc["calibration_windows"] == []  # community sensors here are uncalibrated
     assert "Sensor.Community" in doc["name"]
+    assert "sensor_model" not in doc["nodes"][0]  # unknown model omitted, not published as ""
+
+
+def test_parse_preserves_known_sensor_model() -> None:
+    # The adapter must not discard the sensor type it already knows (SDS011/SPS30/...): it maps
+    # onto the node's sensor_model so a later calibration can select the right correction family.
+    obs, nodes = sensor_community.parse_measurements(
+        [
+            _row(
+                42,
+                "2026-06-17 23:00:00",
+                p2="12.3",
+                p1="20.0",
+                temp="28.1",
+                humid="40.0",
+                sensor_type="SDS011",
+            )
+        ]
+    )
+    assert nodes == {"sc-42": ("Sensor 42", 48.7758, 9.1829, "SDS011")}
+    assert obs  # readings still map normally
+
+
+def test_network_doc_carries_known_sensor_model() -> None:
+    doc = sensor_community.network_doc("Stuttgart", {"sc-42": ("Sensor 42", 48.0, 9.0, "SDS011")})
+    assert doc["nodes"][0]["sensor_model"] == "SDS011"
+    assert doc["calibration_windows"] == []  # still uncalibrated — a model is not a calibration
