@@ -15,6 +15,9 @@ that is not itself accessible fails the people it is for.
   success-criteria tables, the Revised 508 Chapter 5 (Software) and Chapter 6 (Support
   Documentation) tables, and the Chapter 3 Functional Performance Criteria. Conformance terms are
   Supports / Partially Supports / Does Not Support / Not Applicable, with specific remarks.
+- **[`../AGENCY-COMPLIANCE-PACK.md`](../AGENCY-COMPLIANCE-PACK.md)** — the agency-partner
+  packaging of this ACR: a one-page brief framing WCAG 2.2 AA + en/es parity as a DOJ ADA Title II
+  compliance asset for a public-entity partner's procurement or ADA-coordinator review.
 
 ## How conformance is checked
 
