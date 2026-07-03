@@ -180,12 +180,37 @@ object") they are **MINOR**, not breaking.
   (PM2.5), `aqi_window`, and `provisional`. `/api/surface.geojson` (served as
   `application/geo+json`) gains `label` and, per parameter, `*_uncertainty` and `*_provisional`
   properties. All are new keys; nothing existing was removed, renamed, or retyped.
+- **`mean_member_sigma`, EPA NowCast, and the exposure `uncertainty_note`.** Each calibrated cell
+  now also carries `mean_member_sigma` (the plain mean of the contributing members' 1-sigmas — the
+  old mean-of-sigmas number, kept under its own new name). A PM2.5 cell with at least 3 of the
+  preceding 12 hourly means available additionally gets a second `pm25_ugm3` reading tagged
+  `aqi_window = "nowcast"` (an EPA NowCast-weighted AQI, alongside the unchanged `"hourly-mean"`
+  reading — `/api/surface.geojson` never surfaces the NowCast variant, so the map snapshot's
+  existing behavior is untouched). The derived `exposure` cell gains `uncertainty_note` (which
+  component bounds the published level). All are new keys; nothing existing was removed, renamed,
+  or retyped.
 - **SensorThings pagination and new collections.** `/v1.1/Observations` gains `$top`/`$skip` (and
   the bare `top`/`skip`) with a true `@iot.count` and an `@iot.nextLink`; the default page preserves
   the prior result set, so a saved query is unaffected. `resultQuality` gains an `uncertainty` and a
   `trustworthy` flag alongside the existing `qc`. Two new collections, `/v1.1/Datastreams` and
   `/v1.1/Locations`, join the service document. Adding an endpoint, a query parameter with a safe
   default, and a field to a response object are all explicitly MINOR above.
+
+### Cell `uncertainty` now means the cell's standard error, not mean-of-sigmas — MAJOR
+
+Every calibrated surface cell's `uncertainty` field (on `/api/surface.json` records and the
+`{param}_uncertainty` properties on `/api/surface.geojson`) used to be the plain mean of the
+contributing members' 1-sigmas. It now holds the cell's own standard error,
+`sqrt(sum(sigma_i^2)) / n`, over those same member sigmas — a smaller number for any cell with more
+than one calibrated member, and a *different* number even for a single-member cell only by
+coincidence of arithmetic (`n=1` makes the two formulas equal). The key, type, and units are
+unchanged, but the value a consumer reads today at that key means something different than it did
+before this change, which the "what counts as breaking" rule above treats as breaking (MAJOR) even
+though nothing was renamed or retyped: silently reinterpreting a number under an unchanged key is
+exactly the failure mode the surrounding fields exist to prevent. The old number survives, unchanged
+in meaning, at the new `mean_member_sigma` key (see the MINOR entry above) — a consumer that wants
+the old behavior back reads that key instead; a consumer that wants the actual combined uncertainty
+of the cell should prefer the (now-correct) `uncertainty`.
 
 ### The CSV `trustworthy` column — additive in shape, but flagged
 
