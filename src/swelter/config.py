@@ -96,6 +96,22 @@ class CalibrationWindow:
 
 
 @dataclass(frozen=True)
+class TwinWindow:
+    """A co-located sensor-twin window: two low-cost nodes sitting side by side, and when.
+
+    Unlike :class:`CalibrationWindow`, neither node is a reference monitor — this is a
+    precision check (do the twins agree with each other?), not an accuracy check (does either
+    twin agree with truth?). See ``qc.twin_agreement`` and ``docs/calibration.md``.
+    """
+
+    node_a: str
+    node_b: str
+    parameter: str
+    start: str
+    end: str
+
+
+@dataclass(frozen=True)
 class NetworkConfig:
     """The whole network as one reviewable document."""
 
@@ -105,6 +121,9 @@ class NetworkConfig:
     nodes: tuple[NodeConfig, ...] = ()
     reference_monitors: tuple[ReferenceMonitor, ...] = ()
     calibration_windows: tuple[CalibrationWindow, ...] = field(default_factory=tuple)
+    #: Co-located twin windows for the cross-checked precision tier (QC metadata only — see
+    #: ``qc.twin_agreement``). Empty means no twin pairs are configured; nothing changes.
+    twin_windows: tuple[TwinWindow, ...] = field(default_factory=tuple)
     #: Per-network danger floors for the alerts feed (keys: ``pm25_aqi``, ``heat_index_c``,
     #: ``exposure``). Empty means "use the documented public-health defaults" (see ``alerts.py``).
     alert_thresholds: dict[str, float] = field(default_factory=dict)
@@ -180,6 +199,16 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         )
         for w in doc.get("calibration_windows", []) or []
     )
+    twin_windows = tuple(
+        TwinWindow(
+            node_a=_as_str(t.get("node_a")),
+            node_b=_as_str(t.get("node_b")),
+            parameter=_as_str(t.get("parameter")),
+            start=_as_str(t.get("start")),
+            end=_as_str(t.get("end")),
+        )
+        for t in doc.get("twin_windows", []) or []
+    )
     languages = tuple(str(lang) for lang in doc.get("languages", ["en"]) or ["en"])
     thresholds = {
         str(k): float(v) for k, v in (doc.get("alert_thresholds") or {}).items() if v is not None
@@ -191,6 +220,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         nodes=nodes,
         reference_monitors=monitors,
         calibration_windows=windows,
+        twin_windows=twin_windows,
         alert_thresholds=thresholds,
     )
 

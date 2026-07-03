@@ -2261,3 +2261,18 @@ calibration_windows:
   parameter: pm10_ugm3
   start: '2026-06-01T00:00:00Z'
   end: '2026-06-03T23:00:00Z'
+
+# --- Sensor-twin "cross-checked" precision tier (optional; QC/health metadata only) ---
+# Co-locate two low-cost nodes side by side and swelter can report how tightly they agree
+# with each other (qc.twin_agreement / qc.health_report's "twin_agreement" key). This bounds
+# PRECISION (inter-sensor agreement), never ACCURACY — cross-checked != calibrated, and no
+# value here is touched: twin-checked nodes stay `raw` unless separately co-located against a
+# reference monitor above. See docs/calibration.md, "Cross-checked: an inter-sensor agreement
+# statistic, not a calibration tier". Uncomment and point at a real co-located pair to use it:
+#
+# twin_windows:
+# - node_a: node-01
+#   node_b: node-02
+#   parameter: pm25_ugm3
+#   start: '2026-06-01T00:00:00Z'
+#   end: '2026-06-03T23:00:00Z'

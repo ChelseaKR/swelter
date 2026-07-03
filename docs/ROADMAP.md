@@ -212,6 +212,47 @@ Files touched:
 - `tests/test_cli.py` — `ingest-serve`/`node-key` CLI coverage (error paths + an issued key
   authenticating against a real listener)
 
+## Expansions (community-requested extensions)
+
+Separate from phases 1–5 and the fixes above: targeted extensions that widen what the network can
+report without loosening a hard rule. Each ships as its own PR with its own tests.
+
+### EXP-09 — Sensor-twin "cross-checked" precision tier
+
+**Status: ✅ Done** (merged 2026-07-03)
+
+A no-reference network (no regulatory monitor to co-locate against) can still get a QC signal
+stronger than plain "raw": co-locate two low-cost nodes as a "sensor twin" pair and measure how
+tightly they agree with each other. Added as QC/health metadata only — it never changes what a
+value *is*.
+
+- **`qc.twin_agreement()`** pairs a configured `TwinWindow`'s two nodes' readings of the same
+  parameter by nearest timestamp (within a configurable tolerance, default 300 s) and reports the
+  spread (population standard deviation) of the paired residuals plus how many pairs matched.
+- **Precision, never accuracy.** A tight spread rules out sensor noise as the source of
+  disagreement between the twins; it says nothing about whether either twin reads *true* — only a
+  reference-monitor co-location (the calibration engine above) establishes that. Documented
+  explicitly in `docs/calibration.md` ("Cross-checked: an inter-sensor agreement statistic, not a
+  calibration tier"), including the EPA non-regulatory framing and "cross-checked ≠ calibrated."
+- **Annotation only — hard rule #3 untouched.** No `Observation.value` is modified and no
+  calibration version is assigned; a twin-checked node's readings stay `raw` and every surface
+  (map, table, export, API) still shows them as provisional, exactly as before this feature
+  existed.
+- **Backward-compatible surfacing.** `qc.health_report(..., twin_windows=...)` takes an optional
+  `twin_windows` parameter defaulting to `()`; the JSON gains a `twin_agreement` key only when
+  twin windows are configured, so every existing caller's JSON shape is unchanged.
+
+Files touched:
+- `src/swelter/config.py` — `TwinWindow` (mirrors `CalibrationWindow`),
+  `NetworkConfig.twin_windows`, parsed from `network.yaml`'s `twin_windows` block.
+- `src/swelter/qc.py` — `TwinAgreement`, `twin_agreement()`, wired into `health_report()`.
+- `docs/calibration.md` — the "Cross-checked" section explaining the precision-vs-accuracy line.
+- `network.yaml` — a commented `twin_windows:` example documenting the config shape.
+- `tests/test_qc.py` — identical-series (zero spread), divergent-series (nonzero spread),
+  no-matching-timestamps and window-filtering (zero pairs) cases, plus `health_report` gating
+  tests (key absent by default, present and correctly shaped when configured).
+- `tests/test_config.py` — `twin_windows` parsing and empty-default cases.
+
 ## Metrics ledger
 
 These are the numbers the project holds itself to. External-fact rows (the EPA breakpoint and AQI
