@@ -272,6 +272,11 @@ a copyable, Datasette-openable set of files.
 
 ## FIX-10 — Strict config: `swelter doctor` and no silently-ignored safety knobs
 
+**Status: done.** `config.config_concerns()` (errors/warnings against the raw parsed doc) and the
+`swelter doctor` subcommand shipped; `serve`/`demo`/`fetch` print warnings on load; unknown
+`alert_thresholds` keys are a hard error at `doctor`/load time (ADR 0018). See
+`src/swelter/config.py`, `src/swelter/cli.py`, `tests/test_config.py`, `tests/test_cli.py`.
+
 **Pitch.** Validate `network.yaml` loudly — duplicate/empty node ids, unknown keys, and above all
 `alert_thresholds` typos that today silently revert danger floors to defaults.
 
