@@ -61,10 +61,19 @@ jobs:
       # isolated tool env. `--no-dev` keeps dev-tool noise out of the gate.
       # Retry to ride out transient advisory-DB fetch failures rather than
       # silencing the gate; a real finding still fails the build.
+      #
+      # PYSEC-2026-597 (CVE-2026-12243, nltk path traversal in nltk.data.load())
+      # is waived: nltk is a transitive dev-only dependency of textstat (the
+      # reading-level lint gate), never imported by this package's own code
+      # (verified: zero `import nltk`/`nltk.` references outside .venv), and
+      # textstat only ever loads its own bundled resources -- never an
+      # attacker-controlled path. No fixed nltk release exists yet (the
+      # advisory affects every published version). Revisit when upstream ships
+      # a fix.
       - name: pip-audit (known-vulnerability scan)
         run: |
-          for a in 1 2 3; do uv run --no-dev --with pip-audit pip-audit && exit 0; sleep 10; done
-          uv run --no-dev --with pip-audit pip-audit
+          for a in 1 2 3; do uv run --no-dev --with pip-audit pip-audit --ignore-vuln PYSEC-2026-597 && exit 0; sleep 10; done
+          uv run --no-dev --with pip-audit pip-audit --ignore-vuln PYSEC-2026-597
 
       # Secret scan. A repository scan needs a (free) GitLeaks license for the
       # Action; any finding is now merge-blocking.
