@@ -285,7 +285,9 @@ def test_node_key_creates_a_key_ingest_serve_actually_authenticates_against(
 
 
 def _ingest_post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    request = urllib.request.Request(  # noqa: S310 (localhost)
+        url, data=body, headers=headers, method="POST"
+    )
     try:
         with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 (localhost)
             return response.status, json.loads(response.read().decode("utf-8"))

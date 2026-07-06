@@ -197,7 +197,7 @@ def verify_request(
     return None
 
 
-# -- the listener -----------------------------------------------------------------------------------
+# -- the listener --------------------------------------------------------------------------
 
 
 @dataclass
@@ -212,7 +212,12 @@ class IngestServerContext:
     now: Callable[[], float] = time.time  # injectable clock so the replay window is testable
 
 
-def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:
+def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901
+    # Ruff's mccabe walker sums every nested method's branches into this factory function because
+    # the handler class is defined inside it (closure over `ctx`, the stdlib http.server pattern);
+    # each method below is independently simple. Documented exception, not a silent one — see
+    # swelter-REMEDIATION.md Quick win 5 (CQ-05). A route-table rewrite is a real option but is
+    # out of scope for this pass on the authenticated write path without dedicated review.
     class Handler(BaseHTTPRequestHandler):
         server_version = "swelter-ingest/0.1"
         timeout = 30.0  # one stalled writer must not hold the listener forever
@@ -281,30 +286,9 @@ def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:
                 self._refuse(400, "unparseable JSON body from authenticated node", node, body)
                 return
 
-            payloads = parsed if isinstance(parsed, list) else [parsed]
-            batch: list[dict[str, Any]] = []
-            for item in payloads:
-                if not isinstance(item, dict):
-                    batch.append(
-                        {
-                            "__parse_error__": "payload is not a JSON object",
-                            "__raw__": json.dumps(item),
-                        }
-                    )
-                    continue
-                claimed = ingest._first(item, ingest._NODE_KEYS)
-                if claimed is not None and claimed != node:
-                    # A valid key only ever writes as its own node. Refuse the whole request:
-                    # a batch that impersonates another node is suspect end to end.
-                    self._refuse(
-                        401,
-                        f"auth: payload node_id {claimed!r} does not match authenticated "
-                        f"node {node!r}",
-                        node,
-                        body,
-                    )
-                    return
-                batch.append(item)
+            batch = self._build_batch(parsed, node, body)
+            if batch is None:
+                return  # already refused: a payload impersonated a different node_id
 
             result = ingest.ingest(batch, ctx.store, quarantine_path=ctx.quarantine_path)
             self._json(
@@ -318,6 +302,36 @@ def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:
                     "quarantined": result.quarantined,
                 },
             )
+
+        def _build_batch(
+            self, parsed: Any, node: str | None, body: bytes
+        ) -> list[dict[str, Any]] | None:
+            """Validate each item in the payload batch. Returns None (having already sent the
+            401) if any item claims a ``node_id`` other than the authenticated node — a valid
+            key only ever writes as its own node, so an impersonating batch is refused whole."""
+            payloads = parsed if isinstance(parsed, list) else [parsed]
+            batch: list[dict[str, Any]] = []
+            for item in payloads:
+                if not isinstance(item, dict):
+                    batch.append(
+                        {
+                            "__parse_error__": "payload is not a JSON object",
+                            "__raw__": json.dumps(item),
+                        }
+                    )
+                    continue
+                claimed = ingest._first(item, ingest._NODE_KEYS)
+                if claimed is not None and claimed != node:
+                    self._refuse(
+                        401,
+                        f"auth: payload node_id {claimed!r} does not match authenticated "
+                        f"node {node!r}",
+                        node,
+                        body,
+                    )
+                    return None
+                batch.append(item)
+            return batch
 
         # -- helpers ---------------------------------------------------------------
 

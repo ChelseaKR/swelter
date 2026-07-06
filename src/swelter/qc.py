@@ -54,27 +54,28 @@ def range_flag(obs: Observation) -> str:
     return QC_OK
 
 
-def _series_flags(series: list[Observation]) -> list[str]:
-    """Flag one node/parameter series (assumed timestamp-sorted)."""
-    n = len(series)
-    flags = [range_flag(o) for o in series]
+def _flag_spikes(series: list[Observation], flags: list[str], n: int) -> None:
+    """Mark isolated departures from the local median of the two neighbours, in place.
 
-    # Spike: isolated departure from the local median of the two neighbours. Only QC-clean
-    # neighbours count — an already-flagged out-of-range neighbour would drag the median and
-    # mislabel a perfectly valid reading next to a fault as a spike.
+    Only QC-clean neighbours count — an already-flagged out-of-range neighbour would drag the
+    median and mislabel a perfectly valid reading next to a fault as a spike.
+    """
     threshold = _SPIKE_THRESHOLD.get(series[0].parameter) if series else None
-    if threshold is not None:
-        for i in range(1, n - 1):
-            if flags[i] != QC_OK:
-                continue
-            neighbours = [series[j].value for j in (i - 1, i + 1) if flags[j] == QC_OK]
-            if not neighbours:
-                continue  # both neighbours are faulty — no clean baseline to judge against
-            local = median(neighbours)
-            if abs(series[i].value - local) > threshold:
-                flags[i] = QC_SPIKE
+    if threshold is None:
+        return
+    for i in range(1, n - 1):
+        if flags[i] != QC_OK:
+            continue
+        neighbours = [series[j].value for j in (i - 1, i + 1) if flags[j] == QC_OK]
+        if not neighbours:
+            continue  # both neighbours are faulty — no clean baseline to judge against
+        local = median(neighbours)
+        if abs(series[i].value - local) > threshold:
+            flags[i] = QC_SPIKE
 
-    # Flatline: a run of FLATLINE_RUN identical values means the sensor is stuck.
+
+def _flag_flatline(series: list[Observation], flags: list[str], n: int) -> None:
+    """Mark a run of ``FLATLINE_RUN`` identical values as a stuck sensor, in place."""
     run_start = 0
     for i in range(1, n + 1):
         if i < n and series[i].value == series[run_start].value:
@@ -84,6 +85,14 @@ def _series_flags(series: list[Observation]) -> list[str]:
                 if flags[j] == QC_OK:
                     flags[j] = QC_FLATLINE
         run_start = i
+
+
+def _series_flags(series: list[Observation]) -> list[str]:
+    """Flag one node/parameter series (assumed timestamp-sorted)."""
+    n = len(series)
+    flags = [range_flag(o) for o in series]
+    _flag_spikes(series, flags, n)
+    _flag_flatline(series, flags, n)
     return flags
 
 

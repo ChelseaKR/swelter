@@ -23,6 +23,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import NamedTuple
 
 from .config import NetworkConfig
 from .models import (
@@ -199,29 +200,35 @@ def node_cell_map(config: NetworkConfig) -> dict[str, tuple[str, str]]:
     return out
 
 
-def aggregate(
+class _Buckets(NamedTuple):
+    """Per-(cell, hour, parameter) accumulators built by :func:`_bucket_observations`."""
+
+    trusted_vals: dict[tuple[str, str, str], list[float]]
+    trusted_unc: dict[tuple[str, str, str], list[float]]
+    trusted_methods: dict[tuple[str, str, str], set[str]]
+    trusted_refs: dict[tuple[str, str, str], set[str]]
+    provisional_vals: dict[tuple[str, str, str], list[float]]
+    coords: dict[str, tuple[float, float]]
+    cell_nodes: dict[str, set[str]]
+
+
+def _bucket_observations(
     observations: Iterable[Observation],
-    config: NetworkConfig,
-    *,
-    parameters: tuple[str, ...] = SURFACE_PARAMETERS,
-) -> Surface:
-    """Roll observations up to (cell, hour, parameter) means, preferring calibrated values."""
-    locations = config.public_locations()
-    labels = _cell_labels(config)
-    wanted = set(parameters)
-    # Provenance lookups for the "show your work" trust view: which reference each node/parameter
-    # was calibrated against, and that monitor's human label.
-    ref_by_node_param = {(w.node_id, w.parameter): w.reference for w in config.calibration_windows}
-    monitor_label = {m.monitor_id: (m.label or m.monitor_id) for m in config.reference_monitors}
-
-    trusted_vals: dict[tuple[str, str, str], list[float]] = defaultdict(list)
-    trusted_unc: dict[tuple[str, str, str], list[float]] = defaultdict(list)
-    trusted_methods: dict[tuple[str, str, str], set[str]] = defaultdict(set)
-    trusted_refs: dict[tuple[str, str, str], set[str]] = defaultdict(set)
-    provisional_vals: dict[tuple[str, str, str], list[float]] = defaultdict(list)
-    coords: dict[str, tuple[float, float]] = {}
-    cell_nodes: dict[str, set[str]] = defaultdict(set)
-
+    locations: dict[str, tuple[float, float]],
+    wanted: set[str],
+    ref_by_node_param: dict[tuple[str, str], str],
+    monitor_label: dict[str, str],
+) -> _Buckets:
+    """Sort observations into per-(cell, hour, parameter) trusted/provisional accumulators."""
+    b = _Buckets(
+        defaultdict(list),
+        defaultdict(list),
+        defaultdict(set),
+        defaultdict(set),
+        defaultdict(list),
+        {},
+        defaultdict(set),
+    )
     for obs in observations:
         if obs.parameter not in wanted:
             continue
@@ -232,37 +239,41 @@ def aggregate(
             continue  # never place a QC-rejected value on the map, even as provisional
         lat, lon = loc
         cell_id = f"{lat:.6f},{lon:.6f}"
-        coords[cell_id] = (lat, lon)
-        cell_nodes[cell_id].add(obs.node_id)
+        b.coords[cell_id] = (lat, lon)
+        b.cell_nodes[cell_id].add(obs.node_id)
         key = (cell_id, hour_bucket(obs.timestamp), obs.parameter)
         if obs.is_trustworthy:
-            trusted_vals[key].append(obs.value)
-            trusted_unc[key].append(obs.uncertainty if obs.uncertainty is not None else 0.0)
+            b.trusted_vals[key].append(obs.value)
+            b.trusted_unc[key].append(obs.uncertainty if obs.uncertainty is not None else 0.0)
             parts = obs.calibration.split(".")  # "{parameter}.{method}.{node_id}"
             if len(parts) >= 2:
-                trusted_methods[key].add(parts[1])
+                b.trusted_methods[key].add(parts[1])
             ref = ref_by_node_param.get((obs.node_id, obs.parameter))
             if ref:
-                trusted_refs[key].add(monitor_label.get(ref, ref))
+                b.trusted_refs[key].add(monitor_label.get(ref, ref))
         else:
-            provisional_vals[key].append(obs.value)
+            b.provisional_vals[key].append(obs.value)
+    return b
 
+
+def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
+    """Reduce the bucketed accumulators to one :class:`CellReading` per (cell, hour, parameter)."""
     cells: list[CellReading] = []
-    for key in sorted(set(trusted_vals) | set(provisional_vals)):
+    for key in sorted(set(b.trusted_vals) | set(b.provisional_vals)):
         cell_id, bucket, parameter = key
-        lat, lon = coords[cell_id]
-        trustworthy = trusted_vals.get(key, [])
+        lat, lon = b.coords[cell_id]
+        trustworthy = b.trusted_vals.get(key, [])
         method: str | None = None
         reference: str | None = None
         if trustworthy:
             values = trustworthy
             provisional = False
-            uncs = trusted_unc[key]
+            uncs = b.trusted_unc[key]
             uncertainty: float | None = (sum(uncs) / len(uncs)) if any(uncs) else None
-            method = " / ".join(sorted(trusted_methods[key])) or None
-            reference = " / ".join(sorted(trusted_refs[key])) or None
+            method = " / ".join(sorted(b.trusted_methods[key])) or None
+            reference = " / ".join(sorted(b.trusted_refs[key])) or None
         else:
-            values = provisional_vals[key]
+            values = b.provisional_vals[key]
             provisional = True
             uncertainty = None
         mean = sum(values) / len(values)
@@ -286,9 +297,31 @@ def aggregate(
                 category=category,
                 method=method,
                 reference=reference,
-                nodes=tuple(sorted(cell_nodes[cell_id])),
+                nodes=tuple(sorted(b.cell_nodes[cell_id])),
             )
         )
+    return cells
+
+
+def aggregate(
+    observations: Iterable[Observation],
+    config: NetworkConfig,
+    *,
+    parameters: tuple[str, ...] = SURFACE_PARAMETERS,
+) -> Surface:
+    """Roll observations up to (cell, hour, parameter) means, preferring calibrated values."""
+    locations = config.public_locations()
+    labels = _cell_labels(config)
+    wanted = set(parameters)
+    # Provenance lookups for the "show your work" trust view: which reference each node/parameter
+    # was calibrated against, and that monitor's human label.
+    ref_by_node_param = {(w.node_id, w.parameter): w.reference for w in config.calibration_windows}
+    monitor_label = {m.monitor_id: (m.label or m.monitor_id) for m in config.reference_monitors}
+
+    buckets = _bucket_observations(
+        observations, locations, wanted, ref_by_node_param, monitor_label
+    )
+    cells = _build_cells(buckets, labels)
     cells.extend(_exposure_cells(cells))
     cells.sort(key=lambda c: (c.cell_id, c.bucket, c.parameter))
     return Surface(interval="hour", cells=tuple(cells))

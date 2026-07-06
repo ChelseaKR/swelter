@@ -91,11 +91,8 @@ def fetch(area: Area = STUTTGART) -> tuple[list[Observation], dict[str, tuple[st
     return parse_measurements(rows if isinstance(rows, list) else [])
 
 
-def parse_measurements(
-    rows: list[Any],
-) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
-    """Map Sensor.Community measurements to raw observations + node metadata (pure — no network)."""
-    # A sensor can appear in several rows; keep its latest measurement.
+def _latest_by_sensor(rows: list[Any]) -> dict[int, dict[str, Any]]:
+    """A sensor can appear in several rows; keep only its latest measurement."""
     latest: dict[int, dict[str, Any]] = {}
     for row in rows:
         if not isinstance(row, dict):
@@ -107,33 +104,50 @@ def parse_measurements(
             continue
         if sid not in latest or str(ts) > str(latest[sid].get("timestamp", "")):
             latest[sid] = row
+    return latest
 
+
+def _emit_sensor_readings(
+    sid: int,
+    row: dict[str, Any],
+    out: list[Observation],
+    nodes: dict[str, tuple[str, float, float]],
+) -> None:
+    """Parse one sensor's latest row into raw observations, appended to ``out``/``nodes``."""
+    loc = row.get("location") or {}
+    try:
+        lat, lon = float(loc["latitude"]), float(loc["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return
+    node_id = f"sc-{sid}"
+    nodes[node_id] = (f"Sensor {sid}", lat, lon)
+    ts = format_timestamp(parse_timestamp(str(row["timestamp"]).replace(" ", "T")))
+    values: dict[str, Any] = {}
+    for value in row.get("sensordatavalues") or []:
+        if isinstance(value, dict) and value.get("value_type") in _MAP:
+            values[value["value_type"]] = value.get("value")
+    for pm in ("P2", "P1"):  # drop the SDS011 over-range/fault sentinel before it reaches QC
+        with contextlib.suppress(TypeError, ValueError):
+            if values.get(pm) is not None and float(values[pm]) >= _PM_OVER_RANGE:
+                values[pm] = None
+    for vtype, (parameter, unit) in _MAP.items():
+        _emit(out, node_id, ts, parameter, values.get(vtype), unit)
+    temp, humid = values.get("temperature"), values.get("humidity")
+    if temp is not None and humid is not None:
+        with contextlib.suppress(TypeError, ValueError):
+            hi = heat_index_c(float(temp), float(humid))
+            _emit(out, node_id, ts, "heat_index_c", hi, "degC")
+
+
+def parse_measurements(
+    rows: list[Any],
+) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+    """Map Sensor.Community measurements to raw observations + node metadata (pure — no network)."""
+    latest = _latest_by_sensor(rows)
     out: list[Observation] = []
     nodes: dict[str, tuple[str, float, float]] = {}
     for sid, row in latest.items():
-        loc = row.get("location") or {}
-        try:
-            lat, lon = float(loc["latitude"]), float(loc["longitude"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        node_id = f"sc-{sid}"
-        nodes[node_id] = (f"Sensor {sid}", lat, lon)
-        ts = format_timestamp(parse_timestamp(str(row["timestamp"]).replace(" ", "T")))
-        values: dict[str, Any] = {}
-        for value in row.get("sensordatavalues") or []:
-            if isinstance(value, dict) and value.get("value_type") in _MAP:
-                values[value["value_type"]] = value.get("value")
-        for pm in ("P2", "P1"):  # drop the SDS011 over-range/fault sentinel before it reaches QC
-            with contextlib.suppress(TypeError, ValueError):
-                if values.get(pm) is not None and float(values[pm]) >= _PM_OVER_RANGE:
-                    values[pm] = None
-        for vtype, (parameter, unit) in _MAP.items():
-            _emit(out, node_id, ts, parameter, values.get(vtype), unit)
-        temp, humid = values.get("temperature"), values.get("humidity")
-        if temp is not None and humid is not None:
-            with contextlib.suppress(TypeError, ValueError):
-                hi = heat_index_c(float(temp), float(humid))
-                _emit(out, node_id, ts, "heat_index_c", hi, "degC")
+        _emit_sensor_readings(sid, row, out, nodes)
     return out, nodes
 
 

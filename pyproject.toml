@@ -6,7 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Chelsea Kelly-Reif" }]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 keywords = [
     "air-quality",
     "urban-heat",
@@ -44,9 +44,10 @@ swelter = "swelter.cli:main"
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
-    "ruff>=0.6",
-    "mypy>=1.11",
+    "ruff>=0.15",
+    "mypy>=1.18",
     "types-PyYAML",
+    "textstat>=0.7.13",
 ]
 
 [build-system]
@@ -58,24 +59,34 @@ packages = ["src/swelter"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "C901", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.mypy]
 strict = true
 files = ["src", "tests"]
-python_version = "3.11"
+python_version = "3.12"
 
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_decorators = false
 
+[[tool.mypy.overrides]]
+module = "signing"          # firmware/src/signing.py, imported via sys.path in tests
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --strict-markers --strict-config --import-mode=importlib"
 
 [tool.coverage.run]
 branch = true
