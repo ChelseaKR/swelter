@@ -75,7 +75,9 @@ _CROSSWALK: dict[str, CrosswalkEntry] = {
     ),
 }
 
-assert set(_CROSSWALK) == set(PARAMETERS), "crosswalk must cover every swelter parameter"
+assert set(_CROSSWALK) == set(PARAMETERS), (  # noqa: S101 (module-load invariant)
+    "crosswalk must cover every swelter parameter"
+)
 
 
 def to_openaq(swelter_param: str) -> tuple[str, str] | None:
