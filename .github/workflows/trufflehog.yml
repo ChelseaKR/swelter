@@ -1,0 +1,32 @@
+# Scheduled full-history secret scan (SEC-19). The `security` job in ci.yml already runs
+# gitleaks on every push/PR against the *diff*; this complements it with a weekly sweep of the
+# *entire* git history using a different engine (verified-credential checking against live
+# provider APIs), catching a secret that predates this gate or that gitleaks' ruleset misses.
+name: TruffleHog (scheduled full-history scan)
+
+on:
+  schedule:
+    # Wednesdays at 09:41 UTC. Off-the-hour, and offset from CodeQL's Monday cron.
+    - cron: "41 9 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trufflehog:
+    name: trufflehog (full history, verified only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # full history -- this scan's whole point is not being diff-scoped
+          persist-credentials: false
+
+      # `--only-verified` means a finding was checked live against the provider's API and is a
+      # real, active secret -- zero tolerance, no `continue-on-error`. No `base`/`head` is given,
+      # so this scans the full repository (not just a commit range).
+      - name: TruffleHog (full history)
+        uses: trufflesecurity/trufflehog@00155c9dc586f34d189adc83d3ac2698c2ec551f # v3.95.8
+        with:
+          extra_args: --only-verified

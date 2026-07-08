@@ -14,10 +14,9 @@ on:
   schedule:
     - cron: "30 13 * * *"  # refresh the real readings daily
 
+# Default to no access; the one job below elevates only what it needs (CICD-04).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -26,6 +25,11 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # pages/id-token let this job publish the built dashboard to GitHub Pages via OIDC.
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}

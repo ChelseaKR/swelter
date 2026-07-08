@@ -115,7 +115,7 @@ def test_atom_is_valid_xml_with_one_entry_per_alert() -> None:
         make_obs(parameter="pm25_ugm3", unit="ug/m3", value=60.0, calibration="v1"),
         make_obs(parameter="heat_index_c", value=41.0, calibration="v2"),
     )
-    root = ET.fromstring(feed.to_atom())
+    root = ET.fromstring(feed.to_atom())  # noqa: S314 -- parsing our own generated feed, not external input
     ns = "{http://www.w3.org/2005/Atom}"
     entries = root.findall(f"{ns}entry")
     assert len(entries) == len(feed.alerts)
