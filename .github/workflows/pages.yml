@@ -5,6 +5,9 @@
 # The dashboard is static, so each fetched surface is baked into the artifact with a DATA-LICENSE and
 # a CSV download. Runs on push and daily so the readings stay current; page 1 falls back
 # (OpenAQ → CAMS → committed synthetic demo) and sensors → the CAMS surface, so the page never breaks.
+# The store persists across runs (actions/cache, keyed by day with a most-recent fallback) and
+# `--accumulate` keeps rather than wipes it (ADR 0013/EXP-01), so the time slider covers weeks of
+# real history instead of one day's snapshot. A cache miss just degrades to a fresh fetch.
 name: demo
 
 on:
@@ -38,6 +41,20 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Cache key date (UTC, so the fetch store's cache key rolls over once a day)
+        id: date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Restore the accumulating fetch store (EXP-01/ADR 0013)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /tmp/cams
+            /tmp/cams.yaml
+            /tmp/sc
+            /tmp/sc.yaml
+          key: swelter-fetch-store-${{ steps.date.outputs.date }}
+          restore-keys: |
+            swelter-fetch-store-
       - name: Assemble the live demo (real sources, layered fallback)
         env:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
@@ -45,10 +62,12 @@ jobs:
           # Page 1 ("/"): prefer dense REAL physical sensors across California (OpenAQ, block-by-block
           # — needs the OPENAQ_API_KEY repo secret); else Copernicus CAMS model (keyless, coarse);
           # else the committed synthetic demo. web/basemap.geojson draws the California outlines.
+          # --accumulate keeps the cache-restored store instead of wiping it, so the time slider
+          # covers weeks of real history, not just today's fetch (a cache miss just starts fresh).
           uv run swelter fetch --source openaq --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --max-locations 250 \
+              --web web --max-locations 250 --accumulate \
             || uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --past-days 1 \
+              --web web --past-days 1 --accumulate \
             || uv run swelter demo --store /tmp/cams --web web
           cp DATA-LICENSE web/DATA-LICENSE
           uv run swelter export --store /tmp/cams --format csv > web/export.csv
@@ -60,7 +79,7 @@ jobs:
           rm -f web/sensors/cooling-centers.geojson  # the sample centers are Sacramento, not Stuttgart
           # --cooling-centers points at a path that doesn't exist so the sensors page won't re-bake them.
           uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
-            --web web/sensors --cooling-centers /dev/null/none \
+            --web web/sensors --cooling-centers /dev/null/none --accumulate \
             || cp web/sample-surface.json web/sensors/sample-surface.json
           cp DATA-LICENSE web/sensors/DATA-LICENSE
           uv run swelter export --store /tmp/sc --format csv > web/sensors/export.csv \
