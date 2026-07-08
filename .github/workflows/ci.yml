@@ -123,13 +123,41 @@ jobs:
           python -m pip install --quiet pytest
           python -m pytest firmware/tests -q
 
-  # Advisory only: a real-browser axe pass over the built dashboard. The
-  # structural gate in `checks` is the blocking one; this adds depth without
-  # gating the merge, so it is allowed to fail.
-  a11y-advisory:
-    name: a11y-advisory
+  # web/app.js's pure, function-scoped dashboard logic under `node --test`, plus the JSON-schema
+  # contract (`schemas/*.schema.json`) validated from the JS side — the counterpart to
+  # `tests/test_schema_contract.py` on the Python side (FIX-07). Merge-blocking: web/ has zero
+  # runtime dependencies, but its dev-only Node toolchain is real test infrastructure, not
+  # advisory. `npm ci` installs the exact locked tree from the committed package-lock.json.
+  web-tests:
+    name: web-tests
     runs-on: ubuntu-latest
-    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install (locked)
+        working-directory: web
+        run: npm ci
+
+      - name: node --test (app.js unit tests + JS-side schema contract)
+        working-directory: web
+        run: npm test
+
+  # A real-browser axe pass over the built dashboard (page load, WCAG2AA). Promoted from advisory
+  # to merge-blocking (FIX-07) now that the structural gate in `checks` (make a11y) has this
+  # dynamic counterpart backing it up too; pa11y is pinned to an exact release, same discipline as
+  # the other pinned scanners in `security` below.
+  a11y:
+    name: a11y
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -144,4 +172,4 @@ jobs:
         # Chromium has no usable sandbox on the GitHub runner, so launch with --no-sandbox.
         run: |
           echo '{"chromeLaunchConfig":{"args":["--no-sandbox","--disable-setuid-sandbox"]}}' > .pa11y.json
-          npx --yes pa11y@8 --config .pa11y.json --standard WCAG2AA --runner axe ./web/index.html
+          npx --yes pa11y@8.0.0 --config .pa11y.json --standard WCAG2AA --runner axe ./web/index.html

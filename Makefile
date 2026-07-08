@@ -3,7 +3,7 @@
 
 .PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild \
         fmt fmt-check lint typecheck test a11y i18n hygiene version-check reading-level \
-        verify check clean
+        web-test verify check clean
 
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -71,6 +71,11 @@ version-check:  ## Tag == pyproject.toml == CHANGELOG parity, once a v* tag exis
 
 reading-level:  ## Advisory (not merge-blocking yet): Flesch-Kincaid grade over en.json (A11Y-23)
 	uv run python scripts/reading_level_check.py
+
+# Not part of `verify` — CI runs it as its own merge-blocking job (`web-tests`), since it needs
+# `npm ci`, not `uv`.
+web-test:  ## app.js unit tests + JS-side schema contract (FIX-07)
+	cd web && npm ci && npm test
 
 verify: fmt-check lint typecheck a11y i18n hygiene version-check test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
