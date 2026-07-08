@@ -251,6 +251,46 @@ Python, and the output is reproducible to the byte. Calibration is checkable, no
 
 ---
 
+## Cross-checked: an inter-sensor agreement statistic, not a calibration tier
+
+Some no-reference networks — no regulatory monitor to co-locate against — still want a QC signal
+stronger than "raw." **Cross-checked** is that signal, and it is deliberately narrow: two low-cost
+nodes placed side by side (a "sensor twin" pair) for a window, and `qc.twin_agreement` reports how
+tightly their readings of the same parameter agree — paired by nearest timestamp, the spread
+(population standard deviation) of the residuals `value_a - value_b`, plus how many pairs matched.
+
+**Read it correctly, or not at all:**
+
+- **Cross-checked bounds precision, never accuracy.** A tight residual spread rules out sensor
+  noise, drift, or a hardware fault as the source of disagreement between the two nodes — it says
+  the twins are *consistent with each other*. It says nothing about whether either twin reads the
+  *true* concentration or temperature. Two twins with the same systematic bias (both reading PM2.5
+  high on a humid morning, say) will agree tightly with each other while both being wrong in the
+  same direction. Only a reference-grade co-location (the rest of this document) can establish
+  accuracy.
+- **Cross-checked ≠ calibrated.** A twin-agreement statistic never touches an `Observation`'s
+  `value`, never assigns a correction version, and never sets `uncertainty`. `calibration` stays the
+  `raw` sentinel (hard rule #3 — every value the pipeline ships is either raw or corrected by a
+  reference-fitted registry entry; a twin check is neither). This is QC/health metadata, surfaced
+  under `twin_agreement` in `qc.health_report`'s JSON, not a third value on the calibration axis.
+- **EPA non-regulatory framing.** This mirrors how the US EPA treats low-cost sensor networks in its
+  own guidance: co-location agreement among non-reference sensors informs data quality and QC flags,
+  it does not confer regulatory-grade accuracy. swelter's cross-checked tier is that same
+  QC-not-accuracy read, not a house-brand claim of correctness.
+- **No surface promotes a cross-checked value past provisional.** The map, the table, the export, and
+  the API all still show a node with only a twin-agreement record as **provisional** raw data, exactly
+  as before this feature existed. `twin_agreement` is additive annotation for an operator's health
+  dashboard — evidence that a QC/health investigation can lean on — never a signal that changes what a
+  reader sees on the map.
+
+Configure a pair in `network.yaml` under `twin_windows` (`node_a`, `node_b`, `parameter`, `start`,
+`end` — see the worked example in the repo root); pass the parsed windows to
+`qc.health_report(..., twin_windows=config.twin_windows)` to have the read ride along under
+`twin_agreement`. Omit `twin_windows` (the default) and the JSON shape is byte-for-byte what it was
+before this section existed.
+
+---
+
 ## How a reader interprets a value's trust
 
 Every observation is one of two things, and the dashboard, the export, and the API never silently mix
@@ -330,3 +370,6 @@ re-derive it.
 - `data/demo/corrections.yaml` — the published, reproducible correction registry.
 - `src/swelter/models.py` — `Observation.calibration`, `uncertainty`, and the calibrated-vs-raw
   invariant the map relies on.
+- `src/swelter/qc.py` — `twin_agreement()` and `TwinAgreement`, the cross-checked precision tier
+  (QC/health metadata only — see the section above).
+- `src/swelter/config.py` — `TwinWindow`, `NetworkConfig.twin_windows`.

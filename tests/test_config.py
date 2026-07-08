@@ -141,3 +141,32 @@ def test_load_demo_network_yaml() -> None:
     # Some nodes calibrate and some don't; each calibrated node has a window registered.
     windowed = {w.node_id for w in cfg.calibration_windows}
     assert 0 < len(windowed) < len(cfg.nodes)
+    # The demo network's twin_windows example is committed commented-out (docs, not live config).
+    assert cfg.twin_windows == ()
+
+
+def test_parse_config_reads_twin_windows() -> None:
+    cfg = parse_config(
+        {
+            "twin_windows": [
+                {
+                    "node_a": "node-01",
+                    "node_b": "node-02",
+                    "parameter": "pm25_ugm3",
+                    "start": "2026-06-01T00:00:00Z",
+                    "end": "2026-06-03T23:00:00Z",
+                }
+            ]
+        }
+    )
+    assert len(cfg.twin_windows) == 1
+    window = cfg.twin_windows[0]
+    assert window.node_a == "node-01"
+    assert window.node_b == "node-02"
+    assert window.parameter == "pm25_ugm3"
+    assert window.start == "2026-06-01T00:00:00Z"
+    assert window.end == "2026-06-03T23:00:00Z"
+
+
+def test_twin_windows_default_empty() -> None:
+    assert parse_config({"name": "x"}).twin_windows == ()
