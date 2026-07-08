@@ -149,9 +149,10 @@ leverage.
    dependency, scale-to-zero design, and `ADD-YOUR-NEIGHBORHOOD.md` as the replicability and
    sustainability story (local ownership is the documented survival factor). Largely docs and
    packaging, little new code.
-4. **Accessibility and bilingual as a certifiable asset** — the DOJ 2024 ADA Title II rule makes
-   WCAG 2.1 AA legally load-bearing for public agencies; swelter clears 2.2 AA and ships en + es
-   against a documented language-justice gap. Package this as a compliance hook for agency partners.
+4. **Accessibility and bilingual as a certifiable asset** — **packaged.** The DOJ 2024 ADA Title II
+   rule makes WCAG 2.1 AA legally load-bearing for public agencies; swelter clears 2.2 AA and ships
+   en + es against a documented language-justice gap. Packaged as a compliance hook for agency
+   partners: [`docs/AGENCY-COMPLIANCE-PACK.md`](AGENCY-COMPLIANCE-PACK.md).
 5. **Close the data-to-action gap** — a lightweight plain-language neighborhood brief / advocacy
    export, because the research is consistent that data alone is not the product. Builds on the
    existing export surface.
