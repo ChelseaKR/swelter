@@ -163,6 +163,8 @@ jobs:
       ALLOWED_AREAS: ${{ secrets.ALERT_AREA_IDS }}          # comma-separated area_ids
       # Hard cap on messages sent in one run, independent of how many alerts
       # fire, so a bad hour (or a bad threshold) can't run up an SMS bill.
+      # This counts actual sends (alert x recipient), not distinct alerts —
+      # one alert fanned out to 30 recipients spends 30 against this cap.
       MAX_PER_RUN: 20
       # Provider-agnostic SMS/WhatsApp gateway: point this at whatever gateway
       # the collective already has an account with (a Twilio-style REST API, a
@@ -190,20 +192,34 @@ jobs:
           feed = json.load(open("feed.json"))
           allowed = {a.strip() for a in os.environ["ALLOWED_AREAS"].split(",") if a.strip()}
           cap = int(os.environ["MAX_PER_RUN"])
+          recipients = json.loads(os.environ.get("RECIPIENTS_JSON") or "{}")
 
           # Only alerts that are: confirmed (not provisional), for an allowed
           # area, and not already delivered in a prior run.
-          new = [
+          candidates = [
               a for a in feed["alerts"]
               if not a["provisional"]
               and a["area_id"] in allowed
               and a["id"] not in seen
           ]
-          new = new[:cap]  # bound SMS cost even if many alerts fire at once
+
+          # MAX_PER_RUN bounds actual messages sent, not distinct alerts: one
+          # alert fans out to every recipient in its area, so take alerts
+          # greedily until the next one would push the run's total send count
+          # over the cap. Skipped alerts are left off `seen` so they're
+          # retried (and re-counted against the cap) next run.
+          new = []
+          send_count = 0
+          for a in candidates:
+              would_send = len(recipients.get(a["area_id"], []))
+              if send_count + would_send > cap:
+                  continue
+              new.append(a)
+              send_count += would_send
 
           json.dump(new, open("new_alerts.json", "w"))
           json.dump(sorted(seen | {a["id"] for a in new}), open(".alert-bridge/seen-ids.json", "w"))
-          print(f"{len(new)} new alert(s) to deliver, {len(feed['alerts'])} in feed")
+          print(f"{len(new)} new alert(s) / {send_count} message(s) to deliver (cap {cap}), {len(feed['alerts'])} in feed")
           PY
 
       - name: Send each new alert to the SMS/WhatsApp gateway
@@ -257,8 +273,11 @@ recipient, so it carries no privacy weight of its own.
 
 - **Area allowlist.** `ALLOWED_AREAS` plus the per-area `RECIPIENTS_JSON` mapping mean a resident is
   only ever texted about their own block's `area_id`, never the whole network's alert volume.
-- **Per-run cap.** `MAX_PER_RUN` bounds how many alerts (and therefore how many metered messages) one
-  run can send, independent of how many cells cross a danger floor in a bad hour.
+- **Per-run cap.** `MAX_PER_RUN` bounds how many messages (SMS/WhatsApp sends) one run can push out,
+  independent of how many cells cross a danger floor in a bad hour. It counts actual sends, not
+  distinct alerts — an alert fanned out to many recipients in `RECIPIENTS_JSON` spends one unit of
+  the cap per recipient, not one unit total. Alerts skipped because the cap is exhausted stay off the
+  seen-ids list and are retried (and re-counted) next run.
 - **Dedup.** The seen-ids diff means each alert is delivered once, not re-sent every hour it stays
   active — the generic webhook above does not have this property and should not be pointed at a
   per-message-billed channel.
