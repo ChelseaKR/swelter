@@ -1116,6 +1116,35 @@ button.linklike {
   font-weight: 600;
 }
 
+.provenance {
+  padding: 0.6rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.provenance h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.provenance dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.provenance dt {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.provenance dd {
+  margin: 0;
+}
+
 .method-heading {
   margin: 0.6rem 0 0.2rem;
   font-weight: 600;
