@@ -24,7 +24,11 @@ litigation — recheck quarterly and **before any proposal**. Recheck the demand
 
 swelter is the open, community-owned **trust layer** for neighborhood heat-and-air exposure: every
 reading is calibrated against a reference monitor, labeled with its uncertainty and calibration
-state, snapped to a privacy grid, served through open standards, and the collective keeps it.
+state, snapped to a privacy grid, served through open standards, and the collective keeps it. Any
+community can run its own instance: copy one config file
+([`network.yaml`](../network.yaml)), follow [`ADD-YOUR-NEIGHBORHOOD.md`](ADD-YOUR-NEIGHBORHOOD.md),
+and the collective owns it outright — no account, no hosted service, nothing a funder or a vendor can
+switch off later.
 
 ## The need (the stakes a funder is buying down)
 
@@ -51,6 +55,12 @@ design below is built to avoid.
   not owned locally.[^imperial][^aot] swelter's hard rules **encode** community ownership: governance,
   siting, and location precision rest with the hosting collective, and there is no hosted dependency
   to switch off ([`governance.md`](governance.md), README hard rule 5).
+- **Replication is not a roadmap promise, it is a working path.** A community stands up a working
+  instance — dashboard, open API, exports — by copying `network.yaml` and following
+  `ADD-YOUR-NEIGHBORHOOD.md`, with recorded demo data and no hardware, in an afternoon; real sensors
+  and real co-location take longer. This is the concrete mechanism behind "local ownership": there is
+  no code to write, no company in the loop, and the whole store is a copyable folder a departing
+  funder's grant cannot strand.
 - **Lean by design.** One runtime dependency (PyYAML); everything else is the Python standard
   library. It runs on a Raspberry-Pi-class host with no cloud at all — cheap to run and durable
   across lean years, hedging the maintenance death-spiral that decays these networks.[^drift]
@@ -97,9 +107,11 @@ design below is built to avoid.
 
 - **Ask:** seed support for hardware, a named local steward, and co-location time at a reference
   monitor (the scarce resource that decides who gets calibrated).
-- **Get:** standing, community-owned, continuous heat-and-air infrastructure; open CC0 data with
-  no account; a calibrated, uncertainty-labeled surface a researcher or newsroom can reuse; and a
-  WCAG 2.2 AA, English-and-Spanish dashboard. The collective keeps all of it.
+- **Get:** standing, community-owned, continuous heat-and-air infrastructure that the collective can
+  run itself from a copied config file; open CC0 data with no account; a calibrated,
+  uncertainty-labeled surface a researcher or newsroom can reuse; and a WCAG 2.2 AA,
+  English-and-Spanish dashboard. The collective keeps all of it, and nothing about it depends on
+  swelter's maintainer or any hosted service continuing to exist.
 
 ## Honest limits (stated so they cannot be glossed)
 

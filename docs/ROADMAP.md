@@ -149,10 +149,13 @@ leverage.
    (`renderProvenance`, alongside the unchanged `provenanceText` used by the plain-text brief
    export), `web/styles.css`, and the `prov-*` keys in `web/i18n/{en,es}.json`. This is the moat
    for the researcher and credibility audiences.
-3. **Register-your-own-network as the headline capability** — lean on `network.yaml`, the no-hosted-
-   dependency, scale-to-zero design, and `ADD-YOUR-NEIGHBORHOOD.md` as the replicability and
-   sustainability story (local ownership is the documented survival factor). Largely docs and
-   packaging, little new code.
+3. **Register-your-own-network as the headline capability** (ADR 0013) — **done.** Leans on
+   `network.yaml`, the no-hosted-dependency, scale-to-zero design, and `ADD-YOUR-NEIGHBORHOOD.md` as
+   the replicability and sustainability story (local ownership is the documented survival factor).
+   The capability itself was already built in Phase 4; this item moved it from a Phase 4 footnote to
+   a first-class, table-scored property in `POSITIONING.md` and a named piece of evidence in
+   `FUNDER-EVIDENCE-PACK.md`, and named it in the `pyproject.toml` packaging metadata. Docs and
+   packaging only, no code.
 4. **Accessibility and bilingual as a certifiable asset** — **packaged.** The DOJ 2024 ADA Title II
    rule makes WCAG 2.1 AA legally load-bearing for public agencies; swelter clears 2.2 AA and ships
    en + es against a documented language-justice gap. Packaged as a compliance hook for agency

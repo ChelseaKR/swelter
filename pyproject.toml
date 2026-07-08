@@ -1,7 +1,7 @@
 [project]
 name = "swelter"
 version = "0.1.0"
-description = "Community heat and air-quality sensing network with calibrated, open, accessible data"
+description = "Self-hostable community heat and air-quality sensing network with calibrated, open, accessible data — copy network.yaml to register your own"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
@@ -16,6 +16,8 @@ keywords = [
     "sensorthings",
     "calibration",
     "civic-tech",
+    "self-hosted",
+    "community-owned",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
