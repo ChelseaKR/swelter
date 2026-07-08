@@ -146,7 +146,7 @@ see what is corroboration vs net-new.
 | R7 | **Host-facing "what's public about your node" preview** — show a host exactly the grid-snapped coordinate the map/API publishes, so coarse-by-default is *visible* | B1 | P2 | S | privacy/DPIA · **[NET-NEW]** |
 | R8 | **Manual a11y pass as a first-class artifact** — surface the dated NVDA/VoiceOver/contrast review and a "known a11y gaps" note alongside the auto gate | D1, A5 | P2 | S | **[a11y]** · **[corroborates audit E6/E7]** |
 | R9 | **Point-of-use gloss of "uncertainty" and "provisional"** — one screen-reader-friendly line each, so the honesty is legible to non-experts | A5, A1 | P1 | S | **[trust][a11y]** · **[NET-NEW]** |
-| R10 | **Precise-opt-in consent reference** — a field/check linking a `precise` node to its governance-log consent entry; flag a precise node with no recorded consent | D3 | P2 | S | privacy · **[corroborates governance §4]** |
+| R10 | **Precise-opt-in consent reference** — a field/check linking a `precise` node to its governance-log consent entry; flag a precise node with no recorded consent. ✅ Implemented 2026-07-03 — `NodeConfig.consent_ref` (free-text governance-log id) + `config.consent_concerns()` warns, on load via the CLI, for any `precise` node with no `consent_ref` recorded; does not gate `public_location` | D3 | P2 | S | privacy · **[corroborates governance §4]** |
 | R11 | **Machine-readable data dictionary + data-schema version signal** for surface/export fields, so integrators can pin against the README's semver promise | E3, D4 | P2 | M | **[reuse][commons]** · **[corroborates README semver + ADR 0007]** |
 
 ## Expansion backlog (new capability)
