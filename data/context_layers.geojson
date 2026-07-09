@@ -1,0 +1,71 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "license": "CC-BY-4.0",
+    "attribution": "Illustrative tree-canopy sample for the swelter demo network.",
+    "source": "Illustrative sample placed on the synthetic demo network's published grid cells. NOT a real canopy survey. Replace with your jurisdiction's published tree-canopy/land-cover dataset (e.g. a USFS Urban Tree Canopy assessment or city open-data portal) before deploying for a real community — see docs/decisions/0012-context-layer-overlay.md.",
+    "last_verified": "2026-07-08"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.515433, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.515433",
+        "canopy_pct": 34.0,
+        "notes": "Mature street trees along a residential block.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0012-context-layer-overlay.md",
+        "last_verified": "2026-07-08"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.512211, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.512211",
+        "canopy_pct": 21.5,
+        "notes": "Mixed residential/commercial block with scattered street trees.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0012-context-layer-overlay.md",
+        "last_verified": "2026-07-08"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.510109, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.510109",
+        "canopy_pct": 6.0,
+        "notes": "Commercial corridor, mostly paved surface, minimal canopy.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0012-context-layer-overlay.md",
+        "last_verified": "2026-07-08"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.506912, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.506912",
+        "canopy_pct": 12.0,
+        "notes": "Light industrial block adjacent to a surface parking lot.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0012-context-layer-overlay.md",
+        "last_verified": "2026-07-08"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.503915, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.503915",
+        "canopy_pct": 41.5,
+        "notes": "Block bordering a public park with continuous canopy.",
+        "source": "Illustrative sample (swelter demo)",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0012-context-layer-overlay.md",
+        "last_verified": "2026-07-08"
+      }
+    }
+  ]
+}
