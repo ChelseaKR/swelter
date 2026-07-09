@@ -177,6 +177,16 @@ def test_publish_skips_cooling_centers_when_dataset_absent(
     assert "cooling-centers.geojson" not in listed
 
 
+def test_pages_omits_illustrative_centers_before_writing_the_manifest() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+    primary_publish = (
+        'uv run swelter publish --store "$SOURCE1_STORE" --web web --config "$SOURCE1_CONFIG" '
+        "\\\n            --cooling-centers /dev/null/none"
+    )
+    assert primary_publish in workflow
+    assert "Illustrative cooling-center data must not be published" in workflow
+
+
 def test_publish_bakes_cooling_centers_when_dataset_present(
     demo_store: Path, tmp_path: Path
 ) -> None:
