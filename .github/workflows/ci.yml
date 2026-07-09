@@ -1,6 +1,6 @@
-# CI mirrors `make verify` (fmt-check + lint + typecheck + a11y + test) so a
-# green local gate is a green push. Commands here are the exact ones in the
-# Makefile; nothing is added that does not also run locally.
+# CI runs `make verify` directly (fmt-check + lint + typecheck + a11y + i18n + test), so drift
+# between the Makefile and CI is impossible rather than a matter of manual discipline
+# (CICD-27). A wheel/sdist build runs on every push too, not just at release (CQ-10).
 name: CI
 
 on:
@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  # The merge gate. Each step is one line from the Makefile's `verify` target.
+  # The merge gate: exactly `make verify`.
   checks:
     name: checks
     runs-on: ubuntu-latest
@@ -23,34 +23,18 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 
       # `--locked` fails if uv.lock is stale, so CI builds the same environment
       # that produced the local green run.
       - name: Install (locked)
         run: uv sync --locked
 
-      - name: Lint (ruff)
-        run: uv run ruff check src tests scripts
+      - name: make verify (fmt-check, lint, typecheck, a11y, i18n, test)
+        run: make verify
 
-      - name: Format check (ruff)
-        run: uv run ruff format --check src tests scripts
-
-      - name: Type-check (mypy, strict)
-        run: uv run mypy
-
-      - name: Accessibility gate (structural WCAG 2.2 AA subset)
-        run: uv run python scripts/a11y_check.py
-
-      - name: Mechanical i18n gates (UTF-8 G1, BCP-47 G3/G4, EN/ES parity G6, CLDR pin G12)
-        run: |
-          uv run python scripts/i18n_encoding_check.py
-          uv run python scripts/i18n_bcp47_check.py
-          uv run python scripts/i18n_parity.py
-          uv run python scripts/i18n_cldr_pin_check.py
-
-      - name: Tests (branch coverage, gated)
-        run: uv run pytest -q --cov=swelter --cov-branch --cov-report=term-missing --cov-fail-under=90
+      - name: Build sdist + wheel (packaging sanity check, every push)
+        run: uv build
 
   # Supply-chain checks. Separate job so a dependency or secret finding is
   # reported on its own, not tangled with the functional gate.
@@ -66,7 +50,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 
       # Audit the locked dependency set against known advisories. Run from the
       # project's resolved requirements so the audited tree matches what ships.
@@ -77,17 +61,41 @@ jobs:
       # isolated tool env. `--no-dev` keeps dev-tool noise out of the gate.
       # Retry to ride out transient advisory-DB fetch failures rather than
       # silencing the gate; a real finding still fails the build.
+      #
+      # PYSEC-2026-597 (CVE-2026-12243, nltk path traversal in nltk.data.load())
+      # is waived: nltk is a transitive dev-only dependency of textstat (the
+      # reading-level lint gate), never imported by this package's own code
+      # (verified: zero `import nltk`/`nltk.` references outside .venv), and
+      # textstat only ever loads its own bundled resources -- never an
+      # attacker-controlled path. No fixed nltk release exists yet (the
+      # advisory affects every published version). Revisit when upstream ships
+      # a fix.
       - name: pip-audit (known-vulnerability scan)
         run: |
-          for a in 1 2 3; do uv run --no-dev --with pip-audit pip-audit && exit 0; sleep 10; done
-          uv run --no-dev --with pip-audit pip-audit
+          for a in 1 2 3; do uv run --no-dev --with pip-audit pip-audit --ignore-vuln PYSEC-2026-597 && exit 0; sleep 10; done
+          uv run --no-dev --with pip-audit pip-audit --ignore-vuln PYSEC-2026-597
 
       # Secret scan. A repository scan needs a (free) GitLeaks license for the
       # Action; any finding is now merge-blocking.
       - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # SAST beyond CodeQL: OWASP-style Python rules + secrets/injection patterns (SEC-07).
+      # No SEMGREP_APP_TOKEN is configured, so this runs the open default+python rule packs
+      # locally rather than Semgrep's hosted policy/Supply Chain features. Any finding at
+      # Semgrep's default blocking severity fails the build (no `|| true`, no continue-on-error).
+      # Version pinned so a new Semgrep release can't silently redden the gate with new rules;
+      # bump deliberately via Dependabot/Renovate or a reviewed PR, same discipline as pre-commit.
+      - name: Semgrep (SAST)
+        run: uv run --no-dev --with semgrep==1.168.0 semgrep ci --config=p/default --config=p/python
+
+      # Workflow-file SAST: injection via untrusted expressions, missing permissions/pinning,
+      # cache-poisoning-prone patterns (CICD-19/CICD-20's actions half, guards CICD-04/CICD-24).
+      # Version pinned for the same reason as Semgrep above.
+      - name: zizmor (GitHub Actions workflow audit)
+        run: uvx zizmor@1.16.3 --min-severity=high .github/workflows
 
   # Node firmware is checked in alongside the Python code. Syntax-compile the
   # MicroPython sources so a broken node build is caught in CI, then run the
@@ -103,9 +111,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Byte-compile firmware sources
         run: python -m compileall firmware/src

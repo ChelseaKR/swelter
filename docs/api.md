@@ -517,17 +517,20 @@ downloader can see what was measured and what was corrected.
 
 ### `GET /export.csv`
 
-`text/csv; charset=utf-8`. Columns, in this fixed order (note the final `trustworthy` column):
+`text/csv; charset=utf-8`. Columns, in this fixed order (the final two provenance columns keep a
+downloaded or filtered subset's source terms attached to every row):
 
 ```
-node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy
-node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False
-node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True
+node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy,data_license,data_attribution
+node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False,CC0-1.0,
+node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True,CC0-1.0,
 ```
 
 `trustworthy` is `True` only for a calibrated, QC-clean reading; a `raw` row leaves `uncertainty`
-empty and reads `False`. (Text cells that begin with a spreadsheet formula character are neutralised
-on export, so a self-reported `node_id` can't smuggle a formula into a spreadsheet.)
+empty and reads `False`. `data_license` and `data_attribution` come from the export invocation; the
+default is CC0 for a network's native store, while fetched third-party stores must pass their actual
+source terms. (Text cells that begin with a spreadsheet formula character are neutralised on export,
+so a self-reported `node_id` can't smuggle a formula into a spreadsheet.)
 
 ### `GET /export.json`
 

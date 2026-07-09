@@ -131,8 +131,8 @@ and R11 sequencing. Formulas cite EPA documentation; keep the non-regulatory fra
 
 **Status: done.** `LICENSE` constants added next to each source's `ATTRIBUTION`
 (`sources/openaq.py`, `sources/sensor_community.py`, `sources/openmeteo.py`); `export.py` gained
-`DEFAULT_LICENSE = "CC0-1.0"` and `license`/`attribution` kwargs on `to_json()`, `to_csv()` (as an
-in-band `# license:` / `# attribution:` comment header), and `summarize()`; the CLI's `export`
+`DEFAULT_LICENSE = "CC0-1.0"` and `license`/`attribution` kwargs on `to_json()`, `to_csv()` (as
+standards-compliant per-row `data_license` / `data_attribution` columns), and `summarize()`; the CLI's `export`
 subcommand grew `--license`/`--attribution` flags (default CC0-1.0) and `fetch` now reports the
 real fetched source's license in its summary banner; `pages.yml` computes the license per branch of
 its fallback chain and writes it into each surface's `DATA-LICENSE` instead of always copying the

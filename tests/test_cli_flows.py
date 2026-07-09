@@ -154,11 +154,7 @@ def test_export_filters_by_parameter(demo_store: Path, capsys: pytest.CaptureFix
     rc = main(["export", "--store", str(demo_store), "--format", "csv", "--parameter", "pm25_ugm3"])
     assert rc == 0
     body = capsys.readouterr().out
-    rows = [
-        line
-        for line in body.splitlines()
-        if line and not line.startswith("node_id,") and not line.startswith("#")
-    ]
+    rows = [line for line in body.splitlines() if line and not line.startswith("node_id,")]
     assert rows, "at least one pm25 row"
     assert all(",pm25_ugm3," in row for row in rows)
 
@@ -586,6 +582,162 @@ def test_fetch_sensor_community_routes_and_stores(
     )
     assert rc == 0
     assert any(n.node_id == "sc-1" for n in load_config(str(cfg)).nodes)
+
+
+# -- fetch --accumulate (EXP-01: the demo store persists between runs) -------
+
+
+def test_fetch_accumulate_keeps_prior_observations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without --accumulate a second fetch wipes the first; with it, both survive (the store key
+    ``(node_id, timestamp, parameter, calibration)`` plus INSERT OR IGNORE make this idempotent)."""
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+
+    def first(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-01T00:00:00Z", calibration=RAW)]
+
+    def second(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-02T00:00:00Z", calibration=RAW)]
+
+    monkeypatch.setattr(openmeteo, "fetch", first)
+    rc = main(
+        [
+            "fetch",
+            "--source",
+            "openmeteo",
+            "--store",
+            str(store),
+            "--config",
+            str(cfg),
+            "--web",
+            str(web),
+            "--accumulate",
+        ]
+    )
+    assert rc == 0
+
+    monkeypatch.setattr(openmeteo, "fetch", second)
+    rc = main(
+        [
+            "fetch",
+            "--source",
+            "openmeteo",
+            "--store",
+            str(store),
+            "--config",
+            str(cfg),
+            "--web",
+            str(web),
+            "--accumulate",
+        ]
+    )
+    assert rc == 0
+
+    with open_store(store) as opened:
+        timestamps = {o.timestamp for o in opened.all() if o.node_id == node_id}
+    assert timestamps == {"2026-06-01T00:00:00Z", "2026-06-02T00:00:00Z"}
+
+
+def test_fetch_without_accumulate_wipes_prior_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The default (no --accumulate) behaviour is unchanged: each fetch is a fresh snapshot."""
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+
+    def first(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-01T00:00:00Z", calibration=RAW)]
+
+    def second(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-02T00:00:00Z", calibration=RAW)]
+
+    monkeypatch.setattr(openmeteo, "fetch", first)
+    assert (
+        main(
+            [
+                "fetch",
+                "--source",
+                "openmeteo",
+                "--store",
+                str(store),
+                "--config",
+                str(cfg),
+                "--web",
+                str(web),
+            ]
+        )
+        == 0
+    )
+    monkeypatch.setattr(openmeteo, "fetch", second)
+    assert (
+        main(
+            [
+                "fetch",
+                "--source",
+                "openmeteo",
+                "--store",
+                str(store),
+                "--config",
+                str(cfg),
+                "--web",
+                str(web),
+            ]
+        )
+        == 0
+    )
+
+    with open_store(store) as opened:
+        timestamps = {o.timestamp for o in opened.all() if o.node_id == node_id}
+    assert timestamps == {"2026-06-02T00:00:00Z"}
+
+
+def test_fetch_accumulate_merges_network_nodes_that_come_and_go(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A node missing from today's discovery keeps its prior config entry under --accumulate, so
+    its history in the store stays resolvable by ``aggregate`` (the Shape's "nodes that come and
+    go" reconciliation) — while a node seen again gets its entry refreshed from today's fetch."""
+    nodes_day1 = {"sc-1": ("Sensor 1", 48.7758, 9.1829), "sc-2": ("Sensor 2", 48.80, 9.20)}
+    nodes_day2 = {"sc-1": ("Sensor 1 (moved)", 48.7760, 9.1830)}  # sc-2 dropped out today
+
+    def day1(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+        return [make_obs(node_id="sc-1"), make_obs(node_id="sc-2")], nodes_day1
+
+    def day2(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+        return [make_obs(node_id="sc-1")], nodes_day2
+
+    cfg = tmp_path / "net.yaml"
+    store = tmp_path / "store"
+    web = tmp_path / "web"
+    args = [
+        "fetch",
+        "--source",
+        "sensor-community",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+
+    monkeypatch.setattr(sensor_community, "fetch", day1)
+    assert main(args) == 0
+    monkeypatch.setattr(sensor_community, "fetch", day2)
+    assert main(args) == 0
+
+    merged = load_config(str(cfg))
+    node_ids = {n.node_id for n in merged.nodes}
+    assert node_ids == {"sc-1", "sc-2"}, "sc-2 dropped out today but keeps its prior entry"
+    refreshed = next(n for n in merged.nodes if n.node_id == "sc-1")
+    assert refreshed.label == "Sensor 1 (moved)", "sc-1 was seen again, so today's data wins"
 
 
 # -- the static-payload cap (keeps the committed sample light) ---------------

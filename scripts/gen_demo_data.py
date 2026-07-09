@@ -189,7 +189,7 @@ def heat_index_c(temp_c: float, humidity_pct: float) -> float:
 
 
 def generate() -> None:
-    rng = random.Random(SEED)
+    rng = random.Random(SEED)  # noqa: S311 -- deterministic synthetic demo data, not crypto/security
     nodes = build_nodes(rng)
     timestamps = [START + timedelta(hours=i) for i in range(HOURS)]
 

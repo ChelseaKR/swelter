@@ -179,8 +179,7 @@ def test_read_normalizes_noncanonical_timestamp(store: SqliteStore) -> None:
 
 
 def test_csv_formula_injection_neutralized() -> None:
-    # splitlines()[0] is the "# license: ..." comment header, [1] the CSV header row, [2] the row.
-    line = export.to_csv([make_obs(node_id="=HYPERLINK(1)")]).strip().splitlines()[2]
+    line = export.to_csv([make_obs(node_id="=HYPERLINK(1)")]).strip().splitlines()[1]
     assert line.startswith("'=HYPERLINK")  # prefixed so a spreadsheet treats it as literal text
 
 

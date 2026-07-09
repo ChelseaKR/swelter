@@ -7,6 +7,9 @@
 # for a fetched third-party source) and a matching CSV download. Runs on push and daily so the
 # readings stay current; page 1 falls back (OpenAQ → CAMS → committed synthetic demo) and sensors
 # → page 1's surface, so the page never breaks — and its license always names what's actually in it.
+# The store persists across runs (actions/cache, keyed by day with a most-recent fallback) and
+# `--accumulate` keeps rather than wipes it (ADR 0013/EXP-01), so the time slider covers weeks of
+# real history instead of one day's snapshot. A cache miss just degrades to a fresh fetch.
 name: demo
 
 on:
@@ -16,10 +19,9 @@ on:
   schedule:
     - cron: "30 13 * * *"  # refresh the real readings daily
 
+# Default to no access; the one job below elevates only what it needs (CICD-04).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -28,6 +30,11 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # pages/id-token let this job publish the built dashboard to GitHub Pages via OIDC.
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -35,7 +42,21 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Cache key date (UTC, so the fetch store's cache key rolls over once a day)
+        id: date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Restore the accumulating fetch store (EXP-01/ADR 0013)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /tmp/cams
+            /tmp/cams.yaml
+            /tmp/sc
+            /tmp/sc.yaml
+          key: swelter-fetch-store-${{ steps.date.outputs.date }}
+          restore-keys: |
+            swelter-fetch-store-
       - name: Assemble the live demo (real sources, layered fallback)
         env:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
@@ -46,11 +67,11 @@ jobs:
           # Each branch names its own license/attribution — the export must never claim CC0 for a
           # fetched third-party source, so the license tracks whichever branch actually succeeded.
           if uv run swelter fetch --source openaq --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --max-locations 250; then
+              --web web --max-locations 250 --accumulate; then
             SOURCE1_LICENSE="CC BY 4.0"
             SOURCE1_ATTRIBUTION="Real readings from the OpenAQ network of physical air-quality sensors (openaq.org, CC BY 4.0) — uncalibrated, so shown raw / provisional."
           elif uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --past-days 1; then
+              --web web --past-days 1 --accumulate; then
             SOURCE1_LICENSE="CC BY 4.0 (Copernicus CAMS via Open-Meteo)"
             SOURCE1_ATTRIBUTION="Real hourly readings for California cities from the Copernicus Atmosphere Monitoring Service (CAMS) via Open-Meteo — atmospheric model data, not physical sensors, and not swelter-calibrated."
           else
@@ -77,7 +98,7 @@ jobs:
           SC_LICENSE="CC BY-SA 4.0"
           SC_ATTRIBUTION="Real readings from the Sensor.Community network of community low-cost sensors (sensor.community, CC BY-SA 4.0) — uncalibrated, so shown raw / provisional."
           if uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
-              --web web/sensors --cooling-centers /dev/null/none; then
+              --web web/sensors --cooling-centers /dev/null/none --accumulate; then
             {
               echo "swelter — /sensors/ (this page's data): $SC_LICENSE"
               echo "$SC_ATTRIBUTION"

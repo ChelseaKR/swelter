@@ -60,6 +60,8 @@ class NodeConfig:
     lat: float | None = None
     lon: float | None = None
     location: str = "coarse"  # "coarse" (snap to grid) or "precise" (host opted in)
+    # governance-log entry recording host consent for a precise location (governance.md §4)
+    consent_ref: str = ""
 
     def public_location(self, grid_m: float) -> tuple[float, float] | None:
         """The coordinate swelter is allowed to publish for this node.
@@ -96,6 +98,22 @@ class CalibrationWindow:
 
 
 @dataclass(frozen=True)
+class TwinWindow:
+    """A co-located sensor-twin window: two low-cost nodes sitting side by side, and when.
+
+    Unlike :class:`CalibrationWindow`, neither node is a reference monitor — this is a
+    precision check (do the twins agree with each other?), not an accuracy check (does either
+    twin agree with truth?). See ``qc.twin_agreement`` and ``docs/calibration.md``.
+    """
+
+    node_a: str
+    node_b: str
+    parameter: str
+    start: str
+    end: str
+
+
+@dataclass(frozen=True)
 class NetworkConfig:
     """The whole network as one reviewable document."""
 
@@ -105,6 +123,9 @@ class NetworkConfig:
     nodes: tuple[NodeConfig, ...] = ()
     reference_monitors: tuple[ReferenceMonitor, ...] = ()
     calibration_windows: tuple[CalibrationWindow, ...] = field(default_factory=tuple)
+    #: Co-located twin windows for the cross-checked precision tier (QC metadata only — see
+    #: ``qc.twin_agreement``). Empty means no twin pairs are configured; nothing changes.
+    twin_windows: tuple[TwinWindow, ...] = field(default_factory=tuple)
     #: Per-network danger floors for the alerts feed (keys: ``pm25_aqi``, ``heat_index_c``,
     #: ``exposure``). Empty means "use the documented public-health defaults" (see ``alerts.py``).
     alert_thresholds: dict[str, float] = field(default_factory=dict)
@@ -159,6 +180,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
             lat=_as_float(n.get("lat")),
             lon=_as_float(n.get("lon")),
             location=_as_str(n.get("location"), "coarse"),
+            consent_ref=_as_str(n.get("consent_ref")),
         )
         for n in doc.get("nodes", []) or []
     )
@@ -180,6 +202,16 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         )
         for w in doc.get("calibration_windows", []) or []
     )
+    twin_windows = tuple(
+        TwinWindow(
+            node_a=_as_str(t.get("node_a")),
+            node_b=_as_str(t.get("node_b")),
+            parameter=_as_str(t.get("parameter")),
+            start=_as_str(t.get("start")),
+            end=_as_str(t.get("end")),
+        )
+        for t in doc.get("twin_windows", []) or []
+    )
     languages = tuple(str(lang) for lang in doc.get("languages", ["en"]) or ["en"])
     thresholds = {
         str(k): float(v) for k, v in (doc.get("alert_thresholds") or {}).items() if v is not None
@@ -191,6 +223,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         nodes=nodes,
         reference_monitors=monitors,
         calibration_windows=windows,
+        twin_windows=twin_windows,
         alert_thresholds=thresholds,
     )
 
@@ -215,4 +248,23 @@ def label_concerns(config: NetworkConfig) -> list[str]:
             else:
                 continue
             break
+    return out
+
+
+def consent_concerns(config: NetworkConfig) -> list[str]:
+    """Warn about precise nodes with no recorded host consent.
+
+    Disclosing a precise location is a decision only the host of that node may make, and
+    governance.md §4 requires it be written down as a dated entry in the governance log. This
+    does not gate ``public_location`` — a node missing ``consent_ref`` still publishes its precise
+    coordinate — it only warns, so a host or steward can go record the consent that governance
+    already requires; the CLI prints these on load.
+    """
+    out: list[str] = []
+    for node in config.nodes:
+        if node.location == "precise" and not node.consent_ref.strip():
+            out.append(
+                f"{node.node_id}: location is 'precise' but no consent_ref recorded — a precise "
+                f"location requires a dated governance-log consent entry (governance.md §4)"
+            )
     return out

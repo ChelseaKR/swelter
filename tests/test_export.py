@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 from typing import Any
 
@@ -13,9 +14,9 @@ from .conftest import make_obs
 def test_to_csv_has_header_and_one_row_per_observation() -> None:
     text = export.to_csv([make_obs(), make_obs(parameter="humidity_pct", unit="%", value=50.0)])
     lines = text.strip().splitlines()
-    assert lines[0] == "# license: CC0-1.0"
-    assert lines[1].startswith("node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty")
-    assert len(lines) == 4
+    assert lines[0].startswith("node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty")
+    assert lines[0].endswith("data_license,data_attribution")
+    assert len(lines) == 3
 
 
 def test_to_json_declares_the_data_license() -> None:
@@ -43,10 +44,11 @@ def test_to_csv_license_varies_by_source() -> None:
         license="CC BY-SA 4.0",
         attribution="Readings from the Sensor.Community network, CC BY-SA 4.0.",
     )
-    lines = text.splitlines()
-    assert lines[0] == "# license: CC BY-SA 4.0"
-    assert lines[1] == "# attribution: Readings from the Sensor.Community network, CC BY-SA 4.0."
-    assert lines[2].startswith("node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty")
+    rows = list(csv.DictReader(text.splitlines()))
+    assert rows[0]["data_license"] == "CC BY-SA 4.0"
+    assert (
+        rows[0]["data_attribution"] == "Readings from the Sensor.Community network, CC BY-SA 4.0."
+    )
 
 
 def test_summary_reports_calibrated_vs_raw_and_license() -> None:

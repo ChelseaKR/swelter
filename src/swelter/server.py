@@ -35,14 +35,18 @@ class ServerContext:
     cooling_centers_path: Path | None = None  # curated cooling-center dataset (optional overlay)
 
 
-def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
+def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901
+    # Ruff's mccabe walker sums every nested method's branches into this factory function because
+    # the handler class is defined inside it (closure over `ctx`, the stdlib http.server pattern);
+    # most methods below are independently simple. Documented exception, not a silent one — see
+    # swelter-REMEDIATION.md Quick win 5 (CQ-05).
     class Handler(BaseHTTPRequestHandler):
         server_version = "swelter/0.1"
 
         def log_message(self, *_: object) -> None:  # keep stdout clean; structured logs elsewhere
             return
 
-        def do_GET(self) -> None:  # noqa: N802 (http.server API)
+        def do_GET(self) -> None:  # noqa: N802, C901 (http.server API; flat route dispatch, see above)
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"  # normalise trailing slashes
             query = parse_qs(parsed.query)

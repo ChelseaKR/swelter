@@ -29,6 +29,8 @@ _CSV_FIELDS = (
     "qc",
     "uncertainty",
     "trustworthy",
+    "data_license",
+    "data_attribution",
 )
 
 DATA_LICENSE_LINE = "CC0-1.0 (observations) · see DATA-LICENSE"
@@ -79,16 +81,18 @@ def to_csv(
     attribution: str | None = None,
 ) -> str:
     buffer = io.StringIO()
-    # Leading "# " rows are comments to any sane CSV reader (pandas, csv.reader with a comment
-    # convention, a human skimming the file) and keep the license in-band with the data itself,
-    # rather than relying solely on a sidecar DATA-LICENSE file a downloader may not keep.
-    buffer.write(f"# license: {license}\n")
-    if attribution:
-        buffer.write(f"# attribution: {attribution}\n")
     writer = csv.DictWriter(buffer, fieldnames=_CSV_FIELDS)
     writer.writeheader()
     for record in to_records(observations):
-        writer.writerow({key: _csv_safe(value) for key, value in record.items()})
+        row = {
+            **record,
+            # Keep provenance in-band without inventing non-standard comment lines before the
+            # header. Repeating it per row makes an extracted subset self-describing and leaves
+            # the result readable by ordinary csv.DictReader/pandas consumers.
+            "data_license": license,
+            "data_attribution": attribution or "",
+        }
+        writer.writerow({key: _csv_safe(value) for key, value in row.items()})
     return buffer.getvalue()
 
 
