@@ -117,6 +117,32 @@ _MODEL_METHOD: dict[tuple[str, str], str] = {
 #: names methods a co-location *fit* can produce; heat index is never fit.
 _DERIVED_HEAT_INDEX_METHOD = "derived-enclosure"
 
+#: Below this temperature `models.heat_index_c` is the identity in temperature (the Rothfusz
+#: regression is not meaningful there), so the propagation slope is exactly 1. Mirrors the
+#: floor hard-coded in `models.heat_index_c`.
+_HI_REGRESSION_FLOOR_C = 26.7
+
+
+def _heat_index_temp_slope(temp_c: float, humidity_pct: float) -> float:
+    """Local ``|dHI/dT|`` of :func:`models.heat_index_c`, floored at 1.0.
+
+    Used to propagate a temperature correction's 1-sigma through the heat-index derivation:
+    to first order ``sigma_HI = |dHI/dT| * sigma_T``, and in the hot-humid Rothfusz regime the
+    slope is well above 1 (roughly 2-2.5 in the Danger band), so carrying ``sigma_T`` forward
+    unscaled would understate the derived error bar exactly where the stakes are highest (see
+    ADR 0014). Below the 26.7 degC regression floor heat index *is* the air temperature, so the
+    slope is exactly 1. The difference quotient keeps both sample points on the regression side
+    of the branch point so the branch discontinuity cannot inflate the slope, and the result is
+    floored at 1.0 so the derived error bar is never claimed tighter than the temperature's own.
+    """
+    if temp_c < _HI_REGRESSION_FLOOR_C:
+        return 1.0
+    step = 0.5
+    lo = max(temp_c - step, _HI_REGRESSION_FLOOR_C)
+    hi = temp_c + step
+    slope = (_heat_index_c(hi, humidity_pct) - _heat_index_c(lo, humidity_pct)) / (hi - lo)
+    return max(abs(slope), 1.0)
+
 
 @dataclass(frozen=True)
 class TrainingPair:
@@ -595,8 +621,10 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
             f"heat_index_c.{_DERIVED_HEAT_INDEX_METHOD}.{obs.node_id}"
             f"@{temp_version.partition('@')[2]}"
         )
-        # Heat index is monotonic in temperature over the operating range; carrying the temp
-        # correction's residual_std forward as the derived value's 1-sigma is the simplest
-        # defensible propagation (see ADR 0014) rather than a fitted uncertainty of its own.
-        out.append(obs.calibrated(version, derived_value, temp_residual_std))
+        # First-order propagation of the temperature error bar through the derivation:
+        # sigma_HI = |dHI/dT| * sigma_T, with the local slope taken at the calibrated
+        # temperature and floored at 1.0 (see ADR 0014). Humidity's own uncertainty is
+        # unmeasured in this network and is not modeled (ADR 0014, Known weakness).
+        derived_uncertainty = _round(_heat_index_temp_slope(temp_value, rh) * temp_residual_std)
+        out.append(obs.calibrated(version, derived_value, derived_uncertainty))
     return out
