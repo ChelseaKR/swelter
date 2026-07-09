@@ -485,6 +485,26 @@ _FetchOk = tuple[
 ]  # observations, network, attrib, label
 
 
+def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, Any]:
+    """For ``--accumulate``: union today's fetched nodes into the previously written network doc
+    so a node that drops out of one day's discovery (EXP-01: "nodes that come and go") keeps its
+    entry — and so its history in the store stays resolvable by ``aggregate`` — while a node seen
+    again today gets its label/location refreshed. Every other top-level field (name, grid
+    resolution, languages, reference monitors, calibration windows) comes from today's fetch."""
+    if not config_path.is_file():
+        return network
+    try:
+        previous = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return network  # a corrupt prior file shouldn't block today's fetch
+    prior_nodes = {n["node_id"]: n for n in previous.get("nodes", []) if "node_id" in n}
+    for node in network.get("nodes", []):
+        prior_nodes[node["node_id"]] = node  # today's data wins for nodes seen again
+    merged = dict(network)
+    merged["nodes"] = list(prior_nodes.values())
+    return merged
+
+
 def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
     import os
 
@@ -566,7 +586,10 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     (keyless, but coarse — not block-level); ``--source openaq`` is dense real physical sensors
     across California (block-by-block, needs an API key); ``--source sensor-community`` is real
     community low-cost sensors (dense in Europe). The two sensor sources are uncalibrated, so their
-    readings are shown raw/provisional — swelter's thesis made real."""
+    readings are shown raw/provisional — swelter's thesis made real. By default the store is wiped
+    first, so each fetch is a fresh snapshot; ``--accumulate`` keeps the existing store between
+    runs instead (see ADR 0013), so readings pile up run over run and the time slider ends up
+    with real longitudinal history rather than one fetch's worth."""
     if args.source == "openaq":
         result = _fetch_openaq(args)
     elif args.source == "sensor-community":
@@ -578,12 +601,18 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     observations, network, attribution, source_label = result
 
     observations = qc.apply(observations)
-    Path(args.config).write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
+    config_path = Path(args.config)
+    if args.accumulate:
+        network = _merge_network_doc(config_path, network)
+    config_path.write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
     config = load_config(args.config)
 
     paths = store_paths(args.store)
-    paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
+    if not args.accumulate:
+        paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
     with SqliteStore(paths["db"]) as store:
+        # write() is INSERT OR IGNORE on (node_id, timestamp, parameter, calibration), so
+        # re-fetching overlapping history under --accumulate is idempotent, not duplicated.
         written = store.write(observations)
         surface = aggregate.aggregate(store.all(), config)
         paths["aggregate"].write_text(
@@ -597,9 +626,10 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
+        mode = "accumulated" if args.accumulate else "stored"
         _err(
-            f"swelter: stored {written.written} real observations from {len(config.nodes)} "
-            f"locations (source: {source_label})"
+            f"swelter: {mode} {written.written} new of {len(all_obs)} total real observations "
+            f"from {len(config.nodes)} locations (source: {source_label})"
         )
         _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
 
@@ -817,6 +847,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.add_argument("--store", default=f"{DEFAULT_STORE}/real")
     p_fetch.add_argument("--config", default="network.real.yaml", help="where to write the network")
     p_fetch.add_argument("--web", default=DEFAULT_WEB)
+    p_fetch.add_argument(
+        "--accumulate",
+        action="store_true",
+        help="keep the existing store between runs instead of wiping it first, so history "
+        "builds up across repeated fetches (e.g. daily CI) instead of one snapshot per run",
+    )
     p_fetch.add_argument(
         "--past-days", type=int, default=2, help="openmeteo: history window (days)"
     )
