@@ -24,6 +24,20 @@ def test_version(capsys: pytest.CaptureFixture[str]) -> None:
     assert "swelter" in capsys.readouterr().out
 
 
+def test_crosswalk_csv(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["crosswalk"]) == 0
+    out = capsys.readouterr().out
+    assert "swelter_param" in out.splitlines()[0]
+    assert "pm25_ugm3" in out
+
+
+def test_crosswalk_json(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["crosswalk", "--format", "json"]) == 0
+    rows = json.loads(capsys.readouterr().out)
+    heat_index = next(row for row in rows if row["swelter_param"] == "heat_index_c")
+    assert heat_index["openaq_param"] is None
+
+
 def test_init_scaffolds_a_loadable_network(tmp_path: Path) -> None:
     from swelter.config import load_config
 

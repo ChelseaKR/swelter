@@ -11,6 +11,7 @@ the dashboard, with no hardware in the loop.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 from collections.abc import Sequence
@@ -25,6 +26,7 @@ from . import (
     alerts,
     calibrate,
     cooling_centers,
+    crosswalk,
     export,
     ingest,
     ingest_server,
@@ -694,6 +696,20 @@ def cmd_version(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_crosswalk(args: argparse.Namespace) -> int:
+    """Print the outbound parameter crosswalk (swelter -> OpenAQ / Sensor.Community). Read-only,
+    no network — a static in-memory table (see :mod:`swelter.crosswalk`)."""
+    rows = crosswalk.crosswalk_table()
+    if args.format == "json":
+        print(json.dumps(rows, indent=2))
+        return 0
+    fields = list(rows[0].keys()) if rows else []
+    writer = csv.DictWriter(sys.stdout, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(rows)
+    return 0
+
+
 # -- parser ------------------------------------------------------------------
 
 
@@ -882,6 +898,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)
+
+    p_cross = sub.add_parser(
+        "crosswalk",
+        help="print the outbound parameter crosswalk (swelter -> OpenAQ / Sensor.Community)",
+    )
+    p_cross.add_argument("--format", choices=("csv", "json"), default="csv")
+    p_cross.set_defaults(func=cmd_crosswalk)
 
     return parser
 
