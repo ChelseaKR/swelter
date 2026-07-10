@@ -152,6 +152,25 @@ def test_publish_manifest_enumerates_files_with_hashes(demo_store: Path, tmp_pat
         assert listed[name]["sha256"] == hashlib.sha256(data).hexdigest()
 
 
+def test_publish_manifest_includes_a_prebuilt_demo_contract(
+    demo_store: Path, tmp_path: Path
+) -> None:
+    web = tmp_path / "web"
+    web.mkdir()
+    contract = b'{"schema_version": 1}\n'
+    (web / "demo.json").write_bytes(contract)
+
+    assert _publish(demo_store, web) == 0
+
+    manifest = json.loads((web / "publish-manifest.json").read_text(encoding="utf-8"))
+    listed = {entry["path"]: entry for entry in manifest["files"]}
+    assert listed["demo.json"] == {
+        "path": "demo.json",
+        "bytes": len(contract),
+        "sha256": hashlib.sha256(contract).hexdigest(),
+    }
+
+
 def test_publish_manifest_is_deterministic(demo_store: Path, tmp_path: Path) -> None:
     """Re-running publish against an unchanged store reproduces the manifest byte for byte —
     the same determinism guarantee ``_write_web_alerts`` documents for alerts.json/alerts.xml."""

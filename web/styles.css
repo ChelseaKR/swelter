@@ -228,6 +228,39 @@ h1 {
   font-size: 0.85rem;
 }
 
+.dataset-truth {
+  margin: 0.65rem 0 0;
+  padding: 0.65rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+}
+
+.dataset-truth h2 {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+}
+
+.dataset-truth dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.dataset-truth dt {
+  font-weight: 700;
+}
+
+.dataset-truth dd {
+  margin: 0;
+}
+
+.truth-fallback {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+}
+
 .source-switch {
   display: flex;
   flex-wrap: wrap;
@@ -1280,6 +1313,13 @@ footer code {
   .cell {
     min-width: 3rem;
     font-size: 0.82rem;
+  }
+  .dataset-truth dl {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+  .dataset-truth dd + dt {
+    margin-top: 0.35rem;
   }
 }
 
