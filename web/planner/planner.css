@@ -166,7 +166,8 @@ h1 {
 .privacy-docket {
   position: relative;
   padding: 4.8rem 1.5rem 1.5rem;
-  background: var(--white);
+  background: #ffffff;
+  color: #081c2c;
   border: 0.18rem solid var(--ink);
   box-shadow: 0.65rem 0.65rem 0 var(--ink);
 }
@@ -186,7 +187,7 @@ h1 {
   top: 0.7rem;
   right: 1.1rem;
   margin: 0;
-  color: var(--line);
+  color: #526b76;
   font-family: var(--mono);
   font-size: 2rem;
   font-weight: 900;
@@ -194,6 +195,8 @@ h1 {
 
 .privacy-docket h2 {
   margin: 0;
+  background: #ffffff;
+  color: #081c2c;
   font-size: 1.3rem;
 }
 
@@ -380,11 +383,20 @@ h1 {
 }
 
 .button-primary {
-  background: var(--ink);
-  color: var(--white);
+  background: #081c2c;
+  color: #ffffff;
+}
+
+.button-primary > span {
+  background: #081c2c;
+  color: #ffffff;
 }
 
 .button-primary:hover {
+  background: var(--water);
+}
+
+.button-primary:hover > span {
   background: var(--water);
 }
 
