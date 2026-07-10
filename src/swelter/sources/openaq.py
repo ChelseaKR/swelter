@@ -14,7 +14,9 @@ Auth: OpenAQ v3 needs a free API key (sign up at https://explore.openaq.org/regi
 
 The "latest" snapshot is one call per location, so a statewide pull is throttled and capped.
 
-Attribution: "Readings from the OpenAQ network (openaq.org), CC BY 4.0 — uncalibrated, provisional."
+Licensing: OpenAQ aggregates many original providers. Its v3 location records expose each
+provider's license and attribution, and its Terms require downstream users to follow those terms;
+there is no honest blanket Creative Commons license for a mixed statewide export.
 """
 
 from __future__ import annotations
@@ -30,11 +32,12 @@ from ..models import Observation, format_timestamp, heat_index_c, parse_timestam
 from ._http import SourceError, get_json
 
 API = "https://api.openaq.org/v3"
-#: OpenAQ's stated terms for API data (openaq.org).
-LICENSE = "CC BY 4.0"
+#: OpenAQ's terms defer to each original provider's license. Until the export carries the v3
+#: per-location license ledger, this deliberately refuses to assert a blanket CC license.
+LICENSE = "Provider-specific terms (see OpenAQ location metadata)"
 ATTRIBUTION = (
-    "Real readings from the OpenAQ network of physical air-quality sensors (openaq.org, CC BY 4.0) "
-    "— uncalibrated, so shown raw / provisional."
+    "Real readings accessed via OpenAQ; original-provider licenses and attribution vary by "
+    "location (docs.openaq.org/about/terms). Uncalibrated, so shown raw / provisional."
 )
 
 #: California bounding box (west, south, east, north).

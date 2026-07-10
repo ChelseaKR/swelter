@@ -820,7 +820,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--license",
         default=export.DEFAULT_LICENSE,
         help="license of the exported data (default: CC0-1.0, the store's native default; "
-        "pass the source's real terms — e.g. 'CC BY-SA 4.0' — for a fetched third-party store)",
+        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
     )
     p_exp.add_argument(
         "--attribution", default=None, help="attribution text to carry alongside --license"

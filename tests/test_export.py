@@ -30,24 +30,24 @@ def test_to_json_license_varies_by_source() -> None:
     doc: Any = json.loads(
         export.to_json(
             [make_obs()],
-            license="CC BY-SA 4.0",
-            attribution="Readings from the Sensor.Community network, CC BY-SA 4.0.",
+            license="ODC-DbCL-1.0",
+            attribution="Readings from the Sensor.Community network, ODC-DbCL-1.0.",
         )
     )
-    assert doc["license"] == "CC BY-SA 4.0"
-    assert doc["attribution"] == "Readings from the Sensor.Community network, CC BY-SA 4.0."
+    assert doc["license"] == "ODC-DbCL-1.0"
+    assert doc["attribution"] == "Readings from the Sensor.Community network, ODC-DbCL-1.0."
 
 
 def test_to_csv_license_varies_by_source() -> None:
     text = export.to_csv(
         [make_obs()],
-        license="CC BY-SA 4.0",
-        attribution="Readings from the Sensor.Community network, CC BY-SA 4.0.",
+        license="ODC-DbCL-1.0",
+        attribution="Readings from the Sensor.Community network, ODC-DbCL-1.0.",
     )
     rows = list(csv.DictReader(text.splitlines()))
-    assert rows[0]["data_license"] == "CC BY-SA 4.0"
+    assert rows[0]["data_license"] == "ODC-DbCL-1.0"
     assert (
-        rows[0]["data_attribution"] == "Readings from the Sensor.Community network, CC BY-SA 4.0."
+        rows[0]["data_attribution"] == "Readings from the Sensor.Community network, ODC-DbCL-1.0."
     )
 
 
@@ -66,8 +66,8 @@ def test_summary_reports_calibrated_vs_raw_and_license() -> None:
 
 
 def test_summary_reports_a_non_default_license() -> None:
-    text = export.summarize([make_obs()], license="CC BY-SA 4.0")
-    assert "CC BY-SA 4.0" in text
+    text = export.summarize([make_obs()], license="ODC-DbCL-1.0")
+    assert "ODC-DbCL-1.0" in text
     assert "CC0-1.0" not in text
 
 

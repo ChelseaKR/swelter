@@ -136,17 +136,17 @@ standards-compliant per-row `data_license` / `data_attribution` columns), and `s
 subcommand grew `--license`/`--attribution` flags (default CC0-1.0) and `fetch` now reports the
 real fetched source's license in its summary banner; `pages.yml` computes the license per branch of
 its fallback chain and writes it into each surface's `DATA-LICENSE` instead of always copying the
-repo's CC0 one; `docs/api.md` documents the mixed-store case and CC BY-SA share-alike. The
+repo's CC0 one; `docs/api.md` documents the mixed-store and upstream-provider cases. The
 `Observation` model and store schema are untouched — license is threaded as an export-time
 parameter, not a stored field. See `roadmap/fix-05-license-provenance-stop-exporting`.
 
 **Pitch.** Per-source license metadata that travels with observations, so exports of fetched
-OpenAQ (CC BY 4.0) / Sensor.Community (CC BY-SA 4.0) data carry their real license instead of the
+OpenAQ (provider-specific terms) / Sensor.Community (ODC-DbCL-1.0) data stop inheriting the
 hardcoded CC0 banner.
 
 **Why it matters.** `export.py` hardcodes `"license": "CC0-1.0"` (line 79) and
 `DATA_LICENSE_LINE`; `pages.yml` copies the CC0 `DATA-LICENSE` beside `export.csv` built from
-CC BY/CC BY-SA sources. This is a live licensing error on the public demo and a candor problem for
+third-party sources. This is a live licensing error on the public demo and a candor problem for
 a project whose brand is provenance. CC0 is true only for community-network observations.
 
 **Shape of the work.** Add a source/license registry (per source adapter constant); thread a
@@ -158,7 +158,8 @@ network stores. Document the mixed-store case (fetched + native) honestly in `do
 
 **Effort.** M (S for the export surface, M with the Pages workflow and docs).
 **Risks/dependencies.** None technical; small legal-review gate on the exact attribution wording.
-CC BY-SA share-alike interaction with downstream reuse deserves one careful paragraph.
+OpenAQ's per-location provider-license interaction with downstream reuse deserves one careful
+paragraph and a provenance ledger before its mixed-provider export can claim full compliance.
 
 **Excellent looks like.** Every export artifact names the license of what is actually in it; the
 live demo's `/sensors/` page never claims CC0 over Sensor.Community data; a test asserts the

@@ -36,10 +36,10 @@ _CSV_FIELDS = (
 DATA_LICENSE_LINE = "CC0-1.0 (observations) · see DATA-LICENSE"
 
 #: The store itself is source-agnostic (native network observations are CC0), so this is the
-#: default when a caller doesn't say otherwise. A fetched third-party source (OpenAQ, CC BY 4.0;
-#: Sensor.Community, CC BY-SA 4.0; Copernicus CAMS via Open-Meteo, CC BY 4.0) carries a stricter
-#: license and must pass it explicitly at export time — see ``sources/*.py``'s ``LICENSE``
-#: constants.
+#: default when a caller doesn't say otherwise. A fetched third-party source (OpenAQ's
+#: provider-specific terms; Sensor.Community's ODC-DbCL-1.0; Open-Meteo's CC BY 4.0) keeps its own
+#: terms and must pass them explicitly at export time — see the ``LICENSE`` constants in
+#: ``sources/*.py``.
 DEFAULT_LICENSE = "CC0-1.0"
 
 # Characters that make a spreadsheet treat a cell as a formula. node_id is self-reported by
