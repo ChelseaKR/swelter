@@ -14,7 +14,7 @@ import argparse
 import csv
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -22,15 +22,19 @@ import yaml
 
 from . import (
     __version__,
+    ac_access_layer,
     aggregate,
     alerts,
     calibrate,
+    context_layers,
     cooling_centers,
     crosswalk,
     export,
+    exposure_brief,
     ingest,
     ingest_server,
     qc,
+    redlining_layer,
 )
 from .config import NetworkConfig, consent_concerns, label_concerns, load_config
 from .models import RAW, Observation
@@ -42,8 +46,18 @@ DEFAULT_CONFIG = "network.yaml"
 DEFAULT_WEB = "web"
 DEFAULT_DATA = "data/demo"
 DEFAULT_COOLING = "data/cooling_centers.geojson"
+DEFAULT_CANOPY = "data/context_layers.geojson"
+DEFAULT_AC_ACCESS = "data/ac_access_layer.geojson"
+DEFAULT_REDLINING = "data/redlining_layer.geojson"
 DEFAULT_INTERVAL_S = 3600.0
 DEFAULT_KEYS = "node-keys.yaml"  # operator-local; outside network.yaml and the copyable store
+
+
+def _optional_dataset[T](loader: Callable[[Path], T], path: str) -> T | None:
+    """Load a curated context-layer dataset if its file exists, else ``None`` (no coverage)."""
+    p = Path(path)
+    return loader(p) if p.is_file() else None
+
 
 #: A minimal, commented starter network written by `swelter init`. __NAME__ is replaced with a
 #: YAML-safe quoted name. Two nodes, one reference monitor, one co-location window — the smallest
@@ -246,6 +260,41 @@ def cmd_alerts(args: argparse.Namespace) -> int:
         _write_web_alerts(Path(args.web), surface, config)
         _err(f"swelter: wrote alerts.json + alerts.xml → {args.web}/")
     _err(f"swelter: {len(feed.alerts)} active alert(s) at {feed.bucket or 'no data'}")
+    return 0
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    """Build the plain-language, sourced neighborhood exposure brief(s) (F5 / roadmap E1).
+
+    "This block ran Danger N days this period" plus sourced canopy/AC-access/redlining context,
+    from whatever history the store holds — the historical sibling of ``swelter alerts``. Each
+    context dataset is optional; a brief still builds with only the ones present on disk.
+    """
+    config = _load_config(args.config)
+    with open_store(args.store) as store:
+        surface = aggregate.aggregate(store.all(), config)
+    briefs = exposure_brief.build_briefs(
+        surface,
+        parameter=args.parameter,
+        thresholds=config.alert_thresholds or None,
+        canopy=_optional_dataset(context_layers.load, args.canopy),
+        ac_access=_optional_dataset(ac_access_layer.load, args.ac_access),
+        redlining=_optional_dataset(redlining_layer.load, args.redlining),
+    )
+    if args.area:
+        brief = briefs.get(args.area)
+        if brief is None:
+            _err(f"swelter: no brief for area {args.area!r} (no {args.parameter} data there)")
+            return 1
+        briefs = {args.area: brief}
+    if args.format == "json":
+        payload = {cell_id: briefs[cell_id].as_record() for cell_id in sorted(briefs)}
+        print(json.dumps(payload, indent=2))
+    else:
+        for cell_id in sorted(briefs):
+            print(briefs[cell_id].to_text())
+            print()
+    _err(f"swelter: {len(briefs)} area brief(s) built from {len(surface.cells)} cell-hours")
     return 0
 
 
@@ -788,6 +837,33 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_alerts)
     add_config(p_alerts)
     p_alerts.set_defaults(func=cmd_alerts)
+
+    p_brief = sub.add_parser(
+        "brief",
+        help="plain-language, sourced neighborhood exposure brief(s) (Danger-day count + context)",
+    )
+    p_brief.add_argument(
+        "--parameter",
+        default=exposure_brief.DEFAULT_PARAMETER,
+        choices=("heat_index_c", "pm25_ugm3", "exposure"),
+        help="which surface parameter to count danger days on (default: heat_index_c)",
+    )
+    p_brief.add_argument(
+        "--area", default="", help="one published cell_id, or all areas if omitted"
+    )
+    p_brief.add_argument("--format", choices=("text", "json"), default="text")
+    p_brief.add_argument(
+        "--canopy", default=DEFAULT_CANOPY, help="curated tree-canopy GeoJSON (optional)"
+    )
+    p_brief.add_argument(
+        "--ac-access", default=DEFAULT_AC_ACCESS, help="curated AC-access GeoJSON (optional)"
+    )
+    p_brief.add_argument(
+        "--redlining", default=DEFAULT_REDLINING, help="curated HOLC-redlining GeoJSON (optional)"
+    )
+    add_store(p_brief)
+    add_config(p_brief)
+    p_brief.set_defaults(func=cmd_brief)
 
     p_exp = sub.add_parser("export", help="export observations as CSV or JSON to stdout")
     p_exp.add_argument("--format", choices=("csv", "json"), default="csv")

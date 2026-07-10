@@ -1,0 +1,71 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "license": "Public domain (U.S. Government work)",
+    "attribution": "Illustrative AC-access sample for the swelter demo network.",
+    "source": "Illustrative sample placed on the synthetic demo network's published grid cells. NOT real LACE data. A real deployment replaces this with U.S. Census Bureau Local Air Conditioning Estimates (LACE) tract-level data for its actual jurisdiction, joined by geocoding each published cell to its census tract — see docs/decisions/0014-exposure-brief-and-equity-context.md.",
+    "last_verified": "2026-07-09"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.515433, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.515433",
+        "no_ac_pct": 18.5,
+        "notes": "Illustrative figure modeled on older single-family housing stock without central air.",
+        "source": "Illustrative sample (swelter demo) — real source: U.S. Census Bureau, Local Air Conditioning Estimates (LACE), 2023 (experimental, tract-level)",
+        "source_url": "https://www.census.gov/data/experimental-data-products/lace.html",
+        "last_verified": "2026-07-09"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.512211, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.512211",
+        "no_ac_pct": 24.0,
+        "notes": "Illustrative figure for a mixed residential/commercial block with older multifamily units.",
+        "source": "Illustrative sample (swelter demo) — real source: U.S. Census Bureau, Local Air Conditioning Estimates (LACE), 2023 (experimental, tract-level)",
+        "source_url": "https://www.census.gov/data/experimental-data-products/lace.html",
+        "last_verified": "2026-07-09"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.510109, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.510109",
+        "no_ac_pct": 9.5,
+        "notes": "Illustrative figure for a commercial corridor with newer retrofit HVAC.",
+        "source": "Illustrative sample (swelter demo) — real source: U.S. Census Bureau, Local Air Conditioning Estimates (LACE), 2023 (experimental, tract-level)",
+        "source_url": "https://www.census.gov/data/experimental-data-products/lace.html",
+        "last_verified": "2026-07-09"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.506912, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.506912",
+        "no_ac_pct": 15.0,
+        "notes": "Illustrative figure for a light-industrial block with limited residential coverage.",
+        "source": "Illustrative sample (swelter demo) — real source: U.S. Census Bureau, Local Air Conditioning Estimates (LACE), 2023 (experimental, tract-level)",
+        "source_url": "https://www.census.gov/data/experimental-data-products/lace.html",
+        "last_verified": "2026-07-09"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.503915, 38.567867] },
+      "properties": {
+        "cell_id": "38.567867,-121.503915",
+        "no_ac_pct": 11.5,
+        "notes": "Illustrative figure for a block bordering a public park, newer construction nearby.",
+        "source": "Illustrative sample (swelter demo) — real source: U.S. Census Bureau, Local Air Conditioning Estimates (LACE), 2023 (experimental, tract-level)",
+        "source_url": "https://www.census.gov/data/experimental-data-products/lace.html",
+        "last_verified": "2026-07-09"
+      }
+    }
+  ]
+}

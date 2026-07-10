@@ -22,6 +22,18 @@ schema (see [`docs/VERSIONING.md`](docs/VERSIONING.md)).
   overlay and an always-present accessible parity list on the dashboard. Loader enforces a public-field
   allowlist so no private contact can reach the map
   ([ADR 0011](docs/decisions/0011-cooling-center-overlay.md)).
+- **Plain-language neighborhood exposure brief (`swelter brief`).** `swelter.exposure_brief`
+  counts, per published cell, how many calendar days a parameter (default heat index) crossed its
+  documented danger floor — reusing `alerts.py`'s own threshold logic, not a second definition of
+  "Danger" — and joins that count with sourced, optional context: tree-canopy coverage (existing
+  `context_layers.py`), an AC-access proxy (new `ac_access_layer.py`), and historical HOLC
+  redlining grades (new `redlining_layer.py`). Every context sentence carries its source, source
+  URL, and `last_verified` date; a layer with no coverage for a cell is omitted, never guessed.
+  Real sources: USDA Forest Service California Urban Tree Canopy data, U.S. Census Bureau Local
+  Air Conditioning Estimates (LACE), and the University of Richmond's Mapping Inequality HOLC
+  digitization; committed sample datasets are illustrative, matching the convention
+  `data/context_layers.geojson` already set
+  ([ADR 0014](docs/decisions/0014-exposure-brief-and-equity-context.md)).
 
 ## [0.1.0] — 2026-06-16
 
