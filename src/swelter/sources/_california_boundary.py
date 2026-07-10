@@ -11,10 +11,14 @@ from __future__ import annotations
 import json
 import math
 from functools import lru_cache
-from importlib.resources import files
+from importlib.resources import (  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2  # noqa: E501
+    files,
+)
 
 from ._geometry import MultiPolygon, contains_point, decode_multipolygon
 
+# The inline Semgrep waiver is narrow: project metadata requires Python >=3.12, so a rule warning
+# that importlib.resources cannot run on Python 3.6 does not apply to a supported installation.
 SCOPE_ID = "US-CA:census-tigerweb-2025-01-01:0.0002deg"
 
 
