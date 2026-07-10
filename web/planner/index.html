@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Should we deploy sensors? — swelter project planner</title>
+    <meta
+      name="description"
+      content="A privacy-first decision planner for community heat and air-quality projects. Find out whether to use public data, pause, pilot, or operate a sensor network."
+    />
+    <meta name="theme-color" content="#081c2c" />
+    <link rel="stylesheet" href="planner.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#planner">Skip to the planner</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="../" aria-label="swelter dashboard home">
+        <span aria-hidden="true">S/</span> swelter
+      </a>
+      <nav aria-label="Project navigation">
+        <a href="../">View data</a>
+        <a href="https://github.com/ChelseaKR/swelter/blob/main/docs/governance.md">Governance</a>
+        <a href="https://github.com/ChelseaKR/swelter">Source code</a>
+      </nav>
+    </header>
+
+    <main id="planner">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">Field guide 01 · project decision</p>
+          <h1 id="page-title">Measure less.<br />Decide better.</h1>
+          <p class="lede">
+            A sensor is not a strategy. Answer six questions to find the smallest honest evidence
+            plan for your heat or air-quality decision—including when the answer is
+            <strong>do not deploy sensors</strong>.
+          </p>
+        </div>
+        <aside class="privacy-docket" aria-labelledby="privacy-heading">
+          <p class="docket-number" aria-hidden="true">00</p>
+          <h2 id="privacy-heading">Nothing leaves this page</h2>
+          <p>
+            No account, analytics, location, names, or free-text fields. Answers stay in this tab
+            and disappear when it closes. A plan can be copied or printed only when you choose.
+          </p>
+          <ul>
+            <li>Community mandate before hardware</li>
+            <li>Coarse public locations by default</li>
+            <li>Raw readings remain provisional</li>
+          </ul>
+        </aside>
+      </section>
+
+      <section class="planner-shell" aria-label="Project recommendation planner">
+        <form id="decision-form" novalidate>
+          <div class="form-heading">
+            <div>
+              <p class="eyebrow">Decision record</p>
+              <h2>Define the work before the network</h2>
+            </div>
+            <p id="progress" class="progress" aria-live="polite">0 of 6 answered</p>
+          </div>
+
+          <fieldset class="question" data-question="goal">
+            <legend><span>01</span> What must the evidence help you do?</legend>
+            <p class="question-note">Choose the decision, not the measurement.</p>
+            <div class="choice-grid choice-grid-wide">
+              <label class="choice">
+                <input type="radio" name="goal" value="act_now" required />
+                <span class="choice-copy"><strong>Protect people now</strong><small>Guide action during a current heat or smoke event</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="goal" value="baseline" />
+                <span class="choice-copy"><strong>Understand a baseline</strong><small>Learn where and when conditions differ</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="goal" value="intervention" />
+                <span class="choice-copy"><strong>Test an intervention</strong><small>Evaluate shade, cooling, traffic, or another change</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="goal" value="accountability" />
+                <span class="choice-copy"><strong>Support accountability</strong><small>Bring auditable evidence to a public decision</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="goal" value="methods" />
+                <span class="choice-copy"><strong>Study the method</strong><small>Compare instruments, siting, or calibration</small></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="question" data-question="evidence">
+            <legend><span>02</span> What evidence do you have today?</legend>
+            <p class="question-note">“Available” means your group can inspect and reuse it.</p>
+            <div class="choice-grid">
+              <label class="choice">
+                <input type="radio" name="evidence" value="none" required />
+                <span class="choice-copy"><strong>None assembled</strong><small>The question exists, but the evidence inventory does not</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="evidence" value="public" />
+                <span class="choice-copy"><strong>Public sources</strong><small>Regulatory monitors, forecasts, models, or open records</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="evidence" value="raw_sensors" />
+                <span class="choice-copy"><strong>Raw low-cost sensors</strong><small>Readings exist, but no local correction is documented</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="evidence" value="calibrated_sensors" />
+                <span class="choice-copy"><strong>Locally calibrated sensors</strong><small>Co-location data, correction version, and uncertainty exist</small></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="question" data-question="timeline">
+            <legend><span>03</span> When is the decision due?</legend>
+            <div class="choice-grid choice-grid-three">
+              <label class="choice">
+                <input type="radio" name="timeline" value="days" required />
+                <span class="choice-copy"><strong>Days or weeks</strong><small>Action cannot wait for a field study</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="timeline" value="months" />
+                <span class="choice-copy"><strong>Several months</strong><small>There is time for a bounded pilot</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="timeline" value="year" />
+                <span class="choice-copy"><strong>A year or more</strong><small>Seasonal coverage may be possible</small></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="question" data-question="stewardship">
+            <legend><span>04</span> Who can steward the work after installation?</legend>
+            <p class="question-note">Choose a durable role or team, not a named person.</p>
+            <div class="choice-grid choice-grid-three">
+              <label class="choice">
+                <input type="radio" name="stewardship" value="none" required />
+                <span class="choice-copy"><strong>No ongoing capacity</strong><small>No role owns maintenance, gaps, or communication</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="stewardship" value="part_time" />
+                <span class="choice-copy"><strong>Part-time steward</strong><small>One accountable role has limited recurring time</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="stewardship" value="team" />
+                <span class="choice-copy"><strong>Shared operations team</strong><small>Maintenance and interpretation have backup coverage</small></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="question" data-question="governance">
+            <legend><span>05</span> What has the hosting community approved?</legend>
+            <div class="choice-grid choice-grid-three">
+              <label class="choice">
+                <input type="radio" name="governance" value="not_discussed" required />
+                <span class="choice-copy"><strong>Not discussed</strong><small>Purpose, siting, access, and removal are undecided</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="governance" value="coarse_approved" />
+                <span class="choice-copy"><strong>Coarse sharing approved</strong><small>Purpose and grid-snapped public locations are agreed</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="governance" value="policy_approved" />
+                <span class="choice-copy"><strong>Operating policy approved</strong><small>Siting, precision, data use, stewardship, and exit are agreed</small></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="question" data-question="calibration">
+            <legend><span>06</span> What is the calibration path?</legend>
+            <div class="choice-grid choice-grid-three">
+              <label class="choice">
+                <input type="radio" name="calibration" value="none" required />
+                <span class="choice-copy"><strong>No path yet</strong><small>No reference comparison or correction plan</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="calibration" value="can_collocate" />
+                <span class="choice-copy"><strong>Co-location is feasible</strong><small>A documented comparison can happen before claims</small></span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="calibration" value="reference_ready" />
+                <span class="choice-copy"><strong>Reference path is ready</strong><small>Access, window, method, and versioning are defined</small></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <p id="form-error" class="form-error" role="alert" tabindex="-1" hidden></p>
+          <div class="form-actions">
+            <button class="button button-secondary" type="reset">Clear answers</button>
+            <button class="button button-primary" type="submit">Build the evidence plan <span aria-hidden="true">→</span></button>
+          </div>
+        </form>
+
+        <aside class="result-panel" aria-labelledby="result-panel-heading">
+          <div id="result-empty" class="result-empty">
+            <p class="result-index" aria-hidden="true">?</p>
+            <h2 id="result-panel-heading">Your recommendation will appear here</h2>
+            <p>
+              The planner checks purpose, time, stewardship, community mandate, existing evidence,
+              and calibration readiness—in that order.
+            </p>
+            <noscript>
+              <p class="noscript-note">
+                JavaScript is required to calculate a recommendation. The decision gates below
+                remain available without it.
+              </p>
+            </noscript>
+          </div>
+
+          <article id="result" class="result" tabindex="-1" aria-live="polite" hidden>
+            <p id="result-decision" class="decision-label"></p>
+            <h2 id="result-title"></h2>
+            <p id="result-why" class="result-why"></p>
+
+            <section aria-labelledby="steps-heading">
+              <h3 id="steps-heading">Next moves</h3>
+              <ol id="result-steps"></ol>
+            </section>
+            <section aria-labelledby="proof-heading">
+              <h3 id="proof-heading">Proof before the next gate</h3>
+              <ul id="result-proof" class="check-list"></ul>
+            </section>
+            <section aria-labelledby="red-lines-heading">
+              <h3 id="red-lines-heading">Red lines</h3>
+              <ul id="result-red-lines" class="red-line-list"></ul>
+            </section>
+
+            <details class="answer-record">
+              <summary>Review the inputs used</summary>
+              <dl id="answer-record"></dl>
+            </details>
+
+            <div class="result-actions">
+              <button id="copy-plan" class="button button-primary" type="button">Copy plan</button>
+              <button id="print-plan" class="button button-secondary" type="button">Print plan</button>
+            </div>
+            <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
+          </article>
+        </aside>
+      </section>
+
+      <section class="gate-ledger" aria-labelledby="gates-heading">
+        <div class="ledger-heading">
+          <p class="eyebrow">Stop/go ledger</p>
+          <h2 id="gates-heading">Three gates before hardware</h2>
+          <p>If any gate is red, pause deployment and work the gate.</p>
+        </div>
+        <div class="gates">
+          <article>
+            <p class="gate-number">A</p>
+            <h3>Decision</h3>
+            <p>A named public or community decision can actually use the evidence.</p>
+            <strong>Stop if:</strong>
+            <p>The project begins with “we should collect data” but no decision or action.</p>
+          </article>
+          <article>
+            <p class="gate-number">B</p>
+            <h3>Mandate</h3>
+            <p>The hosting collective owns siting, precision, access, removal, and reuse.</p>
+            <strong>Stop if:</strong>
+            <p>Consent is assumed, or a precise home location is required for public use.</p>
+          </article>
+          <article>
+            <p class="gate-number">C</p>
+            <h3>Trust</h3>
+            <p>Maintenance, QC, calibration, uncertainty, and communication have owners.</p>
+            <strong>Stop if:</strong>
+            <p>Raw low-cost readings would be presented as settled facts.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p><strong>swelter</strong> is an independent, community-owned open-source project.</p>
+      <p>Planner answers are neither stored nor transmitted. Code: Apache-2.0.</p>
+    </footer>
+
+    <script id="decision-model" type="application/json">
+      {
+        "schema_version": 1,
+        "required": ["goal", "evidence", "timeline", "stewardship", "governance", "calibration"],
+        "rules": [
+          {"id": "mandate-first", "when": {"all": [{"field": "governance", "in": ["not_discussed"]}]}, "outcome": "pause_governance"},
+          {"id": "steward-first", "when": {"all": [{"field": "stewardship", "in": ["none"]}]}, "outcome": "pause_stewardship"},
+          {"id": "urgent-decision", "when": {"any": [{"field": "timeline", "in": ["days"]}, {"field": "goal", "in": ["act_now"]}]}, "outcome": "use_public_now"},
+          {"id": "raw-needs-calibration", "when": {"all": [{"field": "evidence", "in": ["raw_sensors"]}, {"field": "calibration", "in": ["none"]}]}, "outcome": "calibrate_before_claims"},
+          {"id": "public-baseline", "when": {"all": [{"field": "evidence", "in": ["public"]}, {"field": "goal", "in": ["baseline", "accountability", "methods"]}]}, "outcome": "use_public_first"},
+          {"id": "inventory-first", "when": {"all": [{"field": "evidence", "in": ["none"]}, {"field": "calibration", "in": ["none"]}]}, "outcome": "use_public_first"},
+          {"id": "governed-network", "when": {"all": [{"field": "evidence", "in": ["calibrated_sensors"]}, {"field": "governance", "in": ["policy_approved"]}, {"field": "stewardship", "in": ["team"]}]}, "outcome": "governed_network"},
+          {"id": "calibrated-pilot", "when": {"all": [{"field": "evidence", "in": ["calibrated_sensors"]}]}, "outcome": "strengthen_pilot"},
+          {"id": "bounded-pilot", "outcome": "bounded_pilot"}
+        ],
+        "outcomes": {
+          "pause_governance": {
+            "decision": "DO NOT DEPLOY",
+            "title": "Pause for a community mandate",
+            "why": "Hardware would lock in choices the hosting community has not made. Purpose, public location precision, access, removal, and reuse come before siting.",
+            "next_steps": ["Hold a decision meeting with the hosting collective.", "Write the decision the evidence must support and who has authority to act on it.", "Approve coarse public locations by default, an exit path, and a process for any precise-location opt-in."],
+            "proof": ["A short governance record approved by the hosting collective", "A public-location policy that does not expose a home", "A removal and data-portability plan"],
+            "red_lines": ["Do not install first and seek consent later.", "Do not collect names, addresses, personal devices, audio, images, or movement."]
+          },
+          "pause_stewardship": {
+            "decision": "DO NOT DEPLOY",
+            "title": "Do not create an unattended network",
+            "why": "A sensor without an accountable steward becomes an unreliable claim generator. Maintenance, missing data, calibration drift, and public explanation are recurring work.",
+            "next_steps": ["Use existing public sources for the immediate question.", "Define a recurring steward role and backup coverage before buying hardware.", "Budget time for maintenance, QC review, calibration checks, and plain-language updates."],
+            "proof": ["A role-based operations calendar", "A response path for offline or implausible readings", "A funded or explicitly volunteer maintenance window"],
+            "red_lines": ["Do not make residents responsible for a network with no support.", "Do not publish stale or failed readings as current conditions."]
+          },
+          "use_public_now": {
+            "decision": "DO NOT DEPLOY FOR THIS DECISION",
+            "title": "Use trusted public evidence now",
+            "why": "A defensible sensor network cannot be governed, sited, observed across conditions, and calibrated in days. New hardware would arrive after the decision and invite premature claims.",
+            "next_steps": ["Assemble regulatory monitors, forecasts, modeled surfaces, and local public records with their source terms.", "State the geographic and temporal limits of each source.", "Make the immediate decision, then decide whether a later community pilot would answer a different question."],
+            "proof": ["A source and license ledger", "A dated decision brief with limitations", "A separate, non-urgent research question if a pilot is still warranted"],
+            "red_lines": ["Do not delay protective action while waiting for a new sensor.", "Do not present modeled or regional data as a block-level measurement."]
+          },
+          "use_public_first": {
+            "decision": "START WITHOUT NEW SENSORS",
+            "title": "Prove the evidence gap first",
+            "why": "Existing public data may already support the decision. A short desk study can reveal the exact coverage gap before the project assumes hardware is necessary.",
+            "next_steps": ["Inventory public observations, models, records, licenses, resolution, and update cadence.", "Run the intended analysis with those sources and document what remains unknowable.", "Write one testable gap statement; deploy only if a bounded pilot can close it."],
+            "proof": ["A reproducible public-data baseline", "A specific gap tied to a decision", "A stop condition if new measurements would not change the decision"],
+            "red_lines": ["Do not deploy to make a map look denser.", "Do not call an absence of hyperlocal data proof of unequal exposure."]
+          },
+          "calibrate_before_claims": {
+            "decision": "DO NOT EXPAND",
+            "title": "Keep the readings provisional",
+            "why": "Raw low-cost readings can drift with humidity, enclosure, age, and siting. Without a local comparison and documented correction, comparisons and threshold claims are not ready.",
+            "next_steps": ["Freeze expansion and label every current raw reading provisional.", "Plan a co-location window against an appropriate reference.", "Publish the correction method, version, residual uncertainty, and before/after evidence."],
+            "proof": ["Reproducible co-location input data", "Versioned correction coefficients", "Residual error and failure criteria"],
+            "red_lines": ["Never silently mix raw and corrected values.", "Do not use uncalibrated rank order to claim one neighborhood is worse than another."]
+          },
+          "strengthen_pilot": {
+            "decision": "HOLD AT PILOT SCALE",
+            "title": "Strengthen the operating proof",
+            "why": "Calibrated evidence is a strong start, but network scale also requires durable governance and stewardship. Prove the operating model before adding coverage.",
+            "next_steps": ["Audit data completeness, calibration age, uncertainty, and maintenance load across the current pilot.", "Close the weaker of the governance or stewardship gates.", "Define an expansion threshold tied to a real decision, not a target sensor count."],
+            "proof": ["A pilot reliability and calibration report", "An approved operating policy", "A capacity-backed expansion and rollback rule"],
+            "red_lines": ["Do not expand faster than the team can maintain trust.", "Do not hide uncertainty to make the pilot look finished."]
+          },
+          "governed_network": {
+            "decision": "OPERATE IN STAGES",
+            "title": "Conditions support a governed network",
+            "why": "The evidence is locally calibrated, the hosting collective approved an operating policy, and shared stewardship exists. Expansion can proceed in reviewable stages.",
+            "next_steps": ["Tie each siting increment to a documented coverage or intervention question.", "Publish a trust record for source, calibration, uncertainty, QC, freshness, license, privacy, and method.", "Review maintenance load and decision usefulness before each expansion gate."],
+            "proof": ["Current calibration and uncertainty evidence", "Published governance and location-precision policy", "A recurring operations and community review cadence"],
+            "red_lines": ["No expansion by sensor count alone.", "No precise public location without the host's explicit opt-in."]
+          },
+          "bounded_pilot": {
+            "decision": "RUN A BOUNDED PILOT",
+            "title": "Test the method before building a network",
+            "why": "There is enough readiness to learn with hardware, but not enough evidence to justify network scale. Use the smallest pilot that can test one siting, operations, or intervention hypothesis.",
+            "next_steps": ["Write one hypothesis, decision, start date, end date, and stop condition.", "Begin with co-location and carry calibration version plus uncertainty into every export.", "Add only the minimum sites needed to test the hypothesis, with coarse public locations by default."],
+            "proof": ["A time-bounded pilot protocol", "A calibration and QC plan", "A review meeting that can stop, revise, or expand the work"],
+            "red_lines": ["A pilot is not permission for indefinite collection.", "Do not turn provisional readings into neighborhood rankings."]
+          }
+        }
+      }
+    </script>
+    <script src="planner.js" defer></script>
+  </body>
+</html>
