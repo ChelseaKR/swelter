@@ -2,7 +2,7 @@
 # `make verify` reproduces the full merge gate end to end.
 
 .PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild snapshot \
-        fmt fmt-check lint typecheck test a11y i18n hygiene version-check reading-level \
+        fmt fmt-check lint typecheck test a11y i18n seo hygiene version-check reading-level \
         docs-figures web-test verify check clean
 
 help:  ## List available targets
@@ -66,6 +66,9 @@ i18n:  ## Mechanical i18n gates: UTF-8 (G1), BCP-47 tags (G3/G4), EN/ES parity (
 	uv run python scripts/i18n_parity.py
 	uv run python scripts/i18n_cldr_pin_check.py
 
+seo:  ## Validate Pages metadata inputs and the GitHub project-site crawl policy
+	uv run python scripts/pages_seo.py check --template web/index.html
+
 hygiene:  ## No bare TODO/FIXME/HACK; every noqa/type:ignore is coded (CQ-34/CQ-35)
 	uv run python scripts/hygiene_check.py
 
@@ -83,7 +86,7 @@ docs-figures:  ## Re-prove countable claims in docs against their sources of tru
 web-test:  ## app.js unit tests + JS-side schema contract (FIX-07)
 	cd web && npm ci && npm test
 
-verify: fmt-check lint typecheck a11y i18n hygiene version-check docs-figures test  ## The full merge gate, end to end
+verify: fmt-check lint typecheck a11y i18n seo hygiene version-check docs-figures test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
 
 check: verify  ## Alias for verify

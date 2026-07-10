@@ -157,6 +157,13 @@ jobs:
             echo "::error::Illustrative cooling-center data must not be published"
             exit 1
           fi
+      - name: Generate source-aware route metadata and sitemap
+        run: |
+          # Consume the built demo contract when available; on an older artifact without one, the
+          # generator identifies the source from the baked surface attribution and fails if unclear.
+          uv run python scripts/pages_seo.py page --web-dir web --route /
+          uv run python scripts/pages_seo.py page --web-dir web/sensors --route /sensors/
+          uv run python scripts/pages_seo.py sitemap --output web/sitemap.xml
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
