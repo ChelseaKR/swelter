@@ -42,6 +42,15 @@ schema (see [`docs/VERSIONING.md`](docs/VERSIONING.md)).
   remains. The dataset stays available to the synthetic/local demo; a public deployment must provide
   a jurisdiction-verified replacement.
 
+### Fixed
+
+- **Truthful California OpenAQ scope.** Bbox candidates now pass a packaged U.S. Census California
+  MultiPolygon before they consume the site cap, trigger a latest-reading request, or enter the
+  generated network. This excludes nearby Arizona, Nevada, and Oregon monitors from California
+  counts and surfaces, versions accumulated scope/cache state, and publishes accepted locations on
+  the normal coarse grid rather than treating upstream coordinates as host consent for precision
+  ([ADR 0022](docs/decisions/0022-california-boundary-filter.md)).
+
 ## [0.1.0] — 2026-06-16
 
 The first reference implementation: a runnable pipeline, a calibration engine, an accessible

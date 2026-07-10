@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from swelter import aggregate
-from swelter.cli import _write_web_sample, main
+from swelter.cli import _merge_network_doc, _write_web_sample, main
 from swelter.config import load_config
 from swelter.models import RAW, Observation
 from swelter.server import ServerContext
@@ -928,6 +928,37 @@ def test_fetch_accumulate_merges_network_nodes_that_come_and_go(
     assert node_ids == {"sc-1", "sc-2"}, "sc-2 dropped out today but keeps its prior entry"
     refreshed = next(n for n in merged.nodes if n.node_id == "sc-1")
     assert refreshed.label == "Sensor 1 (moved)", "sc-1 was seen again, so today's data wins"
+
+
+def test_fetch_accumulate_does_not_restore_nodes_from_an_older_scope(tmp_path: Path) -> None:
+    config_path = tmp_path / "net.yaml"
+    config_path.write_text(
+        json.dumps(
+            {
+                "name": "old bbox-based OpenAQ network",
+                "nodes": [
+                    {
+                        "node_id": "oaq-yuma",
+                        "label": "Yuma",
+                        "lat": 32.6927,
+                        "lon": -114.6277,
+                        "location": "precise",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    today = openaq.network_doc("California", {"oaq-sac": ("Sacramento", 38.5816, -121.4944)})
+    migrated = _merge_network_doc(config_path, today)
+    assert [node["node_id"] for node in migrated["nodes"]] == ["oaq-sac"]
+
+    # Once both documents carry the same boundary id, normal accumulation still retains a
+    # California node that is absent from today's discovery.
+    config_path.write_text(json.dumps(migrated), encoding="utf-8")
+    tomorrow = openaq.network_doc("California", {"oaq-la": ("Los Angeles", 34.0522, -118.2437)})
+    accumulated = _merge_network_doc(config_path, tomorrow)
+    assert {node["node_id"] for node in accumulated["nodes"]} == {"oaq-sac", "oaq-la"}
 
 
 # -- the static-payload cap (keeps the committed sample light) ---------------

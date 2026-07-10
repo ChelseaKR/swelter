@@ -58,9 +58,11 @@ jobs:
             /tmp/cams.yaml
             /tmp/sc
             /tmp/sc.yaml
-          key: swelter-fetch-store-${{ steps.date.outputs.date }}
+          # v2 starts clean after California bbox spillover was replaced with a Census boundary.
+          # Restoring an older cache would republish already-stored out-of-state observations.
+          key: swelter-fetch-store-scope-v2-${{ steps.date.outputs.date }}
           restore-keys: |
-            swelter-fetch-store-
+            swelter-fetch-store-scope-v2-
       - name: Assemble the live demo (real sources, layered fallback)
         env:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
