@@ -10,7 +10,8 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 ## Current state
 
 The pipeline, the `swelter` CLI, the dashboard, and the merge gate are built and green: `make
-verify` passes (fmt-check, lint, typecheck, a11y, test) with the full pytest suite green. The worked example in
+verify` passes (fmt-check, lint, typecheck, a11y, i18n, hygiene, version-check, test) with the
+full pytest suite green. The worked example in
 `network.yaml` is a downtown network whose node count is a knob (`SWELTER_DEMO_NODES`); two-thirds of
 the nodes have committed co-location records and publish calibrated values, the rest have none and
 publish raw, flagged provisional. The published correction registry in `data/demo/corrections.yaml`
