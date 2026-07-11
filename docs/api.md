@@ -4,10 +4,34 @@ The swelter HTTP surface is **read-only**. It only ever answers `GET` (and `OPTI
 (`POST`/`PUT`/`PATCH`/`DELETE`) returns `405` with a JSON body. There is no write path to expose, and
 no account or API key. CORS is open (`Access-Control-Allow-Origin: *`) because the data is open.
 
-The observation **data is CC0** (CC0-1.0 Public Domain Dedication; see `DATA-LICENSE`). You can
-copy, modify, redistribute, and build on it, including commercially, without asking. Attribution is
-not required but appreciated: "Environmental data from the swelter community sensing network." The
-swelter source code is licensed separately under Apache-2.0 (see `LICENSE`).
+The observation **data is CC0** (CC0-1.0 Public Domain Dedication; see `DATA-LICENSE`) — for a
+network's own nodes. You can copy, modify, redistribute, and build on it, including commercially,
+without asking. Attribution is not required but appreciated: "Environmental data from the swelter
+community sensing network." The swelter source code is licensed separately under Apache-2.0 (see
+`LICENSE`).
+
+**Mixed stores (native + fetched third-party data).** The store itself is source-agnostic: it has
+no license field, and a store can hold a network's own CC0 observations, readings fetched from a
+third-party source (`swelter fetch`), or both. CC0 is true only for a network's own observations.
+A fetched source keeps its own terms. Open-Meteo serves its API data under CC BY 4.0;
+Sensor.Community labels its database contents ODC-DbCL-1.0. OpenAQ is an aggregator, not a blanket
+CC BY dataset: every v3 location includes original-provider license and attribution metadata, and
+OpenAQ's Terms require users to follow those varying provider terms. `export.py` does **not** infer
+or track which rows came from where, so it cannot safely emit a single license for a store that mixes sources. The `--license`
+(and `--attribution`) flags on `swelter export`, and the matching keyword arguments on
+`export.to_json()` / `to_csv()` / `summarize()`, let the caller state the license explicitly at
+export time; the default remains CC0-1.0 so a network's own store is unchanged. **If you run `swelter
+fetch` into a store that already holds other observations, export that store per source** (e.g. one
+store per fetch, as the Pages workflow does) rather than trusting a single export to get a mixed
+store's license right — nothing today prevents `swelter export` from mislabeling a mixed store, so
+that discipline is on the operator, not (yet) enforced by the store.
+
+**Keep the terms attached downstream.** The `/sensors/` export names Sensor.Community's DbCL v1.0
+contents terms and links to the official license. OpenAQ exports need the license and attribution
+ledger from each returned location; a generic “OpenAQ” credit does not replace the original-source
+requirements. Keep each source's rows distinguishable and review the linked upstream terms before
+redistributing or combining a fetched dataset. The Pages workflow uses separate accumulated stores
+for OpenAQ, CAMS, and Sensor.Community so a fallback cannot silently relabel yesterday's rows.
 
 The server is the standard library's `http.server`, single-threaded and stateless: it reads the
 store and answers. It is scale-to-zero friendly and runs as well on a Raspberry-Pi-class host with
@@ -558,17 +582,20 @@ downloader can see what was measured and what was corrected.
 
 ### `GET /export.csv`
 
-`text/csv; charset=utf-8`. Columns, in this fixed order (note the final `trustworthy` column):
+`text/csv; charset=utf-8`. Columns, in this fixed order (the final two provenance columns keep a
+downloaded or filtered subset's source terms attached to every row):
 
 ```
-node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy
-node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False
-node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True
+node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy,data_license,data_attribution
+node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False,CC0-1.0,
+node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True,CC0-1.0,
 ```
 
 `trustworthy` is `True` only for a calibrated, QC-clean reading; a `raw` row leaves `uncertainty`
-empty and reads `False`. (Text cells that begin with a spreadsheet formula character are neutralised
-on export, so a self-reported `node_id` can't smuggle a formula into a spreadsheet.)
+empty and reads `False`. `data_license` and `data_attribution` come from the export invocation; the
+default is CC0 for a network's native store, while fetched third-party stores must pass their actual
+source terms. (Text cells that begin with a spreadsheet formula character are neutralised on export,
+so a self-reported `node_id` can't smuggle a formula into a spreadsheet.)
 
 ### `GET /export.json`
 

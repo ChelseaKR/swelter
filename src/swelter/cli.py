@@ -258,10 +258,16 @@ def cmd_export(args: argparse.Namespace) -> int:
         raw = store.read(calibration=RAW)
     gaps = qc.detect_gaps(raw, args.interval)
     if args.format == "json":
-        sys.stdout.write(export.to_json(observations, indent=2))
+        sys.stdout.write(
+            export.to_json(
+                observations, indent=2, license=args.license, attribution=args.attribution
+            )
+        )
     else:
-        sys.stdout.write(export.to_csv(observations))
-    _err(export.summarize(observations, gaps=gaps))
+        sys.stdout.write(
+            export.to_csv(observations, license=args.license, attribution=args.attribution)
+        )
+    _err(export.summarize(observations, gaps=gaps, license=args.license))
     return 0
 
 
@@ -484,8 +490,8 @@ def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
 
 
 _FetchOk = tuple[
-    list[Observation], dict[str, Any], str, str
-]  # observations, network, attrib, label
+    list[Observation], dict[str, Any], str, str, str
+]  # observations, network, attribution, source label, license
 
 
 def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, Any]:
@@ -536,7 +542,7 @@ def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned from OpenAQ")
         return 1
     network = openaq.network_doc("California", nodes)
-    return observations, network, openaq.ATTRIBUTION, "OpenAQ"
+    return observations, network, openaq.ATTRIBUTION, "OpenAQ", openaq.LICENSE
 
 
 def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
@@ -557,7 +563,13 @@ def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
         return 1
     network = sensor_community.network_doc(area.name, nodes)
-    return observations, network, sensor_community.ATTRIBUTION, "Sensor.Community"
+    return (
+        observations,
+        network,
+        sensor_community.ATTRIBUTION,
+        "Sensor.Community",
+        sensor_community.LICENSE,
+    )
 
 
 def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
@@ -580,7 +592,13 @@ def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned")
         return 1
     network = openmeteo.network_doc(places)
-    return observations, network, openmeteo.ATTRIBUTION, "Copernicus CAMS via Open-Meteo"
+    return (
+        observations,
+        network,
+        openmeteo.ATTRIBUTION,
+        "Copernicus CAMS via Open-Meteo",
+        openmeteo.LICENSE,
+    )
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -601,7 +619,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         result = _fetch_openmeteo(args)
     if isinstance(result, int):
         return result
-    observations, network, attribution, source_label = result
+    observations, network, attribution, source_label, license = result
 
     observations = qc.apply(observations)
     config_path = Path(args.config)
@@ -634,7 +652,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             f"swelter: {mode} {written.written} new of {len(all_obs)} total real observations "
             f"from {len(config.nodes)} locations (source: {source_label})"
         )
-        _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
+        _err(
+            export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval), license=license)
+        )
 
     if args.serve:
         store = open_store(args.store)
@@ -815,6 +835,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--node", default=None)
     p_exp.add_argument("--parameter", default=None)
     p_exp.add_argument("--bbox", default=None, help="named area (reserved; see docs/api.md)")
+    p_exp.add_argument(
+        "--license",
+        default=export.DEFAULT_LICENSE,
+        help="license of the exported data (default: CC0-1.0, the store's native default; "
+        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+    )
+    p_exp.add_argument(
+        "--attribution", default=None, help="attribution text to carry alongside --license"
+    )
     add_store(p_exp)
     add_interval(p_exp)
     p_exp.set_defaults(func=cmd_export)
