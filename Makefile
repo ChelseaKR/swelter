@@ -3,7 +3,7 @@
 
 .PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild snapshot \
         fmt fmt-check lint typecheck test a11y i18n hygiene version-check reading-level \
-        verify check clean
+        docs-figures verify check clean
 
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -75,7 +75,10 @@ version-check:  ## Tag == pyproject.toml == CHANGELOG parity, once a v* tag exis
 reading-level:  ## Advisory (not merge-blocking yet): Flesch-Kincaid grade over en.json (A11Y-23)
 	uv run python scripts/reading_level_check.py
 
-verify: fmt-check lint typecheck a11y i18n hygiene version-check test  ## The full merge gate, end to end
+docs-figures:  ## Re-prove countable claims in docs against their sources of truth (report-only where prose is agent-do-not-modify)
+	uv run python scripts/docs_figures_check.py
+
+verify: fmt-check lint typecheck a11y i18n hygiene version-check docs-figures test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
 
 check: verify  ## Alias for verify
