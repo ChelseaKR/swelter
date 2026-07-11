@@ -11,3 +11,7 @@
 # to a variable or config field, and no proximity to any API-calling code.
 # Triaged in PR #81.
 789a88bdcbfaa960199e181382f02aad3eb93008:docs/ideation/02-large-scale-fixes.md:generic-api-key:285
+# The same prose predates main on this PR's original commit, where preceding
+# additions shifted it to line 296. Keep the waiver fingerprint-scoped so the
+# repaired branch can be scanned without suppressing future findings.
+29569a8c13e3047e1cf4f8beda70bc7a1e9b7bdf:docs/ideation/02-large-scale-fixes.md:generic-api-key:296
