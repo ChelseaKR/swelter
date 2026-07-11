@@ -1,0 +1,15 @@
+# Code ownership for review routing. Single-maintainer repo today; this file exists so
+# GitHub can enforce "require review from Code Owners" once branch protection is enabled
+# (P0-2 in audit-2026-07-05/swelter-REMEDIATION.md), and so the ownership of the
+# security-sensitive paths below is explicit rather than implicit.
+
+* @ChelseaKR
+
+# CI/CD workflows: the merge gate, release signing, and Pages deploy.
+/.github/workflows/ @ChelseaKR
+
+# The authenticated node write path (per-node HMAC ingest listener).
+/src/swelter/ingest_server.py @ChelseaKR
+
+# The merge-gate and standards-check scripts.
+/scripts/ @ChelseaKR

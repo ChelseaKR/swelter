@@ -26,7 +26,7 @@ no opaque library:
   against, so it is never fit. Instead, ``apply`` recomputes it from a node's *already-calibrated*
   temperature plus co-timed humidity, using the same NWS Rothfusz function the demo generator uses.
   It is calibrated exactly where temperature is, and stays raw/provisional everywhere else — see
-  ADR 0012 and the "Heat index: derived, not fitted" section of ``calibration.md``.
+  ADR 0014 and the "Heat index: derived, not fitted" section of ``calibration.md``.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ _DEFAULT_METHOD = "linear"
 
 #: Method id for a heat-index observation derived from a node's calibrated temperature plus
 #: co-timed humidity, rather than fit against a reference — there is no field heat-index
-#: reference to co-locate against (see ADR 0012). Kept out of `_METHOD` above because that map
+#: reference to co-locate against (see ADR 0014). Kept out of `_METHOD` above because that map
 #: names methods a co-location *fit* can produce; heat index is never fit.
 _DERIVED_HEAT_INDEX_METHOD = "derived-enclosure"
 
@@ -365,7 +365,7 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
     yields only raw observations, which the map renders as provisional.
 
     Heat index is a second pass, not a registered correction: there is no field heat-index
-    reference to co-locate against, so `heat_index_c` is never fit (ADR 0012). Instead, once the
+    reference to co-locate against, so `heat_index_c` is never fit (ADR 0014). Instead, once the
     first pass above has produced every calibrated `temp_c` this call will produce, a raw
     `heat_index_c` observation whose (node_id, timestamp) has *both* a calibrated temperature and
     co-timed humidity is recomputed from those calibrated inputs with `models.heat_index_c` and
@@ -412,6 +412,6 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
         version = f"heat_index_c.{_DERIVED_HEAT_INDEX_METHOD}.{obs.node_id}"
         # Heat index is monotonic in temperature over the operating range; carrying the temp
         # correction's residual_std forward as the derived value's 1-sigma is the simplest
-        # defensible propagation (see ADR 0012) rather than a fitted uncertainty of its own.
+        # defensible propagation (see ADR 0014) rather than a fitted uncertainty of its own.
         out.append(obs.calibrated(version, derived_value, temp_residual_std))
     return out

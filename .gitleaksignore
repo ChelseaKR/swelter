@@ -1,0 +1,13 @@
+# Fingerprint-scoped gitleaks false-positive allowlist.
+# Each entry waives exactly one finding (commit:file:rule:line); nothing here
+# suppresses future findings in these files or rules.
+#
+# 2026-07-07: generic-api-key false positive in prose. The default rule keyed
+# on the English word "keys," in a sentence listing network.yaml validation
+# error classes (docs/ideation/02-large-scale-fixes.md, an ideation document)
+# and captured the following two-dictionary-word token (redacted per triage
+# policy: dupl...mpty, 15 lowercase letters plus a slash, entropy 3.5). It is
+# plain English, not a credential: no key-like charset/length, no assignment
+# to a variable or config field, and no proximity to any API-calling code.
+# Triaged in PR #81.
+789a88bdcbfaa960199e181382f02aad3eb93008:docs/ideation/02-large-scale-fixes.md:generic-api-key:285

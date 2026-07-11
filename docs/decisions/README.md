@@ -19,4 +19,7 @@ later ADR supersedes an earlier one.
 | [0009](0009-compound-heat-air-exposure-surface.md) | Add a compound heat-and-air exposure surface as the flagship differentiating feature | accepted |
 | [0010](0010-neighborhood-alerts-feed.md) | Deliver neighborhood heat/AQI alerts as a generated public feed, not a subscriber list | accepted |
 | [0011](0011-cooling-center-overlay.md) | Add a curated, provenance-bearing cooling-center overlay with accessible list parity | accepted |
-| [0012](0012-heat-index-derived-from-calibrated.md) | Derive calibrated heat index from calibrated temperature, don't fit it | accepted |
+| [0012](0012-gate-bypass-incident-and-ruleset.md) | Incident note: the 2026-07-02 gate bypass, and the branch-protection ruleset that should prevent recurrence | accepted |
+| [0013](0013-accumulating-fetch-store-via-actions-cache.md) | `swelter fetch --accumulate` persists the demo store via a GitHub Actions cache | accepted |
+| [0013](0013-context-layer-overlay.md) | Descriptive tree-canopy context overlay, computed locally, never a schema field | accepted |
+| [0014](0014-heat-index-derived-from-calibrated.md) | Derive calibrated heat index from calibrated temperature, don't fit it | accepted |

@@ -1,4 +1,4 @@
-# ADR 0012: Derive calibrated heat index from calibrated temperature, don't fit it
+# ADR 0014: Derive calibrated heat index from calibrated temperature, don't fit it
 
 Date: 2026-07-03. Status: accepted.
 

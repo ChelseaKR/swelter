@@ -31,8 +31,9 @@ BINARY = "binary"
 
 def _tracked_files() -> list[str]:
     """Return every path tracked by git, NUL-delimited so filenames with spaces survive."""
-    out = subprocess.run(
-        ["git", "-C", str(ROOT), "ls-files", "-z"],
+    # Fixed argv, no shell, no user input -- a dev-time/CI gate script, not a network-facing path.
+    out = subprocess.run(  # noqa: S603
+        ["git", "-C", str(ROOT), "ls-files", "-z"],  # noqa: S607
         capture_output=True,
         check=True,
         text=True,
@@ -42,8 +43,9 @@ def _tracked_files() -> list[str]:
 
 def _encodings(paths: list[str]) -> list[str]:
     """Return the mime-encoding of each path, one per input, in order (brief mode, no filename)."""
-    out = subprocess.run(
-        ["file", "-b", "--mime-encoding", "--", *paths],
+    # `paths` are git-tracked repo paths from `_tracked_files()`, not external input.
+    out = subprocess.run(  # noqa: S603
+        ["file", "-b", "--mime-encoding", "--", *paths],  # noqa: S607
         cwd=ROOT,
         capture_output=True,
         check=True,

@@ -86,7 +86,9 @@ def test_health_endpoint_returns_summary(base_url: str) -> None:
 
 
 def test_options_preflight_is_204_with_cors(base_url: str) -> None:
-    request = urllib.request.Request(f"{base_url}/v1.1/Observations", method="OPTIONS")
+    request = urllib.request.Request(  # noqa: S310 -- test harness talks to its own localhost server
+        f"{base_url}/v1.1/Observations", method="OPTIONS"
+    )
     with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
         assert response.status == 204
         assert response.headers.get("Access-Control-Allow-Origin") == "*"
@@ -139,7 +141,7 @@ def test_alerts_atom_endpoint(base_url: str) -> None:
 
     status, body = _get(f"{base_url}/api/alerts.xml")
     assert status == 200
-    root = ET.fromstring(body)  # a malformed feed would raise here
+    root = ET.fromstring(body)  # noqa: S314 -- our own server's response, not external input
     assert root.tag.endswith("feed")
 
 
@@ -153,7 +155,9 @@ def test_cooling_centers_endpoint_empty_when_unconfigured(base_url: str) -> None
 
 
 def test_writes_are_refused(base_url: str) -> None:
-    request = urllib.request.Request(f"{base_url}/v1.1/Observations", method="POST", data=b"{}")
+    request = urllib.request.Request(  # noqa: S310 -- test harness talks to its own localhost server
+        f"{base_url}/v1.1/Observations", method="POST", data=b"{}"
+    )
     try:
         urllib.request.urlopen(request, timeout=5)  # noqa: S310
         raised = False
