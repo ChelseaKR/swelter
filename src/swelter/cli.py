@@ -31,6 +31,7 @@ from . import (
     ingest,
     ingest_server,
     qc,
+    snapshot,
 )
 from .config import NetworkConfig, consent_concerns, label_concerns, load_config
 from .models import RAW, Observation
@@ -674,6 +675,24 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    """Freeze a citable, versioned data release: raw observations + corrections + surface, a
+    MANIFEST.json with per-file SHA-256, and a dataset CITATION.cff/CITATION.txt pair. Local
+    artifacts only — no external DOI service; pass --doi once a collective has minted one."""
+    manifest = snapshot.build_snapshot(
+        Path(args.store), Path(args.out), args.version, args.doi or None
+    )
+    citation_text = (Path(args.out) / snapshot.CITATION_TXT_FILENAME).read_text(encoding="utf-8")
+    _err(
+        f"swelter: snapshot {manifest.release_version} → {args.out} "
+        f"({manifest.record_count} raw observations, {len(manifest.files)} file(s))"
+    )
+    for note in manifest.notes:
+        _err(f"  ⚠ {note}")
+    print(citation_text.strip())
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffold a starter network.yaml so a community can stand up its own instance fast."""
     path = Path(args.config)
@@ -895,6 +914,23 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_rebuild)
     add_config(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild)
+
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="freeze a citable, versioned data release (MANIFEST + dataset CITATION.cff/.txt)",
+    )
+    add_store(p_snap)
+    p_snap.add_argument("--out", default="dist/snapshot", help="directory to write the release to")
+    p_snap.add_argument(
+        "--version", default=__version__, help="release version (defaults to the swelter version)"
+    )
+    p_snap.add_argument(
+        "--doi",
+        default="",
+        help="DOI for this release, if one has been minted (e.g. via Zenodo/DataCite); "
+        "omit for a clearly-labelled placeholder",
+    )
+    p_snap.set_defaults(func=cmd_snapshot)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)
