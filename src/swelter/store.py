@@ -185,8 +185,10 @@ class SqliteStore:
         :meth:`all` — deterministic, and lets a caller fold hashes into daily digests in one pass
         without buffering the whole store.
         """
+        # `_COLUMNS` is a fixed module-level constant, not user input; no values are interpolated.
+        # nosemgrep: formatted-sql-query,sqlalchemy-execute-raw-query
         cur = self._conn.execute(
-            f"SELECT {_COLUMNS} FROM observations "
+            f"SELECT {_COLUMNS} FROM observations "  # noqa: S608
             "ORDER BY substr(timestamp, 1, 10), node_id, parameter, timestamp"
         )
         for row in cur:
