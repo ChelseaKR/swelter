@@ -227,6 +227,18 @@ recorded here explicitly rather than waved through as minor, and consumers with 
 pointed at the JSON export (where `trustworthy` is unambiguously MINOR), consistent with the
 guidance above.
 
+### The CSV `data_license` / `data_attribution` columns — additive in shape, but flagged
+
+The export CSV gained two final provenance columns: the order is now `node_id, timestamp,
+parameter, value, unit, calibration, qc, uncertainty, trustworthy, data_license,
+data_attribution`. By the same rule as the `trustworthy` column above, **appending CSV columns is
+treated as breaking for positional parsers and so is MAJOR**; it is recorded here rather than
+waved through. The JSON export's changes are MINOR: the top-level `license` key already existed
+and still defaults to `CC0-1.0` (it now honors an explicit `--license` at export time instead of
+being hardcoded), and the optional top-level `attribution` key is new and absent unless supplied.
+A caller that never passes `--license`/`--attribution` gets byte-identical JSON and two extra CSV
+columns holding the same CC0 default the banner always claimed.
+
 ### Heat-index plausibility ceiling (60 degC) — data-quality fix, PATCH
 
 The QC plausibility ceiling for `heat_index_c` is 60 degC (the parameter's upper valid range,
