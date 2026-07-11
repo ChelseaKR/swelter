@@ -217,6 +217,46 @@ Files touched:
 - `tests/test_cli.py` — `ingest-serve`/`node-key` CLI coverage (error paths + an issued key
   authenticating against a real listener)
 
+### FIX-08 — Server survivability: timeouts, surface cache, conditional GETs
+
+**Status: ✅ Done** (2026-07-03)
+
+The single-threaded HTTP server had no defense against a client that opens a connection and never
+finishes a request, and re-ran the full `aggregate.aggregate()` fold — the most expensive read in
+the process — on every single request to the three surface/alerts endpoints, even back-to-back
+identical ones. Fixed, `src/swelter/server.py` only:
+
+- **Request timeouts.** `Handler.timeout = 10` — `BaseHTTPRequestHandler` honors this natively for
+  socket reads — bounds how long one slow-loris client can tie up the single request thread.
+  No threading change: the one SQLite reader stays serialised (ADR 0005).
+- **Aggregated-surface cache.** A process-lifetime `_ResponseCache`, closed over by
+  `_make_handler`, memoizes the result of `aggregate.aggregate()` keyed on a fingerprint of the
+  store: `(count(), total_changes())` for `SqliteStore` (falling back to file mtime for other
+  backends, or no caching if neither applies). `total_changes` is required, not just `count()` —
+  `store rebuild`'s `drop_calibrated()` deletes and rewrites derived rows without changing the row
+  count, so a count-only key would serve a stale surface after a rebuild. `_surface`,
+  `_surface_records`, and `_alerts` all share the one cached `Surface` within a store version.
+- **Gzip precompute + ETags.** The same cache holds gzip-compressed bytes and a
+  `sha256(body)[:16]` ETag for the three cacheable payloads (`surface.geojson`, `surface.json`,
+  `alerts.json`/`.xml`), so a repeat request against an unchanged store skips re-aggregating,
+  re-gzipping, and re-hashing. Every response now carries an `ETag`; a matching `If-None-Match`
+  short-circuits to a bodyless `304` (per RFC 9110, no `Content-Length`) before any of that work
+  runs. A store write or rebuild invalidates the whole cache — surface and precomputed bodies — in
+  one step, so nothing served is ever older than the version key claims.
+- **Unchanged:** the existing gzip threshold (>1024 bytes, `Accept-Encoding: gzip`,
+  `_compressible()`) and the 60s `Cache-Control` window; read-only routing, the coarse-grid /
+  calibrated-vs-raw data path, and every hard-rule invariant are untouched — this is caching and
+  timeout handling only.
+
+Files touched:
+- `src/swelter/server.py` — `Handler.timeout`, `_store_version()`, `_ResponseCache`,
+  `_etag_matches()`, and ETag/304/gzip-cache handling in `_body()`
+- `tests/test_server.py` — a shared `server` fixture exposing the store/context for
+  cache-invalidation tests, plus: a second surface request does not re-aggregate
+  (monkeypatched call count); `/api/surface.geojson`, `/api/surface.json`, and `/api/alerts.json`
+  share one aggregate call; a matching `If-None-Match` returns `304`, a non-matching one returns
+  `200`; a store write invalidates the cached surface; a `drop_calibrated()` rebuild with an
+  unchanged row count still invalidates it; the handler has a 10s `timeout`
 ## Expansions (community-requested extensions)
 
 Separate from phases 1–5 and the fixes above: targeted extensions that widen what the network can

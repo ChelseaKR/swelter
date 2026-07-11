@@ -185,6 +185,23 @@ Two deliberate choices:
   `check_same_thread=False` precisely because the single server thread is not the thread that
   created it; single-threading is what keeps that access serialised.)
 
+**Survivability: timeouts, a surface cache, and conditional GETs.** Because the server is
+single-threaded, one request that never finishes reading or writing ties up every other client —
+so `Handler.timeout = 10` bounds socket reads/writes (`BaseHTTPRequestHandler` honors it directly;
+no threading, no `socket.setdefaulttimeout`). Separately, `aggregate.aggregate()` — the fold over
+every observation in the store — is the most expensive read on any given request, and it backs
+three endpoints (`/api/surface.geojson`, `/api/surface.json`, `/api/alerts.*`). `_make_handler`
+closes over a process-lifetime `_ResponseCache` that memoizes the last computed `Surface`, keyed
+on a fingerprint of the store: `(count(), total_changes())` for `SqliteStore`, falling back to
+file mtime for other backends, or no caching at all if neither is available. The count alone is
+not enough — `store rebuild` calls `drop_calibrated()`, which deletes and rewrites derived rows
+without changing the row count — so the key includes SQLite's `total_changes` counter, which does
+move on a rebuild. A store write or rebuild bumps the version and invalidates the whole cache (the
+surface and every precomputed body) in one step. The same cache also holds gzip-compressed bytes
+and a `sha256`-derived `ETag` for those three payloads, so a repeat request within one store
+version skips re-aggregating, re-gzipping, and re-hashing; a matching `If-None-Match` short-circuits
+to a bodyless `304` before any of that work happens.
+
 ## Calibration is versioned data, not code
 
 Corrections live in `corrections.yaml`, a `CorrectionRegistry` keyed by node and parameter. Each
