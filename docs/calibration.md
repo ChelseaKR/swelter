@@ -12,12 +12,16 @@ are written to a versioned, timestamped registry; and every calibrated observati
 correction version that produced it. Re-running the fit on the committed co-location data reproduces
 the published registry byte-for-byte, so the calibration is auditable end to end.
 
+Heat index is the one parameter this does not describe: nothing co-locates a heat-index reference,
+so it is never fit. It is instead *derived* from a node's already-calibrated temperature plus
+co-timed humidity — see **Heat index: derived, not fitted** below.
+
 The implementation is `src/swelter/calibrate.py`. The committed evidence is
 `data/demo/colocation.jsonl` (the training pairs) and `data/demo/corrections.yaml` (the published
 registry). Nothing in this document is hand-computed prose detached from the code: the worked example
 at the end reproduces a real registry entry.
 
-Last verified: 2026-06-16. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
+Last verified: 2026-07-03. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
 registry, or the US-EPA PurpleAir correction lineage referenced below; otherwise every 12 months.
 
 ---
@@ -94,20 +98,21 @@ corrected = a·raw + b·humidity + c
   adopting fixed national constants, because each node's enclosure, siting, and sensor lot differ; the
   *structure* is borrowed, the *numbers* are local and earned from that node's co-location window.
 
-### Temperature (and heat index): enclosure-offset
+### Temperature: enclosure-offset
 
 ```
 corrected = a·raw + c
 ```
 
 - `a` is a small gain correction and `c` is the enclosure offset — the few degrees a sun-baked box adds.
-- Method id: `enclosure-offset`. Heat index uses the same form.
+- Method id: `enclosure-offset`.
 
 ### Default
 
 Any other parameter falls back to a simple linear correction (`corrected = a·raw + c`, method id
 `linear`). No parameter is special-cased anywhere else in the pipeline; adding one is a model entry
-here plus its predictor list.
+here plus its predictor list. `heat_index_c` is the one exception — see the section below — it is
+never fit and so never falls back to this default either.
 
 The predictor-to-method mapping, verbatim from the engine:
 
@@ -116,8 +121,57 @@ The predictor-to-method mapping, verbatim from the engine:
 | `pm25_ugm3` | `raw`, `humidity` | `epa-humidity` |
 | `pm10_ugm3` | `raw`, `humidity` | `epa-humidity` |
 | `temp_c` | `raw` | `enclosure-offset` |
-| `heat_index_c` | `raw` | `enclosure-offset` |
 | (default) | `raw` | `linear` |
+| `heat_index_c` | *(derived, not fit — see below)* | `derived-enclosure` |
+
+---
+
+## Heat index: derived, not fitted
+
+Heat index does not fit the co-location model above, because there is nothing to co-locate it
+against: a reference-grade instrument reports temperature and humidity, not a "true" heat index, so
+`data/demo/colocation.jsonl` has no `heat_index_c` rows and `swelter calibrate` never produces a
+`heat_index_c` entry in the registry. Earlier, `calibrate._METHOD` still listed `heat_index_c` as
+using the `enclosure-offset` method — a claim that never actually fired, so every heat-index
+observation stayed raw/provisional forever, even for a node whose temperature was tightly
+calibrated. See ADR 0014 for the full reasoning; this section documents the fix plainly.
+
+Instead, `calibrate.apply()` derives a calibrated heat index directly. For every raw `heat_index_c`
+observation whose `(node_id, timestamp)` has *both* a calibrated `temp_c` (produced by the
+enclosure-offset correction earlier in the same `apply()` call) and a co-timed humidity reading
+(`humidity_index()` — raw, since humidity has no fitted correction in this network; see the caveat
+below), it emits an additional observation:
+
+```
+calibrated_heat_index_c = models.heat_index_c(calibrated_temp_c, humidity_pct)
+```
+
+using the same NWS Rothfusz function `data/demo` was generated from. This is recomputation from
+exact, calibrated inputs, not a new statistical fit — no coefficient is estimated, so it adds
+nothing to `corrections.yaml` and the byte-for-byte co-location replay is untouched.
+
+The emitted observation is tagged `heat_index_c.derived-enclosure.{node_id}` (method id
+`derived-enclosure`, distinct from `enclosure-offset` so a reader can tell "recomputed from
+calibrated inputs" from "fit against a reference" at a glance) and carries an `uncertainty` equal to
+the *temperature* correction's `residual_std` — heat index is monotonic and steep in temperature over
+the operating range, so the temperature error bar carried forward is a simple, defensible
+1-sigma stand-in rather than a properly propagated variance through the nonlinear regression. It does
+not account for humidity's own uncertainty, because humidity is uncalibrated in this network (see
+below), and it does not scale by the local `∂HI/∂T`, which would be a more precise but more
+complex propagation.
+
+**Caveat, stated honestly:** humidity is never calibrated in this demo network — no node has a
+fitted humidity correction, so `humidity_index()` always returns raw, QC-passing humidity, and that
+is what the heat-index derivation uses. A calibrated heat index is therefore calibrated with respect
+to temperature and exact with respect to the Rothfusz function, but it inherits whatever error an
+uncalibrated humidity sensor carries. If a network ever fits a humidity correction,
+`humidity_index()` would need to prefer it — that is out of scope here.
+
+A raw `heat_index_c` observation is left provisional in exactly two cases: its node's temperature
+never got calibrated (no correction, or the reading itself was QC-rejected), or the co-timed
+humidity is missing or QC-rejected. Both are honest outcomes: a node with no trustworthy inputs has
+no basis for a trustworthy derived value, and the map shows it as provisional rather than promoting
+it on an uncalibrated input.
 
 ---
 
