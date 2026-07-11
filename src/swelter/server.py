@@ -14,16 +14,27 @@ import gzip
 import hashlib
 import json
 import mimetypes
+import os
+import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import aggregate, alerts, api, cooling_centers, export, qc
+from . import aggregate, alerts, api, cooling_centers, export, obs, qc
 from .aggregate import Surface
 from .config import NetworkConfig
 from .models import RAW
 from .store import SqliteStore, Store
+
+#: Opt-in request logging (method/path/status/ms only, never IPs — hard rule 1). Off by
+#: default: a community dashboard's request log is operationally uninteresting until someone
+#: asks for it, and JSON lines on stderr are noise for the common `swelter serve` terminal use.
+_REQUEST_LOG_ENV = "SWELTER_LOG_REQUESTS"
+
+
+def _request_logging_enabled() -> bool:
+    return os.environ.get(_REQUEST_LOG_ENV, "").strip().lower() in ("1", "true", "yes", "on")
 
 
 @dataclass
@@ -35,6 +46,10 @@ class ServerContext:
     web_dir: Path
     base_url: str = "http://localhost:8000"
     cooling_centers_path: Path | None = None  # curated cooling-center dataset (optional overlay)
+    # The store directory `/api/health.json` reads `run-manifest.json` from (obs.read_manifest).
+    # None when a caller builds a ServerContext without a store-backed pipeline run behind it
+    # (e.g. tests); the health report simply omits the `run` block in that case.
+    store_dir: Path | None = None
 
 
 def _store_version(store: Store) -> object:
@@ -111,6 +126,7 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "swelter/0.1"
+        _status_sent: int = 0  # set by send_response(); read for optional request logging
         # BaseHTTPRequestHandler honors this for socket reads/writes: a client that opens a
         # connection and trickles bytes (or none) no longer ties up the single request thread
         # indefinitely. Slow-loris defense without switching off the single-threaded model
@@ -120,7 +136,13 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
         def log_message(self, *_: object) -> None:  # keep stdout clean; structured logs elsewhere
             return
 
+        def send_response(self, code: int, message: str | None = None) -> None:
+            self._status_sent = code  # captured for optional request logging, never IPs
+            super().send_response(code, message)
+
         def do_GET(self) -> None:  # noqa: N802, C901 (http.server API; flat route dispatch, see above)
+            started = time.monotonic()
+            self._status_sent = 0
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"  # normalise trailing slashes
             query = parse_qs(parsed.query)
@@ -166,6 +188,17 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 self._safe_error(400, f"bad request: {exc}")
             except Exception:  # never drop the connection with no response
                 self._safe_error(500, "internal error")
+            finally:
+                if _request_logging_enabled():
+                    ms = round((time.monotonic() - started) * 1000, 1)
+                    obs.log_event(
+                        "server",
+                        "request",
+                        method="GET",
+                        path=path,
+                        status=self._status_sent,
+                        ms=ms,
+                    )
 
         def do_POST(self) -> None:  # noqa: N802
             self._safe_error(405, "swelter's public API is read-only")
@@ -270,7 +303,20 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             # calibrated-vs-raw coverage-equity read rides along (needs the full stream + config to
             # know which nodes are calibrated and which published cell each sits in).
             coverage = qc.coverage_equity(ctx.store.all(), aggregate.node_cell_map(ctx.config))
-            self._json(qc.health_report(ctx.store.read(calibration=RAW), coverage=coverage))
+            report = qc.health_report(ctx.store.read(calibration=RAW), coverage=coverage)
+            # Name the pipeline run that built the currently-published surface, if one has run
+            # against this store (obs.write_manifest, wired into ingest/calibrate/aggregate/demo).
+            # A store predating this feature, or one no pipeline command has touched yet, simply
+            # gets no `run` block rather than a broken health endpoint.
+            if ctx.store_dir is not None:
+                manifest = obs.read_manifest(ctx.store_dir)
+                if manifest is not None:
+                    report["run"] = {
+                        "run_id": manifest.get("run_id"),
+                        "finished_at": manifest.get("finished_at"),
+                        "counters": manifest.get("counters"),
+                    }
+            self._json(report)
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(
@@ -378,6 +424,8 @@ def make_server(ctx: ServerContext, host: str, port: int) -> HTTPServer:
     Single-threaded on purpose: a community dashboard sits behind a static cache / CDN and
     needs almost no concurrency, and serialising requests keeps the one SQLite reader safe.
     """
+    if _request_logging_enabled():
+        obs.configure_json_logging()
     return HTTPServer((host, port), _make_handler(ctx))
 
 

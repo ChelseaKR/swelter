@@ -30,6 +30,7 @@ from . import (
     export,
     ingest,
     ingest_server,
+    obs,
     qc,
     snapshot,
 )
@@ -97,6 +98,27 @@ def _err(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _corrections_skipped_stale(
+    raw: list[Observation],
+    registry: calibrate.CorrectionRegistry,
+    calibrated: list[Observation],
+) -> int:
+    """Raw readings that had a registered correction available but were left raw.
+
+    Mirrors ``calibrate.apply()``'s own "leave it raw" branch (a correction is registered for
+    the node/parameter but its required co-timed predictor — e.g. humidity — was not present
+    on that reading) without duplicating that logic: it diffs the set of ``(node, ts,
+    parameter)`` keys that *could* have been corrected against the set that actually were.
+    """
+    candidates = {
+        (o.node_id, o.timestamp, o.parameter)
+        for o in raw
+        if registry.get(o.node_id, o.parameter) is not None
+    }
+    applied = {(o.node_id, o.timestamp, o.parameter) for o in calibrated}
+    return len(candidates - applied)
+
+
 def _print_concerns(errors: list[str], warnings: list[str]) -> None:
     for message in errors:
         _err(f"swelter: ✗ {message}")
@@ -126,8 +148,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         _err(f"swelter: input {args.input} not found")
         return 1
     paths = store_paths(args.store)
+    manifest = obs.RunManifest()
     with open_store(args.store) as store:
         result = ingest.ingest_file(args.input, store, quarantine_path=paths["quarantine"])
+    manifest.record(
+        "ingest",
+        "payloads ingested",
+        payloads_accepted=result.accepted_payloads,
+        payloads_quarantined=result.quarantined,
+    )
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     _err(
         f"swelter: ingested {result.accepted_payloads} payloads → "
         f"{result.observations_written} new observations "
@@ -223,23 +254,42 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     _err(f"swelter: fit {len(registry)} corrections → {paths['registry']}")
     for c in registry.all():
         _err(f"  {c.version:<28} n={c.n:<4} R²={c.r2:.3f}  ±{c.residual_std} {c.parameter}")
+    manifest = obs.RunManifest()
     if not args.fit_only:
         with open_store(args.store) as store:
             raw = store.read(calibration=RAW)
             store.drop_calibrated()
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
             written = store.write(calibrated)
+        manifest.record(
+            "calibrate",
+            "corrections applied",
+            corrections_applied=written.written,
+            corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
+        )
         _err(f"swelter: applied corrections → {written.written} calibrated observations")
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     return 0
 
 
 def cmd_aggregate(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
+    paths = store_paths(args.store)
     with open_store(args.store) as store:
         surface = aggregate.aggregate(store.all(), config)
-    out = Path(args.out or store_paths(args.store)["aggregate"])
+    out = Path(args.out or paths["aggregate"])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8")
+    manifest = obs.RunManifest()
+    manifest.record(
+        "aggregate",
+        "surface built",
+        cells_built=len(surface.cells),
+        cells_provisional=sum(1 for c in surface.cells if c.provisional),
+    )
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     _err(f"swelter: {len(surface.cells)} cell-hours → {out}")
     return 0
 
@@ -303,6 +353,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         web_dir=Path(args.web),
         base_url=base,
         cooling_centers_path=_cooling_path(args.cooling_centers),
+        store_dir=store_paths(args.store)["dir"],
     )
     _err(f"swelter: serving dashboard + API at {base}  (Ctrl-C to stop)")
     _err(f"  dashboard {base}/   ·   SensorThings {base}/v1.1   ·   export {base}/export.csv")
@@ -379,10 +430,17 @@ def cmd_demo(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
     paths = store_paths(args.store)
     paths["db"].unlink(missing_ok=True)  # a fresh demo store every run; replay is idempotent
+    manifest = obs.RunManifest()
 
     with SqliteStore(paths["db"]) as store:
         result = ingest.ingest_file(
             data / "observations.jsonl", store, quarantine_path=paths["quarantine"]
+        )
+        manifest.record(
+            "ingest",
+            "demo replay ingested",
+            payloads_accepted=result.accepted_payloads,
+            payloads_quarantined=result.quarantined,
         )
         _err(f"swelter demo: replayed {result.observations_seen} observations from recorded data")
 
@@ -393,11 +451,23 @@ def cmd_demo(args: argparse.Namespace) -> int:
             raw = store.read(calibration=RAW)
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
             store.write(calibrated)
+            manifest.record(
+                "calibrate",
+                "demo replay calibrated",
+                corrections_applied=len(calibrated),
+                corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
+            )
             _err(
                 f"swelter demo: fit {len(registry)} corrections, wrote {len(calibrated)} calibrated"
             )
 
         surface = aggregate.aggregate(store.all(), config)
+        manifest.record(
+            "aggregate",
+            "demo replay surface built",
+            cells_built=len(surface.cells),
+            cells_provisional=sum(1 for c in surface.cells if c.provisional),
+        )
         paths["aggregate"].write_text(
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
@@ -416,6 +486,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
 
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
+
     if args.serve:
         store = open_store(args.store)
         base = f"http://{args.host}:{args.port}"
@@ -425,6 +498,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             web_dir=Path(args.web),
             base_url=base,
             cooling_centers_path=_cooling_path(args.cooling_centers),
+            store_dir=paths["dir"],
         )
         _err(f"swelter demo: serving at {base}  (Ctrl-C to stop)")
         try:
@@ -681,6 +755,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             web_dir=Path(args.web),
             base_url=base,
             cooling_centers_path=_cooling_path(args.cooling_centers),
+            store_dir=paths["dir"],
         )
         _err(f"swelter: serving REAL data ({source_label}) at {base}  (Ctrl-C to stop)")
         try:
