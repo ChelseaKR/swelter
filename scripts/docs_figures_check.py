@@ -8,7 +8,7 @@ claims, each paired with the command or file that is its source of truth, and fa
 prose and the source disagree.
 
 Two of the five rules below check ``CLAUDE.md`` / ``README.md`` — files this repo's tooling
-treats as agent-do-not-modify. Those rules are *advisory*: they print ``WARN`` and a TODO for
+treats as agent-do-not-modify. Those rules are *advisory*: they print ``WARN`` and a note for
 a human maintainer, but never flip the process exit code, because a merge-blocking check that
 this script (or the agent driving it) has no way to fix would just turn CI permanently red.
 The other three rules check docs this script's caller *can* fix (``docs/ROADMAP.md``,
