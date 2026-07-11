@@ -1,7 +1,7 @@
 # All targets run through uv; `uv sync` happens implicitly via `uv run`.
 # `make verify` reproduces the full merge gate end to end.
 
-.PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild \
+.PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild snapshot \
         fmt fmt-check lint typecheck test a11y i18n hygiene version-check reading-level \
         verify check clean
 
@@ -38,6 +38,9 @@ demo:  ## Replay the recorded week through the pipeline and serve the dashboard
 
 rebuild:  ## Rebuild calibrated values + surface from immutable raw observations
 	uv run swelter rebuild --store store/demo
+
+snapshot:  ## Freeze a citable, versioned data release (MANIFEST + dataset CITATION.cff/.txt)
+	uv run swelter snapshot --store store --out dist/snapshot
 
 fmt:  ## Format the code
 	uv run ruff format src tests scripts
