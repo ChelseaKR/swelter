@@ -31,6 +31,7 @@ from . import (
     ingest,
     ingest_server,
     qc,
+    snapshot,
 )
 from .config import (
     NetworkConfig,
@@ -273,10 +274,16 @@ def cmd_export(args: argparse.Namespace) -> int:
         raw = store.read(calibration=RAW)
     gaps = qc.detect_gaps(raw, args.interval)
     if args.format == "json":
-        sys.stdout.write(export.to_json(observations, indent=2))
+        sys.stdout.write(
+            export.to_json(
+                observations, indent=2, license=args.license, attribution=args.attribution
+            )
+        )
     else:
-        sys.stdout.write(export.to_csv(observations))
-    _err(export.summarize(observations, gaps=gaps))
+        sys.stdout.write(
+            export.to_csv(observations, license=args.license, attribution=args.attribution)
+        )
+    _err(export.summarize(observations, gaps=gaps, license=args.license))
     return 0
 
 
@@ -499,8 +506,8 @@ def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
 
 
 _FetchOk = tuple[
-    list[Observation], dict[str, Any], str, str
-]  # observations, network, attrib, label
+    list[Observation], dict[str, Any], str, str, str
+]  # observations, network, attribution, source label, license
 
 
 def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, Any]:
@@ -551,7 +558,7 @@ def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned from OpenAQ")
         return 1
     network = openaq.network_doc("California", nodes)
-    return observations, network, openaq.ATTRIBUTION, "OpenAQ"
+    return observations, network, openaq.ATTRIBUTION, "OpenAQ", openaq.LICENSE
 
 
 def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
@@ -572,7 +579,13 @@ def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
         return 1
     network = sensor_community.network_doc(area.name, nodes)
-    return observations, network, sensor_community.ATTRIBUTION, "Sensor.Community"
+    return (
+        observations,
+        network,
+        sensor_community.ATTRIBUTION,
+        "Sensor.Community",
+        sensor_community.LICENSE,
+    )
 
 
 def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
@@ -595,7 +608,13 @@ def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned")
         return 1
     network = openmeteo.network_doc(places)
-    return observations, network, openmeteo.ATTRIBUTION, "Copernicus CAMS via Open-Meteo"
+    return (
+        observations,
+        network,
+        openmeteo.ATTRIBUTION,
+        "Copernicus CAMS via Open-Meteo",
+        openmeteo.LICENSE,
+    )
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -616,7 +635,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         result = _fetch_openmeteo(args)
     if isinstance(result, int):
         return result
-    observations, network, attribution, source_label = result
+    observations, network, attribution, source_label, license = result
 
     observations = qc.apply(observations)
     config_path = Path(args.config)
@@ -649,7 +668,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             f"swelter: {mode} {written.written} new of {len(all_obs)} total real observations "
             f"from {len(config.nodes)} locations (source: {source_label})"
         )
-        _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
+        _err(
+            export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval), license=license)
+        )
 
     if args.serve:
         store = open_store(args.store)
@@ -687,6 +708,24 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
         json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
     )
     _err(f"swelter: rebuilt surface ({len(surface.cells)} cell-hours)")
+    return 0
+
+
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    """Freeze a citable, versioned data release: raw observations + corrections + surface, a
+    MANIFEST.json with per-file SHA-256, and a dataset CITATION.cff/CITATION.txt pair. Local
+    artifacts only — no external DOI service; pass --doi once a collective has minted one."""
+    manifest = snapshot.build_snapshot(
+        Path(args.store), Path(args.out), args.version, args.doi or None
+    )
+    citation_text = (Path(args.out) / snapshot.CITATION_TXT_FILENAME).read_text(encoding="utf-8")
+    _err(
+        f"swelter: snapshot {manifest.release_version} → {args.out} "
+        f"({manifest.record_count} raw observations, {len(manifest.files)} file(s))"
+    )
+    for note in manifest.notes:
+        _err(f"  ⚠ {note}")
+    print(citation_text.strip())
     return 0
 
 
@@ -838,6 +877,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--node", default=None)
     p_exp.add_argument("--parameter", default=None)
     p_exp.add_argument("--bbox", default=None, help="named area (reserved; see docs/api.md)")
+    p_exp.add_argument(
+        "--license",
+        default=export.DEFAULT_LICENSE,
+        help="license of the exported data (default: CC0-1.0, the store's native default; "
+        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+    )
+    p_exp.add_argument(
+        "--attribution", default=None, help="attribution text to carry alongside --license"
+    )
     add_store(p_exp)
     add_interval(p_exp)
     p_exp.set_defaults(func=cmd_export)
@@ -943,6 +991,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_config(p_doctor)
     p_doctor.set_defaults(func=cmd_doctor)
+
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="freeze a citable, versioned data release (MANIFEST + dataset CITATION.cff/.txt)",
+    )
+    add_store(p_snap)
+    p_snap.add_argument("--out", default="dist/snapshot", help="directory to write the release to")
+    p_snap.add_argument(
+        "--version", default=__version__, help="release version (defaults to the swelter version)"
+    )
+    p_snap.add_argument(
+        "--doi",
+        default="",
+        help="DOI for this release, if one has been minted (e.g. via Zenodo/DataCite); "
+        "omit for a clearly-labelled placeholder",
+    )
+    p_snap.set_defaults(func=cmd_snapshot)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)

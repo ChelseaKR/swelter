@@ -41,6 +41,7 @@ _KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "reference_monitors",
         "calibration_windows",
         "alert_thresholds",
+        "twin_windows",
     }
 )
 _KNOWN_LOCATIONS: frozenset[str] = frozenset({"coarse", "precise"})

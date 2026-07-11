@@ -1,4 +1,4 @@
-# ADR 0018: Validate `network.yaml` loudly, and add a `swelter doctor` gate
+# ADR 0015: Validate `network.yaml` loudly, and add a `swelter doctor` gate
 
 Date: 2026-07-03. Status: accepted.
 
