@@ -71,12 +71,18 @@ def get_json(
     raised immediately. On exhaustion (or an immediate non-retryable error) raises
     :class:`SourceError` with the underlying exception as ``__cause__``.
     """
-    request = urllib.request.Request(url, headers=headers or {})
+    # `url` always comes from this module's own adapters (OpenAQ/Open-Meteo/Sensor.Community),
+    # which build fixed https:// endpoints -- never an arbitrary caller-supplied scheme.
+    request = urllib.request.Request(url, headers=headers or {})  # noqa: S310
     last: Exception | None = None
     attempts = max(1, retries)
     for attempt in range(attempts):
         wait = min(max_backoff_s, 2.0**attempt)
         try:
+            # `url` is always a fixed https:// endpoint built by this module's own callers
+            # (OpenAQ/Open-Meteo/Sensor.Community), never attacker-controlled -- same
+            # justification as the `Request` construction above (S310).
+            # nosemgrep: dynamic-urllib-use-detected
             with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:

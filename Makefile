@@ -1,8 +1,9 @@
 # All targets run through uv; `uv sync` happens implicitly via `uv run`.
 # `make verify` reproduces the full merge gate end to end.
 
-.PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild \
-        fmt fmt-check lint typecheck test a11y i18n docs-figures verify check clean
+.PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild snapshot \
+        fmt fmt-check lint typecheck test a11y i18n hygiene version-check reading-level \
+        docs-figures verify check clean
 
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -38,6 +39,9 @@ demo:  ## Replay the recorded week through the pipeline and serve the dashboard
 rebuild:  ## Rebuild calibrated values + surface from immutable raw observations
 	uv run swelter rebuild --store store/demo
 
+snapshot:  ## Freeze a citable, versioned data release (MANIFEST + dataset CITATION.cff/.txt)
+	uv run swelter snapshot --store store --out dist/snapshot
+
 fmt:  ## Format the code
 	uv run ruff format src tests scripts
 
@@ -62,10 +66,19 @@ i18n:  ## Mechanical i18n gates: UTF-8 (G1), BCP-47 tags (G3/G4), EN/ES parity (
 	uv run python scripts/i18n_parity.py
 	uv run python scripts/i18n_cldr_pin_check.py
 
+hygiene:  ## No bare TODO/FIXME/HACK; every noqa/type:ignore is coded (CQ-34/CQ-35)
+	uv run python scripts/hygiene_check.py
+
+version-check:  ## Tag == pyproject.toml == CHANGELOG parity, once a v* tag exists (REL-02/03)
+	uv run python scripts/version_check.py
+
+reading-level:  ## Advisory (not merge-blocking yet): Flesch-Kincaid grade over en.json (A11Y-23)
+	uv run python scripts/reading_level_check.py
+
 docs-figures:  ## Re-prove countable claims in docs against their sources of truth (report-only where prose is agent-do-not-modify)
 	uv run python scripts/docs_figures_check.py
 
-verify: fmt-check lint typecheck a11y i18n docs-figures test  ## The full merge gate, end to end
+verify: fmt-check lint typecheck a11y i18n hygiene version-check docs-figures test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
 
 check: verify  ## Alias for verify

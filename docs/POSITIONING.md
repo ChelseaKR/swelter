@@ -78,7 +78,10 @@ only what holds.
 - **Municipal & public health.** Chief Heat Officers (Miami-Dade 2021, then Los Angeles and others)
   deploy resources off neighborhood heat-vulnerability maps;[^cho] heat-action-plan reviews name a
   gap between identifying vulnerable people and reaching them.[^hap] swelter's gridded heat-index
-  surface fits, and CDC pairs HeatRisk with AQI, validating the heat-and-air pairing.[^cdc]
+  surface fits, and CDC pairs HeatRisk with AQI, validating the heat-and-air pairing.[^cdc] For a
+  public-entity partner specifically, the merge-gated WCAG 2.2 AA + bilingual posture above is also
+  a DOJ ADA Title II compliance asset — see
+  [`AGENCY-COMPLIANCE-PACK.md`](AGENCY-COMPLIANCE-PACK.md) (ROADMAP Phase 5.4).
 - **Researchers & academia.** Low-cost sensor data is widely held back for lacking calibration, QA,
   and traceability;[^research-qa] the field wants raw and processed data with machine-readable
   provenance.[^fair] swelter's append-only raw log, rebuildable calibrated records, versioned

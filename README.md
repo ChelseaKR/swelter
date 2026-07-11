@@ -14,9 +14,13 @@
 > aggregate environmental measurements: no people, no devices-as-trackers, no PII. The data is open
 > by default and exports through open standards so anyone can audit, reuse, or fork it.
 
-**Status:** reference implementation · independent personal open-source project · Apache-2.0 ·
-unaffiliated with any employer or client; contains no proprietary or client material; not a
-government system and not built for a government customer.
+**Status:** Maintained — reference implementation · independent personal open-source project ·
+Apache-2.0 · unaffiliated with any employer or client; contains no proprietary or client material;
+not a government system and not built for a government customer.
+
+**Supported versions:** pre-1.0, only the latest release is supported. Per
+[`docs/VERSIONING.md`](docs/VERSIONING.md), a breaking change may still ship in a MINOR bump before
+1.0, but every breaking change is called out explicitly in the [CHANGELOG](CHANGELOG.md).
 
 **Why this domain.** Extreme heat kills more people in the United States than any other weather
 hazard, and the burden lands hardest on low-income neighborhoods with little tree canopy, older
@@ -59,6 +63,20 @@ swelter: 177,050 observations from 150 nodes (100 calibrated, 50 raw-flagged)
 The calibration models, their training windows, error bounds, and the reference monitors they were
 fit against are documented in `docs/calibration.md` and queryable from the API, so a value's
 trustworthiness is inspectable rather than asserted.
+
+- **Citable, versioned data snapshots.** `swelter snapshot` freezes the immutable raw observations,
+  the fitted correction registry, and the latest gridded surface into a self-contained, identified
+  release — a `MANIFEST.json` with per-file SHA-256, record count, and observation time-window, plus
+  a dataset `DATA-CITATION.cff` (Citation File Format 1.2.0, `type: dataset`, CC0-1.0, distinct from
+  the repository's software `CITATION.cff`) and a ready-to-paste `CITATION.txt`. Local artifacts
+  only — no external DOI service is called; pass `--doi` once a collective has minted one (e.g. via
+  Zenodo/DataCite), otherwise the release carries an honestly-labelled placeholder.
+
+  ```console
+  $ swelter snapshot --store store --out dist/snapshot --doi 10.5281/zenodo.1234567
+  swelter: snapshot 0.1.0 → dist/snapshot (126510 raw observations, 3 file(s))
+  Kelly-Reif, C. (2026). swelter observation snapshot 0.1.0 [Data set]. CC0-1.0. https://doi.org/10.5281/zenodo.1234567
+  ```
 
 **Synthetic demo vs. real data.** `swelter demo` replays a *synthetic* fixture (deterministic, the
 calibration story made checkable) — the dashboard labels it as such. `swelter fetch` pulls **real**
@@ -266,8 +284,9 @@ no admin console required. **Observability** — structured logs and metrics on 
 liveness. **Debuggability** — any observation can be traced from raw payload to map tile under a debug
 flag. **Serviceability / supportability** and **repairability** — the hardware guide covers field
 service, and most software fixes are data or config edits; sensors are chosen for repairable,
-off-the-shelf parts. **Deployability** and **installability** — `pipx install swelter`, a container
-image, and a one-command deploy; firmware flashes with a documented tool. **Agility** — a CI smoke suite
+off-the-shelf parts. **Deployability** and **installability** — `uv sync` + a one-command deploy from
+source (`make demo` / `swelter serve`), or the optional CDK stack in `infra/`; no PyPI package or
+container image is published today (see Standards conformance, DOC-14). **Agility** — a CI smoke suite
 on every PR. **Autonomy**, **self-sustainability**, and **sustainability** — runs on cheap commodity
 hardware and a scale-to-zero backend with no paid dependency, so the network survives lean years and
 keeps reporting untended.
@@ -284,8 +303,10 @@ aggregation unit-testable offline; verification attributes (provability, repeata
 traceability, demonstrability) are covered above and exercised by the calibration replay.
 
 ### Distribution, portability, installation
-**Distributability** — the data ships as a downloadable archive and a public API; the code ships to PyPI
-and a container registry. **Portability** — pure-Python services plus open data formats run on Linux,
+**Distributability** — the data ships as a downloadable archive and a public API; the code is
+distributed as source (git clone + `uv sync`) with signed, provenance-attested sdist/wheel artifacts
+attached to each GitHub Release — not (yet) published to PyPI or a container registry (tracked gap,
+see Standards conformance below). **Portability** — pure-Python services plus open data formats run on Linux,
 macOS, and a Raspberry-Pi-class host. **Installability** — one command for the service, a documented
 flash for the firmware. **Deployability** — committed IaC stands the cloud copy up; a host can also run
 it on a single board computer with no cloud at all.
@@ -315,6 +336,38 @@ to the widest public.
   time slider is keyboard operable with announced value changes, and focus is never trapped.
 - Accessibility is a **merge-blocking CI gate**; a regression fails the build. The ACR is regenerated and
   re-committed on each release, the same audit-as-artifact discipline as the calibration record.
+
+## Standards conformance
+
+swelter is audited against a shared, personal standards set (quality, security/supply-chain, CI/CD,
+release/versioning, accessibility, observability, i18n, AI-evaluation, documentation, responsible
+tech). Per that standard's own rule, a repo must declare which standards apply and state a reason
+for any N/A — silent omission is itself a defect, which is why this table exists. States below are
+current as of the **2026-07-05** conformance audit and same-day remediation pass; `Applies — gap`
+rows name the specific missing piece rather than leaving it implicit.
+
+| Standard | Applies? | State |
+|---|---|---|
+| Quality & metrics | Applies | Gap — `make verify` (fmt-check, lint incl. bandit `S` + complexity `C901`, typecheck, a11y, i18n, test) is green and merge-blocking with a 90%-branch-coverage floor (93%+ measured); REVIEW artifacts (DORA ledger, per-source data cards, acceptance-test↔feature mapping) not yet written |
+| Code quality | Applies | Gap — ruff (incl. bandit + mccabe ≤10) and `mypy --strict` are clean over `src`/`tests`; `.github/CODEOWNERS` committed; ADRs use a house format, not MADR (`docs/adr/`); no mutation testing yet on `calibrate.py`/`qc.py` |
+| Security & supply chain | Applies | Gap — pip-audit, gitleaks, and CodeQL (`python` + `actions`) run in CI; releases are signed (cosign) with SLSA provenance and now re-run `make verify` at the tag; still missing: Semgrep, osv-scanner, scheduled TruffleHog, zizmor, Scorecard, and a CycloneDX SBOM |
+| CI/CD | Applies | Gap — CI runs `make verify` directly (no hand-mirrored steps to drift); all 22 `uses:` are SHA-pinned. **No branch-protection ruleset is enforced yet** — see the incident note below; that is a manual GitHub-settings step this repo's maintainer still needs to take |
+| Release & versioning | Applies | Gap — semver policy in `docs/VERSIONING.md`; releases now assert an annotated tag, a dated CHANGELOG section, and a green `make verify` before signing/publishing; still missing: SBOM attachment, a `verify-published` job, and a single source of truth for `__version__` |
+| Accessibility | Applies | Gap — WCAG 2.2 AA structural gate (12 checks) is merge-blocking; a VPAT 2.5 ACR is committed; the axe/pa11y browser pass and Lighthouse CI are still advisory-only, not blocking |
+| Observability | Applies — light tier | **Tier B**: the deployed GitHub Pages dashboard (static; lab Web-Vitals/Lighthouse gates not yet wired). **Tier A: N/A** — no deployed always-on service; the stdlib `swelter serve` is an optional local/self-hosted process, not a hosted backend. **RUM: N/A** — deliberate privacy choice, no client-side telemetry of any kind |
+| Internationalization | Applies | Gap — `docs/I18N.md` tracks this in detail; UTF-8, BCP-47, EN/ES key-parity, and the CLDR-pin guard (G1/G3/G4/G6/G12) are live merge-blocking gates; the hardcoded-string ratchet and full plural-category completeness (G2/G7) are not yet wired |
+| AI evaluation | **N/A** | No LLM or AI feature anywhere in swelter; the sole runtime dependency is PyYAML, and the pipeline (ingest → QC → calibration → aggregation) is deterministic ordinary-least-squares fitting and rule-based flagging, not a model |
+| Documentation | Applies | Gap — README, `CLAUDE.md`, ADRs, and `docs/audits/` are committed and dated; no automated staleness/pin-drift gate yet (tracked) |
+| Responsible tech | Applies | Gap — six dated audits at `docs/RESPONSIBLE-TECH-AUDITS.md` (A–F) plus a DPIA and an accessibility report; being refreshed against the 2026-07-01 authenticated write path (`ingest-serve`) |
+
+**Known gate-integrity incident (disclosed, not hidden).** On 2026-07-02 three commits (the
+authenticated-write-path feature) merged directly to `main` with a red `make verify` and no PR
+reference — the only such commits in this repo's history. The 2026-07-05 audit caught it; the
+red gate was fixed the same day (ruff/mypy clean again) and this table, `release.yml`'s
+re-verify-at-tag step, and `.github/CODEOWNERS` are part of closing the gap. **A GitHub branch-
+protection ruleset that would have prevented this is not yet enabled** — that is a manual,
+repo-settings action the maintainer must take (see the incident note this remediation pass could
+not apply on the maintainer's behalf).
 
 ## Build plan
 
