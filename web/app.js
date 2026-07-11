@@ -412,6 +412,43 @@ function provenanceText(row) {
   return parts.join(" ");
 }
 
+// Structured "show your work" panel: the same lineage facts as provenanceText(), but as labeled
+// rows (verdict, calibration state, uncertainty, method, reference monitor, readings) instead of
+// one joined sentence, so the trust layer reads as a first-class dashboard panel, not a footnote.
+function renderProvenance(row) {
+  const dl = $("#provenance-body");
+  dl.textContent = "";
+  const addRow = (labelKey, value) => {
+    const dt = document.createElement("dt");
+    dt.textContent = t(labelKey);
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    dl.appendChild(dt);
+    dl.appendChild(dd);
+  };
+
+  addRow("prov-verdict-label", row.provisional ? t("prov-verdict-provisional") : t("prov-verdict-confirmed"));
+
+  if (!row.provisional) {
+    if (!isExposure() && row.uncertainty != null) {
+      const u =
+        PARAM_BASE_UNIT[state.parameter] === "C" && state.unit === "F"
+          ? (row.uncertainty * 9) / 5
+          : row.uncertainty;
+      addRow(
+        "prov-uncertainty-label",
+        t("prov-uncertainty").replace("{u}", round1(u)).replace("{unit}", unitLabel())
+      );
+    }
+    if (row.method && row.reference) {
+      addRow("prov-calibration-label", row.method);
+      addRow("prov-reference-label", row.reference);
+    }
+  }
+  if (isExposure()) addRow("prov-derived-label", t("prov-derived"));
+  addRow("prov-readings-label", String(row.n));
+}
+
 // A ready-to-paste, plain-language summary of this location: the reading, how it compares, the
 // trend, its calibration state, an open-data attribution, and the shareable link. Closes the
 // data-to-action gap — something an advocate can drop into an email, a flyer, or testimony.
@@ -2070,7 +2107,7 @@ function renderDetail() {
   src.textContent = heatSourced ? t("guide-source-heat") : t("guide-source");
   src.hidden = !guidance;
   renderActions(row);
-  $("#provenance-body").textContent = provenanceText(row);
+  renderProvenance(row);
   renderCompare(row);
   renderWatch(row);
   renderDownload(row);

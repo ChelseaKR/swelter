@@ -142,16 +142,21 @@ leverage.
    surface API and `api.md`, and the dashboard as a measurement option across map, table, and list —
    provisional flags and the calibrated/raw line intact, severity in text not color alone. The
    flagship differentiator.
-2. **Make the trust layer visible** — surface the calibration version, ±uncertainty, QC verdict, and
-   reference-monitor lineage as a first-class "show your work" view, not buried provenance. This is
-   the moat for the researcher and credibility audiences; mostly `web/` and `api.md`.
+2. **Make the trust layer visible** (Phase 5.2 + E2) — **built.** Surfaces the QC verdict,
+   calibration state, ±uncertainty, calibration method, reference-monitor lineage, and reading
+   count as a first-class, always-visible "show your work" panel (`#provenance` in
+   `web/index.html`), not buried in a collapsed `<details>`. Lives in `web/app.js`
+   (`renderProvenance`, alongside the unchanged `provenanceText` used by the plain-text brief
+   export), `web/styles.css`, and the `prov-*` keys in `web/i18n/{en,es}.json`. This is the moat
+   for the researcher and credibility audiences.
 3. **Register-your-own-network as the headline capability** — lean on `network.yaml`, the no-hosted-
    dependency, scale-to-zero design, and `ADD-YOUR-NEIGHBORHOOD.md` as the replicability and
    sustainability story (local ownership is the documented survival factor). Largely docs and
    packaging, little new code.
-4. **Accessibility and bilingual as a certifiable asset** — the DOJ 2024 ADA Title II rule makes
-   WCAG 2.1 AA legally load-bearing for public agencies; swelter clears 2.2 AA and ships en + es
-   against a documented language-justice gap. Package this as a compliance hook for agency partners.
+4. **Accessibility and bilingual as a certifiable asset** — **packaged.** The DOJ 2024 ADA Title II
+   rule makes WCAG 2.1 AA legally load-bearing for public agencies; swelter clears 2.2 AA and ships
+   en + es against a documented language-justice gap. Packaged as a compliance hook for agency
+   partners: [`docs/AGENCY-COMPLIANCE-PACK.md`](AGENCY-COMPLIANCE-PACK.md).
 5. **Close the data-to-action gap** — a lightweight plain-language neighborhood brief / advocacy
    export, because the research is consistent that data alone is not the product. Builds on the
    existing export surface.
@@ -212,6 +217,47 @@ Files touched:
 - `tests/test_cli.py` — `ingest-serve`/`node-key` CLI coverage (error paths + an issued key
   authenticating against a real listener)
 
+### FIX-08 — Server survivability: timeouts, surface cache, conditional GETs
+
+**Status: ✅ Done** (2026-07-03)
+
+The single-threaded HTTP server had no defense against a client that opens a connection and never
+finishes a request, and re-ran the full `aggregate.aggregate()` fold — the most expensive read in
+the process — on every single request to the three surface/alerts endpoints, even back-to-back
+identical ones. Fixed, `src/swelter/server.py` only:
+
+- **Request timeouts.** `Handler.timeout = 10` — `BaseHTTPRequestHandler` honors this natively for
+  socket reads — bounds how long one slow-loris client can tie up the single request thread.
+  No threading change: the one SQLite reader stays serialised (ADR 0005).
+- **Aggregated-surface cache.** A process-lifetime `_ResponseCache`, closed over by
+  `_make_handler`, memoizes the result of `aggregate.aggregate()` keyed on a fingerprint of the
+  store: `(count(), total_changes())` for `SqliteStore` (falling back to file mtime for other
+  backends, or no caching if neither applies). `total_changes` is required, not just `count()` —
+  `store rebuild`'s `drop_calibrated()` deletes and rewrites derived rows without changing the row
+  count, so a count-only key would serve a stale surface after a rebuild. `_surface`,
+  `_surface_records`, and `_alerts` all share the one cached `Surface` within a store version.
+- **Gzip precompute + ETags.** The same cache holds gzip-compressed bytes and a
+  `sha256(body)[:16]` ETag for the three cacheable payloads (`surface.geojson`, `surface.json`,
+  `alerts.json`/`.xml`), so a repeat request against an unchanged store skips re-aggregating,
+  re-gzipping, and re-hashing. Every response now carries an `ETag`; a matching `If-None-Match`
+  short-circuits to a bodyless `304` (per RFC 9110, no `Content-Length`) before any of that work
+  runs. A store write or rebuild invalidates the whole cache — surface and precomputed bodies — in
+  one step, so nothing served is ever older than the version key claims.
+- **Unchanged:** the existing gzip threshold (>1024 bytes, `Accept-Encoding: gzip`,
+  `_compressible()`) and the 60s `Cache-Control` window; read-only routing, the coarse-grid /
+  calibrated-vs-raw data path, and every hard-rule invariant are untouched — this is caching and
+  timeout handling only.
+
+Files touched:
+- `src/swelter/server.py` — `Handler.timeout`, `_store_version()`, `_ResponseCache`,
+  `_etag_matches()`, and ETag/304/gzip-cache handling in `_body()`
+- `tests/test_server.py` — a shared `server` fixture exposing the store/context for
+  cache-invalidation tests, plus: a second surface request does not re-aggregate
+  (monkeypatched call count); `/api/surface.geojson`, `/api/surface.json`, and `/api/alerts.json`
+  share one aggregate call; a matching `If-None-Match` returns `304`, a non-matching one returns
+  `200`; a store write invalidates the cached surface; a `drop_calibrated()` rebuild with an
+  unchanged row count still invalidates it; the handler has a 10s `timeout`
+
 ### FIX-11 — Structured logs and per-run pipeline manifests
 
 **Status: ✅ Done** (2026-07-02)
@@ -268,6 +314,47 @@ json` is realized as the opt-in `obs.configure_json_logging()` + `SWELTER_LOG_RE
 rather than a CLI flag, matching this repo's existing subcommand-per-stage shape. The
 PII-in-logs gate (§3, the one non-tiered control) is enforced by construction — this module
 never receives person-shaped fields — with `obs._scrub()` as a defensive backstop.
+
+## Expansions (community-requested extensions)
+
+Separate from phases 1–5 and the fixes above: targeted extensions that widen what the network can
+report without loosening a hard rule. Each ships as its own PR with its own tests.
+
+### EXP-09 — Sensor-twin "cross-checked" precision tier
+
+**Status: ✅ Done** (merged 2026-07-03)
+
+A no-reference network (no regulatory monitor to co-locate against) can still get a QC signal
+stronger than plain "raw": co-locate two low-cost nodes as a "sensor twin" pair and measure how
+tightly they agree with each other. Added as QC/health metadata only — it never changes what a
+value *is*.
+
+- **`qc.twin_agreement()`** pairs a configured `TwinWindow`'s two nodes' readings of the same
+  parameter by nearest timestamp (within a configurable tolerance, default 300 s) and reports the
+  spread (population standard deviation) of the paired residuals plus how many pairs matched.
+- **Precision, never accuracy.** A tight spread rules out sensor noise as the source of
+  disagreement between the twins; it says nothing about whether either twin reads *true* — only a
+  reference-monitor co-location (the calibration engine above) establishes that. Documented
+  explicitly in `docs/calibration.md` ("Cross-checked: an inter-sensor agreement statistic, not a
+  calibration tier"), including the EPA non-regulatory framing and "cross-checked ≠ calibrated."
+- **Annotation only — hard rule #3 untouched.** No `Observation.value` is modified and no
+  calibration version is assigned; a twin-checked node's readings stay `raw` and every surface
+  (map, table, export, API) still shows them as provisional, exactly as before this feature
+  existed.
+- **Backward-compatible surfacing.** `qc.health_report(..., twin_windows=...)` takes an optional
+  `twin_windows` parameter defaulting to `()`; the JSON gains a `twin_agreement` key only when
+  twin windows are configured, so every existing caller's JSON shape is unchanged.
+
+Files touched:
+- `src/swelter/config.py` — `TwinWindow` (mirrors `CalibrationWindow`),
+  `NetworkConfig.twin_windows`, parsed from `network.yaml`'s `twin_windows` block.
+- `src/swelter/qc.py` — `TwinAgreement`, `twin_agreement()`, wired into `health_report()`.
+- `docs/calibration.md` — the "Cross-checked" section explaining the precision-vs-accuracy line.
+- `network.yaml` — a commented `twin_windows:` example documenting the config shape.
+- `tests/test_qc.py` — identical-series (zero spread), divergent-series (nonzero spread),
+  no-matching-timestamps and window-filtering (zero pairs) cases, plus `health_report` gating
+  tests (key absent by default, present and correctly shaped when configured).
+- `tests/test_config.py` — `twin_windows` parsing and empty-default cases.
 
 ## Metrics ledger
 

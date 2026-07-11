@@ -15,10 +15,17 @@ outside this CLI.
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .config import NetworkConfig, load_config, snap_to_grid
 from .models import PARAMETERS, Observation, heat_index_c, pm25_aqi
 
-__version__ = "0.1.0"
+try:
+    # Single source of truth: `pyproject.toml`'s `[project] version`, read back from the
+    # installed package's metadata rather than hand-duplicated here (REL-02).
+    __version__ = version("swelter")
+except PackageNotFoundError:  # pragma: no cover -- only when running from source, uninstalled
+    __version__ = "0.0.0+unknown"
 
 __all__ = [
     "PARAMETERS",

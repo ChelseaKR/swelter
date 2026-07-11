@@ -11,6 +11,7 @@ the dashboard, with no hardware in the loop.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 from collections.abc import Sequence
@@ -25,13 +26,15 @@ from . import (
     alerts,
     calibrate,
     cooling_centers,
+    crosswalk,
     export,
     ingest,
     ingest_server,
     obs,
     qc,
+    snapshot,
 )
-from .config import NetworkConfig, label_concerns, load_config
+from .config import NetworkConfig, consent_concerns, label_concerns, load_config
 from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
@@ -113,6 +116,8 @@ def _load_config(path: str) -> NetworkConfig:
     if Path(path).is_file():
         config = load_config(path)
         for concern in label_concerns(config):
+            _err(f"swelter: ⚠ {concern}")
+        for concern in consent_concerns(config):
             _err(f"swelter: ⚠ {concern}")
         return config
     _err(f"swelter: config {path} not found; using an empty network")
@@ -303,10 +308,16 @@ def cmd_export(args: argparse.Namespace) -> int:
         raw = store.read(calibration=RAW)
     gaps = qc.detect_gaps(raw, args.interval)
     if args.format == "json":
-        sys.stdout.write(export.to_json(observations, indent=2))
+        sys.stdout.write(
+            export.to_json(
+                observations, indent=2, license=args.license, attribution=args.attribution
+            )
+        )
     else:
-        sys.stdout.write(export.to_csv(observations))
-    _err(export.summarize(observations, gaps=gaps))
+        sys.stdout.write(
+            export.to_csv(observations, license=args.license, attribution=args.attribution)
+        )
+    _err(export.summarize(observations, gaps=gaps, license=args.license))
     return 0
 
 
@@ -365,9 +376,8 @@ def cmd_ingest_serve(args: argparse.Namespace) -> int:
         skew_s=args.skew,
     )
     base = f"http://{args.host}:{args.port}"
-    _err(
-        f"swelter: ingest listener (write-only, per-node HMAC) at {base}{ingest_server.INGEST_ROUTE}"
-    )
+    route = ingest_server.INGEST_ROUTE
+    _err(f"swelter: ingest listener (write-only, per-node HMAC) at {base}{route}")
     _err(
         f"  {len(keys)} node key(s) from {args.keys} · replay window ±{int(args.skew)}s · "
         f"auth failures → {paths['quarantine']}  (Ctrl-C to stop)"
@@ -553,87 +563,151 @@ def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
     )
 
 
+_FetchOk = tuple[
+    list[Observation], dict[str, Any], str, str, str
+]  # observations, network, attribution, source label, license
+
+
+def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, Any]:
+    """For ``--accumulate``: union today's fetched nodes into the previously written network doc
+    so a node that drops out of one day's discovery (EXP-01: "nodes that come and go") keeps its
+    entry — and so its history in the store stays resolvable by ``aggregate`` — while a node seen
+    again today gets its label/location refreshed. Every other top-level field (name, grid
+    resolution, languages, reference monitors, calibration windows) comes from today's fetch."""
+    if not config_path.is_file():
+        return network
+    try:
+        previous = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return network  # a corrupt prior file shouldn't block today's fetch
+    prior_nodes = {n["node_id"]: n for n in previous.get("nodes", []) if "node_id" in n}
+    for node in network.get("nodes", []):
+        prior_nodes[node["node_id"]] = node  # today's data wins for nodes seen again
+    merged = dict(network)
+    merged["nodes"] = list(prior_nodes.values())
+    return merged
+
+
+def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
+    import os
+
+    from .sources import openaq
+    from .sources._http import SourceError
+
+    api_key = args.api_key or os.environ.get("OPENAQ_API_KEY", "")
+    if not api_key:
+        _err(
+            "swelter: --source openaq needs an API key (--api-key or OPENAQ_API_KEY); "
+            "get a free one at https://explore.openaq.org/register"
+        )
+        return 1
+    _err(
+        f"swelter: fetching real physical sensors across California from OpenAQ "
+        f"(up to {args.max_locations} sites, block-by-block)…"
+    )
+    try:
+        observations, nodes = openaq.fetch(
+            api_key, max_locations=args.max_locations, throttle_s=args.throttle
+        )
+    except (SourceError, OSError, ValueError) as exc:
+        _err(f"swelter: fetch failed ({exc}); check your network/API key")
+        return 1
+    if not observations:
+        _err("swelter: no readings returned from OpenAQ")
+        return 1
+    network = openaq.network_doc("California", nodes)
+    return observations, network, openaq.ATTRIBUTION, "OpenAQ", openaq.LICENSE
+
+
+def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
+    from .sources import sensor_community
+    from .sources._http import SourceError
+
+    area = sensor_community.Area(args.area_name, args.lat, args.lon, args.radius)
+    _err(
+        f"swelter: fetching real community low-cost sensors near {area.name} "
+        f"(r={area.radius_km:g} km) from Sensor.Community…"
+    )
+    try:
+        observations, nodes = sensor_community.fetch(area)
+    except (SourceError, OSError, ValueError) as exc:
+        _err(f"swelter: fetch failed ({exc}); check your network connection")
+        return 1
+    if not observations:
+        _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
+        return 1
+    network = sensor_community.network_doc(area.name, nodes)
+    return (
+        observations,
+        network,
+        sensor_community.ATTRIBUTION,
+        "Sensor.Community",
+        sensor_community.LICENSE,
+    )
+
+
+def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
+    from .sources import openmeteo
+    from .sources._http import SourceError
+
+    places = openmeteo.CALIFORNIA
+    _err(
+        f"swelter: fetching real readings for {len(places)} California cities "
+        "from Open-Meteo (Copernicus CAMS air quality + weather)…"
+    )
+    try:
+        observations = openmeteo.fetch(
+            places, past_days=args.past_days, forecast_days=args.forecast_days
+        )
+    except (SourceError, OSError, ValueError) as exc:
+        _err(f"swelter: fetch failed ({exc}); check your network connection")
+        return 1
+    if not observations:
+        _err("swelter: no readings returned")
+        return 1
+    network = openmeteo.network_doc(places)
+    return (
+        observations,
+        network,
+        openmeteo.ATTRIBUTION,
+        "Copernicus CAMS via Open-Meteo",
+        openmeteo.LICENSE,
+    )
+
+
 def cmd_fetch(args: argparse.Namespace) -> int:
     """Fetch REAL readings from a live open-data source, build the surface and dashboard sample,
     and optionally serve. ``--source openmeteo`` is Copernicus CAMS model data for California cities
     (keyless, but coarse — not block-level); ``--source openaq`` is dense real physical sensors
     across California (block-by-block, needs an API key); ``--source sensor-community`` is real
     community low-cost sensors (dense in Europe). The two sensor sources are uncalibrated, so their
-    readings are shown raw/provisional — swelter's thesis made real."""
-    import os
-
-    from .sources import openaq, openmeteo, sensor_community
-    from .sources._http import SourceError
-
+    readings are shown raw/provisional — swelter's thesis made real. By default the store is wiped
+    first, so each fetch is a fresh snapshot; ``--accumulate`` keeps the existing store between
+    runs instead (see ADR 0013), so readings pile up run over run and the time slider ends up
+    with real longitudinal history rather than one fetch's worth."""
     if args.source == "openaq":
-        api_key = args.api_key or os.environ.get("OPENAQ_API_KEY", "")
-        if not api_key:
-            _err(
-                "swelter: --source openaq needs an API key (--api-key or OPENAQ_API_KEY); "
-                "get a free one at https://explore.openaq.org/register"
-            )
-            return 1
-        _err(
-            f"swelter: fetching real physical sensors across California from OpenAQ "
-            f"(up to {args.max_locations} sites, block-by-block)…"
-        )
-        try:
-            observations, nodes = openaq.fetch(
-                api_key, max_locations=args.max_locations, throttle_s=args.throttle
-            )
-        except (SourceError, OSError, ValueError) as exc:
-            _err(f"swelter: fetch failed ({exc}); check your network/API key")
-            return 1
-        if not observations:
-            _err("swelter: no readings returned from OpenAQ")
-            return 1
-        network = openaq.network_doc("California", nodes)
-        attribution = openaq.ATTRIBUTION
-        source_label = "OpenAQ"
+        result = _fetch_openaq(args)
     elif args.source == "sensor-community":
-        area = sensor_community.Area(args.area_name, args.lat, args.lon, args.radius)
-        _err(
-            f"swelter: fetching real community low-cost sensors near {area.name} "
-            f"(r={area.radius_km:g} km) from Sensor.Community…"
-        )
-        try:
-            observations, nodes = sensor_community.fetch(area)
-        except (SourceError, OSError, ValueError) as exc:
-            _err(f"swelter: fetch failed ({exc}); check your network connection")
-            return 1
-        if not observations:
-            _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
-            return 1
-        network = sensor_community.network_doc(area.name, nodes)
-        attribution = sensor_community.ATTRIBUTION
-        source_label = "Sensor.Community"
+        result = _fetch_sensor_community(args)
     else:
-        places = openmeteo.CALIFORNIA
-        _err(
-            f"swelter: fetching real readings for {len(places)} California cities "
-            "from Open-Meteo (Copernicus CAMS air quality + weather)…"
-        )
-        try:
-            observations = openmeteo.fetch(
-                places, past_days=args.past_days, forecast_days=args.forecast_days
-            )
-        except (SourceError, OSError, ValueError) as exc:
-            _err(f"swelter: fetch failed ({exc}); check your network connection")
-            return 1
-        if not observations:
-            _err("swelter: no readings returned")
-            return 1
-        network = openmeteo.network_doc(places)
-        attribution = openmeteo.ATTRIBUTION
-        source_label = "Copernicus CAMS via Open-Meteo"
+        result = _fetch_openmeteo(args)
+    if isinstance(result, int):
+        return result
+    observations, network, attribution, source_label, license = result
 
     observations = qc.apply(observations)
-    Path(args.config).write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
+    config_path = Path(args.config)
+    if args.accumulate:
+        network = _merge_network_doc(config_path, network)
+    config_path.write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
     config = load_config(args.config)
 
     paths = store_paths(args.store)
-    paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
+    if not args.accumulate:
+        paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
     with SqliteStore(paths["db"]) as store:
+        # write() is INSERT OR IGNORE on (node_id, timestamp, parameter, calibration), so
+        # re-fetching overlapping history under --accumulate is idempotent, not duplicated.
         written = store.write(observations)
         surface = aggregate.aggregate(store.all(), config)
         paths["aggregate"].write_text(
@@ -647,11 +721,14 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
+        mode = "accumulated" if args.accumulate else "stored"
         _err(
-            f"swelter: stored {written.written} real observations from {len(config.nodes)} "
-            f"locations (source: {source_label})"
+            f"swelter: {mode} {written.written} new of {len(all_obs)} total real observations "
+            f"from {len(config.nodes)} locations (source: {source_label})"
         )
-        _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
+        _err(
+            export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval), license=license)
+        )
 
     if args.serve:
         store = open_store(args.store)
@@ -693,6 +770,24 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    """Freeze a citable, versioned data release: raw observations + corrections + surface, a
+    MANIFEST.json with per-file SHA-256, and a dataset CITATION.cff/CITATION.txt pair. Local
+    artifacts only — no external DOI service; pass --doi once a collective has minted one."""
+    manifest = snapshot.build_snapshot(
+        Path(args.store), Path(args.out), args.version, args.doi or None
+    )
+    citation_text = (Path(args.out) / snapshot.CITATION_TXT_FILENAME).read_text(encoding="utf-8")
+    _err(
+        f"swelter: snapshot {manifest.release_version} → {args.out} "
+        f"({manifest.record_count} raw observations, {len(manifest.files)} file(s))"
+    )
+    for note in manifest.notes:
+        _err(f"  ⚠ {note}")
+    print(citation_text.strip())
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffold a starter network.yaml so a community can stand up its own instance fast."""
     path = Path(args.config)
@@ -712,6 +807,20 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 def cmd_version(_: argparse.Namespace) -> int:
     print(f"swelter {__version__}")
+    return 0
+
+
+def cmd_crosswalk(args: argparse.Namespace) -> int:
+    """Print the outbound parameter crosswalk (swelter -> OpenAQ / Sensor.Community). Read-only,
+    no network — a static in-memory table (see :mod:`swelter.crosswalk`)."""
+    rows = crosswalk.crosswalk_table()
+    if args.format == "json":
+        print(json.dumps(rows, indent=2))
+        return 0
+    fields = list(rows[0].keys()) if rows else []
+    writer = csv.DictWriter(sys.stdout, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(rows)
     return 0
 
 
@@ -801,6 +910,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--node", default=None)
     p_exp.add_argument("--parameter", default=None)
     p_exp.add_argument("--bbox", default=None, help="named area (reserved; see docs/api.md)")
+    p_exp.add_argument(
+        "--license",
+        default=export.DEFAULT_LICENSE,
+        help="license of the exported data (default: CC0-1.0, the store's native default; "
+        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+    )
+    p_exp.add_argument(
+        "--attribution", default=None, help="attribution text to carry alongside --license"
+    )
     add_store(p_exp)
     add_interval(p_exp)
     p_exp.set_defaults(func=cmd_export)
@@ -869,6 +987,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.add_argument("--config", default="network.real.yaml", help="where to write the network")
     p_fetch.add_argument("--web", default=DEFAULT_WEB)
     p_fetch.add_argument(
+        "--accumulate",
+        action="store_true",
+        help="keep the existing store between runs instead of wiping it first, so history "
+        "builds up across repeated fetches (e.g. daily CI) instead of one snapshot per run",
+    )
+    p_fetch.add_argument(
         "--past-days", type=int, default=2, help="openmeteo: history window (days)"
     )
     p_fetch.add_argument("--forecast-days", type=int, default=1)
@@ -895,8 +1019,32 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild)
 
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="freeze a citable, versioned data release (MANIFEST + dataset CITATION.cff/.txt)",
+    )
+    add_store(p_snap)
+    p_snap.add_argument("--out", default="dist/snapshot", help="directory to write the release to")
+    p_snap.add_argument(
+        "--version", default=__version__, help="release version (defaults to the swelter version)"
+    )
+    p_snap.add_argument(
+        "--doi",
+        default="",
+        help="DOI for this release, if one has been minted (e.g. via Zenodo/DataCite); "
+        "omit for a clearly-labelled placeholder",
+    )
+    p_snap.set_defaults(func=cmd_snapshot)
+
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)
+
+    p_cross = sub.add_parser(
+        "crosswalk",
+        help="print the outbound parameter crosswalk (swelter -> OpenAQ / Sensor.Community)",
+    )
+    p_cross.add_argument("--format", choices=("csv", "json"), default="csv")
+    p_cross.set_defaults(func=cmd_crosswalk)
 
     return parser
 
