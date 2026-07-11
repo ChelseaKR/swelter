@@ -33,7 +33,14 @@ from . import (
     qc,
     snapshot,
 )
-from .config import NetworkConfig, consent_concerns, label_concerns, load_config
+from .config import (
+    NetworkConfig,
+    config_concerns,
+    consent_concerns,
+    label_concerns,
+    load_config,
+    load_config_doc,
+)
 from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
@@ -90,9 +97,18 @@ def _err(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _print_concerns(errors: list[str], warnings: list[str]) -> None:
+    for message in errors:
+        _err(f"swelter: ✗ {message}")
+    for message in warnings:
+        _err(f"swelter: ⚠ {message}")
+
+
 def _load_config(path: str) -> NetworkConfig:
     if Path(path).is_file():
-        config = load_config(path)
+        config, doc = load_config_doc(path)
+        errors, warnings = config_concerns(config, doc)
+        _print_concerns(errors, warnings)
         for concern in label_concerns(config):
             _err(f"swelter: ⚠ {concern}")
         for concern in consent_concerns(config):
@@ -626,7 +642,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if args.accumulate:
         network = _merge_network_doc(config_path, network)
     config_path.write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
-    config = load_config(args.config)
+    config = _load_config(args.config)  # parse it back so we fail loudly if the write was bad
 
     paths = store_paths(args.store)
     if not args.accumulate:
@@ -728,6 +744,32 @@ def cmd_init(args: argparse.Namespace) -> int:
     _err("      swelter demo --serve")
     _err(f"      …or run the pipeline against your own config with --config {path}")
     return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Validate a network.yaml loudly: report every mistake in one pass, exit nonzero on errors.
+
+    Unlike the other subcommands (which load a config and keep going so a typo does not take down
+    a running network), `doctor` is the strict gate — the thing to run before committing a
+    `network.yaml` change, and the thing CI can run on a PR. It reuses the same checks
+    (`config_concerns`, `label_concerns`) the other subcommands print warnings from on load.
+    """
+    path = Path(args.config)
+    if not path.is_file():
+        _err(f"swelter: config {path} not found")
+        return 1
+    config, doc = load_config_doc(str(path))
+    errors, warnings = config_concerns(config, doc)
+    warnings = [*warnings, *label_concerns(config)]
+    if not errors and not warnings:
+        _err(f"swelter: {path} — clean ({len(config.nodes)} nodes, no concerns)")
+        return 0
+    _print_concerns(errors, warnings)
+    _err(
+        f"swelter: {path} — {len(errors)} error(s), {len(warnings)} warning(s)"
+        + (" — fix the errors above before deploying" if errors else "")
+    )
+    return 1 if errors else 0
 
 
 def cmd_version(_: argparse.Namespace) -> int:
@@ -943,6 +985,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_rebuild)
     add_config(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild)
+
+    p_doctor = sub.add_parser(
+        "doctor", help="validate network.yaml loudly; exit nonzero on any error"
+    )
+    add_config(p_doctor)
+    p_doctor.set_defaults(func=cmd_doctor)
 
     p_snap = sub.add_parser(
         "snapshot",
