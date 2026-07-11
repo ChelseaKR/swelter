@@ -156,6 +156,7 @@ class TestSigningAndVerification:
         reason = ingest_server.verify_request(
             keys, None, "2026-07-01T12:00:00Z", "sig", body, now=now
         )
+        assert reason is not None
         assert "missing" in reason.lower()
 
     def test_verify_unknown_node(self) -> None:
@@ -166,6 +167,7 @@ class TestSigningAndVerification:
         reason = ingest_server.verify_request(
             keys, "unknown-node", "2026-07-01T12:00:00Z", "sig", body, now=now
         )
+        assert reason is not None
         assert "unknown" in reason.lower()
 
     def test_verify_replay_too_old(self) -> None:
@@ -182,6 +184,7 @@ class TestSigningAndVerification:
         reason = ingest_server.verify_request(
             keys, node_id, timestamp, signature, body, now=now, skew_s=300
         )
+        assert reason is not None
         assert "replay window" in reason.lower()
 
     def test_verify_replay_too_new(self) -> None:
@@ -198,6 +201,7 @@ class TestSigningAndVerification:
         reason = ingest_server.verify_request(
             keys, node_id, timestamp, signature, body, now=now, skew_s=300
         )
+        assert reason is not None
         assert "replay window" in reason.lower()
 
     def test_verify_signature_mismatch(self) -> None:
@@ -212,6 +216,7 @@ class TestSigningAndVerification:
         reason = ingest_server.verify_request(
             keys, node_id, timestamp, bad_signature, body, now=now, skew_s=300
         )
+        assert reason is not None
         assert "signature mismatch" in reason.lower()
 
     def test_verify_altered_body(self) -> None:
@@ -227,6 +232,7 @@ class TestSigningAndVerification:
         reason = ingest_server.verify_request(
             keys, node_id, timestamp, signature, b"altered payload", now=now, skew_s=300
         )
+        assert reason is not None
         assert "signature mismatch" in reason.lower()
 
 
@@ -355,7 +361,9 @@ FIXED_NOW = parse_timestamp(FIXED_TIMESTAMP).timestamp()
 
 def _post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
     """POST over a real socket and return (status, parsed-JSON-body) whether it's a 2xx or not."""
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    request = urllib.request.Request(  # noqa: S310 (localhost)
+        url, data=body, headers=headers, method="POST"
+    )
     try:
         with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 (localhost)
             return response.status, json.loads(response.read().decode("utf-8"))

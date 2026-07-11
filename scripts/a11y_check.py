@@ -48,8 +48,24 @@ class _Collector(HTMLParser):
         self.page = Page()
         self._in_title = False
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        a = {k: (v or "") for k, v in attrs}
+    def _handle_control_or_media_tag(self, tag: str, a: dict[str, str]) -> bool:
+        """Handle the form-control / image / skip-link tags. Returns True if ``tag`` matched."""
+        page = self.page
+        if tag in {"input", "select", "textarea"}:
+            page.controls.append(
+                (a.get("id") or None, bool(a.get("aria-label") or a.get("aria-labelledby")))
+            )
+        elif tag == "img":
+            page.imgs_total += 1
+            if "alt" in a:
+                page.imgs_with_alt += 1
+        elif tag == "a" and a.get("href", "").startswith("#"):
+            page.skip_link_targets.add(a["href"][1:])
+        else:
+            return False
+        return True
+
+    def _handle_tag_specific(self, tag: str, a: dict[str, str]) -> None:
         page = self.page
         if tag == "html":
             page.html_lang = a.get("lang")
@@ -63,16 +79,11 @@ class _Collector(HTMLParser):
             page.has_table = True
         elif tag == "label" and a.get("for"):
             page.label_for.add(a["for"])
-        elif tag in {"input", "select", "textarea"}:
-            page.controls.append(
-                (a.get("id") or None, bool(a.get("aria-label") or a.get("aria-labelledby")))
-            )
-        elif tag == "img":
-            page.imgs_total += 1
-            if "alt" in a:
-                page.imgs_with_alt += 1
-        elif tag == "a" and a.get("href", "").startswith("#"):
-            page.skip_link_targets.add(a["href"][1:])
+        else:
+            self._handle_control_or_media_tag(tag, a)
+
+    def _handle_common_attrs(self, a: dict[str, str]) -> None:
+        page = self.page
         if a.get("id"):
             page.ids.add(a["id"])
         if a.get("role") == "main":
@@ -82,6 +93,11 @@ class _Collector(HTMLParser):
         if a.get("tabindex"):
             with contextlib.suppress(ValueError):
                 page.max_tabindex = max(page.max_tabindex, int(a["tabindex"]))
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        a = {k: (v or "") for k, v in attrs}
+        self._handle_tag_specific(tag, a)
+        self._handle_common_attrs(a)
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "title":

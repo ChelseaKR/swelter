@@ -117,8 +117,9 @@ class SqliteStore:
         if not rows:
             return WriteResult(0, 0)
         before = self._total_changes()
+        # `_COLUMNS` is a fixed module-level constant, not user input; row values are bound via `?`.
         self._conn.executemany(
-            f"INSERT OR IGNORE INTO observations ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT OR IGNORE INTO observations ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",  # noqa: S608
             rows,
         )
         self._conn.commit()
@@ -154,14 +155,21 @@ class SqliteStore:
         if until is not None:
             clauses.append("timestamp <= ?")
             params.append(format_timestamp(parse_timestamp(until)))
+        # `clauses` are fixed column-name strings from the enumerated kwargs above (never user
+        # text); every value is bound via `?` in `params`. `_COLUMNS` is a fixed constant too.
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        sql = f"SELECT {_COLUMNS} FROM observations{where} ORDER BY node_id, parameter, timestamp"
+        sql = f"SELECT {_COLUMNS} FROM observations{where} ORDER BY node_id, parameter, timestamp"  # noqa: S608
+        # This is stdlib sqlite3 (no SQLAlchemy in this project at all); `sql` is built from fixed
+        # column/clause strings above, never user text, and every value is bound via `?`.
+        # nosemgrep: sqlalchemy-execute-raw-query
         cur = self._conn.execute(sql, params)
         return [_row_to_obs(row) for row in cur.fetchall()]
 
     def all(self) -> Iterator[Observation]:
+        # `_COLUMNS` is a fixed module-level constant, not user input; no values are interpolated.
+        # nosemgrep: formatted-sql-query,sqlalchemy-execute-raw-query
         cur = self._conn.execute(
-            f"SELECT {_COLUMNS} FROM observations ORDER BY node_id, parameter, timestamp"
+            f"SELECT {_COLUMNS} FROM observations ORDER BY node_id, parameter, timestamp"  # noqa: S608
         )
         for row in cur:
             yield _row_to_obs(row)

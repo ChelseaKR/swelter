@@ -14,10 +14,12 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from statistics import median
+from statistics import median, pstdev
 
 from . import integrity
+from .config import TwinWindow
 from .models import (
     PARAMETERS,
     QC_FLATLINE,
@@ -56,27 +58,28 @@ def range_flag(obs: Observation) -> str:
     return QC_OK
 
 
-def _series_flags(series: list[Observation]) -> list[str]:
-    """Flag one node/parameter series (assumed timestamp-sorted)."""
-    n = len(series)
-    flags = [range_flag(o) for o in series]
+def _flag_spikes(series: list[Observation], flags: list[str], n: int) -> None:
+    """Mark isolated departures from the local median of the two neighbours, in place.
 
-    # Spike: isolated departure from the local median of the two neighbours. Only QC-clean
-    # neighbours count — an already-flagged out-of-range neighbour would drag the median and
-    # mislabel a perfectly valid reading next to a fault as a spike.
+    Only QC-clean neighbours count — an already-flagged out-of-range neighbour would drag the
+    median and mislabel a perfectly valid reading next to a fault as a spike.
+    """
     threshold = _SPIKE_THRESHOLD.get(series[0].parameter) if series else None
-    if threshold is not None:
-        for i in range(1, n - 1):
-            if flags[i] != QC_OK:
-                continue
-            neighbours = [series[j].value for j in (i - 1, i + 1) if flags[j] == QC_OK]
-            if not neighbours:
-                continue  # both neighbours are faulty — no clean baseline to judge against
-            local = median(neighbours)
-            if abs(series[i].value - local) > threshold:
-                flags[i] = QC_SPIKE
+    if threshold is None:
+        return
+    for i in range(1, n - 1):
+        if flags[i] != QC_OK:
+            continue
+        neighbours = [series[j].value for j in (i - 1, i + 1) if flags[j] == QC_OK]
+        if not neighbours:
+            continue  # both neighbours are faulty — no clean baseline to judge against
+        local = median(neighbours)
+        if abs(series[i].value - local) > threshold:
+            flags[i] = QC_SPIKE
 
-    # Flatline: a run of FLATLINE_RUN identical values means the sensor is stuck.
+
+def _flag_flatline(series: list[Observation], flags: list[str], n: int) -> None:
+    """Mark a run of ``FLATLINE_RUN`` identical values as a stuck sensor, in place."""
     run_start = 0
     for i in range(1, n + 1):
         if i < n and series[i].value == series[run_start].value:
@@ -86,6 +89,14 @@ def _series_flags(series: list[Observation]) -> list[str]:
                 if flags[j] == QC_OK:
                     flags[j] = QC_FLATLINE
         run_start = i
+
+
+def _series_flags(series: list[Observation]) -> list[str]:
+    """Flag one node/parameter series (assumed timestamp-sorted)."""
+    n = len(series)
+    flags = [range_flag(o) for o in series]
+    _flag_spikes(series, flags, n)
+    _flag_flatline(series, flags, n)
     return flags
 
 
@@ -138,6 +149,108 @@ def detect_gaps(
 
 
 @dataclass(frozen=True)
+class TwinAgreement:
+    """Inter-sensor agreement between two co-located low-cost nodes over a :class:`TwinWindow`.
+
+    This bounds **precision**, never accuracy: two twins that agree tightly rule out sensor
+    noise as the dominant source of disagreement, but say nothing about whether either twin
+    reads *true* — that needs a reference monitor (``calibrate.py``). QC/health metadata only;
+    see ``twin_agreement`` and ``docs/calibration.md`` for the "cross-checked ≠ calibrated"
+    framing.
+    """
+
+    node_a: str
+    node_b: str
+    parameter: str
+    n_pairs: int
+    residual_spread: float
+    window: TwinWindow
+
+
+def _window_series(
+    obs: list[Observation],
+    node_id: str,
+    parameter: str,
+    start: datetime | None,
+    end: datetime | None,
+) -> list[Observation]:
+    """This node's readings of this parameter within [start, end], timestamp-sorted."""
+    series = [
+        o
+        for o in obs
+        if o.node_id == node_id
+        and o.parameter == parameter
+        and (start is None or parse_timestamp(o.timestamp) >= start)
+        and (end is None or parse_timestamp(o.timestamp) <= end)
+    ]
+    series.sort(key=lambda o: parse_timestamp(o.timestamp))
+    return series
+
+
+def _pair_by_nearest_timestamp(
+    series_a: list[Observation], series_b: list[Observation], tol_s: float
+) -> list[float]:
+    """Greedily pair two timestamp-sorted series by nearest match within ``tol_s`` seconds.
+
+    A merge-style walk (mirrors ``detect_gaps``'s sorted-series approach): each reading pairs
+    with at most one reading from the other series, so a twin with a denser cadence than its
+    partner does not inflate ``n_pairs`` by matching the same partner reading twice.
+    """
+    residuals: list[float] = []
+    i = j = 0
+    while i < len(series_a) and j < len(series_b):
+        delta = parse_timestamp(series_b[j].timestamp) - parse_timestamp(series_a[i].timestamp)
+        delta_s = delta.total_seconds()
+        if abs(delta_s) <= tol_s:
+            residuals.append(series_a[i].value - series_b[j].value)
+            i += 1
+            j += 1
+        elif delta_s < 0:
+            j += 1
+        else:
+            i += 1
+    return residuals
+
+
+def twin_agreement(
+    observations: Iterable[Observation],
+    twin_windows: Iterable[TwinWindow],
+    *,
+    tol_s: float = 300.0,
+) -> list[TwinAgreement]:
+    """Cross-checked precision tier: how well co-located low-cost twins agree with each other.
+
+    For each configured :class:`TwinWindow`, both nodes' readings of the same parameter within
+    ``[start, end]`` are paired by nearest timestamp (within ``tol_s`` seconds) and the spread
+    of the paired residuals (``value_a - value_b``) is reported alongside how many pairs
+    matched. A tight spread bounds **precision** — the twins agree with each other — never
+    **accuracy** — whether either twin reads true, which only a reference-monitor co-location
+    (``calibrate.py``) can establish. This is annotation only: no :class:`Observation` value is
+    touched and no calibration version is assigned (hard rule #3 — values stay raw).
+    """
+    obs = list(observations)
+    results: list[TwinAgreement] = []
+    for window in twin_windows:
+        start = parse_timestamp(window.start) if window.start else None
+        end = parse_timestamp(window.end) if window.end else None
+        series_a = _window_series(obs, window.node_a, window.parameter, start, end)
+        series_b = _window_series(obs, window.node_b, window.parameter, start, end)
+        residuals = _pair_by_nearest_timestamp(series_a, series_b, tol_s)
+        spread = round(pstdev(residuals), 6) if residuals else 0.0
+        results.append(
+            TwinAgreement(
+                node_a=window.node_a,
+                node_b=window.node_b,
+                parameter=window.parameter,
+                n_pairs=len(residuals),
+                residual_spread=spread,
+                window=window,
+            )
+        )
+    return results
+
+
+@dataclass(frozen=True)
 class NodeHealth:
     """A node's liveness and data-quality summary, for the operator dashboard."""
 
@@ -164,6 +277,21 @@ class NodeHealth:
         return "ok"
 
 
+def _twin_agreement_json(agreements: list[TwinAgreement]) -> list[dict[str, object]]:
+    return [
+        {
+            "node_a": a.node_a,
+            "node_b": a.node_b,
+            "parameter": a.parameter,
+            "n_pairs": a.n_pairs,
+            "residual_spread": a.residual_spread,
+            "window_start": a.window.start,
+            "window_end": a.window.end,
+        }
+        for a in agreements
+    ]
+
+
 def health_report(
     observations: Iterable[Observation],
     *,
@@ -171,6 +299,7 @@ def health_report(
     max_gaps: int = 10,
     coverage: dict[str, object] | None = None,
     store_dir: str | Path | None = None,
+    twin_windows: Iterable[TwinWindow] = (),
 ) -> dict[str, object]:
     """A JSON-able network-health summary — per-node status, a count by status, and the worst gaps.
 
@@ -181,8 +310,15 @@ def health_report(
     tamper-evidence chain head, read cheaply from ``digests.jsonl`` (:func:`swelter.integrity.
     read_head`) rather than re-hashing the whole store on every request — ``available`` is false
     until a steward runs ``swelter verify-archive --write`` at least once.
+
+    ``twin_windows`` is optional and defaults to empty, so callers that do not configure sensor
+    twins get exactly the JSON shape they always have — no ``twin_agreement`` key at all. When
+    given, the cross-checked precision tier (:func:`twin_agreement`) rides along under
+    ``twin_agreement``. This is QC/health metadata only: it never touches an observation's value
+    (hard rule #3) and it bounds precision, never accuracy — see ``docs/calibration.md``.
     """
     obs = list(observations)
+    twins = list(twin_windows)
     if not obs:
         report: dict[str, object] = {
             "interval_s": expected_interval_s,
@@ -194,6 +330,8 @@ def health_report(
             report["coverage_equity"] = coverage
         if store_dir is not None:
             report["integrity"] = _integrity_block(store_dir)
+        if twins:
+            report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
         return report
     latest = max(o.timestamp for o in obs)
     gaps = detect_gaps(obs, expected_interval_s)
@@ -237,6 +375,8 @@ def health_report(
         report["coverage_equity"] = coverage
     if store_dir is not None:
         report["integrity"] = _integrity_block(store_dir)
+    if twins:
+        report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
     return report
 
 

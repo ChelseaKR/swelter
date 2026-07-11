@@ -11,17 +11,30 @@ from __future__ import annotations
 
 import contextlib
 import gzip
+import hashlib
 import json
 import mimetypes
+import os
+import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import aggregate, alerts, api, cooling_centers, export, qc
+from . import aggregate, alerts, api, cooling_centers, export, obs, qc
+from .aggregate import Surface
 from .config import NetworkConfig
 from .models import RAW
-from .store import Store
+from .store import SqliteStore, Store
+
+#: Opt-in request logging (method/path/status/ms only, never IPs — hard rule 1). Off by
+#: default: a community dashboard's request log is operationally uninteresting until someone
+#: asks for it, and JSON lines on stderr are noise for the common `swelter serve` terminal use.
+_REQUEST_LOG_ENV = "SWELTER_LOG_REQUESTS"
+
+
+def _request_logging_enabled() -> bool:
+    return os.environ.get(_REQUEST_LOG_ENV, "").strip().lower() in ("1", "true", "yes", "on")
 
 
 @dataclass
@@ -33,17 +46,104 @@ class ServerContext:
     web_dir: Path
     base_url: str = "http://localhost:8000"
     cooling_centers_path: Path | None = None  # curated cooling-center dataset (optional overlay)
-    store_dir: Path | None = None  # store folder, for the /api/health.json integrity chain head
+    # The store directory `/api/health.json` reads `run-manifest.json` (obs.read_manifest) and
+    # the integrity chain head (qc.health_report's store_dir) from. None when a caller builds a
+    # ServerContext without a store-backed pipeline run behind it (e.g. tests); the health
+    # report simply omits the `run` and `integrity` blocks in that case.
+    store_dir: Path | None = None
 
 
-def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
+def _store_version(store: Store) -> object:
+    """A cheap fingerprint of the store's contents, or ``None`` if it can't be fingerprinted.
+
+    The store is append-only for raw rows, but ``drop_calibrated()`` (the rebuild path) deletes
+    and rewrites derived rows *without changing the row count* — so the version key must include
+    a change counter, not just ``count()``, or a rebuild would serve a stale cached surface.
+    """
+    if isinstance(store, SqliteStore):
+        return ("sqlite", store.count(), store._total_changes())
+    path = getattr(store, "path", None)
+    if path is not None:
+        candidate = Path(path)
+        if candidate.is_file():
+            return ("mtime", candidate.stat().st_mtime_ns)
+    return None  # unknown backend: no fingerprint available, so no caching
+
+
+def _etag_matches(if_none_match: str, etag: str) -> bool:
+    if if_none_match.strip() == "*":
+        return True
+    quoted = f'"{etag}"'
+    return any(
+        token.strip().removeprefix("W/") in (etag, quoted) for token in if_none_match.split(",")
+    )
+
+
+class _ResponseCache:
+    """Process-lifetime cache: the aggregated surface plus precomputed response bodies.
+
+    Keyed on ``_store_version()``. A single slot is kept (not one per version) because the
+    store only ever has one "current" version at a time; a version bump invalidates everything
+    at once rather than accumulating stale entries.
+    """
+
+    def __init__(self) -> None:
+        self.version: object = object()  # sentinel that matches no real version
+        self.surface: Surface | None = None
+        self.bodies: dict[str, tuple[bytes, bytes | None, str]] = {}
+
+    def surface_for(self, store: Store, config: NetworkConfig) -> Surface:
+        version = _store_version(store)
+        if version is None or version != self.version:
+            surface = aggregate.aggregate(store.all(), config)
+            if version is not None:
+                self.version = version
+                self.surface = surface
+                self.bodies = {}  # the store moved on; every cached body is now stale
+            return surface
+        assert self.surface is not None  # noqa: S101 (version matched => prior compute set it)
+        return self.surface
+
+    def body_for(self, store: Store, cache_id: str) -> tuple[bytes, bytes | None, str] | None:
+        version = _store_version(store)
+        if version is None or version != self.version:
+            return None  # store moved since the surface was last computed; caller must rebuild
+        return self.bodies.get(cache_id)
+
+    def store_body(
+        self, store: Store, cache_id: str, entry: tuple[bytes, bytes | None, str]
+    ) -> None:
+        version = _store_version(store)
+        if version is not None and version == self.version:
+            self.bodies[cache_id] = entry
+
+
+def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901
+    # Ruff's mccabe walker sums every nested method's branches into this factory function because
+    # the handler class is defined inside it (closure over `ctx`, the stdlib http.server pattern);
+    # most methods below are independently simple. Documented exception, not a silent one — see
+    # swelter-REMEDIATION.md Quick win 5 (CQ-05).
+    cache = _ResponseCache()
+
     class Handler(BaseHTTPRequestHandler):
         server_version = "swelter/0.1"
+        _status_sent: int = 0  # set by send_response(); read for optional request logging
+        # BaseHTTPRequestHandler honors this for socket reads/writes: a client that opens a
+        # connection and trickles bytes (or none) no longer ties up the single request thread
+        # indefinitely. Slow-loris defense without switching off the single-threaded model
+        # (ADR 0005 — the one SQLite reader stays serialised).
+        timeout = 10
 
         def log_message(self, *_: object) -> None:  # keep stdout clean; structured logs elsewhere
             return
 
-        def do_GET(self) -> None:  # noqa: N802 (http.server API)
+        def send_response(self, code: int, message: str | None = None) -> None:
+            self._status_sent = code  # captured for optional request logging, never IPs
+            super().send_response(code, message)
+
+        def do_GET(self) -> None:  # noqa: N802, C901 (http.server API; flat route dispatch, see above)
+            started = time.monotonic()
+            self._status_sent = 0
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"  # normalise trailing slashes
             query = parse_qs(parsed.query)
@@ -89,6 +189,17 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
                 self._safe_error(400, f"bad request: {exc}")
             except Exception:  # never drop the connection with no response
                 self._safe_error(500, "internal error")
+            finally:
+                if _request_logging_enabled():
+                    ms = round((time.monotonic() - started) * 1000, 1)
+                    obs.log_event(
+                        "server",
+                        "request",
+                        method="GET",
+                        path=path,
+                        status=self._status_sent,
+                        ms=ms,
+                    )
 
         def do_POST(self) -> None:  # noqa: N802
             self._safe_error(405, "swelter's public API is read-only")
@@ -134,23 +245,30 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             )
 
         def _surface(self) -> None:
-            surface = aggregate.aggregate(ctx.store.all(), ctx.config)
-            self._json(surface.snapshot_geojson(), content_type="application/geo+json")
+            surface = cache.surface_for(ctx.store, ctx.config)
+            self._json(
+                surface.snapshot_geojson(),
+                content_type="application/geo+json",
+                cache_id="surface.geojson",
+            )
 
         def _surface_records(self, query: dict[str, list[str]]) -> None:
             # Flat per-(cell, hour, parameter) records for the dashboard's time slider,
             # trimmed to the most recent `hours` buckets to keep the payload small.
-            surface = aggregate.aggregate(ctx.store.all(), ctx.config)
+            surface = cache.surface_for(ctx.store, ctx.config)
             hours = max(0, int(_one(query, "hours") or "48"))
             buckets = sorted({c.bucket for c in surface.cells})[-hours:] if hours else []
             keep = set(buckets)
             records = [c.as_record() for c in surface.cells if c.bucket in keep]
-            self._json({"interval": surface.interval, "buckets": buckets, "cells": records})
+            self._json(
+                {"interval": surface.interval, "buckets": buckets, "cells": records},
+                cache_id=f"surface.json:hours={hours}",
+            )
 
         def _alerts(self, query: dict[str, list[str]], *, fmt: str) -> None:
             # The generated neighborhood-alerts feed: cells crossing a danger threshold in the
             # latest hour. `?area=<area_id>` narrows it to one cell (the per-neighborhood feed).
-            surface = aggregate.aggregate(ctx.store.all(), ctx.config)
+            surface = cache.surface_for(ctx.store, ctx.config)
             feed = alerts.build_feed(
                 surface,
                 network=ctx.config.name,
@@ -160,10 +278,15 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             area = _one(query, "area")
             if area:
                 feed = feed.for_area(area)
+            cache_id = f"alerts.{fmt}:area={area or ''}"
             if fmt == "atom":
-                self._body(feed.to_atom().encode("utf-8"), "application/atom+xml; charset=utf-8")
+                self._body(
+                    feed.to_atom().encode("utf-8"),
+                    "application/atom+xml; charset=utf-8",
+                    cache_id=cache_id,
+                )
             else:
-                self._json(feed.to_json())
+                self._json(feed.to_json(), cache_id=cache_id)
 
         def _cooling_centers(self) -> None:
             # The curated cooling-center overlay. Served validated; an absent/empty dataset
@@ -181,11 +304,22 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             # calibrated-vs-raw coverage-equity read rides along (needs the full stream + config to
             # know which nodes are calibrated and which published cell each sits in).
             coverage = qc.coverage_equity(ctx.store.all(), aggregate.node_cell_map(ctx.config))
-            self._json(
-                qc.health_report(
-                    ctx.store.read(calibration=RAW), coverage=coverage, store_dir=ctx.store_dir
-                )
+            report = qc.health_report(
+                ctx.store.read(calibration=RAW), coverage=coverage, store_dir=ctx.store_dir
             )
+            # Name the pipeline run that built the currently-published surface, if one has run
+            # against this store (obs.write_manifest, wired into ingest/calibrate/aggregate/demo).
+            # A store predating this feature, or one no pipeline command has touched yet, simply
+            # gets no `run` block rather than a broken health endpoint.
+            if ctx.store_dir is not None:
+                manifest = obs.read_manifest(ctx.store_dir)
+                if manifest is not None:
+                    report["run"] = {
+                        "run_id": manifest.get("run_id"),
+                        "finished_at": manifest.get("finished_at"),
+                        "counters": manifest.get("counters"),
+                    }
+            self._json(report)
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(
@@ -220,28 +354,58 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:
             else:
                 self._safe_error(404, "not found")
 
-        def _json(self, payload: object, content_type: str = "application/json") -> None:
-            self._body(json.dumps(payload).encode("utf-8"), content_type)
+        def _json(
+            self,
+            payload: object,
+            content_type: str = "application/json",
+            *,
+            cache_id: str | None = None,
+        ) -> None:
+            self._body(json.dumps(payload).encode("utf-8"), content_type, cache_id=cache_id)
 
-        def _body(self, data: bytes, content_type: str) -> None:
-            encoded = False
-            if (
-                "gzip" in self.headers.get("Accept-Encoding", "")
-                and len(data) > 1024
-                and _compressible(content_type)
-            ):
-                data = gzip.compress(data)
-                encoded = True
+        def _body(self, data: bytes, content_type: str, *, cache_id: str | None = None) -> None:
+            # `cache_id` names one of the "big three" aggregated payloads (surface/alerts); it
+            # keys a process-lifetime cache of the compressed bytes + ETag alongside the cached
+            # Surface, so a repeat request within the same store version skips re-gzip and
+            # re-hash entirely. Endpoints that pass no `cache_id` (static files, exports, the
+            # observation feed) still get an ETag, just computed fresh each time — they are
+            # already cheap, so precomputing would only add bookkeeping.
+            cached = cache.body_for(ctx.store, cache_id) if cache_id is not None else None
+            if cached is not None:
+                data, gzip_data, etag = cached
+            else:
+                etag = hashlib.sha256(data).hexdigest()[:16]
+                compressible = len(data) > 1024 and _compressible(content_type)
+                if cache_id is not None:
+                    gzip_data = gzip.compress(data) if compressible else None
+                    cache.store_body(ctx.store, cache_id, (data, gzip_data, etag))
+                else:
+                    want_gzip = compressible and "gzip" in self.headers.get("Accept-Encoding", "")
+                    gzip_data = gzip.compress(data) if want_gzip else None
+
+            if_none_match = self.headers.get("If-None-Match")
+            if if_none_match and _etag_matches(if_none_match, etag):
+                # A 304 carries no body — RFC 9110 forbids Content-Length here.
+                self.send_response(304)
+                self.send_header("ETag", f'"{etag}"')
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Cache-Control", "public, max-age=60")
+                self.end_headers()
+                return
+
+            encoded = gzip_data is not None and "gzip" in self.headers.get("Accept-Encoding", "")
+            body = gzip_data if (encoded and gzip_data is not None) else data
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             if encoded:
                 self.send_header("Content-Encoding", "gzip")
                 self.send_header("Vary", "Accept-Encoding")
-            self.send_header("Content-Length", str(len(data)))
+            self.send_header("ETag", f'"{etag}"')
+            self.send_header("Content-Length", str(len(body)))
             self.send_header("Access-Control-Allow-Origin", "*")  # open data: read from anywhere
             self.send_header("Cache-Control", "public, max-age=60")
             self.end_headers()
-            self.wfile.write(data)
+            self.wfile.write(body)
 
     return Handler
 
@@ -263,6 +427,8 @@ def make_server(ctx: ServerContext, host: str, port: int) -> HTTPServer:
     Single-threaded on purpose: a community dashboard sits behind a static cache / CDN and
     needs almost no concurrency, and serialising requests keeps the one SQLite reader safe.
     """
+    if _request_logging_enabled():
+        obs.configure_json_logging()
     return HTTPServer((host, port), _make_handler(ctx))
 
 

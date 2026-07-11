@@ -7,6 +7,7 @@ from pathlib import Path
 
 from swelter import calibrate
 from swelter.calibrate import CorrectionRegistry, TrainingPair
+from swelter.models import heat_index_c
 
 from .conftest import DEMO, make_obs
 
@@ -90,3 +91,77 @@ def test_published_corrections_are_reproducible() -> None:
     assert fitted.to_dict() == published.to_dict()
     assert len(fitted) == len(published)
     assert len(fitted) > 0 and len(fitted) % 3 == 0  # 3 parameters per calibrated node
+
+
+def _temp_registry() -> CorrectionRegistry:
+    registry = CorrectionRegistry()
+    registry.add(
+        calibrate.fit_one("node-01", "temp_c", _pairs("temp_c", lambda i: 2.0 * i + 1.0), "ref")
+    )
+    return registry
+
+
+def test_heat_index_derives_from_calibrated_temp_and_co_timed_humidity() -> None:
+    """A calibrated temp_c plus co-timed raw humidity derives a calibrated heat_index_c."""
+    registry = _temp_registry()
+    ts = "2026-06-01T00:00:00Z"
+    observations = [
+        make_obs(parameter="temp_c", value=10.0, timestamp=ts),  # -> 21.0 via the fit above
+        make_obs(parameter="humidity_pct", unit="%", value=65.0, timestamp=ts),
+        make_obs(parameter="heat_index_c", value=30.0, timestamp=ts),  # raw on-device reading
+    ]
+    out = calibrate.apply(observations, registry)
+
+    heat_calibrated = [o for o in out if o.parameter == "heat_index_c" and o.is_calibrated]
+    assert len(heat_calibrated) == 1
+    derived = heat_calibrated[0]
+    assert derived.calibration == "heat_index_c.derived-enclosure.node-01"
+    assert abs(derived.value - heat_index_c(21.0, 65.0)) < 1e-9
+
+    temp_correction = registry.get("node-01", "temp_c")
+    assert temp_correction is not None
+    assert derived.uncertainty == temp_correction.residual_std
+
+    # The raw heat_index_c reading still passes through unchanged.
+    heat_raw = [o for o in out if o.parameter == "heat_index_c" and not o.is_calibrated]
+    assert len(heat_raw) == 1
+    assert heat_raw[0].value == 30.0
+
+    # No new registry entry was created: the derivation never touches corrections.yaml.
+    assert registry.get("node-01", "heat_index_c") is None
+    assert all(c.parameter != "heat_index_c" for c in registry.all())
+
+
+def test_heat_index_stays_provisional_when_temp_is_raw() -> None:
+    """A node with no temp_c correction gets no derived heat index — it stays raw/provisional."""
+    ts = "2026-06-01T00:00:00Z"
+    observations = [
+        make_obs(node_id="node-99", parameter="temp_c", value=10.0, timestamp=ts),
+        make_obs(node_id="node-99", parameter="humidity_pct", unit="%", value=65.0, timestamp=ts),
+        make_obs(node_id="node-99", parameter="heat_index_c", value=30.0, timestamp=ts),
+    ]
+    out = calibrate.apply(observations, CorrectionRegistry())  # no corrections at all
+    heat = [o for o in out if o.parameter == "heat_index_c"]
+    assert len(heat) == 1
+    assert not heat[0].is_calibrated
+    assert heat[0].value == 30.0
+
+
+def test_heat_index_derivation_leaves_corrections_registry_byte_for_byte() -> None:
+    """Deriving heat index during apply() never adds a fitted entry to the published registry."""
+    fitted = calibrate.fit(calibrate.read_colocation(DEMO / "colocation.jsonl"))
+    published = CorrectionRegistry.from_yaml(DEMO / "corrections.yaml")
+
+    ts = "2026-06-01T00:00:00Z"
+    observations = [
+        make_obs(node_id="node-01", parameter="temp_c", value=25.09, timestamp=ts),
+        make_obs(node_id="node-01", parameter="humidity_pct", unit="%", value=74.4, timestamp=ts),
+        make_obs(node_id="node-01", parameter="heat_index_c", value=25.09, timestamp=ts),
+    ]
+    calibrate.apply(observations, fitted)  # exercised for its side-on-registry effects, if any
+
+    # The registry read from the committed file and the freshly re-fit registry are unaffected by
+    # having run apply() against them: still byte-for-byte identical, still no heat_index_c rows.
+    assert fitted.to_dict() == published.to_dict()
+    assert all(c.parameter != "heat_index_c" for c in fitted.all())
+    assert all(c.parameter != "heat_index_c" for c in published.all())
