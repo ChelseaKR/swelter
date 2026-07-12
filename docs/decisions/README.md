@@ -25,3 +25,4 @@ later ADR supersedes an earlier one.
 | [0014](0014-heat-index-derived-from-calibrated.md) | Derive calibrated heat index from calibrated temperature, don't fit it | accepted |
 | [0015](0015-strict-config-doctor.md) | Validate `network.yaml` loudly and add a `swelter doctor` gate | accepted |
 | [0016](0016-caveat-baked-share-card.md) | Bake the provisional label and hourly-window caveat into share-card pixels, not overlaid HTML | accepted |
+| [0017](0017-sensor-model-calibration-families.md) | Key calibration families by (parameter, sensor model), not parameter alone | accepted |

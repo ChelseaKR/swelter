@@ -61,6 +61,14 @@ worked example.
 
 ### EXP-03 — Sensor-model-aware calibration families
 
+**Status.** ✅ Implemented 2026-07-03 (branch `roadmap/exp-03-sensor-model-aware-calibration-fa`) —
+`NodeConfig.sensor_model` (rejects serial-number-like values, hard rule #1); `calibrate._MODEL_PREDICTORS`/
+`_MODEL_METHOD` keyed by (parameter, model) with fallback to parameter, then default; `Correction.model`
+serialized only when non-empty (demo registry rebuilds byte-for-byte); `sensor_community.py` now maps
+its known sensor type onto `sensor_model` instead of discarding it; per-model bias section in
+`docs/calibration.md` states plainly that a model-typical prior is never calibration and never promotes
+a node past provisional. See `docs/decisions/0017-sensor-model-calibration-families.md`.
+
 **Pitch.** Teach the pipeline what hardware produced a reading: an optional, public-safe
 `sensor_model` in `network.yaml` nodes, and per-model correction lineages (PMS5003 vs SDS011 vs
 SPS30 have different humidity responses).

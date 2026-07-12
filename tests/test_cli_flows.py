@@ -560,9 +560,9 @@ def test_fetch_sensor_community_empty_hints_europe(
 def test_fetch_sensor_community_routes_and_stores(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    nodes: dict[str, tuple[str, float, float]] = {"sc-1": ("Sensor 1", 48.7758, 9.1829)}
+    nodes: dict[str, tuple[str, float, float, str]] = {"sc-1": ("Sensor 1", 48.7758, 9.1829, "")}
 
-    def fake(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+    def fake(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
         return _real_temp("sc-1"), nodes
 
     monkeypatch.setattr(sensor_community, "fetch", fake)
@@ -703,13 +703,13 @@ def test_fetch_accumulate_merges_network_nodes_that_come_and_go(
     """A node missing from today's discovery keeps its prior config entry under --accumulate, so
     its history in the store stays resolvable by ``aggregate`` (the Shape's "nodes that come and
     go" reconciliation) — while a node seen again gets its entry refreshed from today's fetch."""
-    nodes_day1 = {"sc-1": ("Sensor 1", 48.7758, 9.1829), "sc-2": ("Sensor 2", 48.80, 9.20)}
-    nodes_day2 = {"sc-1": ("Sensor 1 (moved)", 48.7760, 9.1830)}  # sc-2 dropped out today
+    nodes_day1 = {"sc-1": ("Sensor 1", 48.7758, 9.1829, ""), "sc-2": ("Sensor 2", 48.80, 9.20, "")}
+    nodes_day2 = {"sc-1": ("Sensor 1 (moved)", 48.7760, 9.1830, "")}  # sc-2 dropped out today
 
-    def day1(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+    def day1(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
         return [make_obs(node_id="sc-1"), make_obs(node_id="sc-2")], nodes_day1
 
-    def day2(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+    def day2(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
         return [make_obs(node_id="sc-1")], nodes_day2
 
     cfg = tmp_path / "net.yaml"

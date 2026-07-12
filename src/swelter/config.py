@@ -13,6 +13,9 @@ Two privacy rules are enforced *here*, before any value reaches the map:
   is the only coordinate the rest of the system is allowed to read.
 * The precise coordinate is never required — a node with no location at all still ingests,
   it simply does not appear on the map until a host places it.
+* A node's optional ``sensor_model`` is a public hardware family string ("PMS5003", "SDS011",
+  "SPS30", ...), never a serial number or other per-device identifier — enforced at construction,
+  not just warned about (see ``_check_sensor_model``).
 """
 
 from __future__ import annotations
@@ -68,6 +71,44 @@ _LABEL_PII_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\b\d{3}[.\-\s]\d{3}[.\-\s]\d{4}\b"), "contains a phone number"),
 )
 
+# `sensor_model` is a public hardware *family* string ("PMS5003", "SDS011", "SPS30") published
+# alongside the node, never an instance identifier (hard rule #1: no field that can single out a
+# specific device/person). These heuristics catch the obvious serial-number shapes — a long digit
+# run, an explicit "serial"/"S/N" marker, a MAC address, a UUID — so a host cannot smuggle a
+# traceable device identifier into a field meant to name a product line. Real sensor model numbers
+# ("PMS5003", "SPS30") carry at most a handful of trailing digits, well under the 6-digit floor
+# below.
+_SENSOR_MODEL_SERIAL_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bs\W?/?\W?n\b", re.IGNORECASE), "looks like a serial-number marker (S/N)"),
+    (re.compile(r"\bserial\b", re.IGNORECASE), "looks like a serial-number marker"),
+    (re.compile(r"\d{6,}"), "contains a long digit run typical of a serial number"),
+    (re.compile(r"\b([0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}\b"), "looks like a MAC address"),
+    (
+        re.compile(
+            r"\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b"
+        ),
+        "looks like a UUID",
+    ),
+)
+
+
+def _check_sensor_model(value: str) -> None:
+    """Reject a ``sensor_model`` that looks like a device serial number, not a product family.
+
+    Hard rule #1: the schema has no field that can single out a specific device or person.
+    ``sensor_model`` is meant to name a hardware *family* ("PMS5003", "SDS011", "SPS30"), which is
+    public and shared across every node running that hardware; a serial number identifies one
+    physical unit and has no business here. This is enforced, not just warned about (unlike
+    ``label_concerns``), because a leaked serial number is a standing hard-rule violation, not a
+    style nit.
+    """
+    for pattern, why in _SENSOR_MODEL_SERIAL_PATTERNS:
+        if pattern.search(value):
+            raise ValueError(
+                f"sensor_model {value!r} {why} — sensor_model must be a public hardware family "
+                f"string (e.g. 'PMS5003', 'SDS011', 'SPS30'), never a serial number (hard rule #1)"
+            )
+
 
 @dataclass(frozen=True)
 class NodeConfig:
@@ -80,6 +121,15 @@ class NodeConfig:
     location: str = "coarse"  # "coarse" (snap to grid) or "precise" (host opted in)
     # governance-log entry recording host consent for a precise location (governance.md §4)
     consent_ref: str = ""
+    #: Public hardware family string, e.g. "PMS5003", "SDS011", "SPS30" — never a serial number or
+    #: any other per-device identifier (hard rule #1). Empty means unknown/unspecified, which is the
+    #: default and keeps every existing config valid. Selects a per-model calibration family in
+    #: ``calibrate.py`` when one is known, falling back to the per-parameter default otherwise.
+    sensor_model: str = ""
+
+    def __post_init__(self) -> None:
+        if self.sensor_model:
+            _check_sensor_model(self.sensor_model)
 
     def public_location(self, grid_m: float) -> tuple[float, float] | None:
         """The coordinate swelter is allowed to publish for this node.
@@ -226,6 +276,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
             lon=_as_float(n.get("lon")),
             location=_as_str(n.get("location"), "coarse"),
             consent_ref=_as_str(n.get("consent_ref")),
+            sensor_model=_as_str(n.get("sensor_model"), ""),
         )
         for n in doc.get("nodes", []) or []
     )

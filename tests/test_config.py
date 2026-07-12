@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
 from swelter.config import (
     NetworkConfig,
     NodeConfig,
@@ -145,6 +149,9 @@ def test_load_demo_network_yaml() -> None:
     assert 0 < len(windowed) < len(cfg.nodes)
     # The demo network's twin_windows example is committed commented-out (docs, not live config).
     assert cfg.twin_windows == ()
+    # None of the demo nodes carry a sensor_model — this is what keeps the committed corrections
+    # registry byte-for-byte reproducible (fit() falls back to the per-parameter default).
+    assert all(n.sensor_model == "" for n in cfg.nodes)
 
 
 def test_parse_config_reads_twin_windows() -> None:
@@ -172,6 +179,69 @@ def test_parse_config_reads_twin_windows() -> None:
 
 def test_twin_windows_default_empty() -> None:
     assert parse_config({"name": "x"}).twin_windows == ()
+
+
+# -- sensor_model (EXP-03) ----------------------------------------------------------------------
+
+
+def test_node_config_sensor_model_defaults_empty() -> None:
+    assert NodeConfig(node_id="node-01").sensor_model == ""
+
+
+def test_sensor_model_roundtrips_through_load_config(tmp_path: Path) -> None:
+    doc = tmp_path / "network.yaml"
+    doc.write_text(
+        "nodes:\n"
+        "- node_id: node-01\n"
+        "  lat: 1.0\n"
+        "  lon: 2.0\n"
+        "  sensor_model: PMS5003\n"
+        "- node_id: node-02\n"
+        "  lat: 1.0\n"
+        "  lon: 2.0\n",
+        encoding="utf-8",
+    )
+    cfg = load_config(doc)
+    node_1 = cfg.node("node-01")
+    node_2 = cfg.node("node-02")
+    assert node_1 is not None and node_1.sensor_model == "PMS5003"
+    assert node_2 is not None and node_2.sensor_model == ""  # unspecified
+
+
+def test_parse_config_reads_sensor_model() -> None:
+    cfg = parse_config(
+        {"nodes": [{"node_id": "node-01", "sensor_model": "SDS011"}]},
+    )
+    node = cfg.node("node-01")
+    assert node is not None
+    assert node.sensor_model == "SDS011"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "SN123456",  # explicit serial-number marker
+        "S/N: 4471829",
+        "PMS5003-000123456",  # a long digit run — a device instance, not a family
+        "serial 88213",
+        "AA:BB:CC:DD:EE:FF",  # MAC-address-shaped
+        "550e8400-e29b-41d4-a716-446655440000",  # UUID-shaped
+    ],
+)
+def test_sensor_model_rejects_serial_number_like_values(value: str) -> None:
+    with pytest.raises(ValueError, match="sensor_model"):
+        NodeConfig(node_id="node-01", sensor_model=value)
+
+
+@pytest.mark.parametrize("value", ["PMS5003", "SDS011", "SPS30", "BME280", ""])
+def test_sensor_model_accepts_public_family_strings(value: str) -> None:
+    node = NodeConfig(node_id="node-01", sensor_model=value)
+    assert node.sensor_model == value
+
+
+def test_parse_config_rejects_serial_like_sensor_model() -> None:
+    with pytest.raises(ValueError, match="sensor_model"):
+        parse_config({"nodes": [{"node_id": "node-01", "sensor_model": "SN000123456"}]})
 
 
 # -- config_concerns (strict validation / `swelter doctor`) ------------------

@@ -22,6 +22,13 @@ no opaque library:
 * **Reproducible.** Coefficients are rounded to a fixed precision, so re-running ``fit`` on the
   committed co-location data reproduces the published registry byte-for-byte. Anyone can check
   the calibration instead of trusting it.
+* **Sensor-model-aware families.** A node's optional ``sensor_model`` (public hardware family,
+  e.g. "PMS5003", "SDS011", "SPS30") selects a ``(parameter, model)`` correction family when one
+  is known — falling back to the per-parameter default for a node with no model or an
+  unrecognized one, so this never changes the fit for the demo network. Still fit only from that
+  node's own co-location evidence: a model changes which regression form is fit, never whether a
+  node has a correction, and never promotes a node past raw/provisional on its own (see
+  ``docs/calibration.md`` "Per-model bias").
 * **Heat index derived, not fitted.** There is no field reference for heat index to co-locate
   against, so it is never fit. Instead, ``apply`` recomputes it from a node's *already-calibrated*
   temperature plus co-timed humidity, using the same NWS Rothfusz function the demo generator uses.
@@ -74,6 +81,35 @@ _METHOD: dict[str, str] = {
 }
 _DEFAULT_METHOD = "linear"
 
+# Sensor-model-aware families: known PM sensor hardware has different humidity responses, so a
+# node whose model is known (``NodeConfig.sensor_model``) gets a family-specific predictor set
+# and/or method label instead of the per-parameter default. Keyed by (parameter, model); a
+# (parameter, model) pair absent here falls back to `_PREDICTORS`/`_METHOD` by parameter, then to
+# the defaults above — so a node with no model, or an unrecognized one, fits exactly as before.
+# This is *never* a change to the raw/calibrated boundary (hard rule #3): a model-aware correction
+# is still fit from that node's own co-location data; the model only picks which regression form
+# to fit. See docs/calibration.md "Per-model bias" for the documented rationale per family.
+#
+# - PMS5003 / SDS011 (no onboard humidity compensation): the same humidity-aware EPA-PurpleAir-
+#   lineage predictor set as the per-parameter default, but recorded under a model-specific method
+#   id so the registry and version id trace which family's bias the fit corrected.
+# - SPS30 (Sensirion firmware applies its own onboard RH compensation before the reading ever
+#   reaches swelter): the residual humidity dependence left to fit is small enough that a plain
+#   linear correction (no humidity term) is the appropriate family — an extra humidity predictor
+#   here would just add noise to an already-compensated signal.
+_MODEL_PREDICTORS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("pm25_ugm3", "SPS30"): ("raw",),
+    ("pm10_ugm3", "SPS30"): ("raw",),
+}
+_MODEL_METHOD: dict[tuple[str, str], str] = {
+    ("pm25_ugm3", "PMS5003"): "epa-humidity-pms5003",
+    ("pm10_ugm3", "PMS5003"): "epa-humidity-pms5003",
+    ("pm25_ugm3", "SDS011"): "epa-humidity-sds011",
+    ("pm10_ugm3", "SDS011"): "epa-humidity-sds011",
+    ("pm25_ugm3", "SPS30"): "linear-onboard-rh-sps30",
+    ("pm10_ugm3", "SPS30"): "linear-onboard-rh-sps30",
+}
+
 #: Method id for a heat-index observation derived from a node's calibrated temperature plus
 #: co-timed humidity, rather than fit against a reference — there is no field heat-index
 #: reference to co-locate against (see ADR 0014). Kept out of `_METHOD` above because that map
@@ -110,6 +146,11 @@ class Correction:
     reference: str
     window_start: str
     window_end: str
+    #: The sensor hardware family this correction was fit for, e.g. "PMS5003", "SDS011", "SPS30" —
+    #: empty when the node's model is unknown/unspecified, in which case the correction used the
+    #: per-parameter default family. Never changes the raw/calibrated boundary; it is provenance,
+    #: not a promotion (see docs/calibration.md "Per-model bias").
+    model: str = ""
 
     def predict(self, raw: float, humidity: float | None) -> float:
         total = self.intercept
@@ -121,8 +162,29 @@ class Correction:
         return round(total, PRECISION)
 
 
-def predictors_for(parameter: str) -> tuple[str, ...]:
+def predictors_for(parameter: str, model: str | None = None) -> tuple[str, ...]:
+    """The predictor set for ``parameter``, preferring a (parameter, model) family when known.
+
+    Falls back to the per-parameter default, then to ``_DEFAULT_PREDICTORS``, so a node with no
+    model or an unrecognized one fits exactly as it did before model-awareness existed.
+    """
+    if model:
+        found = _MODEL_PREDICTORS.get((parameter, model))
+        if found is not None:
+            return found
     return _PREDICTORS.get(parameter, _DEFAULT_PREDICTORS)
+
+
+def _method_for(parameter: str, model: str | None) -> str:
+    """The method id for ``parameter``, preferring a (parameter, model) family when known.
+
+    Same fallback order as :func:`predictors_for`: (parameter, model) → parameter → default.
+    """
+    if model:
+        found = _MODEL_METHOD.get((parameter, model))
+        if found is not None:
+            return found
+    return _METHOD.get(parameter, _DEFAULT_METHOD)
 
 
 def _design_row(pair: TrainingPair, predictors: tuple[str, ...]) -> list[float]:
@@ -168,12 +230,24 @@ def _ols(design: list[list[float]], targets: list[float]) -> list[float]:
     return _solve(xtx, xty)
 
 
-def fit_one(node_id: str, parameter: str, pairs: list[TrainingPair], reference: str) -> Correction:
-    """Fit a single node/parameter correction from its co-location pairs."""
+def fit_one(
+    node_id: str,
+    parameter: str,
+    pairs: list[TrainingPair],
+    reference: str,
+    model: str = "",
+) -> Correction:
+    """Fit a single node/parameter correction from its co-location pairs.
+
+    ``model`` is the node's sensor hardware family (``NodeConfig.sensor_model``), if known. When
+    given, it selects a (parameter, model) predictor set and method label if one is registered
+    (see ``_MODEL_PREDICTORS``/``_MODEL_METHOD``); otherwise the fit falls back to the
+    per-parameter default exactly as before model-awareness existed.
+    """
     if len(pairs) < 3:
         raise ValueError(f"need at least 3 co-location pairs for {node_id}/{parameter}")
     pairs = sorted(pairs, key=lambda p: p.timestamp)
-    predictors = predictors_for(parameter)
+    predictors = predictors_for(parameter, model or None)
     design = [_design_row(p, predictors) for p in pairs]
     targets = [p.reference for p in pairs]
     beta = _ols(design, targets)
@@ -190,7 +264,7 @@ def fit_one(node_id: str, parameter: str, pairs: list[TrainingPair], reference: 
     ss_tot = sum((t - mean_ref) ** 2 for t in targets) or 1e-12
     residual_std = _round((ss_res / n) ** 0.5)
     r2 = _round(1 - ss_res / ss_tot)
-    method = _METHOD.get(parameter, _DEFAULT_METHOD)
+    method = _method_for(parameter, model or None)
 
     return Correction(
         version=f"{parameter}.{method}.{node_id}",
@@ -206,6 +280,7 @@ def fit_one(node_id: str, parameter: str, pairs: list[TrainingPair], reference: 
         reference=reference,
         window_start=pairs[0].timestamp,
         window_end=pairs[-1].timestamp,
+        model=model,
     )
 
 
@@ -232,27 +307,29 @@ class CorrectionRegistry:
         return len(self._by_key)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "version": 1,
-            "corrections": [
-                {
-                    "version": c.version,
-                    "node_id": c.node_id,
-                    "parameter": c.parameter,
-                    "method": c.method,
-                    "predictors": list(c.predictors),
-                    "coefficients": list(c.coefficients),
-                    "intercept": c.intercept,
-                    "residual_std": c.residual_std,
-                    "r2": c.r2,
-                    "n": c.n,
-                    "reference": c.reference,
-                    "window_start": c.window_start,
-                    "window_end": c.window_end,
-                }
-                for c in self.all()
-            ],
-        }
+        corrections: list[dict[str, Any]] = []
+        for c in self.all():
+            entry: dict[str, Any] = {
+                "version": c.version,
+                "node_id": c.node_id,
+                "parameter": c.parameter,
+                "method": c.method,
+                "predictors": list(c.predictors),
+                "coefficients": list(c.coefficients),
+                "intercept": c.intercept,
+                "residual_std": c.residual_std,
+                "r2": c.r2,
+                "n": c.n,
+                "reference": c.reference,
+                "window_start": c.window_start,
+                "window_end": c.window_end,
+            }
+            # Only serialized when non-empty, so a registry with no model-aware corrections (every
+            # demo node) rebuilds byte-for-byte identical to the pre-model-awareness schema.
+            if c.model:
+                entry["model"] = c.model
+            corrections.append(entry)
+        return {"version": 1, "corrections": corrections}
 
     def to_yaml(self, path: str | Path) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -280,6 +357,7 @@ class CorrectionRegistry:
                     reference=str(entry.get("reference", "")),
                     window_start=str(entry.get("window_start", "")),
                     window_end=str(entry.get("window_end", "")),
+                    model=str(entry.get("model", "")),
                 )
             )
         return registry
@@ -290,8 +368,16 @@ class CorrectionRegistry:
         return cls.from_dict(doc if isinstance(doc, dict) else {})
 
 
-def fit(pairs: Iterable[TrainingPair]) -> CorrectionRegistry:
-    """Fit every node/parameter that has co-location data into a registry."""
+def fit(pairs: Iterable[TrainingPair], models: dict[str, str] | None = None) -> CorrectionRegistry:
+    """Fit every node/parameter that has co-location data into a registry.
+
+    ``models`` maps node_id → sensor hardware family (``NodeConfig.sensor_model``), typically built
+    from a loaded ``NetworkConfig``. Omitted or empty (the default), every node fits the
+    per-parameter default family exactly as it did before model-awareness existed — this is what
+    keeps the committed demo registry reproducible byte-for-byte, since none of its nodes carry a
+    ``sensor_model``.
+    """
+    models = models or {}
     grouped: dict[tuple[str, str], list[TrainingPair]] = defaultdict(list)
     references: dict[tuple[str, str], str] = {}
     for pair in pairs:
@@ -299,8 +385,9 @@ def fit(pairs: Iterable[TrainingPair]) -> CorrectionRegistry:
     registry = CorrectionRegistry()
     for (node_id, parameter), group in sorted(grouped.items()):
         reference = references.get((node_id, parameter), "reference-monitor")
+        model = models.get(node_id, "")
         try:
-            registry.add(fit_one(node_id, parameter, group, reference))
+            registry.add(fit_one(node_id, parameter, group, reference, model=model))
         except ValueError as exc:
             # A singular / no-variation co-location group (e.g. constant or absent humidity)
             # cannot be fit. Skip it — that node/parameter stays raw/provisional — rather than

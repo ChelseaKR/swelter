@@ -145,6 +145,16 @@ def _load_config(path: str) -> NetworkConfig:
     return NetworkConfig()
 
 
+def _node_models(config: NetworkConfig) -> dict[str, str]:
+    """node_id → sensor_model, for every node that registered one.
+
+    Feeds `calibrate.fit`'s (parameter, model) family lookup. Nodes without a `sensor_model` are
+    omitted, so `fit` falls back to the per-parameter default for them exactly as before
+    model-awareness existed.
+    """
+    return {node.node_id: node.sensor_model for node in config.nodes if node.sensor_model}
+
+
 # -- subcommands -------------------------------------------------------------
 
 
@@ -252,8 +262,9 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     if not Path(args.colocation).is_file():
         _err(f"swelter: colocation {args.colocation} not found")
         return 1
+    config = _load_config(args.config)
     pairs = calibrate.read_colocation(args.colocation)
-    registry = calibrate.fit(pairs)
+    registry = calibrate.fit(pairs, models=_node_models(config))
     paths = store_paths(args.store)
     registry.to_yaml(paths["registry"])
     _err(f"swelter: fit {len(registry)} corrections → {paths['registry']}")
@@ -528,7 +539,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
         colocation = data / "colocation.jsonl"
         if colocation.is_file():
-            registry = calibrate.fit(calibrate.read_colocation(colocation))
+            registry = calibrate.fit(
+                calibrate.read_colocation(colocation), models=_node_models(config)
+            )
             registry.to_yaml(paths["registry"])
             raw = store.read(calibration=RAW)
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
@@ -1085,6 +1098,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--fit-only", action="store_true", help="fit and write registry, do not apply"
     )
     add_store(p_cal)
+    add_config(p_cal)
     p_cal.set_defaults(func=cmd_calibrate)
 
     p_agg = sub.add_parser("aggregate", help="build the gridded heat/AQI surface")
