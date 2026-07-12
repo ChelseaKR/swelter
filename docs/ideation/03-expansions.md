@@ -114,6 +114,17 @@ workflow contains no logic that isn't also a tested CLI path.
 
 ### EXP-05 — The steward console: calibration age, service queue, co-location planner
 
+**Status: done.** `swelter status --plan` (`--json` optional) ships in `src/swelter/steward.py` —
+a pure, import-only `plan()` composing `qc.health_report`, `qc.coverage_equity`, and the
+correction registry's window ages (FIX-03) into one ranked, evidence-cited `Action` list: offline
+nodes rank above degraded nodes above expired-vs-expiring corrections above coverage gaps, and
+coverage gaps are ordered strictly by ascending `calibrated_nodes` (never by neighborhood
+characteristics — the `coverage_equity` note travels verbatim into each action's evidence). The
+CLI (`cli.cmd_status`) prints the plan plain-language to stderr or as JSON, and always closes with
+"The tool proposes; the collective disposes" (audit B4/B5). `web/steward.html` was scoped out of
+this pass per the spec's own "optionally" — the CLI report is the core deliverable. See
+`tests/test_steward.py` and `roadmap/exp-05-steward-console-calibration-age-s`.
+
 **Pitch.** One operator surface (static page or rich CLI report) that turns existing signals —
 `qc.health_report`, coverage-equity, FIX-03 correction ages, QC flag rates — into a prioritized
 "what needs doing" list for the 2 a.m. steward.
