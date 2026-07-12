@@ -1,4 +1,4 @@
-# ADR 0015: Key calibration families by (parameter, sensor model), not parameter alone
+# ADR 0017: Key calibration families by (parameter, sensor model), not parameter alone
 
 Date: 2026-07-03. Status: accepted.
 

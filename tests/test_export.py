@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 from typing import Any
 
@@ -14,6 +15,7 @@ def test_to_csv_has_header_and_one_row_per_observation() -> None:
     text = export.to_csv([make_obs(), make_obs(parameter="humidity_pct", unit="%", value=50.0)])
     lines = text.strip().splitlines()
     assert lines[0].startswith("node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty")
+    assert lines[0].endswith("data_license,data_attribution")
     assert len(lines) == 3
 
 
@@ -21,6 +23,32 @@ def test_to_json_declares_the_data_license() -> None:
     doc: Any = json.loads(export.to_json([make_obs()]))
     assert doc["license"] == "CC0-1.0"
     assert len(doc["observations"]) == 1
+
+
+def test_to_json_license_varies_by_source() -> None:
+    """A fetched third-party source carries its own license, not the CC0 store default."""
+    doc: Any = json.loads(
+        export.to_json(
+            [make_obs()],
+            license="ODC-DbCL-1.0",
+            attribution="Readings from the Sensor.Community network, ODC-DbCL-1.0.",
+        )
+    )
+    assert doc["license"] == "ODC-DbCL-1.0"
+    assert doc["attribution"] == "Readings from the Sensor.Community network, ODC-DbCL-1.0."
+
+
+def test_to_csv_license_varies_by_source() -> None:
+    text = export.to_csv(
+        [make_obs()],
+        license="ODC-DbCL-1.0",
+        attribution="Readings from the Sensor.Community network, ODC-DbCL-1.0.",
+    )
+    rows = list(csv.DictReader(text.splitlines()))
+    assert rows[0]["data_license"] == "ODC-DbCL-1.0"
+    assert (
+        rows[0]["data_attribution"] == "Readings from the Sensor.Community network, ODC-DbCL-1.0."
+    )
 
 
 def test_summary_reports_calibrated_vs_raw_and_license() -> None:
@@ -35,6 +63,12 @@ def test_summary_reports_calibrated_vs_raw_and_license() -> None:
     assert "observations from 2 nodes" in text
     assert "1 calibrated, 1 raw-flagged" in text
     assert "CC0-1.0" in text
+
+
+def test_summary_reports_a_non_default_license() -> None:
+    text = export.summarize([make_obs()], license="ODC-DbCL-1.0")
+    assert "ODC-DbCL-1.0" in text
+    assert "CC0-1.0" not in text
 
 
 def test_filter_observations() -> None:

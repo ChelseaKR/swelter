@@ -11,7 +11,8 @@ The keyless "area" filter returns each sensor's *latest* reading (last ~5 minute
 current snapshot, not a time series. Coverage is dense in Europe (the network's origin) and sparse
 in the US. No API key.
 
-Attribution: "Readings from the Sensor.Community network (https://sensor.community), CC BY-SA 4.0."
+License: Sensor.Community labels its database contents under the Open Data Commons Database
+Contents License v1.0 (DbCL-1.0).
 """
 
 from __future__ import annotations
@@ -25,9 +26,11 @@ from ..models import Observation, format_timestamp, heat_index_c, parse_timestam
 from ._http import get_json
 
 AREA_URL = "https://data.sensor.community/airrohr/v1/filter/area="
+#: Sensor.Community's stated terms for database contents (sensor.community/en/docs/).
+LICENSE = "ODC-DbCL-1.0"
 ATTRIBUTION = (
     "Real readings from the Sensor.Community network of community low-cost sensors "
-    "(sensor.community, CC BY-SA 4.0) — uncalibrated, so shown raw / provisional."
+    "(sensor.community, ODC-DbCL-1.0) — uncalibrated, so shown raw / provisional."
 )
 
 # Sensor.Community value_type → (swelter parameter, unit). P2 = PM2.5, P1 = PM10.

@@ -67,7 +67,7 @@ worked example.
 serialized only when non-empty (demo registry rebuilds byte-for-byte); `sensor_community.py` now maps
 its known sensor type onto `sensor_model` instead of discarding it; per-model bias section in
 `docs/calibration.md` states plainly that a model-typical prior is never calibration and never promotes
-a node past provisional. See `docs/decisions/0015-sensor-model-calibration-families.md`.
+a node past provisional. See `docs/decisions/0017-sensor-model-calibration-families.md`.
 
 **Pitch.** Teach the pipeline what hardware produced a reading: an optional, public-safe
 `sensor_model` in `network.yaml` nodes, and per-model correction lineages (PMS5003 vs SDS011 vs
@@ -250,6 +250,12 @@ catalog. Statistical claims stay descriptive (counts, hours) — no health-outco
 traceable to the archive digest; the "what we could not see" section is never empty-by-omission.
 
 ### EXP-11 — Low-tech distribution: printable neighborhood cards from the feed
+
+**Status: Implemented.** `swelter cards` (`src/swelter/cards.py`, `src/swelter/qr.py`) ships this —
+one print-CSS bilingual card per published cell, composing the aggregated surface, the
+cooling-center overlay, and the committed R1/i18n guidance strings, with a per-cell feed QR
+(`?area=<cell_id>`, the same query the alerts feed accepts) and a `--large-type` variant. See
+`tests/test_cards.py` and `tests/test_qr.py`.
 
 **Pitch.** Auto-generate print artifacts — a door flyer / fridge card per neighborhood cell with
 current-week readings, what they mean, the cooling-center nearest, and the feed QR — bilingual,

@@ -152,6 +152,7 @@ store/                       (or store/demo for the demo)
   quarantine.jsonl           payloads that failed validation, with a reason each
   aggregate.geojson          the rendered gridded surface (derived)
   corrections.yaml           the published correction registry (versioned data)
+  digests.jsonl              chained daily hash digests (written by `swelter verify-archive --write`)
 ```
 
 `observations.db` holds one `observations` table keyed
@@ -170,6 +171,73 @@ into, and no node that failing takes the data down with it. This is recorded in
 implement the same methods and drop in without touching ingest, calibrate, aggregate, or the
 API — they depend only on the protocol. The seam is why "SQLite for now" is not a one-way door.
 
+## Verifiable integrity: `swelter verify-archive` and the daily digest chain
+
+`store.py` writes a `content_hash()` (SHA-256 over a row's value-bearing fields) at write time,
+but until this command existed nothing ever read that hash back — the "immutable and
+content-hashed" property (audit F4) was enforced only when a row was written, never re-checked
+afterward. `swelter verify-archive` (`src/swelter/integrity.py`) is the read-time half: it turns
+"trust the folder" into "verify the folder."
+
+**What a journalist (or a steward) runs.** From a checked-out or handed-off copy of the store:
+
+```console
+$ uv run swelter verify-archive --store store --write
+swelter: verify-archive OK — 141696 row(s) match their stored hash across 16 day(s)
+  head chain   7c9c2e...  (full 64-hex-char SHA-256)
+  wrote store/digests.jsonl
+```
+
+Two things happen:
+
+1. **Row re-check.** `integrity.verify_rows(store)` walks every stored row via
+   `SqliteStore.iter_rows()` (which, unlike `all()`, carries the persisted `content_hash` instead
+   of dropping it), recomputes `obs.content_hash()` from the row's own fields, and compares. Any
+   disagreement means the row was edited outside the append-only write path — `write()` is
+   `INSERT OR IGNORE`, so the only way a stored value and its hash can drift apart is a direct
+   mutation (an `UPDATE`, a hex-edited `.db` file, a corrupted copy).
+2. **Chained daily digest.** `integrity.daily_digests(store)` groups every row's stored hash by
+   UTC day (parsed from the canonical `...Z` timestamp), sorts each day's hashes so the digest
+   does not depend on write order, and folds them into one canonical SHA-256 per day. Days are
+   then chained oldest-first: `chain = sha256(prev_chain + date + day_digest)`, seeded with the
+   empty string. The final day's `chain` is the archive's **head** — a single hash that commits to
+   every row, on every day, in the whole store. `--write` publishes this as `digests.jsonl` (one
+   JSON line per day plus a final head record), using the same `json.dumps(..., separators=(",",
+   ":"))` canonicalization as `Observation.content_hash()` so it is deterministic across platforms.
+
+**How a single-byte mutation is detected.** Changing one row's value, even a single byte in
+`observations.db`, changes that row's recomputed hash (caught directly by `verify_rows`) *and*
+that row's UTC day's sorted-hash digest, which changes that day's `chain`, which changes every
+subsequent day's `chain` — including the head. So there are two independent tripwires: a mutated
+row that keeps its own stored `content_hash` untouched (the row-level check) still shifts the
+day digest and every chain value after it if the mutation targets the hash column instead of the
+value column (the chain-level check), and a full-history compare against a previously published
+`digests.jsonl` catches a rewrite that recomputes hashes consistently but changes the underlying
+data. Re-running `verify-archive` against the same store and diffing the head against a
+previously recorded one (the digest a journalist saved, or the one published on
+`/api/health.json`) is the whole tamper-evidence check — no key, no signature, nothing to keep
+secret. `swelter verify-archive` exits nonzero and prints every mismatching row the moment any
+row fails the row-level check.
+
+**Reproducibility.** `daily_digests` / `write_digests` are pure functions of the stored rows: a
+`make demo` replay (deterministic input data, `INSERT OR IGNORE` idempotency) reproduces
+`digests.jsonl` byte for byte across runs, the same guarantee `aggregate.geojson` and
+`web/sample-surface.json` already carry.
+
+**What this is not.** No signing, no external anchoring, no timestamping authority — key custody
+is a governance decision (`docs/governance.md`) deliberately deferred to an ADR rather than
+improvised here. This makes the archive tamper-*evident* (a mutation is detectable), not
+tamper-*proof* (nothing stops a party with write access to `observations.db` from also rewriting
+`digests.jsonl` to match — the check only has teeth once a head hash has left the machine, via a
+citation, a published `/api/health.json`, or a journalist's own copy). It is also the substrate a
+citable, DOI-style snapshot (research-roadmap E3) can build a verifiable digest from, rather than
+duplicating this mechanism.
+
+The current head chain and last verified day are surfaced cheaply in `/api/health.json` under
+`integrity` (`qc.health_report`'s `store_dir` parameter reads `digests.jsonl` — it never re-hashes
+the whole store on a live request); `available: false` until a steward has run
+`verify-archive --write` at least once.
+
 ## The single-threaded, read-only server
 
 `make_server()` builds a plain `HTTPServer`, which is single-threaded; `serve()` runs it.
@@ -184,6 +252,23 @@ Two deliberate choices:
   is scale-to-zero friendly and runs unchanged on a tiny host. (`SqliteStore` is opened with
   `check_same_thread=False` precisely because the single server thread is not the thread that
   created it; single-threading is what keeps that access serialised.)
+
+**Survivability: timeouts, a surface cache, and conditional GETs.** Because the server is
+single-threaded, one request that never finishes reading or writing ties up every other client —
+so `Handler.timeout = 10` bounds socket reads/writes (`BaseHTTPRequestHandler` honors it directly;
+no threading, no `socket.setdefaulttimeout`). Separately, `aggregate.aggregate()` — the fold over
+every observation in the store — is the most expensive read on any given request, and it backs
+three endpoints (`/api/surface.geojson`, `/api/surface.json`, `/api/alerts.*`). `_make_handler`
+closes over a process-lifetime `_ResponseCache` that memoizes the last computed `Surface`, keyed
+on a fingerprint of the store: `(count(), total_changes())` for `SqliteStore`, falling back to
+file mtime for other backends, or no caching at all if neither is available. The count alone is
+not enough — `store rebuild` calls `drop_calibrated()`, which deletes and rewrites derived rows
+without changing the row count — so the key includes SQLite's `total_changes` counter, which does
+move on a rebuild. A store write or rebuild bumps the version and invalidates the whole cache (the
+surface and every precomputed body) in one step. The same cache also holds gzip-compressed bytes
+and a `sha256`-derived `ETag` for those three payloads, so a repeat request within one store
+version skips re-aggregating, re-gzipping, and re-hashing; a matching `If-None-Match` short-circuits
+to a bodyless `304` before any of that work happens.
 
 ## Calibration is versioned data, not code
 
