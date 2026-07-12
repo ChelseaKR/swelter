@@ -185,8 +185,12 @@ class AlertFeed:
         return "\n".join(lines) + "\n"
 
 
-def _resolve_thresholds(overrides: Mapping[str, float] | None) -> dict[str, float]:
+def resolve_thresholds(overrides: Mapping[str, float] | None) -> dict[str, float]:
     """Merge network-level `alert_thresholds` overrides onto the public-health defaults.
+
+    Public so a caller building a *historical* view (e.g. :mod:`swelter.exposure_brief`'s
+    danger-day count) resolves the same per-network floors the live alerts feed uses, instead of
+    re-deriving the override-merge rule.
 
     Unknown keys are ignored here on purpose — a build must never crash mid-pipeline on a typo.
     But an ignored key is a silent safety failure (a host who typos ``heat_index_c`` as
@@ -215,7 +219,7 @@ def build_feed(
     last week. A cell can raise more than one alert (hot *and* smoky); each is its own entry. The
     feed's bucket is the newest hour present in the surface, so the artifact is deterministic.
     """
-    floors = _resolve_thresholds(thresholds)
+    floors = resolve_thresholds(thresholds)
     latest = surface.latest_by_cell()
     alerts: list[Alert] = []
     newest = ""
@@ -228,7 +232,7 @@ def build_feed(
             # The feed's "updated" is the latest hour the surface covers, even on a calm day with no
             # crossings, so an empty feed still has a meaningful, data-derived timestamp.
             newest = max(newest, reading.bucket)
-            crossed = _crossing(parameter, reading, floors)
+            crossed = crossing(parameter, reading, floors)
             if crossed is None:
                 continue
             severity, threshold = crossed
@@ -259,10 +263,16 @@ def build_feed(
     )
 
 
-def _crossing(
+def crossing(
     parameter: str, reading: CellReading, floors: Mapping[str, float]
 ) -> tuple[str, float] | None:
-    """Return ``(severity_name, floor)`` if this reading crosses its threshold, else ``None``."""
+    """Return ``(severity_name, floor)`` if this reading crosses its threshold, else ``None``.
+
+    Public so other modules can reuse the exact same danger-threshold test instead of
+    re-deriving it — :mod:`swelter.exposure_brief` calls this once per hour to build the
+    historical "N Danger days" count from the same floors and band names the live alerts feed
+    uses, so the two views of "danger" can never silently drift apart.
+    """
     aqi = reading.aqi
     category = reading.category
     mean = reading.mean

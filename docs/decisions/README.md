@@ -26,3 +26,4 @@ later ADR supersedes an earlier one.
 | [0015](0015-strict-config-doctor.md) | Validate `network.yaml` loudly and add a `swelter doctor` gate | accepted |
 | [0016](0016-caveat-baked-share-card.md) | Bake the provisional label and hourly-window caveat into share-card pixels, not overlaid HTML | accepted |
 | [0017](0017-sensor-model-calibration-families.md) | Key calibration families by (parameter, sensor model), not parameter alone | accepted |
+| [0018](0018-exposure-brief-and-equity-context.md) | Historical Danger-day counts plus sourced canopy/AC-access/redlining context (E1) | accepted |

@@ -261,6 +261,134 @@ def test_alerts_json_and_web_baking(
     assert (web / "alerts.xml").read_text(encoding="utf-8").startswith("<?xml")
 
 
+# -- brief (E1 / F5: Danger-day count + sourced canopy/AC-access/redlining context) ------------
+
+CANOPY = str(ROOT / "data" / "context_layers.geojson")
+AC_ACCESS = str(ROOT / "data" / "ac_access_layer.geojson")
+REDLINING = str(ROOT / "data" / "redlining_layer.geojson")
+_BRIEF_AREA = "38.567867,-121.515433"  # node-01's published cell; has canopy/AC/redlining sample
+
+
+def test_brief_text_for_one_area_includes_sourced_context(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--canopy",
+            CANOPY,
+            "--ac-access",
+            AC_ACCESS,
+            "--redlining",
+            REDLINING,
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Danger range" in out and "day(s) measured" in out
+    assert "Tree-canopy coverage" in out and "USDA" not in out  # demo dataset, not the real source
+    assert "may lack air conditioning" in out
+    assert "grade" in out and "Home Owners' Loan Corporation" in out
+
+
+def test_brief_json_is_machine_readable_and_sourced(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--format",
+            "json",
+            "--canopy",
+            CANOPY,
+            "--ac-access",
+            AC_ACCESS,
+            "--redlining",
+            REDLINING,
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    brief = payload[_BRIEF_AREA]
+    assert brief["danger"]["parameter"] == "heat_index_c"
+    assert brief["danger"]["severity"] == "Danger"
+    assert brief["canopy"]["source_url"]
+    assert brief["ac_access"]["source_url"]
+    assert brief["redlining"]["holc_grade"] in ("A", "B", "C", "D")
+
+
+def test_brief_without_context_datasets_still_builds_the_danger_line(
+    demo_store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--canopy",
+            str(tmp_path / "no-canopy.geojson"),
+            "--ac-access",
+            str(tmp_path / "no-ac.geojson"),
+            "--redlining",
+            str(tmp_path / "no-redlining.geojson"),
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Danger range" in out
+    assert "Tree-canopy" not in out
+    assert "air conditioning" not in out
+    assert "Home Owners' Loan Corporation" not in out
+
+
+def test_brief_unknown_area_returns_1(demo_store: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(
+        ["brief", "--store", str(demo_store), "--config", NETWORK, "--area", "0.000000,0.000000"]
+    )
+    assert rc == 1
+    assert "no brief for area" in capsys.readouterr().err
+
+
+def test_brief_pm25_parameter_selects_the_aqi_floor(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--parameter",
+            "pm25_ugm3",
+            "--format",
+            "json",
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[_BRIEF_AREA]["danger"]["parameter"] == "pm25_ugm3"
+    assert payload[_BRIEF_AREA]["danger"]["floor"] == 101.0
+
+
 # -- calibrate / rebuild (hard rule #3: rebuild from immutable raw) -----------
 
 
