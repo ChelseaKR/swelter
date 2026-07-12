@@ -22,7 +22,7 @@ from swelter.models import RAW, Observation
 from swelter.server import ServerContext
 from swelter.sources import openaq, openmeteo, sensor_community
 from swelter.sources._http import SourceError
-from swelter.store import open_store
+from swelter.store import open_store, store_paths
 
 from .conftest import DEMO, ROOT, make_obs
 
@@ -86,6 +86,65 @@ def test_qc_on_empty_store_says_so(tmp_path: Path, capsys: pytest.CaptureFixture
     rc = main(["qc", "--store", str(tmp_path / "empty"), "--config", NETWORK])
     assert rc == 0
     assert "store is empty" in capsys.readouterr().err
+
+
+# -- status (steward plan, EXP-05) --------------------------------------------
+
+
+def test_status_plan_text_reports_ranked_actions(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["status", "--plan", "--store", str(demo_store), "--config", NETWORK])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "steward plan" in err
+    assert "collective disposes" in err  # the audit B4/B5 disclaimer always prints
+
+
+def test_status_plan_json_is_machine_readable(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["status", "--plan", "--json", "--store", str(demo_store), "--config", NETWORK])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert {"generated_for", "actions", "disclaimer"} <= payload.keys()
+    assert payload["actions"], "demo network has offline/degraded nodes and coverage gaps"
+    for action in payload["actions"]:
+        assert action["evidence"], "every action names its evidence source"
+    # priorities are non-decreasing: offline/expired-correction bands sort before coverage gaps.
+    priorities = [a["priority"] for a in payload["actions"]]
+    assert priorities == sorted(priorities)
+
+
+def test_status_on_empty_store_says_so(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(["status", "--plan", "--store", str(tmp_path / "empty"), "--config", NETWORK])
+    assert rc == 0
+    assert "store is empty" in capsys.readouterr().err
+
+
+def test_status_on_empty_store_json_is_still_valid(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        ["status", "--plan", "--json", "--store", str(tmp_path / "empty"), "--config", NETWORK]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["actions"] == []
+    assert "collective disposes" in payload["disclaimer"]
+
+
+def test_status_with_no_registry_file_treats_corrections_as_empty(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A store with raw data but no committed corrections.yaml still produces a plan (guard)."""
+    store_dir = tmp_path / "store"
+    _demo_into(store_dir, tmp_path / "web")
+    store_paths(store_dir)["registry"].unlink(missing_ok=True)
+    rc = main(["status", "--plan", "--json", "--store", str(store_dir), "--config", NETWORK])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert not any(a["kind"].startswith("correction_") for a in payload["actions"])
 
 
 # -- config loading (PII + missing) ------------------------------------------
@@ -200,6 +259,137 @@ def test_alerts_json_and_web_baking(
     assert "alerts" in feed and "thresholds" in feed
     assert (web / "alerts.json").is_file()
     assert (web / "alerts.xml").read_text(encoding="utf-8").startswith("<?xml")
+    es_atom = (web / "alerts.es.xml").read_text(encoding="utf-8")
+    assert es_atom.startswith("<?xml")
+    assert 'xml:lang="es"' in es_atom
+
+
+# -- brief (E1 / F5: Danger-day count + sourced canopy/AC-access/redlining context) ------------
+
+CANOPY = str(ROOT / "data" / "context_layers.geojson")
+AC_ACCESS = str(ROOT / "data" / "ac_access_layer.geojson")
+REDLINING = str(ROOT / "data" / "redlining_layer.geojson")
+_BRIEF_AREA = "38.567867,-121.515433"  # node-01's published cell; has canopy/AC/redlining sample
+
+
+def test_brief_text_for_one_area_includes_sourced_context(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--canopy",
+            CANOPY,
+            "--ac-access",
+            AC_ACCESS,
+            "--redlining",
+            REDLINING,
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Danger range" in out and "day(s) measured" in out
+    assert "Tree-canopy coverage" in out and "USDA" not in out  # demo dataset, not the real source
+    assert "may lack air conditioning" in out
+    assert "grade" in out and "Home Owners' Loan Corporation" in out
+
+
+def test_brief_json_is_machine_readable_and_sourced(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--format",
+            "json",
+            "--canopy",
+            CANOPY,
+            "--ac-access",
+            AC_ACCESS,
+            "--redlining",
+            REDLINING,
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    brief = payload[_BRIEF_AREA]
+    assert brief["danger"]["parameter"] == "heat_index_c"
+    assert brief["danger"]["severity"] == "Danger"
+    assert brief["canopy"]["source_url"]
+    assert brief["ac_access"]["source_url"]
+    assert brief["redlining"]["holc_grade"] in ("A", "B", "C", "D")
+
+
+def test_brief_without_context_datasets_still_builds_the_danger_line(
+    demo_store: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--canopy",
+            str(tmp_path / "no-canopy.geojson"),
+            "--ac-access",
+            str(tmp_path / "no-ac.geojson"),
+            "--redlining",
+            str(tmp_path / "no-redlining.geojson"),
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Danger range" in out
+    assert "Tree-canopy" not in out
+    assert "air conditioning" not in out
+    assert "Home Owners' Loan Corporation" not in out
+
+
+def test_brief_unknown_area_returns_1(demo_store: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    rc = main(
+        ["brief", "--store", str(demo_store), "--config", NETWORK, "--area", "0.000000,0.000000"]
+    )
+    assert rc == 1
+    assert "no brief for area" in capsys.readouterr().err
+
+
+def test_brief_pm25_parameter_selects_the_aqi_floor(
+    demo_store: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(
+        [
+            "brief",
+            "--store",
+            str(demo_store),
+            "--config",
+            NETWORK,
+            "--area",
+            _BRIEF_AREA,
+            "--parameter",
+            "pm25_ugm3",
+            "--format",
+            "json",
+        ]
+    )
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[_BRIEF_AREA]["danger"]["parameter"] == "pm25_ugm3"
+    assert payload[_BRIEF_AREA]["danger"]["floor"] == 101.0
 
 
 # -- calibrate / rebuild (hard rule #3: rebuild from immutable raw) -----------
@@ -560,9 +750,9 @@ def test_fetch_sensor_community_empty_hints_europe(
 def test_fetch_sensor_community_routes_and_stores(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    nodes: dict[str, tuple[str, float, float]] = {"sc-1": ("Sensor 1", 48.7758, 9.1829)}
+    nodes: dict[str, tuple[str, float, float, str]] = {"sc-1": ("Sensor 1", 48.7758, 9.1829, "")}
 
-    def fake(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+    def fake(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
         return _real_temp("sc-1"), nodes
 
     monkeypatch.setattr(sensor_community, "fetch", fake)
@@ -582,6 +772,162 @@ def test_fetch_sensor_community_routes_and_stores(
     )
     assert rc == 0
     assert any(n.node_id == "sc-1" for n in load_config(str(cfg)).nodes)
+
+
+# -- fetch --accumulate (EXP-01: the demo store persists between runs) -------
+
+
+def test_fetch_accumulate_keeps_prior_observations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without --accumulate a second fetch wipes the first; with it, both survive (the store key
+    ``(node_id, timestamp, parameter, calibration)`` plus INSERT OR IGNORE make this idempotent)."""
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+
+    def first(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-01T00:00:00Z", calibration=RAW)]
+
+    def second(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-02T00:00:00Z", calibration=RAW)]
+
+    monkeypatch.setattr(openmeteo, "fetch", first)
+    rc = main(
+        [
+            "fetch",
+            "--source",
+            "openmeteo",
+            "--store",
+            str(store),
+            "--config",
+            str(cfg),
+            "--web",
+            str(web),
+            "--accumulate",
+        ]
+    )
+    assert rc == 0
+
+    monkeypatch.setattr(openmeteo, "fetch", second)
+    rc = main(
+        [
+            "fetch",
+            "--source",
+            "openmeteo",
+            "--store",
+            str(store),
+            "--config",
+            str(cfg),
+            "--web",
+            str(web),
+            "--accumulate",
+        ]
+    )
+    assert rc == 0
+
+    with open_store(store) as opened:
+        timestamps = {o.timestamp for o in opened.all() if o.node_id == node_id}
+    assert timestamps == {"2026-06-01T00:00:00Z", "2026-06-02T00:00:00Z"}
+
+
+def test_fetch_without_accumulate_wipes_prior_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The default (no --accumulate) behaviour is unchanged: each fetch is a fresh snapshot."""
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+
+    def first(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-01T00:00:00Z", calibration=RAW)]
+
+    def second(*_a: object, **_k: object) -> list[Observation]:
+        return [make_obs(node_id=node_id, timestamp="2026-06-02T00:00:00Z", calibration=RAW)]
+
+    monkeypatch.setattr(openmeteo, "fetch", first)
+    assert (
+        main(
+            [
+                "fetch",
+                "--source",
+                "openmeteo",
+                "--store",
+                str(store),
+                "--config",
+                str(cfg),
+                "--web",
+                str(web),
+            ]
+        )
+        == 0
+    )
+    monkeypatch.setattr(openmeteo, "fetch", second)
+    assert (
+        main(
+            [
+                "fetch",
+                "--source",
+                "openmeteo",
+                "--store",
+                str(store),
+                "--config",
+                str(cfg),
+                "--web",
+                str(web),
+            ]
+        )
+        == 0
+    )
+
+    with open_store(store) as opened:
+        timestamps = {o.timestamp for o in opened.all() if o.node_id == node_id}
+    assert timestamps == {"2026-06-02T00:00:00Z"}
+
+
+def test_fetch_accumulate_merges_network_nodes_that_come_and_go(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A node missing from today's discovery keeps its prior config entry under --accumulate, so
+    its history in the store stays resolvable by ``aggregate`` (the Shape's "nodes that come and
+    go" reconciliation) — while a node seen again gets its entry refreshed from today's fetch."""
+    nodes_day1 = {"sc-1": ("Sensor 1", 48.7758, 9.1829, ""), "sc-2": ("Sensor 2", 48.80, 9.20, "")}
+    nodes_day2 = {"sc-1": ("Sensor 1 (moved)", 48.7760, 9.1830, "")}  # sc-2 dropped out today
+
+    def day1(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
+        return [make_obs(node_id="sc-1"), make_obs(node_id="sc-2")], nodes_day1
+
+    def day2(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
+        return [make_obs(node_id="sc-1")], nodes_day2
+
+    cfg = tmp_path / "net.yaml"
+    store = tmp_path / "store"
+    web = tmp_path / "web"
+    args = [
+        "fetch",
+        "--source",
+        "sensor-community",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+
+    monkeypatch.setattr(sensor_community, "fetch", day1)
+    assert main(args) == 0
+    monkeypatch.setattr(sensor_community, "fetch", day2)
+    assert main(args) == 0
+
+    merged = load_config(str(cfg))
+    node_ids = {n.node_id for n in merged.nodes}
+    assert node_ids == {"sc-1", "sc-2"}, "sc-2 dropped out today but keeps its prior entry"
+    refreshed = next(n for n in merged.nodes if n.node_id == "sc-1")
+    assert refreshed.label == "Sensor 1 (moved)", "sc-1 was seen again, so today's data wins"
 
 
 # -- the static-payload cap (keeps the committed sample light) ---------------

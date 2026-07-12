@@ -23,7 +23,7 @@ exports — in an afternoon with no hardware at all (real sensors take longer). 
 no hosted service, and no vendor to switch off: the whole thing runs on a Raspberry-Pi-class host and
 scales to zero when it is quiet. This is what turns "trust layer" from a feature claim into a
 survival claim — see the funding-path evidence below (local ownership is the one factor that has
-been shown to outlast a grant cycle) and ADR 0013.
+been shown to outlast a grant cycle) and ADR 0021.
 
 The uniqueness is not any single feature — it is the **set**. In the scan, every comparable tool
 held one to three of the properties below; none held all of them.

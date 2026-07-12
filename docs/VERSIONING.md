@@ -144,6 +144,25 @@ A correction is itself versioned data, not code: re-co-locating a node and re-fi
 correction under the same version-id scheme, recorded with its window — an audit trail, not a schema
 change.
 
+## The published data dictionary and `data_schema_version`
+
+`GET /api/schema.json` (`src/swelter/dictionary.py`) publishes a machine-readable data dictionary
+— the observation fields, the `/export.csv` column set, the `PARAMETERS` registry, and the QC
+verdicts — generated from the same constants the pipeline runs on, so it cannot drift from this
+document or from the running code. It carries an integer `data_schema_version` (starting at `1`,
+independent of the package's `MAJOR.MINOR.PATCH`) that is the pin target for an integrator who
+wants a cheap, machine-checkable signal that the data schema underneath them changed: poll
+`/api/schema.json` (or read `serverSettings.dataSchemaVersion` off `GET /v1.1`) and compare against
+the value last seen.
+
+Bumping `DATA_SCHEMA_VERSION` follows exactly the "Data schema — what counts as breaking" rules
+above: it moves only when a change to the observation fields, the CSV column set/order, or a QC
+verdict's meaning would be MAJOR under those rules. A MINOR, additive change to the schema (a new
+optional field, a new `PARAMETERS` entry, a new QC verdict) does **not** require bumping the
+integer — the dictionary's contents change to reflect the addition, but the version number is
+reserved for breaking schema changes, matching how the rest of this policy treats additive changes
+as non-breaking.
+
 ## Deprecation path
 
 The same path applies to both surfaces.
@@ -180,12 +199,37 @@ object") they are **MINOR**, not breaking.
   (PM2.5), `aqi_window`, and `provisional`. `/api/surface.geojson` (served as
   `application/geo+json`) gains `label` and, per parameter, `*_uncertainty` and `*_provisional`
   properties. All are new keys; nothing existing was removed, renamed, or retyped.
+- **`mean_member_sigma`, EPA NowCast, and the exposure `uncertainty_note`.** Each calibrated cell
+  now also carries `mean_member_sigma` (the plain mean of the contributing members' 1-sigmas — the
+  old mean-of-sigmas number, kept under its own new name). A PM2.5 cell with at least 3 of the
+  preceding 12 hourly means available additionally gets a second `pm25_ugm3` reading tagged
+  `aqi_window = "nowcast"` (an EPA NowCast-weighted AQI, alongside the unchanged `"hourly-mean"`
+  reading — `/api/surface.geojson` never surfaces the NowCast variant, so the map snapshot's
+  existing behavior is untouched). The derived `exposure` cell gains `uncertainty_note` (which
+  component bounds the published level). All are new keys; nothing existing was removed, renamed,
+  or retyped.
 - **SensorThings pagination and new collections.** `/v1.1/Observations` gains `$top`/`$skip` (and
   the bare `top`/`skip`) with a true `@iot.count` and an `@iot.nextLink`; the default page preserves
   the prior result set, so a saved query is unaffected. `resultQuality` gains an `uncertainty` and a
   `trustworthy` flag alongside the existing `qc`. Two new collections, `/v1.1/Datastreams` and
   `/v1.1/Locations`, join the service document. Adding an endpoint, a query parameter with a safe
   default, and a field to a response object are all explicitly MINOR above.
+
+### Cell `uncertainty` now means the cell's standard error, not mean-of-sigmas — MAJOR
+
+Every calibrated surface cell's `uncertainty` field (on `/api/surface.json` records and the
+`{param}_uncertainty` properties on `/api/surface.geojson`) used to be the plain mean of the
+contributing members' 1-sigmas. It now holds the cell's own standard error,
+`sqrt(sum(sigma_i^2)) / n`, over those same member sigmas — a smaller number for any cell with more
+than one calibrated member, and a *different* number even for a single-member cell only by
+coincidence of arithmetic (`n=1` makes the two formulas equal). The key, type, and units are
+unchanged, but the value a consumer reads today at that key means something different than it did
+before this change, which the "what counts as breaking" rule above treats as breaking (MAJOR) even
+though nothing was renamed or retyped: silently reinterpreting a number under an unchanged key is
+exactly the failure mode the surrounding fields exist to prevent. The old number survives, unchanged
+in meaning, at the new `mean_member_sigma` key (see the MINOR entry above) — a consumer that wants
+the old behavior back reads that key instead; a consumer that wants the actual combined uncertainty
+of the cell should prefer the (now-correct) `uncertainty`.
 
 ### The CSV `trustworthy` column — additive in shape, but flagged
 
@@ -201,6 +245,29 @@ through `uncertainty` is unaffected; a parser that asserts the exact column coun
 recorded here explicitly rather than waved through as minor, and consumers with additive needs are
 pointed at the JSON export (where `trustworthy` is unambiguously MINOR), consistent with the
 guidance above.
+
+### `/api/schema.json` and `serverSettings.dataSchemaVersion` — MINOR (backward compatible)
+
+A new endpoint (`GET /api/schema.json`, the generated data dictionary) and a new field on an
+existing response object (`serverSettings.dataSchemaVersion` on `GET /v1.1`). Both are additions: no
+existing endpoint, field, or default changed, and a consumer that ignores them keeps working
+untouched. Under "Public API — what counts as breaking" ("Adding a new endpoint ... or a new field
+to an existing response object"), this is explicitly **MINOR**. `DATA_SCHEMA_VERSION` itself starts
+at `1` and is not, by its introduction, a schema change — it is a new descriptive signal about the
+existing schema, not a change to the schema; only a future bump of the integer would need
+evaluating against the "Data schema — what counts as breaking" rules above.
+
+### The CSV `data_license` / `data_attribution` columns — additive in shape, but flagged
+
+The export CSV gained two final provenance columns: the order is now `node_id, timestamp,
+parameter, value, unit, calibration, qc, uncertainty, trustworthy, data_license,
+data_attribution`. By the same rule as the `trustworthy` column above, **appending CSV columns is
+treated as breaking for positional parsers and so is MAJOR**; it is recorded here rather than
+waved through. The JSON export's changes are MINOR: the top-level `license` key already existed
+and still defaults to `CC0-1.0` (it now honors an explicit `--license` at export time instead of
+being hardcoded), and the optional top-level `attribution` key is new and absent unless supplied.
+A caller that never passes `--license`/`--attribution` gets byte-identical JSON and two extra CSV
+columns holding the same CC0 default the banner always claimed.
 
 ### Heat-index plausibility ceiling (60 degC) — data-quality fix, PATCH
 

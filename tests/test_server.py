@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import threading
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from swelter import aggregate as aggregate_module
 from swelter.config import NetworkConfig, NodeConfig
 from swelter.server import ServerContext, make_server
 from swelter.store import SqliteStore
@@ -17,8 +20,17 @@ from swelter.store import SqliteStore
 from .conftest import make_obs
 
 
+@dataclass
+class _Server:
+    """A running test server plus the pieces (store, context) some tests need direct access to."""
+
+    url: str
+    db: SqliteStore
+    ctx: ServerContext
+
+
 @pytest.fixture
-def base_url(tmp_path: Path):  # type: ignore[no-untyped-def]
+def server(tmp_path: Path):  # type: ignore[no-untyped-def]
     db = SqliteStore(tmp_path / "obs.db")
     db.write([make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0, calibration="v1")])
     config = NetworkConfig(nodes=(NodeConfig(node_id="node-01", lat=38.58, lon=-121.49),))
@@ -38,16 +50,30 @@ def base_url(tmp_path: Path):  # type: ignore[no-untyped-def]
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{port}"
+        yield _Server(url=f"http://127.0.0.1:{port}", db=db, ctx=ctx)
     finally:
         httpd.shutdown()
         httpd.server_close()
         db.close()
 
 
+@pytest.fixture
+def base_url(server: _Server) -> str:
+    return server.url
+
+
 def _get(url: str) -> tuple[int, str]:
     with urllib.request.urlopen(url, timeout=5) as response:  # noqa: S310 (localhost test server)
         return response.status, response.read().decode("utf-8")
+
+
+def _get_with_headers(host: str, path: str, headers: dict[str, str] | None = None) -> Any:
+    conn = http.client.HTTPConnection(host, timeout=5)
+    conn.request("GET", path, headers=headers or {})
+    response = conn.getresponse()
+    response.read()  # drain so the connection can close cleanly
+    conn.close()
+    return response
 
 
 def test_path_traversal_sibling_prefix_is_blocked(base_url: str) -> None:
@@ -145,6 +171,16 @@ def test_alerts_atom_endpoint(base_url: str) -> None:
     assert root.tag.endswith("feed")
 
 
+def test_alerts_atom_es_endpoint(base_url: str) -> None:
+    import xml.etree.ElementTree as ET
+
+    status, body = _get(f"{base_url}/api/alerts.es.xml")
+    assert status == 200
+    root = ET.fromstring(body)  # noqa: S314 -- our own server response; malformed would raise
+    assert root.tag.endswith("feed")
+    assert root.get("{http://www.w3.org/XML/1998/namespace}lang") == "es"
+
+
 def test_cooling_centers_endpoint_empty_when_unconfigured(base_url: str) -> None:
     # The fixture builds a context with no cooling-center path, so the overlay is a valid empty set.
     status, body = _get(f"{base_url}/api/cooling-centers.geojson")
@@ -164,3 +200,119 @@ def test_writes_are_refused(base_url: str) -> None:
     except urllib.error.HTTPError as exc:
         raised = exc.code == 405
     assert raised, "the public API must refuse writes"
+
+
+def test_handler_has_a_read_timeout() -> None:
+    # Slow-loris defense: a handler with no socket timeout can be tied up indefinitely by a
+    # client that opens a connection and never finishes sending a request.
+    from swelter.server import _make_handler
+
+    ctx = ServerContext(
+        store=SqliteStore(":memory:"),
+        config=NetworkConfig(nodes=()),
+        web_dir=Path("."),
+    )
+    handler_cls = _make_handler(ctx)
+    assert handler_cls.timeout == 10
+
+
+def test_surface_request_is_cached_across_requests(
+    server: _Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The aggregated surface is the most expensive read on every request; a second request
+    # against an unchanged store must reuse it rather than re-running aggregate.aggregate().
+    calls = 0
+    original = aggregate_module.aggregate
+
+    def counting(*args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(aggregate_module, "aggregate", counting)
+
+    status1, _ = _get(f"{server.url}/api/surface.geojson")
+    status2, _ = _get(f"{server.url}/api/surface.geojson")
+    assert status1 == status2 == 200
+    assert calls == 1, "a repeat request against an unchanged store must not re-aggregate"
+
+
+def test_surface_records_and_alerts_share_the_cached_aggregate(
+    server: _Server, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # _surface, _surface_records, and _alerts all read the surface; within one store version
+    # they should share a single aggregate.aggregate() call, not one each.
+    calls = 0
+    original = aggregate_module.aggregate
+
+    def counting(*args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(aggregate_module, "aggregate", counting)
+
+    _get(f"{server.url}/api/surface.geojson")
+    _get(f"{server.url}/api/surface.json")
+    _get(f"{server.url}/api/alerts.json")
+    assert calls == 1
+
+
+def test_etag_conditional_get_returns_304(server: _Server) -> None:
+    host = server.url.removeprefix("http://")
+    first = _get_with_headers(host, "/api/surface.geojson")
+    assert first.status == 200
+    etag = first.getheader("ETag")
+    assert etag, "a 200 for a cacheable payload must carry an ETag"
+
+    second = _get_with_headers(host, "/api/surface.geojson", {"If-None-Match": etag})
+    assert second.status == 304
+    assert second.getheader("ETag") == etag
+
+
+def test_etag_mismatch_returns_full_body(server: _Server) -> None:
+    host = server.url.removeprefix("http://")
+    response = _get_with_headers(host, "/api/surface.geojson", {"If-None-Match": '"stale"'})
+    assert response.status == 200
+
+
+def test_surface_cache_invalidates_after_store_write(server: _Server) -> None:
+    # total_changes bumps on a write without the row *count* necessarily telling the same
+    # story on its own — the version key must react to a write, not just to row count.
+    _, first_body = _get(f"{server.url}/api/surface.geojson")
+    first = json.loads(first_body)
+
+    server.db.write(
+        [
+            make_obs(
+                node_id="node-01",
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=999.0,
+                calibration="v1",
+                timestamp="2026-06-01T05:00:00Z",
+            )
+        ]
+    )
+
+    _, second_body = _get(f"{server.url}/api/surface.geojson")
+    second = json.loads(second_body)
+    assert first != second, "a store write must invalidate the cached surface, not serve stale data"
+
+
+def test_surface_cache_invalidates_after_rebuild_with_unchanged_row_count(
+    server: _Server,
+) -> None:
+    # drop_calibrated() deletes and (via re-ingest) rewrites derived rows without necessarily
+    # changing the row count, so the version key must key off total_changes, not count() alone.
+    _, first_body = _get(f"{server.url}/api/surface.geojson")
+    json.loads(first_body)  # warms the cache
+
+    count_before = server.db.count()
+    server.db.drop_calibrated()
+    server.db.write([make_obs(parameter="pm25_ugm3", unit="ug/m3", value=42.0, calibration="v1")])
+    assert server.db.count() == count_before  # row count unchanged; total_changes still moved
+
+    _, second_body = _get(f"{server.url}/api/surface.geojson")
+    second = json.loads(second_body)
+    assert second["features"], "the surface must reflect the rebuilt data, not a stale cache"

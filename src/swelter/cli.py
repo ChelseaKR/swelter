@@ -1,5 +1,6 @@
 """The ``swelter`` command line: ingest, qc, calibrate, aggregate, export, serve, demo, rebuild —
-plus the operator-side write path (ingest-serve, node-key).
+plus the operator-side write path (ingest-serve, node-key) and the host-facing preview
+(node-preview).
 
 This is the one-command surface a neighbourhood collective actually touches. Every subcommand
 is a thin wrapper over the library functions, so anything the CLI does is equally scriptable
@@ -11,9 +12,12 @@ the dashboard, with no hardware in the loop.
 from __future__ import annotations
 
 import argparse
+import csv
+import hashlib
 import json
+import shutil
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -21,16 +25,36 @@ import yaml
 
 from . import (
     __version__,
+    ac_access_layer,
     aggregate,
     alerts,
     calibrate,
+    cards,
+    context_layers,
     cooling_centers,
+    crosswalk,
     export,
+    exposure_brief,
     ingest,
     ingest_server,
+    integrity,
+    obs,
+    plan,
     qc,
+    redlining_layer,
+    snapshot,
+    steward,
 )
-from .config import NetworkConfig, consent_concerns, label_concerns, load_config
+from .config import (
+    NetworkConfig,
+    NodeConfig,
+    config_concerns,
+    consent_concerns,
+    haversine_m,
+    label_concerns,
+    load_config,
+    load_config_doc,
+)
 from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
@@ -40,8 +64,24 @@ DEFAULT_CONFIG = "network.yaml"
 DEFAULT_WEB = "web"
 DEFAULT_DATA = "data/demo"
 DEFAULT_COOLING = "data/cooling_centers.geojson"
+DEFAULT_CANOPY = "data/context_layers.geojson"
+DEFAULT_AC_ACCESS = "data/ac_access_layer.geojson"
+DEFAULT_REDLINING = "data/redlining_layer.geojson"
 DEFAULT_INTERVAL_S = 3600.0
 DEFAULT_KEYS = "node-keys.yaml"  # operator-local; outside network.yaml and the copyable store
+
+#: Repo root, resolved from this file's location rather than the process cwd, so `publish` can
+#: find LICENSE/DATA-LICENSE to bundle into a static deploy no matter where `swelter` is invoked
+#: from. In an installed (non-checkout) package these simply won't exist, and publish skips them —
+#: the same optional-source pattern as `_write_web_cooling_centers`.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _optional_dataset[T](loader: Callable[[Path], T], path: str) -> T | None:
+    """Load a curated context-layer dataset if its file exists, else ``None`` (no coverage)."""
+    p = Path(path)
+    return loader(p) if p.is_file() else None
+
 
 #: A minimal, commented starter network written by `swelter init`. __NAME__ is replaced with a
 #: YAML-safe quoted name. Two nodes, one reference monitor, one co-location window — the smallest
@@ -87,9 +127,39 @@ def _err(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _corrections_skipped_stale(
+    raw: list[Observation],
+    registry: calibrate.CorrectionRegistry,
+    calibrated: list[Observation],
+) -> int:
+    """Raw readings that had a registered correction available but were left raw.
+
+    Mirrors ``calibrate.apply()``'s own "leave it raw" branch (a correction is registered for
+    the node/parameter but its required co-timed predictor — e.g. humidity — was not present
+    on that reading) without duplicating that logic: it diffs the set of ``(node, ts,
+    parameter)`` keys that *could* have been corrected against the set that actually were.
+    """
+    candidates = {
+        (o.node_id, o.timestamp, o.parameter)
+        for o in raw
+        if registry.get(o.node_id, o.parameter) is not None
+    }
+    applied = {(o.node_id, o.timestamp, o.parameter) for o in calibrated}
+    return len(candidates - applied)
+
+
+def _print_concerns(errors: list[str], warnings: list[str]) -> None:
+    for message in errors:
+        _err(f"swelter: ✗ {message}")
+    for message in warnings:
+        _err(f"swelter: ⚠ {message}")
+
+
 def _load_config(path: str) -> NetworkConfig:
     if Path(path).is_file():
-        config = load_config(path)
+        config, doc = load_config_doc(path)
+        errors, warnings = config_concerns(config, doc)
+        _print_concerns(errors, warnings)
         for concern in label_concerns(config):
             _err(f"swelter: ⚠ {concern}")
         for concern in consent_concerns(config):
@@ -97,6 +167,16 @@ def _load_config(path: str) -> NetworkConfig:
         return config
     _err(f"swelter: config {path} not found; using an empty network")
     return NetworkConfig()
+
+
+def _node_models(config: NetworkConfig) -> dict[str, str]:
+    """node_id → sensor_model, for every node that registered one.
+
+    Feeds `calibrate.fit`'s (parameter, model) family lookup. Nodes without a `sensor_model` are
+    omitted, so `fit` falls back to the per-parameter default for them exactly as before
+    model-awareness existed.
+    """
+    return {node.node_id: node.sensor_model for node in config.nodes if node.sensor_model}
 
 
 # -- subcommands -------------------------------------------------------------
@@ -107,8 +187,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         _err(f"swelter: input {args.input} not found")
         return 1
     paths = store_paths(args.store)
+    manifest = obs.RunManifest()
     with open_store(args.store) as store:
         result = ingest.ingest_file(args.input, store, quarantine_path=paths["quarantine"])
+    manifest.record(
+        "ingest",
+        "payloads ingested",
+        payloads_accepted=result.accepted_payloads,
+        payloads_quarantined=result.quarantined,
+    )
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     _err(
         f"swelter: ingested {result.accepted_payloads} payloads → "
         f"{result.observations_written} new observations "
@@ -193,34 +282,95 @@ def cmd_qc(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_status(args: argparse.Namespace) -> int:
+    """The steward console: a ranked, evidence-cited "what needs doing" list.
+
+    Composes signals the pipeline already produces — node health/liveness, correction age
+    (FIX-03), coverage-equity — into one ranked plan (EXP-05). Nothing here fetches or computes a
+    new number; ``steward.plan`` is a pure function over the same reports ``qc`` prints.
+    """
+    config = _load_config(args.config)
+    paths = store_paths(args.store)
+    with open_store(args.store) as store:
+        raw = store.read(calibration=RAW)
+        all_obs = list(store.all())
+    if not raw:
+        _err("swelter: store is empty")
+        if args.json:
+            empty = {"generated_for": "", "actions": [], "disclaimer": steward.DISCLAIMER}
+            print(json.dumps(empty, indent=2))
+        return 0
+    latest = max(o.timestamp for o in raw)
+    coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
+    health = qc.health_report(raw, expected_interval_s=args.interval, coverage=coverage)
+
+    if paths["registry"].is_file():
+        registry = calibrate.CorrectionRegistry.from_yaml(paths["registry"])
+    else:
+        registry = calibrate.CorrectionRegistry()
+
+    result = steward.plan(health, coverage, registry.all(), latest=latest)
+
+    if args.json:
+        print(json.dumps(result, indent=2))
+        return 0
+
+    actions = cast(list[dict[str, Any]], result["actions"])
+    _err(f"swelter: steward plan for {result['generated_for']} — {len(actions)} action(s)")
+    for i, action in enumerate(actions, start=1):
+        _err(f"  {i:>2}. [{action['kind']}] {action['reason']}")
+    _err(f"swelter: {result['disclaimer']}")
+    return 0
+
+
 def cmd_calibrate(args: argparse.Namespace) -> int:
     if not Path(args.colocation).is_file():
         _err(f"swelter: colocation {args.colocation} not found")
         return 1
+    config = _load_config(args.config)
     pairs = calibrate.read_colocation(args.colocation)
-    registry = calibrate.fit(pairs)
+    registry = calibrate.fit(pairs, models=_node_models(config))
     paths = store_paths(args.store)
     registry.to_yaml(paths["registry"])
     _err(f"swelter: fit {len(registry)} corrections → {paths['registry']}")
     for c in registry.all():
         _err(f"  {c.version:<28} n={c.n:<4} R²={c.r2:.3f}  ±{c.residual_std} {c.parameter}")
+    manifest = obs.RunManifest()
     if not args.fit_only:
         with open_store(args.store) as store:
             raw = store.read(calibration=RAW)
             store.drop_calibrated()
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
             written = store.write(calibrated)
+        manifest.record(
+            "calibrate",
+            "corrections applied",
+            corrections_applied=written.written,
+            corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
+        )
         _err(f"swelter: applied corrections → {written.written} calibrated observations")
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     return 0
 
 
 def cmd_aggregate(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
+    paths = store_paths(args.store)
     with open_store(args.store) as store:
         surface = aggregate.aggregate(store.all(), config)
-    out = Path(args.out or store_paths(args.store)["aggregate"])
+    out = Path(args.out or paths["aggregate"])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8")
+    manifest = obs.RunManifest()
+    manifest.record(
+        "aggregate",
+        "surface built",
+        cells_built=len(surface.cells),
+        cells_provisional=sum(1 for c in surface.cells if c.provisional),
+    )
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     _err(f"swelter: {len(surface.cells)} cell-hours → {out}")
     return 0
 
@@ -242,8 +392,70 @@ def cmd_alerts(args: argparse.Namespace) -> int:
         sys.stdout.write(json.dumps(feed.to_json(), indent=2) + "\n")
     if args.web:
         _write_web_alerts(Path(args.web), surface, config)
-        _err(f"swelter: wrote alerts.json + alerts.xml → {args.web}/")
+        _err(f"swelter: wrote alerts.json + alerts.xml + alerts.es.xml → {args.web}/")
     _err(f"swelter: {len(feed.alerts)} active alert(s) at {feed.bucket or 'no data'}")
+    return 0
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    """Build the plain-language, sourced neighborhood exposure brief(s) (F5 / roadmap E1).
+
+    "This block ran Danger N days this period" plus sourced canopy/AC-access/redlining context,
+    from whatever history the store holds — the historical sibling of ``swelter alerts``. Each
+    context dataset is optional; a brief still builds with only the ones present on disk.
+    """
+    config = _load_config(args.config)
+    with open_store(args.store) as store:
+        surface = aggregate.aggregate(store.all(), config)
+    briefs = exposure_brief.build_briefs(
+        surface,
+        parameter=args.parameter,
+        thresholds=config.alert_thresholds or None,
+        canopy=_optional_dataset(context_layers.load, args.canopy),
+        ac_access=_optional_dataset(ac_access_layer.load, args.ac_access),
+        redlining=_optional_dataset(redlining_layer.load, args.redlining),
+    )
+    if args.area:
+        brief = briefs.get(args.area)
+        if brief is None:
+            _err(f"swelter: no brief for area {args.area!r} (no {args.parameter} data there)")
+            return 1
+        briefs = {args.area: brief}
+    if args.format == "json":
+        payload = {cell_id: briefs[cell_id].as_record() for cell_id in sorted(briefs)}
+        print(json.dumps(payload, indent=2))
+    else:
+        for cell_id in sorted(briefs):
+            print(briefs[cell_id].to_text())
+            print()
+    _err(f"swelter: {len(briefs)} area brief(s) built from {len(surface.cells)} cell-hours")
+    return 0
+
+
+def cmd_cards(args: argparse.Namespace) -> int:
+    """Emit print-CSS bilingual neighborhood cards — one door flyer / fridge card per published
+    cell, from the same surface + cooling-center + i18n data the dashboard and alerts feed use
+    (EXP-11). The paper channel for residents a screen or a connection doesn't reach."""
+    config = _load_config(args.config)
+    with open_store(args.store) as store:
+        surface = aggregate.aggregate(store.all(), config)
+    cooling_path = _cooling_path(args.cooling_centers)
+    dataset = cooling_centers.load(cooling_path) if cooling_path else cooling_centers.empty()
+    html = cards.render_cards(
+        surface,
+        dataset,
+        lang=args.lang,
+        area=args.area or None,
+        large_type=args.large_type,
+        feed_url=args.feed_url,
+    )
+    if args.out and args.out != "-":
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html, encoding="utf-8")
+        _err(f"swelter: wrote {len(surface.latest_by_cell())} card(s) → {out}")
+    else:
+        sys.stdout.write(html)
     return 0
 
 
@@ -255,10 +467,16 @@ def cmd_export(args: argparse.Namespace) -> int:
         raw = store.read(calibration=RAW)
     gaps = qc.detect_gaps(raw, args.interval)
     if args.format == "json":
-        sys.stdout.write(export.to_json(observations, indent=2))
+        sys.stdout.write(
+            export.to_json(
+                observations, indent=2, license=args.license, attribution=args.attribution
+            )
+        )
     else:
-        sys.stdout.write(export.to_csv(observations))
-    _err(export.summarize(observations, gaps=gaps))
+        sys.stdout.write(
+            export.to_csv(observations, license=args.license, attribution=args.attribution)
+        )
+    _err(export.summarize(observations, gaps=gaps, license=args.license))
     return 0
 
 
@@ -278,6 +496,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         web_dir=Path(args.web),
         base_url=base,
         cooling_centers_path=_cooling_path(args.cooling_centers),
+        store_dir=store_paths(args.store)["dir"],
     )
     _err(f"swelter: serving dashboard + API at {base}  (Ctrl-C to stop)")
     _err(f"  dashboard {base}/   ·   SensorThings {base}/v1.1   ·   export {base}/export.csv")
@@ -349,30 +568,101 @@ def cmd_node_key(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_node_preview(node: NodeConfig, config: NetworkConfig) -> None:
+    """Print what the map/API publishes for one node, versus its private exact coordinate."""
+    label = f" ({node.label})" if node.label else ""
+    print(f"node {node.node_id}{label}")
+    if node.lat is None or node.lon is None:
+        print("  not placed — publishes nothing (no location on record)")
+        print()
+        return
+    print(f"  your private coordinate — never published: {node.lat:.6f}, {node.lon:.6f}")
+    published = node.public_location(config.grid_resolution_m)
+    assert published is not None  # noqa: S101 (lat/lon set, so this cannot be None)
+    cell_id, cell_label = aggregate.node_cell_map(config).get(node.node_id, ("", ""))
+    label_suffix = f" ({cell_label})" if cell_label else ""
+    print(f"  published coordinate: {published[0]:.6f}, {published[1]:.6f}")
+    print(f"  published cell: {cell_id}{label_suffix}")
+    offset_m = haversine_m(node.lat, node.lon, published[0], published[1])
+    print(f"  map shows a point ~{offset_m:.0f} m from your sensor")
+    print(f"  location mode: {node.location}")
+    if node.location == "precise":
+        print(
+            "  ⚠ WARNING: location is 'precise' — your EXACT coordinate is published as-is. "
+            "Coarse-by-default grid-snap protection is OFF for this node. Switch `location` "
+            "back to 'coarse' in network.yaml to publish only the grid cell."
+        )
+    print()
+
+
+def cmd_node_preview(args: argparse.Namespace) -> int:
+    """Show a host exactly what the map/API publishes for their node(s).
+
+    Read-only and host-facing: it never changes a node's location or its published mode, it
+    just makes visible — in the host's own terminal — the same coordinate the map and API
+    already publish, so "coarse by default" is a fact a host can verify, not just a promise.
+    """
+    config = _load_config(args.config)
+    if args.node_id:
+        node = config.node(args.node_id)
+        if node is None:
+            _err(f"swelter: node {args.node_id} not found in {args.config}")
+            return 1
+        _print_node_preview(node, config)
+        return 0
+    if not config.nodes:
+        _err(f"swelter: no nodes registered in {args.config}")
+        return 0
+    for node in config.nodes:
+        _print_node_preview(node, config)
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     data = Path(args.data)
     config = _load_config(args.config)
     paths = store_paths(args.store)
     paths["db"].unlink(missing_ok=True)  # a fresh demo store every run; replay is idempotent
+    manifest = obs.RunManifest()
 
     with SqliteStore(paths["db"]) as store:
         result = ingest.ingest_file(
             data / "observations.jsonl", store, quarantine_path=paths["quarantine"]
         )
+        manifest.record(
+            "ingest",
+            "demo replay ingested",
+            payloads_accepted=result.accepted_payloads,
+            payloads_quarantined=result.quarantined,
+        )
         _err(f"swelter demo: replayed {result.observations_seen} observations from recorded data")
 
         colocation = data / "colocation.jsonl"
         if colocation.is_file():
-            registry = calibrate.fit(calibrate.read_colocation(colocation))
+            registry = calibrate.fit(
+                calibrate.read_colocation(colocation), models=_node_models(config)
+            )
             registry.to_yaml(paths["registry"])
             raw = store.read(calibration=RAW)
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
             store.write(calibrated)
+            manifest.record(
+                "calibrate",
+                "demo replay calibrated",
+                corrections_applied=len(calibrated),
+                corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
+            )
             _err(
                 f"swelter demo: fit {len(registry)} corrections, wrote {len(calibrated)} calibrated"
             )
 
         surface = aggregate.aggregate(store.all(), config)
+        manifest.record(
+            "aggregate",
+            "demo replay surface built",
+            cells_built=len(surface.cells),
+            cells_provisional=sum(1 for c in surface.cells if c.provisional),
+        )
         paths["aggregate"].write_text(
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
@@ -383,13 +673,20 @@ def cmd_demo(args: argparse.Namespace) -> int:
         )
         _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
         _write_web_health(
-            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+            Path(args.web),
+            store.read(calibration=RAW),
+            args.interval,
+            coverage=_coverage,
+            store_dir=args.store,
         )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
+
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
 
     if args.serve:
         store = open_store(args.store)
@@ -400,6 +697,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             web_dir=Path(args.web),
             base_url=base,
             cooling_centers_path=_cooling_path(args.cooling_centers),
+            store_dir=paths["dir"],
         )
         _err(f"swelter demo: serving at {base}  (Ctrl-C to stop)")
         try:
@@ -439,28 +737,59 @@ def _write_web_sample(
     (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def _write_web_surface_slice(
+    web_dir: Path, surface: aggregate.Surface, hours: int, filename: str, *, attribution: str = ""
+) -> None:
+    """Bake a trailing-window surface slice (``surface-24h.json``, ``surface-7d.json``) so a fully
+    static deploy carries the same time-sliced views the live ``/api/surface.json?hours=N`` route
+    serves — same payload shape as ``_write_web_sample``, windowed the same way server.py windows
+    it: the most recent ``hours`` hourly buckets, not a literal duration cutoff."""
+    if not web_dir.is_dir():
+        return
+    buckets = sorted({c.bucket for c in surface.cells})[-hours:] if hours else []
+    keep = set(buckets)
+    records = [c.as_record() for c in surface.cells if c.bucket in keep]
+    payload = {
+        "interval": surface.interval,
+        "attribution": attribution,
+        "buckets": buckets,
+        "cells": records,
+    }
+    (web_dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def _write_web_health(
     web_dir: Path,
     raw: list[Observation],
     interval_s: float,
     *,
     coverage: dict[str, object] | None = None,
+    store_dir: str | Path | None = None,
 ) -> None:
     """Bake the node-health summary so the static dashboard shows coverage with no live API.
 
     A coverage-equity block (calibrated-vs-raw per cell) rides along when provided, so the static
-    site carries the same calibration-coverage read as the live ``/api/health.json``."""
+    site carries the same calibration-coverage read as the live ``/api/health.json``. An
+    integrity block (chain head from ``digests.jsonl``, read cheaply — see ``qc.health_report``)
+    rides along too when ``store_dir`` is given."""
     if not web_dir.is_dir():
         return
-    report = qc.health_report(raw, expected_interval_s=interval_s, coverage=coverage)
+    report = qc.health_report(
+        raw, expected_interval_s=interval_s, coverage=coverage, store_dir=store_dir
+    )
     (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
 def _write_web_alerts(web_dir: Path, surface: aggregate.Surface, config: NetworkConfig) -> None:
-    """Bake the neighborhood-alerts feed (JSON + Atom) so the static site can show and syndicate it.
+    """Bake the neighborhood-alerts feed (JSON + English and Spanish Atom) so the static site can
+    show and syndicate it.
 
-    Deployment-neutral relative links and data-derived timestamps keep the committed artifact
-    deterministic — re-running the pipeline on the same store reproduces it byte for byte."""
+    Deployment-neutral relative links and data-derived timestamps keep the committed artifacts
+    deterministic — re-running the pipeline on the same store reproduces them byte for byte. The
+    JSON already carries both ``headline`` and ``headline_es`` per alert (see
+    :meth:`swelter.alerts.Alert.as_record`); ``alerts.es.xml`` is the Spanish Atom feed, built
+    from the same server-side catalog (:mod:`swelter.i18n_alerts`) — machine-drafted and labeled
+    as such."""
     if not web_dir.is_dir():
         return
     feed = alerts.build_feed(
@@ -468,6 +797,7 @@ def _write_web_alerts(web_dir: Path, surface: aggregate.Surface, config: Network
     )
     (web_dir / "alerts.json").write_text(json.dumps(feed.to_json(), indent=2), encoding="utf-8")
     (web_dir / "alerts.xml").write_text(feed.to_atom(), encoding="utf-8")
+    (web_dir / "alerts.es.xml").write_text(feed.to_atom(lang="es"), encoding="utf-8")
 
 
 def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
@@ -481,8 +811,28 @@ def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
 
 
 _FetchOk = tuple[
-    list[Observation], dict[str, Any], str, str
-]  # observations, network, attrib, label
+    list[Observation], dict[str, Any], str, str, str
+]  # observations, network, attribution, source label, license
+
+
+def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, Any]:
+    """For ``--accumulate``: union today's fetched nodes into the previously written network doc
+    so a node that drops out of one day's discovery (EXP-01: "nodes that come and go") keeps its
+    entry — and so its history in the store stays resolvable by ``aggregate`` — while a node seen
+    again today gets its label/location refreshed. Every other top-level field (name, grid
+    resolution, languages, reference monitors, calibration windows) comes from today's fetch."""
+    if not config_path.is_file():
+        return network
+    try:
+        previous = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return network  # a corrupt prior file shouldn't block today's fetch
+    prior_nodes = {n["node_id"]: n for n in previous.get("nodes", []) if "node_id" in n}
+    for node in network.get("nodes", []):
+        prior_nodes[node["node_id"]] = node  # today's data wins for nodes seen again
+    merged = dict(network)
+    merged["nodes"] = list(prior_nodes.values())
+    return merged
 
 
 def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
@@ -513,7 +863,7 @@ def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned from OpenAQ")
         return 1
     network = openaq.network_doc("California", nodes)
-    return observations, network, openaq.ATTRIBUTION, "OpenAQ"
+    return observations, network, openaq.ATTRIBUTION, "OpenAQ", openaq.LICENSE
 
 
 def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
@@ -534,7 +884,13 @@ def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
         return 1
     network = sensor_community.network_doc(area.name, nodes)
-    return observations, network, sensor_community.ATTRIBUTION, "Sensor.Community"
+    return (
+        observations,
+        network,
+        sensor_community.ATTRIBUTION,
+        "Sensor.Community",
+        sensor_community.LICENSE,
+    )
 
 
 def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
@@ -557,7 +913,13 @@ def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned")
         return 1
     network = openmeteo.network_doc(places)
-    return observations, network, openmeteo.ATTRIBUTION, "Copernicus CAMS via Open-Meteo"
+    return (
+        observations,
+        network,
+        openmeteo.ATTRIBUTION,
+        "Copernicus CAMS via Open-Meteo",
+        openmeteo.LICENSE,
+    )
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -566,7 +928,10 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     (keyless, but coarse — not block-level); ``--source openaq`` is dense real physical sensors
     across California (block-by-block, needs an API key); ``--source sensor-community`` is real
     community low-cost sensors (dense in Europe). The two sensor sources are uncalibrated, so their
-    readings are shown raw/provisional — swelter's thesis made real."""
+    readings are shown raw/provisional — swelter's thesis made real. By default the store is wiped
+    first, so each fetch is a fresh snapshot; ``--accumulate`` keeps the existing store between
+    runs instead (see ADR 0013), so readings pile up run over run and the time slider ends up
+    with real longitudinal history rather than one fetch's worth."""
     if args.source == "openaq":
         result = _fetch_openaq(args)
     elif args.source == "sensor-community":
@@ -575,15 +940,21 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         result = _fetch_openmeteo(args)
     if isinstance(result, int):
         return result
-    observations, network, attribution, source_label = result
+    observations, network, attribution, source_label, license = result
 
     observations = qc.apply(observations)
-    Path(args.config).write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
-    config = load_config(args.config)
+    config_path = Path(args.config)
+    if args.accumulate:
+        network = _merge_network_doc(config_path, network)
+    config_path.write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
+    config = _load_config(args.config)  # parse it back so we fail loudly if the write was bad
 
     paths = store_paths(args.store)
-    paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
+    if not args.accumulate:
+        paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
     with SqliteStore(paths["db"]) as store:
+        # write() is INSERT OR IGNORE on (node_id, timestamp, parameter, calibration), so
+        # re-fetching overlapping history under --accumulate is idempotent, not duplicated.
         written = store.write(observations)
         surface = aggregate.aggregate(store.all(), config)
         paths["aggregate"].write_text(
@@ -592,16 +963,23 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         _write_web_sample(Path(args.web), surface, attribution=attribution)
         _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
         _write_web_health(
-            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+            Path(args.web),
+            store.read(calibration=RAW),
+            args.interval,
+            coverage=_coverage,
+            store_dir=args.store,
         )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
+        mode = "accumulated" if args.accumulate else "stored"
         _err(
-            f"swelter: stored {written.written} real observations from {len(config.nodes)} "
-            f"locations (source: {source_label})"
+            f"swelter: {mode} {written.written} new of {len(all_obs)} total real observations "
+            f"from {len(config.nodes)} locations (source: {source_label})"
         )
-        _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
+        _err(
+            export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval), license=license)
+        )
 
     if args.serve:
         store = open_store(args.store)
@@ -612,6 +990,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             web_dir=Path(args.web),
             base_url=base,
             cooling_centers_path=_cooling_path(args.cooling_centers),
+            store_dir=paths["dir"],
         )
         _err(f"swelter: serving REAL data ({source_label}) at {base}  (Ctrl-C to stop)")
         try:
@@ -642,6 +1021,236 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+#: Files `publish` may emit into `--web`, in manifest order. Not every run writes every entry —
+#: cooling-centers.geojson needs a dataset, DATA-LICENSE/LICENSE need a checkout — so the manifest
+#: only lists what actually landed on disk (checked by _write_publish_manifest, not assumed here).
+_PUBLISH_FILES = (
+    "sample-surface.json",
+    "sample-health.json",
+    "alerts.json",
+    "alerts.xml",
+    "cooling-centers.geojson",
+    "surface-24h.json",
+    "surface-7d.json",
+    "export.csv",
+    "DATA-LICENSE",
+    "LICENSE",
+)
+
+
+def _write_publish_manifest(
+    web_dir: Path, filenames: Sequence[str], *, interval_s: float, data_hour: str
+) -> list[dict[str, object]]:
+    """Enumerate the files ``publish`` just baked, with a content hash and size for each, so a
+    deploy is auditable — a CI artifact or a mirrored bucket can be checked against this manifest
+    rather than trusted blind (FIX-11). Deterministic: the files it hashes are themselves
+    deterministic for an unchanged store (see ``_write_web_alerts``), so re-running ``publish``
+    against the same store reproduces this manifest byte for byte."""
+    files: list[dict[str, object]] = []
+    for name in filenames:
+        path = web_dir / name
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        files.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+    manifest = {"interval_s": interval_s, "data_hour": data_hour, "files": files}
+    (web_dir / "publish-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return files
+
+
+def cmd_publish(args: argparse.Namespace) -> int:
+    """Bake a complete, fully static site from an existing store: every artifact ``fetch``/``demo``
+    already write into ``--web`` as a side effect, promoted into its own first-class, tested command
+    so a CI workflow (the GitHub Pages build) or an operator can regenerate a static deploy from any
+    store in one call — the pages.yml bash choreography, as tested Python, plus an auditable
+    manifest of what shipped."""
+    config = _load_config(args.config)
+    web_dir = Path(args.web)
+    web_dir.mkdir(parents=True, exist_ok=True)
+
+    attribution = args.attribution or ""
+    with open_store(args.store) as store:
+        raw = store.read(calibration=RAW)
+        all_obs = list(store.all())
+        surface = aggregate.aggregate(all_obs, config)
+        coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
+
+        _write_web_sample(web_dir, surface, attribution=attribution)
+        _write_web_surface_slice(web_dir, surface, 24, "surface-24h.json", attribution=attribution)
+        _write_web_surface_slice(
+            web_dir, surface, 24 * 7, "surface-7d.json", attribution=attribution
+        )
+        _write_web_health(web_dir, raw, args.interval, coverage=coverage)
+        _write_web_alerts(web_dir, surface, config)
+        _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
+        (web_dir / "export.csv").write_text(
+            export.to_csv(all_obs, license=args.license, attribution=args.attribution),
+            encoding="utf-8",
+        )
+
+    # License provenance travels with the artifact (never claim CC0 for a fetched third-party
+    # store): an explicit --license writes this deploy's real terms; the default keeps the
+    # repo's own CC0 DATA-LICENSE for the native store.
+    if args.license != export.DEFAULT_LICENSE or args.attribution:
+        lines = [f"swelter — this deploy's data: {args.license}"]
+        if args.attribution:
+            lines.append(args.attribution)
+        lines.append("swelter source code is Apache-2.0 (see /LICENSE).")
+        (web_dir / "DATA-LICENSE").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        license_source = _REPO_ROOT / "LICENSE"
+        if license_source.is_file():
+            shutil.copyfile(license_source, web_dir / "LICENSE")
+    else:
+        for name in ("DATA-LICENSE", "LICENSE"):
+            source = _REPO_ROOT / name
+            if source.is_file():
+                shutil.copyfile(source, web_dir / name)
+
+    data_hour = max((cell.bucket for cell in surface.cells), default="")
+    written = _write_publish_manifest(
+        web_dir, _PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
+    )
+    _err(
+        f"swelter publish: wrote {len(written)} files "
+        f"({len(surface.cells)} cell-hours, data hour {data_hour or 'n/a'}) → {web_dir}/"
+    )
+    return 0
+
+
+def _parse_lat_lon(raw: str) -> tuple[float, float] | None:
+    """Parse a ``"lat,lon"`` string; ``None`` on anything that is not exactly two numbers."""
+    parts = raw.split(",")
+    if len(parts) != 2:
+        return None
+    try:
+        return (float(parts[0].strip()), float(parts[1].strip()))
+    except ValueError:
+        return None
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    """Siting what-if: simulate a candidate node's coverage, redundancy, and reference distance
+    before any hardware moves (EXP-08). Pure function over the current config — descriptive
+    numbers only, never an "optimal placement" score."""
+    parsed = _parse_lat_lon(args.add_node)
+    if parsed is None:
+        _err(f'swelter: --add-node expects "lat,lon", got {args.add_node!r}')
+        return 1
+    lat, lon = parsed
+    config = _load_config(args.config)
+    result = plan.simulate_add_node(config, lat, lon)
+    if args.json:
+        print(json.dumps(result))
+        return 0
+    cell = cast(dict[str, float], result["candidate_cell"])
+    _err(
+        f"swelter: candidate cell {cell['lat']:.6f},{cell['lon']:.6f} — "
+        f"{'new coverage' if result['new_cell'] else 'already covered'}"
+    )
+    _err(f"  redundancy: {result['redundancy']} existing node(s) already in this cell")
+    nearest_node = cast("dict[str, Any] | None", result["nearest_node"])
+    if nearest_node is not None:
+        _err(f"  nearest node: {nearest_node['node_id']} ({nearest_node['distance_m']:.1f} m)")
+    else:
+        _err("  nearest node: none placed yet")
+    nearest_ref = cast("dict[str, Any] | None", result["nearest_reference"])
+    if nearest_ref is not None:
+        _err(
+            f"  nearest reference monitor: {nearest_ref['monitor_id']} "
+            f"({nearest_ref['distance_m']:.1f} m)"
+        )
+    elif result["reference_note"]:
+        _err(f"  {result['reference_note']}")
+    else:
+        _err("  no reference monitors configured")
+    return 0
+
+
+def cmd_verify_archive(args: argparse.Namespace) -> int:
+    """Recompute every stored row's content hash and (optionally) publish the chained daily digest.
+
+    Exit nonzero the moment a single row's stored hash disagrees with what its own fields hash
+    to — that is the tamper signal. ``--write`` only (re)publishes ``digests.jsonl`` when
+    verification passed; a known-corrupted archive never gets a fresh, misleadingly clean head
+    written over it.
+    """
+    with open_store(args.store) as store:
+        mismatches = integrity.verify_rows(store)
+        digests = integrity.daily_digests(store)
+    ok = not mismatches
+    rows_checked = sum(d.row_count for d in digests)
+    head = digests[-1].chain if digests else ""
+
+    written_path: Path | None = None
+    if args.write:
+        if ok:
+            written_path = integrity.write_digests(args.store, digests)
+        else:
+            _err("swelter: not writing digests.jsonl — verification failed")
+
+    if args.json:
+        payload = {
+            "ok": ok,
+            "rows_checked": rows_checked,
+            "days": len(digests),
+            "head": head,
+            "mismatches": [
+                {
+                    "node_id": m.node_id,
+                    "timestamp": m.timestamp,
+                    "parameter": m.parameter,
+                    "calibration": m.calibration,
+                    "expected": m.expected,
+                    "actual": m.actual,
+                }
+                for m in mismatches
+            ],
+            "digests_path": str(written_path) if written_path else None,
+        }
+        print(json.dumps(payload, indent=2))
+        return 0 if ok else 1
+
+    if ok:
+        _err(
+            f"swelter: verify-archive OK — {rows_checked} row(s) match their stored hash "
+            f"across {len(digests)} day(s)"
+        )
+        _err(f"  head chain  {head or '(empty store)'}")
+        if written_path is not None:
+            _err(f"  wrote {written_path}")
+    else:
+        _err(
+            f"swelter: verify-archive FAILED — {len(mismatches)} of {rows_checked} row(s) do not "
+            "match their stored hash"
+        )
+        for m in mismatches[:20]:
+            _err(
+                f"  MISMATCH  {m.node_id}/{m.parameter}@{m.timestamp} ({m.calibration})  "
+                f"expected={m.expected[:12]}…  actual={m.actual[:12]}…"
+            )
+        if len(mismatches) > 20:
+            _err(f"  … and {len(mismatches) - 20} more")
+    return 0 if ok else 1
+
+
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    """Freeze a citable, versioned data release: raw observations + corrections + surface, a
+    MANIFEST.json with per-file SHA-256, and a dataset CITATION.cff/CITATION.txt pair. Local
+    artifacts only — no external DOI service; pass --doi once a collective has minted one."""
+    manifest = snapshot.build_snapshot(
+        Path(args.store), Path(args.out), args.version, args.doi or None
+    )
+    citation_text = (Path(args.out) / snapshot.CITATION_TXT_FILENAME).read_text(encoding="utf-8")
+    _err(
+        f"swelter: snapshot {manifest.release_version} → {args.out} "
+        f"({manifest.record_count} raw observations, {len(manifest.files)} file(s))"
+    )
+    for note in manifest.notes:
+        _err(f"  ⚠ {note}")
+    print(citation_text.strip())
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffold a starter network.yaml so a community can stand up its own instance fast."""
     path = Path(args.config)
@@ -659,8 +1268,48 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Validate a network.yaml loudly: report every mistake in one pass, exit nonzero on errors.
+
+    Unlike the other subcommands (which load a config and keep going so a typo does not take down
+    a running network), `doctor` is the strict gate — the thing to run before committing a
+    `network.yaml` change, and the thing CI can run on a PR. It reuses the same checks
+    (`config_concerns`, `label_concerns`) the other subcommands print warnings from on load.
+    """
+    path = Path(args.config)
+    if not path.is_file():
+        _err(f"swelter: config {path} not found")
+        return 1
+    config, doc = load_config_doc(str(path))
+    errors, warnings = config_concerns(config, doc)
+    warnings = [*warnings, *label_concerns(config)]
+    if not errors and not warnings:
+        _err(f"swelter: {path} — clean ({len(config.nodes)} nodes, no concerns)")
+        return 0
+    _print_concerns(errors, warnings)
+    _err(
+        f"swelter: {path} — {len(errors)} error(s), {len(warnings)} warning(s)"
+        + (" — fix the errors above before deploying" if errors else "")
+    )
+    return 1 if errors else 0
+
+
 def cmd_version(_: argparse.Namespace) -> int:
     print(f"swelter {__version__}")
+    return 0
+
+
+def cmd_crosswalk(args: argparse.Namespace) -> int:
+    """Print the outbound parameter crosswalk (swelter -> OpenAQ / Sensor.Community). Read-only,
+    no network — a static in-memory table (see :mod:`swelter.crosswalk`)."""
+    rows = crosswalk.crosswalk_table()
+    if args.format == "json":
+        print(json.dumps(rows, indent=2))
+        return 0
+    fields = list(rows[0].keys()) if rows else []
+    writer = csv.DictWriter(sys.stdout, fieldnames=fields)
+    writer.writeheader()
+    writer.writerows(rows)
     return 0
 
 
@@ -715,12 +1364,27 @@ def build_parser() -> argparse.ArgumentParser:
     add_interval(p_qc)
     p_qc.set_defaults(func=cmd_qc)
 
+    p_status = sub.add_parser(
+        "status", help="ranked steward plan: offline nodes, correction age, coverage gaps"
+    )
+    p_status.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_status.add_argument(
+        "--plan",
+        action="store_true",
+        help="explicit flag documenting intent (status is always the ranked plan)",
+    )
+    add_store(p_status)
+    add_config(p_status)
+    add_interval(p_status)
+    p_status.set_defaults(func=cmd_status)
+
     p_cal = sub.add_parser("calibrate", help="fit corrections from co-location data and apply them")
     p_cal.add_argument("--colocation", default=f"{DEFAULT_DATA}/colocation.jsonl")
     p_cal.add_argument(
         "--fit-only", action="store_true", help="fit and write registry, do not apply"
     )
     add_store(p_cal)
+    add_config(p_cal)
     p_cal.set_defaults(func=cmd_calibrate)
 
     p_agg = sub.add_parser("aggregate", help="build the gridded heat/AQI surface")
@@ -729,12 +1393,36 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_agg)
     p_agg.set_defaults(func=cmd_aggregate)
 
+    p_cards = sub.add_parser(
+        "cards",
+        help="emit print-CSS bilingual neighborhood cards (door flyers / fridge cards) per cell",
+    )
+    p_cards.add_argument(
+        "--area", default="", help="limit to one published cell (area_id, as in alerts ?area=)"
+    )
+    p_cards.add_argument("--lang", choices=("en", "es"), default="en", help="card language")
+    p_cards.add_argument(
+        "--large-type", action="store_true", help="larger base font size for low-vision printing"
+    )
+    p_cards.add_argument("--out", default="", help="HTML output path (default: stdout)")
+    p_cards.add_argument(
+        "--feed-url",
+        default="",
+        help="base alerts-feed URL to encode as each card's QR (?area=<cell> is added per cell)",
+    )
+    add_store(p_cards)
+    add_config(p_cards)
+    add_cooling(p_cards)
+    p_cards.set_defaults(func=cmd_cards)
+
     p_alerts = sub.add_parser(
         "alerts", help="build the neighborhood heat/AQI alerts feed (JSON + Atom)"
     )
     p_alerts.add_argument("--format", choices=("json", "atom", "none"), default="json")
     p_alerts.add_argument(
-        "--web", default="", help="also bake alerts.json + alerts.xml into this web dir"
+        "--web",
+        default="",
+        help="also bake alerts.json + alerts.xml + alerts.es.xml into this web dir",
     )
     p_alerts.add_argument(
         "--base-url", default="http://localhost:8000", help="base URL for feed self/links"
@@ -743,6 +1431,33 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_alerts)
     p_alerts.set_defaults(func=cmd_alerts)
 
+    p_brief = sub.add_parser(
+        "brief",
+        help="plain-language, sourced neighborhood exposure brief(s) (Danger-day count + context)",
+    )
+    p_brief.add_argument(
+        "--parameter",
+        default=exposure_brief.DEFAULT_PARAMETER,
+        choices=("heat_index_c", "pm25_ugm3", "exposure"),
+        help="which surface parameter to count danger days on (default: heat_index_c)",
+    )
+    p_brief.add_argument(
+        "--area", default="", help="one published cell_id, or all areas if omitted"
+    )
+    p_brief.add_argument("--format", choices=("text", "json"), default="text")
+    p_brief.add_argument(
+        "--canopy", default=DEFAULT_CANOPY, help="curated tree-canopy GeoJSON (optional)"
+    )
+    p_brief.add_argument(
+        "--ac-access", default=DEFAULT_AC_ACCESS, help="curated AC-access GeoJSON (optional)"
+    )
+    p_brief.add_argument(
+        "--redlining", default=DEFAULT_REDLINING, help="curated HOLC-redlining GeoJSON (optional)"
+    )
+    add_store(p_brief)
+    add_config(p_brief)
+    p_brief.set_defaults(func=cmd_brief)
+
     p_exp = sub.add_parser("export", help="export observations as CSV or JSON to stdout")
     p_exp.add_argument("--format", choices=("csv", "json"), default="csv")
     p_exp.add_argument("--since", default=None)
@@ -750,6 +1465,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--node", default=None)
     p_exp.add_argument("--parameter", default=None)
     p_exp.add_argument("--bbox", default=None, help="named area (reserved; see docs/api.md)")
+    p_exp.add_argument(
+        "--license",
+        default=export.DEFAULT_LICENSE,
+        help="license of the exported data (default: CC0-1.0, the store's native default; "
+        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+    )
+    p_exp.add_argument(
+        "--attribution", default=None, help="attribution text to carry alongside --license"
+    )
     add_store(p_exp)
     add_interval(p_exp)
     p_exp.set_defaults(func=cmd_export)
@@ -790,6 +1514,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_key.set_defaults(func=cmd_node_key)
 
+    p_preview = sub.add_parser(
+        "node-preview", help="show a host the exact coordinate the map/API publishes for a node"
+    )
+    p_preview.add_argument(
+        "node_id", nargs="?", default=None, help="show one node (default: every placed node)"
+    )
+    add_config(p_preview)
+    p_preview.set_defaults(func=cmd_node_preview)
+
     p_demo = sub.add_parser("demo", help="replay recorded data through the whole pipeline")
     p_demo.add_argument("--data", default=DEFAULT_DATA)
     p_demo.add_argument("--store", default=f"{DEFAULT_STORE}/demo")
@@ -818,6 +1551,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.add_argument("--config", default="network.real.yaml", help="where to write the network")
     p_fetch.add_argument("--web", default=DEFAULT_WEB)
     p_fetch.add_argument(
+        "--accumulate",
+        action="store_true",
+        help="keep the existing store between runs instead of wiping it first, so history "
+        "builds up across repeated fetches (e.g. daily CI) instead of one snapshot per run",
+    )
+    p_fetch.add_argument(
         "--past-days", type=int, default=2, help="openmeteo: history window (days)"
     )
     p_fetch.add_argument("--forecast-days", type=int, default=1)
@@ -844,8 +1583,81 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild)
 
+    p_publish = sub.add_parser(
+        "publish", help="bake a complete static site from an existing store into --web"
+    )
+    p_publish.add_argument("--web", default=DEFAULT_WEB)
+    p_publish.add_argument(
+        "--license",
+        default=export.DEFAULT_LICENSE,
+        help="license of the published data (default: CC0-1.0, the store's native default; "
+        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+    )
+    p_publish.add_argument(
+        "--attribution", default=None, help="attribution text baked into the published artifacts"
+    )
+    add_store(p_publish)
+    add_config(p_publish)
+    add_interval(p_publish)
+    add_cooling(p_publish)
+    p_publish.set_defaults(func=cmd_publish)
+
+    p_plan = sub.add_parser(
+        "plan", help="siting what-if: coverage/redundancy/distance simulation for a candidate node"
+    )
+    p_plan.add_argument(
+        "--add-node",
+        required=True,
+        metavar="lat,lon",
+        help="candidate coordinate to simulate, e.g. --add-node 33.87,-117.92",
+    )
+    p_plan.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    add_config(p_plan)
+    p_plan.set_defaults(func=cmd_plan)
+
+    p_doctor = sub.add_parser(
+        "doctor", help="validate network.yaml loudly; exit nonzero on any error"
+    )
+    add_config(p_doctor)
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="freeze a citable, versioned data release (MANIFEST + dataset CITATION.cff/.txt)",
+    )
+    add_store(p_snap)
+    p_snap.add_argument("--out", default="dist/snapshot", help="directory to write the release to")
+    p_snap.add_argument(
+        "--version", default=__version__, help="release version (defaults to the swelter version)"
+    )
+    p_snap.add_argument(
+        "--doi",
+        default="",
+        help="DOI for this release, if one has been minted (e.g. via Zenodo/DataCite); "
+        "omit for a clearly-labelled placeholder",
+    )
+    p_snap.set_defaults(func=cmd_snapshot)
+
+    p_verify = sub.add_parser(
+        "verify-archive",
+        help="recompute row hashes and publish a chained daily digest (tamper-evidence)",
+    )
+    add_store(p_verify)
+    p_verify.add_argument(
+        "--write", action="store_true", help="(re)write digests.jsonl in the store folder"
+    )
+    p_verify.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_verify.set_defaults(func=cmd_verify_archive)
+
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)
+
+    p_cross = sub.add_parser(
+        "crosswalk",
+        help="print the outbound parameter crosswalk (swelter -> OpenAQ / Sensor.Community)",
+    )
+    p_cross.add_argument("--format", choices=("csv", "json"), default="csv")
+    p_cross.set_defaults(func=cmd_crosswalk)
 
     return parser
 

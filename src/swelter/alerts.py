@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from typing import Final
 from xml.sax.saxutils import escape
 
+from . import i18n_alerts
 from .aggregate import EXPOSURE, CellReading, Surface
 from .models import EXPOSURE_LEVELS, heat_index_category
 
@@ -75,18 +76,17 @@ class Alert:
         """A stable identity per area+parameter so a reader updates an entry, not duplicates it."""
         return f"{self.area_id}|{self.parameter}"
 
-    def headline(self) -> str:
-        """A plain-language, English summary line for the feed body and the webhook bridge."""
-        prov = " (provisional, not yet calibrated)" if self.provisional else ""
-        when = f", as of {self.bucket}."
-        if self.parameter == "pm25_ugm3":
-            return f"{self.area}: air quality is {self.severity} (AQI {self.aqi}){prov}{when}"
-        if self.parameter == "heat_index_c":
-            return (
-                f"{self.area}: heat index is in the {self.severity} range "
-                f"({self.value} °C){prov}{when}"
-            )
-        return f"{self.area}: combined heat-and-air exposure is {self.severity}{prov}{when}"
+    def headline(self, lang: str = "en") -> str:
+        """A plain-language summary line for the feed body and the webhook bridge, in ``lang``
+        (default English). Delegates to the :mod:`swelter.i18n_alerts` catalog so the wording for
+        every language lives in one place; kept as a method here (not moved wholesale) for
+        back-compat with callers that expect ``Alert.headline()`` to just work."""
+        return i18n_alerts.headline(self, lang)
+
+    @property
+    def headline_es(self) -> str:
+        """The Spanish headline — machine-drafted, see :mod:`swelter.i18n_alerts`."""
+        return self.headline("es")
 
     def as_record(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -103,6 +103,7 @@ class Alert:
             "threshold": self.threshold,
             "provisional": self.provisional,
             "headline": self.headline(),
+            "headline_es": self.headline_es,
         }
         if self.aqi is not None:
             record["aqi"] = self.aqi
@@ -140,43 +141,60 @@ class AlertFeed:
             "thresholds": dict(self.thresholds),
             "count": len(self.alerts),
             "alerts": [a.as_record() for a in self.alerts],
-            "note": (
-                "Public, aggregate environmental alerts — no account, no PII. Subscribe via the "
-                "Atom feed at /api/alerts.xml in any reader; live servers accept ?area=<area_id>."
-            ),
+            "note": i18n_alerts.note("en"),
+            # headline_es (above, per alert) and note_es are machine-drafted, not human-reviewed —
+            # labeled here so a consumer never mistakes ES output for a vetted translation.
+            "note_es": i18n_alerts.note("es"),
+            "translation": i18n_alerts.TRANSLATION_LABEL,
         }
 
-    def to_atom(self) -> str:
-        """Render the feed as Atom 1.0 with a GeoRSS point per entry.
+    def to_atom(self, lang: str = "en") -> str:
+        """Render the feed as Atom 1.0 with a GeoRSS point per entry, in ``lang`` (default English).
 
         Timestamps are the surface's hour buckets (already ``...Z``), so the feed is reproducible.
+        ``lang="es"`` renders entry titles/summaries and the feed title/subtitle in Spanish via the
+        :mod:`swelter.i18n_alerts` catalog; that Spanish text is machine-drafted, so the feed root
+        carries a ``<generator>`` note saying so — never presented as a reviewed translation.
         """
         base = self.base_url.rstrip("/")
-        self_url = f"{base}/api/alerts.xml"
+        self_path = "/api/alerts.xml" if lang == "en" else "/api/alerts.es.xml"
+        alt_lang, alt_path = (
+            ("es", "/api/alerts.es.xml") if lang == "en" else ("en", "/api/alerts.xml")
+        )
+        self_url = f"{base}{self_path}"
+        alt_url = f"{base}{alt_path}"
         updated = self.bucket or "1970-01-01T00:00:00Z"
         lines = [
             '<?xml version="1.0" encoding="utf-8"?>',
-            '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:georss="http://www.georss.org/georss">',
-            f"  <title>{escape(self.network)} — heat &amp; air-quality alerts</title>",
+            (
+                '<feed xmlns="http://www.w3.org/2005/Atom" '
+                'xmlns:georss="http://www.georss.org/georss" '
+                f'xml:lang="{lang}">'
+            ),
+            f"  <title>{escape(i18n_alerts.feed_title(self.network, lang))}</title>",
             f"  <id>{escape(self_url)}</id>",
             f'  <link rel="self" href="{escape(self_url)}"/>',
+            f'  <link rel="alternate" hreflang="{escape(alt_lang)}" href="{escape(alt_url)}"/>',
             f"  <updated>{escape(updated)}</updated>",
-            (
-                "  <subtitle>Areas where heat or air quality has crossed a public-health danger "
-                "threshold. Aggregate environmental data, no PII.</subtitle>"
-            ),
+            f"  <subtitle>{escape(i18n_alerts.feed_subtitle(lang))}</subtitle>",
         ]
+        if lang != "en":
+            lines.append(
+                f"  <generator>swelter i18n_alerts ({escape(i18n_alerts.TRANSLATION_LABEL)}-"
+                "translated, not human-reviewed)</generator>"
+            )
         for alert in self.alerts:
             entry_id = f"{self_url}#{alert.id}"
+            headline = alert.headline(lang)
             lines.extend(
                 [
                     "  <entry>",
-                    f"    <title>{escape(alert.headline())}</title>",
+                    f"    <title>{escape(headline)}</title>",
                     f"    <id>{escape(entry_id)}</id>",
                     f"    <updated>{escape(alert.bucket)}</updated>",
                     f'    <category term="{escape(alert.parameter)}"/>',
                     f'    <category term="{escape(alert.severity)}"/>',
-                    f"    <summary>{escape(alert.headline())}</summary>",
+                    f"    <summary>{escape(headline)}</summary>",
                     f"    <georss:point>{alert.lat} {alert.lon}</georss:point>",
                     "  </entry>",
                 ]
@@ -185,7 +203,19 @@ class AlertFeed:
         return "\n".join(lines) + "\n"
 
 
-def _resolve_thresholds(overrides: Mapping[str, float] | None) -> dict[str, float]:
+def resolve_thresholds(overrides: Mapping[str, float] | None) -> dict[str, float]:
+    """Merge network-level `alert_thresholds` overrides onto the public-health defaults.
+
+    Public so a caller building a *historical* view (e.g. :mod:`swelter.exposure_brief`'s
+    danger-day count) resolves the same per-network floors the live alerts feed uses, instead of
+    re-deriving the override-merge rule.
+
+    Unknown keys are ignored here on purpose — a build must never crash mid-pipeline on a typo.
+    But an ignored key is a silent safety failure (a host who typos ``heat_index_c`` as
+    ``heat_index`` believes they lowered the danger floor and did not), so that same mistake is a
+    **hard error** at load time: see ``config.config_concerns`` and ``swelter doctor``, which check
+    every ``alert_thresholds`` key against ``DEFAULT_THRESHOLDS`` before a build ever gets here.
+    """
     merged = dict(DEFAULT_THRESHOLDS)
     if overrides:
         for key, value in overrides.items():
@@ -207,7 +237,7 @@ def build_feed(
     last week. A cell can raise more than one alert (hot *and* smoky); each is its own entry. The
     feed's bucket is the newest hour present in the surface, so the artifact is deterministic.
     """
-    floors = _resolve_thresholds(thresholds)
+    floors = resolve_thresholds(thresholds)
     latest = surface.latest_by_cell()
     alerts: list[Alert] = []
     newest = ""
@@ -220,7 +250,7 @@ def build_feed(
             # The feed's "updated" is the latest hour the surface covers, even on a calm day with no
             # crossings, so an empty feed still has a meaningful, data-derived timestamp.
             newest = max(newest, reading.bucket)
-            crossed = _crossing(parameter, reading, floors)
+            crossed = crossing(parameter, reading, floors)
             if crossed is None:
                 continue
             severity, threshold = crossed
@@ -251,10 +281,16 @@ def build_feed(
     )
 
 
-def _crossing(
+def crossing(
     parameter: str, reading: CellReading, floors: Mapping[str, float]
 ) -> tuple[str, float] | None:
-    """Return ``(severity_name, floor)`` if this reading crosses its threshold, else ``None``."""
+    """Return ``(severity_name, floor)`` if this reading crosses its threshold, else ``None``.
+
+    Public so other modules can reuse the exact same danger-threshold test instead of
+    re-deriving it — :mod:`swelter.exposure_brief` calls this once per hour to build the
+    historical "N Danger days" count from the same floors and band names the live alerts feed
+    uses, so the two views of "danger" can never silently drift apart.
+    """
     aqi = reading.aqi
     category = reading.category
     mean = reading.mean

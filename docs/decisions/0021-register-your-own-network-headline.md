@@ -1,4 +1,4 @@
-# ADR 0013: Lead with "register your own network" as the headline capability
+# ADR 0021: Lead with "register your own network" as the headline capability
 
 Date: 2026-07-08. Status: accepted.
 

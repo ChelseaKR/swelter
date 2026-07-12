@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ChelseaKR/swelter/schemas/alerts.schema.json",
+  "title": "swelter alerts feed payload",
+  "description": "The Python↔JS contract for `/api/alerts.json` and `web/alerts.json` — public, aggregate danger-threshold crossings, no PII. Emitted by `alerts.AlertFeed.to_json` (src/swelter/alerts.py); consumed by `web/app.js` `activeAlerts()` / `renderAlerts()`. A deliberate field change on either side must edit this schema and both validating tests in the same PR (FIX-07).",
+  "type": "object",
+  "required": ["network", "generated", "self", "thresholds", "count", "alerts", "note"],
+  "additionalProperties": true,
+  "properties": {
+    "network": { "type": "string" },
+    "generated": { "type": "string" },
+    "self": { "type": "string" },
+    "thresholds": {
+      "type": "object",
+      "required": ["pm25_aqi", "heat_index_c", "exposure"],
+      "properties": {
+        "pm25_aqi": { "type": "number" },
+        "heat_index_c": { "type": "number" },
+        "exposure": { "type": "number" }
+      }
+    },
+    "count": { "type": "integer", "minimum": 0 },
+    "alerts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/alert" }
+    },
+    "note": { "type": "string" }
+  },
+  "$defs": {
+    "alert": {
+      "type": "object",
+      "required": [
+        "id",
+        "area_id",
+        "area",
+        "lat",
+        "lon",
+        "parameter",
+        "bucket",
+        "value",
+        "unit",
+        "severity",
+        "threshold",
+        "provisional",
+        "headline"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "area_id": { "type": "string", "minLength": 1 },
+        "area": { "type": "string" },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" },
+        "parameter": {
+          "type": "string",
+          "enum": ["pm25_ugm3", "heat_index_c", "exposure"]
+        },
+        "bucket": { "type": "string" },
+        "value": { "type": "number" },
+        "unit": { "type": "string" },
+        "severity": { "type": "string", "minLength": 1 },
+        "threshold": { "type": "number" },
+        "provisional": { "type": "boolean" },
+        "headline": { "type": "string", "minLength": 1 },
+        "aqi": { "type": "integer" },
+        "nodes": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

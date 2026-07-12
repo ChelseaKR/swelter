@@ -10,7 +10,8 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 ## Current state
 
 The pipeline, the `swelter` CLI, the dashboard, and the merge gate are built and green: `make
-verify` passes (fmt-check, lint, typecheck, a11y, test) with the full pytest suite green. The worked example in
+verify` passes (fmt-check, lint, typecheck, a11y, i18n, hygiene, version-check, test) with the
+full pytest suite green. The worked example in
 `network.yaml` is a downtown network whose node count is a knob (`SWELTER_DEMO_NODES`); two-thirds of
 the nodes have committed co-location records and publish calibrated values, the rest have none and
 publish raw, flagged provisional. The published correction registry in `data/demo/corrections.yaml`
@@ -149,7 +150,7 @@ leverage.
    (`renderProvenance`, alongside the unchanged `provenanceText` used by the plain-text brief
    export), `web/styles.css`, and the `prov-*` keys in `web/i18n/{en,es}.json`. This is the moat
    for the researcher and credibility audiences.
-3. **Register-your-own-network as the headline capability** (ADR 0013) — **done.** Leans on
+3. **Register-your-own-network as the headline capability** (ADR 0021) — **done.** Leans on
    `network.yaml`, the no-hosted-dependency, scale-to-zero design, and `ADD-YOUR-NEIGHBORHOOD.md` as
    the replicability and sustainability story (local ownership is the documented survival factor).
    The capability itself was already built in Phase 4; this item moved it from a Phase 4 footnote to
@@ -219,6 +220,104 @@ Files touched:
 - `tests/test_firmware_signing.py` — 10 tests for firmware-server signature compatibility
 - `tests/test_cli.py` — `ingest-serve`/`node-key` CLI coverage (error paths + an issued key
   authenticating against a real listener)
+
+### FIX-08 — Server survivability: timeouts, surface cache, conditional GETs
+
+**Status: ✅ Done** (2026-07-03)
+
+The single-threaded HTTP server had no defense against a client that opens a connection and never
+finishes a request, and re-ran the full `aggregate.aggregate()` fold — the most expensive read in
+the process — on every single request to the three surface/alerts endpoints, even back-to-back
+identical ones. Fixed, `src/swelter/server.py` only:
+
+- **Request timeouts.** `Handler.timeout = 10` — `BaseHTTPRequestHandler` honors this natively for
+  socket reads — bounds how long one slow-loris client can tie up the single request thread.
+  No threading change: the one SQLite reader stays serialised (ADR 0005).
+- **Aggregated-surface cache.** A process-lifetime `_ResponseCache`, closed over by
+  `_make_handler`, memoizes the result of `aggregate.aggregate()` keyed on a fingerprint of the
+  store: `(count(), total_changes())` for `SqliteStore` (falling back to file mtime for other
+  backends, or no caching if neither applies). `total_changes` is required, not just `count()` —
+  `store rebuild`'s `drop_calibrated()` deletes and rewrites derived rows without changing the row
+  count, so a count-only key would serve a stale surface after a rebuild. `_surface`,
+  `_surface_records`, and `_alerts` all share the one cached `Surface` within a store version.
+- **Gzip precompute + ETags.** The same cache holds gzip-compressed bytes and a
+  `sha256(body)[:16]` ETag for the three cacheable payloads (`surface.geojson`, `surface.json`,
+  `alerts.json`/`.xml`), so a repeat request against an unchanged store skips re-aggregating,
+  re-gzipping, and re-hashing. Every response now carries an `ETag`; a matching `If-None-Match`
+  short-circuits to a bodyless `304` (per RFC 9110, no `Content-Length`) before any of that work
+  runs. A store write or rebuild invalidates the whole cache — surface and precomputed bodies — in
+  one step, so nothing served is ever older than the version key claims.
+- **Unchanged:** the existing gzip threshold (>1024 bytes, `Accept-Encoding: gzip`,
+  `_compressible()`) and the 60s `Cache-Control` window; read-only routing, the coarse-grid /
+  calibrated-vs-raw data path, and every hard-rule invariant are untouched — this is caching and
+  timeout handling only.
+
+Files touched:
+- `src/swelter/server.py` — `Handler.timeout`, `_store_version()`, `_ResponseCache`,
+  `_etag_matches()`, and ETag/304/gzip-cache handling in `_body()`
+- `tests/test_server.py` — a shared `server` fixture exposing the store/context for
+  cache-invalidation tests, plus: a second surface request does not re-aggregate
+  (monkeypatched call count); `/api/surface.geojson`, `/api/surface.json`, and `/api/alerts.json`
+  share one aggregate call; a matching `If-None-Match` returns `304`, a non-matching one returns
+  `200`; a store write invalidates the cached surface; a `drop_calibrated()` rebuild with an
+  unchanged row count still invalidates it; the handler has a 10s `timeout`
+
+### FIX-11 — Structured logs and per-run pipeline manifests
+
+**Status: ✅ Done** (2026-07-02)
+
+Before this, every pipeline stage's success/failure was only human-readable `_err` banners on
+stderr — nothing machine-parseable, and no way for a published surface to name the run that
+built it. Fixed:
+
+- **JSON-lines event logging:** `src/swelter/obs.py` — `JsonLinesFormatter`, a stdlib
+  `logging.Formatter` emitting one JSON object per line (`ts`, `level`, `stage`, `event`, plus
+  whatever counter fields the caller passes). Attached to the `"swelter"` logger via
+  `configure_json_logging()`; opt-in only (per `docs/standards/OBSERVABILITY-STANDARD.md` §3's
+  Tier-C carve-out) — nothing changes for the default human-readable CLI experience.
+- **Per-run manifests:** `RunManifest` accumulates counters per stage —
+  `payloads_accepted`/`payloads_quarantined` (ingest), `corrections_applied`/
+  `corrections_skipped_stale` (calibrate), `cells_built`/`cells_provisional` (aggregate) —
+  plus a `run_id` (uuid4), `started_at`/`finished_at`, and `pipeline_versions`.
+  `write_manifest(store_dir)` persists it as `run-manifest.json` beside the store; each CLI
+  invocation writes a fresh one (a "run" is one invocation, not a cross-invocation total).
+- **Wired into `ingest`/`calibrate`/`aggregate`/`demo`:** each command's existing `_err`
+  banners are unchanged; a `RunManifest` rides alongside, reusing the numbers already computed
+  (`IngestResult.accepted_payloads`/`.quarantined`, `WriteResult.written`, `len(surface.cells)`),
+  and is written at the end of the invocation.
+- **`/api/health.json` names its run:** `ServerContext.store_dir` (new, optional) lets
+  `server.py`'s `_health()` read the latest `run-manifest.json` and add a `run` block
+  (`run_id`, `finished_at`, `counters`) to the health report — a store predating this feature,
+  or with `store_dir` unset, simply omits the block.
+- **Optional request logging:** behind `SWELTER_LOG_REQUESTS` (env var, off by default),
+  `server.py` logs `method`, `path`, `status`, `ms` per request as a JSON line — never the
+  client address.
+- **Hard rule 1 (no PII, no IPs) extends into the log stream:** every field `obs.py` writes is
+  a count, a timestamp, a run id, or a version string; `_scrub()` is a defensive last line
+  (drops any field whose name looks person- or network-shaped) behind the actual guarantee,
+  which is that nothing in the pipeline ever hands this module a name or an address.
+- **Tests:** `tests/test_obs.py` — manifest JSON schema, counter correctness, the scrub, and
+  determinism of the manifest the `data/demo` replay fixture produces (excluding
+  `run_id`/timestamps) across two independent replays.
+
+Files touched:
+- `src/swelter/obs.py` — new module: `JsonLinesFormatter`, `configure_json_logging`,
+  `log_event`, `RunManifest`, `write_manifest`, `read_manifest`
+- `src/swelter/cli.py` — `cmd_ingest`/`cmd_calibrate`/`cmd_aggregate`/`cmd_demo` build and
+  write a `RunManifest`; `ServerContext` construction in `cmd_serve`/`cmd_demo`/`cmd_fetch`
+  passes `store_dir`
+- `src/swelter/server.py` — `ServerContext.store_dir`; `_health()` adds the `run` block;
+  optional `SWELTER_LOG_REQUESTS` request logging
+- `tests/test_obs.py` — new: formatter, manifest, CLI wiring, health-endpoint `run` block,
+  and request-logging tests
+
+**Observability:** Tier C (library/CLI) per `docs/standards/OBSERVABILITY-STANDARD.md` — OTel
+tracing/metrics/SLOs/health probes are N/A (no long-lived network surface between services;
+`swelter serve` is a single read-only stdlib HTTP process, not a service mesh). `--log-format
+json` is realized as the opt-in `obs.configure_json_logging()` + `SWELTER_LOG_REQUESTS` pair
+rather than a CLI flag, matching this repo's existing subcommand-per-stage shape. The
+PII-in-logs gate (§3, the one non-tiered control) is enforced by construction — this module
+never receives person-shaped fields — with `obs._scrub()` as a defensive backstop.
 
 ## Expansions (community-requested extensions)
 

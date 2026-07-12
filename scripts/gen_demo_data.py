@@ -148,8 +148,8 @@ def true_field(t: datetime, node: Node) -> tuple[float, float, float, float]:
 
 def raw_readings(
     t: datetime, node: Node, rng: random.Random
-) -> tuple[float, float, float, float, float]:
-    """The node's *biased, noisy* readings (temp, humidity, pm25, pm10, heat_index)."""
+) -> tuple[float, float, float, float, float, float]:
+    """The node's *biased, noisy* readings (temp, humidity, pm25, pm10, heat_index, wbgt)."""
     temp, humidity, pm25, pm10 = true_field(t, node)
     h = t.hour
     sun = max(0.0, math.sin(2 * math.pi * (h - 12) / 24))
@@ -160,12 +160,14 @@ def raw_readings(
     pm25_raw = max(0.0, pm25 * inflation + node.pm_offset + rng.gauss(0, 1.5))
     pm10_raw = max(0.0, pm10 * inflation + node.pm_offset + rng.gauss(0, 2.5))
     hi_raw = heat_index_c(temp_raw, humidity_raw)
+    wbgt_raw = wbgt_c(temp_raw, humidity_raw)
     return (
         round(temp_raw, 2),
         round(humidity_raw, 2),
         round(pm25_raw, 2),
         round(pm10_raw, 2),
         hi_raw,
+        wbgt_raw,
     )
 
 
@@ -186,6 +188,18 @@ def heat_index_c(temp_c: float, humidity_pct: float) -> float:
         - 0.00000199 * t * t * r * r
     )
     return round((hi - 32) * 5 / 9, 2)
+
+
+def wbgt_c(temp_c: float, humidity_pct: float) -> float:
+    """Estimated shade WBGT (no black-globe) — mirrors ``models.wbgt_c``."""
+    tw = (
+        temp_c * math.atan(0.151977 * math.sqrt(humidity_pct + 8.313659))
+        + math.atan(temp_c + humidity_pct)
+        - math.atan(humidity_pct - 1.676331)
+        + 0.00391838 * humidity_pct**1.5 * math.atan(0.023101 * humidity_pct)
+        - 4.686035
+    )
+    return round(0.7 * tw + 0.3 * temp_c, 2)
 
 
 def generate() -> None:
@@ -210,7 +224,7 @@ def generate() -> None:
         for node in nodes:
             if iso_in(offline.get(node.node_id), t):
                 continue
-            temp_raw, hum_raw, pm25_raw, pm10_raw, hi_raw = raw_readings(t, node, rng)
+            temp_raw, hum_raw, pm25_raw, pm10_raw, hi_raw, wbgt_raw = raw_readings(t, node, rng)
 
             # Inject a couple of QC-catchable faults into the observation stream.
             if node.node_id == "node-04" and t == START + timedelta(hours=130):
@@ -228,6 +242,7 @@ def generate() -> None:
                         "pm25_ugm3": pm25_raw,
                         "pm10_ugm3": pm10_raw,
                         "heat_index_c": hi_raw,
+                        "wbgt_c": wbgt_raw,
                     },
                     separators=(",", ":"),
                 )
@@ -240,7 +255,7 @@ def generate() -> None:
             if not node.calibrated:
                 continue
             temp, humidity, pm25, pm10 = true_field(t, node)
-            temp_raw, hum_raw, pm25_raw, pm10_raw, _ = raw_readings(t, node, rng)
+            temp_raw, hum_raw, pm25_raw, pm10_raw, _, _ = raw_readings(t, node, rng)
             for parameter, raw, ref in (
                 ("temp_c", temp_raw, round(temp + rng.gauss(0, 0.1), 2)),
                 ("pm25_ugm3", pm25_raw, round(pm25 + rng.gauss(0, 0.4), 2)),

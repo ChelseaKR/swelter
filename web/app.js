@@ -10,6 +10,7 @@
 const PARAM_BASE_UNIT = {
   temp_c: "C",
   heat_index_c: "C",
+  wbgt_c: "C",
   pm25_ugm3: "ug",
   pm10_ugm3: "ug",
   no2_ppb: "ppb",
@@ -21,8 +22,13 @@ const PARAM_I18N = {
   exposure: "param-exposure",
   temp_c: "param-temp",
   heat_index_c: "param-hi",
+  wbgt_c: "param-wbgt",
   pm10_ugm3: "param-pm10",
 };
+
+// Parameters whose value is an *estimate*, not a direct or calibrated measurement — the caveat
+// word must travel with every rendered value (R5), never live only in the legend or the label.
+const ESTIMATED_PARAMS = new Set(["wbgt_c"]);
 
 const AQI_CLASS = {
   Good: "aqi-good",
@@ -333,7 +339,10 @@ function round1(x) {
 }
 
 function fmtValue(mean) {
-  return `${round1(convert(mean))} ${unitLabel()}`;
+  const value = `${round1(convert(mean))} ${unitLabel()}`;
+  // The "estimated" caveat is glued to the value itself, not left to the label or the legend
+  // (R5) — it survives copy-paste into a brief, an alert line, or a table cell.
+  return ESTIMATED_PARAMS.has(state.parameter) ? t("estimated-value").replace("{value}", value) : value;
 }
 
 function fmtUncertainty(u) {
@@ -511,6 +520,128 @@ function renderDownload(row) {
   }
 }
 
+// -- share card (caveat baked into the pixels, not overlaid HTML) -----------
+//
+// E11: a screenshot of the page can be cropped to just the number. This draws a self-contained
+// PNG instead — the reading, the measurement + hour, the "hourly mean, not 24-hour average"
+// window caveat, and (when the cell is unconfirmed) a visible provisional band — all rendered as
+// canvas pixels, so the context travels with the image no matter how it's cropped or shared
+// (ADR 0016). It reuses the same reading text the list/detail view already shows (`describe`), so
+// the exported number always matches the screen.
+
+const SHARE_CARD_WIDTH = 1000;
+const SHARE_CARD_HEIGHT = 620;
+
+// The reading part of `describe(row)`, with the leading "place: " stripped — the same split
+// `briefText` already uses to separate place from reading.
+function shareCardReading(row) {
+  return describe(row).split(": ").slice(1).join(": ");
+}
+
+// Simple greedy word-wrap for the canvas 2D text API, which has no native wrapping. Returns the
+// y coordinate just past the last line drawn, so callers can stack the next block beneath it.
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(" ");
+  let line = "";
+  let cy = y;
+  for (const word of words) {
+    const test = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(test).width > maxWidth) {
+      ctx.fillText(line, x, cy);
+      line = word;
+      cy += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line, x, cy);
+  return cy + lineHeight;
+}
+
+// Draws the currently selected location to an offscreen canvas. Always light-on-white regardless
+// of the page's theme/contrast setting, since the image is meant to stand alone once shared.
+function buildShareCanvas(row) {
+  const canvas = document.createElement("canvas");
+  canvas.width = SHARE_CARD_WIDTH;
+  canvas.height = SHARE_CARD_HEIGHT;
+  const ctx = canvas.getContext("2d");
+  const pad = 56;
+  const textWidth = canvas.width - pad * 2;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "600 22px system-ui, -apple-system, sans-serif";
+  ctx.fillText("swelter", pad, pad);
+
+  let y = pad + 72;
+  ctx.font = "700 44px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#0f172a";
+  y = wrapCanvasText(ctx, placeName(row), pad, y, textWidth, 50);
+
+  y += 12;
+  ctx.font = "400 22px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#475569";
+  const paramLabel = t(PARAM_I18N[state.parameter] || "parameter");
+  ctx.fillText(`${paramLabel} — ${fmtBucket(currentBucket())}`, pad, y);
+
+  y += 58;
+  ctx.font = "700 52px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#0f172a";
+  y = wrapCanvasText(ctx, shareCardReading(row), pad, y, textWidth, 58);
+
+  y += 20;
+  ctx.font = "italic 400 20px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#475569";
+  y = wrapCanvasText(ctx, t("share-card-window"), pad, y, textWidth, 26);
+
+  // The provisional band: baked into the image, same "~" convention as the on-page reading, so a
+  // cropped screenshot still carries the "not yet calibrated" context (F4).
+  if (row.provisional) {
+    y += 16;
+    const bandX = pad - 16;
+    const bandWidth = canvas.width - bandX * 2;
+    const bandHeight = 60;
+    ctx.fillStyle = "#fef3c7";
+    ctx.fillRect(bandX, y, bandWidth, bandHeight);
+    ctx.strokeStyle = "#b45309";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bandX, y, bandWidth, bandHeight);
+    ctx.fillStyle = "#92400e";
+    ctx.font = "700 22px system-ui, -apple-system, sans-serif";
+    ctx.fillText(`~ ${t("share-card-provisional")}`, pad, y + bandHeight / 2 + 7);
+  }
+
+  ctx.font = "400 16px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#64748b";
+  ctx.fillText(t("brief-source"), pad, canvas.height - pad + 8);
+
+  return canvas;
+}
+
+// Triggers a PNG download of the share card — the same object-URL + temporary `<a download>`
+// pattern the rest of the app uses for exports, revoked once the click has fired.
+function saveShareCard(row) {
+  const canvas = buildShareCanvas(row);
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      $("#status").textContent = t("share-card-fail");
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const slug = placeName(row).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    a.download = `swelter-${slug || "location"}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    $("#status").textContent = t("share-card-done");
+  }, "image/png");
+}
+
 function heatGuidanceFor(tier) {
   const slug = HEAT_SLUG[tier];
   return slug && slug !== "none" ? t(`heat-guide-${slug}`) : "";
@@ -671,7 +802,15 @@ function dayChangeLine(row) {
 }
 
 // Per-parameter "steady" band, so small wiggles don't read as a trend.
-const TREND_EPS = { exposure: 0.5, temp_c: 0.5, heat_index_c: 0.5, pm25_ugm3: 1, pm10_ugm3: 2, no2_ppb: 2 };
+const TREND_EPS = {
+  exposure: 0.5,
+  temp_c: 0.5,
+  heat_index_c: 0.5,
+  wbgt_c: 0.5,
+  pm25_ugm3: 1,
+  pm10_ugm3: 2,
+  no2_ppb: 2,
+};
 
 // "Is it getting worse or clearing on my block?" — direction over the last few hours, from the same
 // time series the slider reads. Needs the loaded history; silent until it's there.
@@ -704,6 +843,9 @@ const LEGEND_BLOCK = {
   exposure: "exposure",
   pm10_ugm3: "value",
   no2_ppb: "value",
+  // No color band: guidance thresholds for estimated WBGT are SME-gated (ADR 0012), so it gets
+  // its own "shown by value" block with its own caveat text, not the generic pollutant one.
+  wbgt_c: "wbgt",
 };
 const LEGEND_TITLE = {
   pm25_ugm3: "legend-title-pm25",
@@ -712,6 +854,7 @@ const LEGEND_TITLE = {
   exposure: "legend-title-exposure",
   pm10_ugm3: "legend-title-pm10",
   no2_ppb: "legend-title-no2",
+  wbgt_c: "legend-title-wbgt",
 };
 
 function updateLegend() {
@@ -906,11 +1049,16 @@ function renderOverview() {
     const vals = rows.map((r) => r.mean).sort((a, b) => a - b);
     const n = vals.length;
     const median = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
-    spread.textContent = t("overview-spread")
+    const spreadText = t("overview-spread")
       .replace("{min}", round1(convert(vals[0])))
       .replace("{median}", round1(convert(median)))
       .replace("{max}", round1(convert(vals[n - 1])))
       .replace("{unit}", unitLabel());
+    // The composite min/median/max line has no single "value" to glue the caveat to — attach it
+    // once, to the whole line, so the estimate is never read as a direct measurement (R5).
+    spread.textContent = ESTIMATED_PARAMS.has(state.parameter)
+      ? t("estimated-value").replace("{value}", spreadText)
+      : spreadText;
     const worst = rows.reduce((a, b) => (b.mean > a.mean ? b : a));
     worstEl.appendChild(document.createTextNode(t("overview-worst-label") + " "));
     worstEl.appendChild(worstButton(worst, `${placeName(worst)} — ${fmtValue(worst.mean)}`));
@@ -1700,6 +1848,11 @@ async function loadAreaAlerts() {
   state.alertsLive = !!live;
   // The Atom feed sits beside whichever JSON we loaded; resolve it to an absolute, shareable URL.
   state.alertsXmlUrl = new URL(live ? "api/alerts.xml" : "alerts.xml", location.href).href;
+  // The Spanish Atom feed (machine-translated, see swelter.i18n_alerts) sits right beside it.
+  const esFeedLink = $("#aa-es-feed-link");
+  if (esFeedLink) {
+    esFeedLink.href = live ? "api/alerts.es.xml" : "alerts.es.xml";
+  }
   $("#area-alerts").hidden = false;
   renderAreaAlerts();
 }
@@ -2539,6 +2692,13 @@ function wireControls() {
       } catch {
         $("#status").textContent = t("copy-fail");
       }
+    });
+  const shareCard = $("#share-card");
+  if (shareCard)
+    shareCard.addEventListener("click", () => {
+      const row = current().find((r) => r.cell_id === state.selected);
+      if (!row) return;
+      saveShareCard(row);
     });
 }
 

@@ -2,9 +2,16 @@
 #   "/"         — California. Dense REAL physical sensors (OpenAQ, block-by-block) when the
 #                 OPENAQ_API_KEY repo secret is set; otherwise Copernicus CAMS model data (keyless).
 #   "/sensors/" — real community low-cost sensors from Sensor.Community (Stuttgart, keyless)
-# The dashboard is static, so each fetched surface is baked into the artifact with a DATA-LICENSE and
-# a CSV download. Runs on push and daily so the readings stay current; page 1 falls back
-# (OpenAQ → CAMS → committed synthetic demo) and sensors → the CAMS surface, so the page never breaks.
+# The dashboard is static: `swelter fetch` populates the store and `swelter publish` bakes the
+# complete static artifact (sample surface, 24h/7d slices, health, alerts, export.csv, DATA-LICENSE,
+# publish-manifest.json) from it — see cli.cmd_publish / ADR 0020. Each deploy's DATA-LICENSE names
+# its real terms (provider-specific for OpenAQ, CC BY 4.0 for CAMS, ODC-DbCL-1.0 for
+# Sensor.Community — never CC0 for a fetched third-party source) via publish --license/--attribution.
+# Runs on push and daily so the readings stay current; page 1 falls back (OpenAQ → CAMS → committed
+# synthetic demo) and sensors falls back to page 1's own artifact, so neither page ever breaks.
+# The store persists across runs (actions/cache, keyed by day with a most-recent fallback) and
+# `--accumulate` keeps rather than wipes it (ADR 0013/EXP-01), so the time slider covers weeks of
+# real history instead of one day's snapshot. A cache miss just degrades to a fresh fetch.
 name: demo
 
 on:
@@ -38,33 +45,79 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Cache key date (UTC, so the fetch store's cache key rolls over once a day)
+        id: date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - name: Restore the accumulating fetch store (EXP-01/ADR 0013)
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /tmp/openaq
+            /tmp/openaq.yaml
+            /tmp/cams
+            /tmp/cams.yaml
+            /tmp/sc
+            /tmp/sc.yaml
+          key: swelter-fetch-store-${{ steps.date.outputs.date }}
+          restore-keys: |
+            swelter-fetch-store-
       - name: Assemble the live demo (real sources, layered fallback)
         env:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
         run: |
+          set -e
           # Page 1 ("/"): prefer dense REAL physical sensors across California (OpenAQ, block-by-block
           # — needs the OPENAQ_API_KEY repo secret); else Copernicus CAMS model (keyless, coarse);
           # else the committed synthetic demo. web/basemap.geojson draws the California outlines.
-          uv run swelter fetch --source openaq --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --max-locations 250 \
-            || uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
-              --web web --past-days 1 \
-            || uv run swelter demo --store /tmp/cams --web web
-          cp DATA-LICENSE web/DATA-LICENSE
-          uv run swelter export --store /tmp/cams --format csv > web/export.csv
+          # Each branch names its own license/attribution — the artifact must never claim CC0 for
+          # a fetched third-party source, so the license tracks whichever branch actually
+          # succeeded and rides into `swelter publish` below. --accumulate keeps the
+          # cache-restored store instead of wiping it, so the time slider covers weeks of real
+          # history, not just today's fetch (a cache miss just starts fresh).
+          if uv run swelter fetch --source openaq --store /tmp/openaq --config /tmp/openaq.yaml \
+              --web web --max-locations 250 --accumulate; then
+            SOURCE1_STORE="/tmp/openaq"
+            SOURCE1_CONFIG="/tmp/openaq.yaml"
+            SOURCE1_LICENSE="Provider-specific terms (see OpenAQ location metadata)"
+            SOURCE1_ATTRIBUTION="Real readings accessed via OpenAQ; original-provider licenses and attribution vary by location (docs.openaq.org/about/terms). Uncalibrated, so shown raw / provisional."
+          elif uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
+              --web web --past-days 1 --accumulate; then
+            SOURCE1_STORE="/tmp/cams"
+            SOURCE1_CONFIG="/tmp/cams.yaml"
+            SOURCE1_LICENSE="CC BY 4.0 (Copernicus CAMS via Open-Meteo)"
+            SOURCE1_ATTRIBUTION="Real hourly readings for California cities from the Copernicus Atmosphere Monitoring Service (CAMS) via Open-Meteo — atmospheric model data, not physical sensors, and not swelter-calibrated."
+          else
+            SOURCE1_STORE="/tmp/demo"
+            SOURCE1_CONFIG="network.yaml"
+            uv run swelter demo --store "$SOURCE1_STORE" --web web
+            SOURCE1_LICENSE="CC0-1.0"
+            SOURCE1_ATTRIBUTION="Synthetic demonstration data — no real sensors (gen_demo_data.py)."
+          fi
+          uv run swelter publish --store "$SOURCE1_STORE" --web web --config "$SOURCE1_CONFIG" \
+            --license "$SOURCE1_LICENSE" --attribution "$SOURCE1_ATTRIBUTION"
           # Page 2 ("/sensors/"): real community low-cost sensors (Sensor.Community, Stuttgart).
+          # Seed it from page 1's already-published static shell + data as a fallback, then try to
+          # overwrite with sensor-specific data; if that fetch fails, page 1's baked artifact stands.
           rm -rf web/sensors && mkdir -p web/sensors
           find web -maxdepth 1 -type f -exec cp {} web/sensors/ \;
           cp -r web/i18n web/sensors/i18n
           rm -f web/sensors/basemap.geojson  # Stuttgart is not California — keep its map schematic
           rm -f web/sensors/cooling-centers.geojson  # the sample centers are Sacramento, not Stuttgart
           # --cooling-centers points at a path that doesn't exist so the sensors page won't re-bake them.
-          uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
-            --web web/sensors --cooling-centers /dev/null/none \
-            || cp web/sample-surface.json web/sensors/sample-surface.json
-          cp DATA-LICENSE web/sensors/DATA-LICENSE
-          uv run swelter export --store /tmp/sc --format csv > web/sensors/export.csv \
-            || cp web/export.csv web/sensors/export.csv
+          SC_LICENSE="ODC-DbCL-1.0"
+          SC_ATTRIBUTION="Real readings from the Sensor.Community network of community low-cost sensors (sensor.community, ODC-DbCL-1.0; terms: opendatacommons.org/licenses/dbcl/1-0) — uncalibrated, so shown raw / provisional."
+          if uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
+              --web web/sensors --cooling-centers /dev/null/none --accumulate; then
+            uv run swelter publish --store /tmp/sc --web web/sensors --config /tmp/sc.yaml \
+              --cooling-centers /dev/null/none \
+              --license "$SC_LICENSE" --attribution "$SC_ATTRIBUTION"
+          else
+            # sensor-community fetch failed: the sensors page falls back to page 1's surface, so
+            # its license must say page 1's terms too, not the ODC-DbCL-1.0 default above.
+            cp web/sample-surface.json web/sensors/sample-surface.json
+            cp web/DATA-LICENSE web/sensors/DATA-LICENSE
+            cp web/export.csv web/sensors/export.csv
+          fi
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:

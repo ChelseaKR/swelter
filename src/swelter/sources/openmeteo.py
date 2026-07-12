@@ -25,12 +25,15 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
 from ._california_places import CALIFORNIA as _CALIFORNIA_RAW
 from ._http import SourceError, get_json
 
 #: Provenance tag carried in the calibration field of every reading from this source.
 SOURCE = "copernicus-cams"
+#: Open-Meteo re-publishes Copernicus CAMS under CC BY 4.0 (open-meteo.com/en/license); the
+#: underlying Copernicus terms are themselves attribution-only, so this is the binding term.
+LICENSE = "CC BY 4.0 (Copernicus CAMS via Open-Meteo)"
 ATTRIBUTION = (
     "Real hourly readings for California cities from the Copernicus Atmosphere Monitoring "
     "Service (CAMS) via Open-Meteo — atmospheric model data, not physical sensors, "
@@ -166,6 +169,8 @@ def to_observations(
             if t is not None and h is not None:
                 with_hi = heat_index_c(float(t), float(h))
                 _emit(out, place.node_id, ts, "heat_index_c", with_hi, "degC")
+                with_wbgt = wbgt_c(float(t), float(h))
+                _emit(out, place.node_id, ts, "wbgt_c", with_wbgt, "degC")
     return out
 
 

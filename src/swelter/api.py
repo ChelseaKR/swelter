@@ -19,6 +19,7 @@ from collections.abc import Sequence
 
 from . import export
 from .config import NetworkConfig
+from .dictionary import DATA_SCHEMA_VERSION, build_data_dictionary
 from .models import PARAMETERS, RAW, Observation
 
 SENSORTHINGS_VERSION = "1.1"
@@ -36,11 +37,20 @@ def service_document(base_url: str) -> dict[str, object]:
                 "http://www.opengis.net/spec/iot_sensing/1.1/req/request-data",
             ],
             "readOnly": True,
+            # The data-schema version an integrator pins against — see /api/schema.json and
+            # docs/VERSIONING.md ("Data schema — what counts as breaking"). Advertised here too so
+            # a SensorThings client sees it at the entry point, not just the dictionary endpoint.
+            "dataSchemaVersion": DATA_SCHEMA_VERSION,
         },
         "value": [
             {"name": name, "url": f"{base}/v{SENSORTHINGS_VERSION}/{name}"} for name in names
         ],
     }
+
+
+def schema_document() -> dict[str, object]:
+    """The machine-readable data dictionary served at ``/api/schema.json``."""
+    return build_data_dictionary()
 
 
 def things(config: NetworkConfig, base_url: str) -> dict[str, object]:

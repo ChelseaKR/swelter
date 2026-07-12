@@ -9,7 +9,9 @@ it says so.
 This pack is **descriptive, not a pitch**: every external fact carries a source, the funding
 landscape is dated, and the honest weak spots are stated rather than hidden. It complements
 [`POSITIONING.md`](POSITIONING.md) (the strategy note) and the cited evidence in
-[`RESEARCH-ROADMAP.md`](RESEARCH-ROADMAP.md); the README is the source of truth and its hard rules
+[`RESEARCH-ROADMAP.md`](RESEARCH-ROADMAP.md); the claim-by-claim engineering verification map
+(which CI job enforces which claim, and where a reviewer checks it) is
+[`evidence-pack.md`](evidence-pack.md). The README is the source of truth and its hard rules
 bind everything here.
 
 Author: Chelsea Kelly-Reif, 2026. swelter is an independent personal open-source project,

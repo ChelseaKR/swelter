@@ -142,6 +142,7 @@ def test_alert_record_carries_only_public_fields() -> None:
         "threshold",
         "provisional",
         "headline",
+        "headline_es",
         "aqi",
         "nodes",
     }
@@ -152,3 +153,63 @@ def test_to_json_advertises_no_account_subscription() -> None:
     doc = feed.to_json()
     assert "no account" in doc["note"]  # type: ignore[operator]
     assert doc["thresholds"]["pm25_aqi"] == 101.0  # type: ignore[index]
+
+
+# -- bilingual (es) surfaces: server-side catalog, parity-gated -------------
+
+
+def test_as_record_carries_a_spanish_headline() -> None:
+    feed = _feed(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"))
+    record = feed.alerts[0].as_record()
+    assert record["headline_es"]
+    assert record["headline_es"] != record["headline"]
+    assert record["headline_es"] == feed.alerts[0].headline("es")
+
+
+def test_to_json_labels_the_translation_as_machine() -> None:
+    feed = _feed(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"))
+    doc = feed.to_json()
+    assert doc["translation"] == "machine"
+    assert doc["note_es"]
+
+
+def test_to_atom_es_differs_from_en_and_carries_spanish_text() -> None:
+    feed = _feed(
+        make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"),
+        make_obs(parameter="heat_index_c", value=41.0, calibration="v2"),
+    )
+    en_atom = feed.to_atom()
+    es_atom = feed.to_atom(lang="es")
+    assert en_atom != es_atom
+    assert 'xml:lang="es"' in es_atom
+    root = ET.fromstring(es_atom)  # noqa: S314 -- our own generated feed, not external input
+    ns = "{http://www.w3.org/2005/Atom}"
+    assert root.get("{http://www.w3.org/XML/1998/namespace}lang") == "es"
+    entries = root.findall(f"{ns}entry")
+    assert len(entries) == len(feed.alerts)
+    spanish_fragments = ("la calidad del aire", "índice de calor", "exposición combinada")
+    for entry in entries:
+        title = entry.find(f"{ns}title")
+        assert title is not None and title.text
+        assert any(fragment in title.text for fragment in spanish_fragments)
+
+
+def test_to_atom_es_is_labeled_machine_translated() -> None:
+    feed = _feed(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"))
+    es_atom = feed.to_atom(lang="es")
+    assert "machine" in es_atom.lower()
+    en_atom = feed.to_atom()
+    assert "<generator>" not in en_atom  # English is not flagged as a translation of anything
+
+
+def test_to_atom_links_the_alternate_language() -> None:
+    feed = _feed(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"))
+    root = ET.fromstring(feed.to_atom())  # noqa: S314 -- our own generated feed, not external input
+    ns = "{http://www.w3.org/2005/Atom}"
+    alternates = [
+        link
+        for link in root.findall(f"{ns}link")
+        if link.get("rel") == "alternate" and link.get("hreflang") == "es"
+    ]
+    assert len(alternates) == 1
+    assert alternates[0].get("href", "").endswith("alerts.es.xml")

@@ -27,7 +27,8 @@ SENSOR_PARAM = {
 def test_parse_latest_maps_and_stays_raw() -> None:
     obs = openaq.parse_latest("oaq-7", [_row(1, 12.3), _row(2, 28.0), _row(3, 40.0)], SENSOR_PARAM)
     params = {o.parameter for o in obs}
-    assert params == {"pm25_ugm3", "temp_c", "humidity_pct", "heat_index_c"}  # + derived HI
+    # + derived heat index and estimated WBGT
+    assert params == {"pm25_ugm3", "temp_c", "humidity_pct", "heat_index_c", "wbgt_c"}
     assert all(o.calibration == RAW for o in obs)  # real, but not swelter-calibrated → provisional
     assert all(o.node_id == "oaq-7" for o in obs)
     assert all(o.timestamp.endswith("Z") for o in obs)

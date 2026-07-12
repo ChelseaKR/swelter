@@ -58,6 +58,7 @@ def test_to_observations_maps_arrays() -> None:
         "pm25_ugm3",
         "pm10_ugm3",
         "heat_index_c",
+        "wbgt_c",
     }
     assert all(o.node_id == "oak-park" for o in obs)
     assert all(

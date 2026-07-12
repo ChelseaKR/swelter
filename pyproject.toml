@@ -50,6 +50,8 @@ dev = [
     "mypy>=1.18",
     "types-PyYAML",
     "textstat>=0.7.13",
+    "jsonschema>=4.23",
+    "types-jsonschema>=4.23",
 ]
 
 [build-system]

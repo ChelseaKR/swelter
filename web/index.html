@@ -80,6 +80,7 @@
             <option value="exposure" data-i18n="param-exposure">Heat + air exposure</option>
             <option value="temp_c" data-i18n="param-temp">Temperature</option>
             <option value="heat_index_c" data-i18n="param-hi">Heat index</option>
+            <option value="wbgt_c" data-i18n="param-wbgt">Estimated WBGT — heat stress</option>
             <option value="pm10_ugm3" data-i18n="param-pm10">PM10 — coarse particles</option>
           </select>
         </div>
@@ -136,6 +137,10 @@
         <p class="aa-note" data-i18n="aa-note">
           Subscribe by adding the alert feed to any RSS/Atom reader, or point an automation at it.
           The feed is public and carries no personal data; thresholds follow US-EPA and US-NWS bands.
+        </p>
+        <p class="aa-es-feed">
+          <a id="aa-es-feed-link" href="alerts.es.xml" hreflang="es" type="application/atom+xml" data-i18n="aa-es-feed">Subscribe to the Spanish feed</a>
+          — <span data-i18n="aa-es-feed-note">Headlines and feed text are machine-translated, not reviewed by a person.</span>
         </p>
       </section>
 
@@ -277,6 +282,7 @@
         <p class="detail-actions">
           <button id="copy-link" type="button" data-i18n="copy-link">Copy link to this location</button>
           <button id="copy-summary" type="button" data-i18n="brief-copy">Copy a plain-language summary</button>
+          <button id="share-card" type="button" data-i18n="share-card-button">Save share card (image)</button>
         </p>
         <p id="download-cell" class="download-cell"></p>
       </section>
@@ -343,6 +349,18 @@
           <p class="legend-note" data-i18n="legend-value-note">
             This measurement is shown by its value on each marker, not by a severity category. Higher
             numbers mean more of the pollutant; see the List or Table view for every location.
+          </p>
+        </div>
+
+        <!-- Estimated WBGT → no severity scale (guidance bands are SME-gated, ADR 0012); the
+             caveat travels with every value, never just here. -->
+        <div class="legend-block" data-legend="wbgt" hidden>
+          <p class="legend-note" data-i18n="legend-wbgt-note">
+            This is an <strong>estimated</strong> wet-bulb globe temperature, from air temperature
+            and humidity only — there is no black-globe sensor and no solar-radiation term, so it
+            reads cooler than a true outdoor WBGT in direct sun. Shown by its value on each marker,
+            with "estimated" always alongside the number; see the List or Table view for every
+            location.
           </p>
         </div>
 
