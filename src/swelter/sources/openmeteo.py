@@ -25,7 +25,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
 from ._california_places import CALIFORNIA as _CALIFORNIA_RAW
 from ._http import SourceError, get_json
 
@@ -169,6 +169,8 @@ def to_observations(
             if t is not None and h is not None:
                 with_hi = heat_index_c(float(t), float(h))
                 _emit(out, place.node_id, ts, "heat_index_c", with_hi, "degC")
+                with_wbgt = wbgt_c(float(t), float(h))
+                _emit(out, place.node_id, ts, "wbgt_c", with_wbgt, "degC")
     return out
 
 

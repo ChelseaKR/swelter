@@ -185,12 +185,12 @@ map client that wants the locations collection without walking each Thing.
 ### `GET /v1.1/Datastreams`
 
 One `Datastream` per `(node, parameter)` pair — the SensorThings link between a `Thing` and an
-`ObservedProperty`. The demo network's 150 nodes × 6 parameters yield 900 streams. Each carries its
+`ObservedProperty`. The demo network's 150 nodes × 7 parameters yield 1050 streams. Each carries its
 unit of measurement and navigation links to its Thing and ObservedProperty.
 
 ```json
 {
-  "@iot.count": 900,
+  "@iot.count": 1050,
   "value": [
     {
       "@iot.id": "node-01:temp_c",
@@ -215,7 +215,7 @@ section of this file.
 
 ```json
 {
-  "@iot.count": 6,
+  "@iot.count": 7,
   "value": [
     {
       "@iot.id": "temp_c",
@@ -832,6 +832,21 @@ below 26.7 degC the air temperature is returned unchanged. Computed on the node 
 temperature and humidity, so it inherits their raw bias and is **published raw / provisional** — the
 demo network co-locates temperature and PM, not the derived heat index, so no `heat_index_c`
 correction is fit. Treat it as indicative, not calibrated. Valid range −40 to 60 degC.
+
+## wbgt_c
+
+**Estimated** wet-bulb globe temperature, unit **degC** (degrees Celsius) — label every use of this
+value "estimated WBGT," never bare "WBGT". Computed on-node (or derived server-side from `temp_c` +
+`humidity_pct` for source adapters that do not report it) via the Stull (2011, *J. Applied
+Meteorology and Climatology*) natural-wet-bulb approximation from air temperature and relative
+humidity, combined into the ISO 7243 shade-WBGT form (`WBGT = 0.7*Tw + 0.3*Td`). It has **no
+black-globe radiometer and no solar-radiation term**, so it reads cooler than a true outdoor WBGT in
+direct sun and must not be treated as equivalent to a black-globe instrument reading. Like
+`heat_index_c`, it inherits its inputs' raw bias and is **published raw / provisional** — the demo
+network does not fit a `wbgt_c` correction. This release ships the estimated metric and its caveats
+only; occupational-heat guidance thresholds/bands (e.g. an OSHA/NIOSH-style action-level scale) are
+deferred pending SME sign-off (see `docs/decisions/0019-estimated-wbgt.md`). Valid range −40 to 60
+degC.
 
 ---
 

@@ -148,6 +148,13 @@ this week; every recommendation names its evidence.
 
 ### EXP-06 — Wet-bulb globe temperature as a first-class parameter
 
+✅ Implemented 2026-07-02 (`roadmap/exp-06-wet-bulb-globe-temperature-as-a-f`) — `models.wbgt_c()`
+(Stull 2011 wet-bulb approximation + ISO 7243 shade-WBGT form, `models.PARAMETERS["wbgt_c"]`,
+`qc._SPIKE_THRESHOLD`, `aggregate.SURFACE_PARAMETERS`, the dashboard label set (en/es, caveat
+inseparable from the value per R5), and `docs/decisions/0019-estimated-wbgt.md`. Shipped as
+metric-plus-caveat only, per the SME gate this item names: **no guidance thresholds/bands** and
+**no black-globe firmware support** — both stay open follow-ups.
+
 **Pitch.** Add `wbgt_c` to the `PARAMETERS` registry with an estimation method, calibration
 support, and occupational-heat framing — the metric outdoor-work guidance actually uses.
 

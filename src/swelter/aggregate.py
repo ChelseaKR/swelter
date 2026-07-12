@@ -51,7 +51,7 @@ from .models import (
 )
 
 #: Parameters that appear on the map/surface (raw-only diagnostic fields are excluded).
-SURFACE_PARAMETERS = ("temp_c", "heat_index_c", "pm25_ugm3", "pm10_ugm3", "no2_ppb")
+SURFACE_PARAMETERS = ("temp_c", "heat_index_c", "wbgt_c", "pm25_ugm3", "pm10_ugm3", "no2_ppb")
 
 #: The derived combined heat-and-air layer. Not an observed parameter — built per cell/hour from
 #: the calibrated heat-index and PM2.5 cells, so it inherits their trust (ADR 0009).
