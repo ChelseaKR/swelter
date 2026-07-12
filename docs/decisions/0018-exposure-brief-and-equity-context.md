@@ -1,4 +1,4 @@
-# ADR 0014: Historical Danger-day counts plus sourced canopy/AC-access/redlining context (E1)
+# ADR 0018: Historical Danger-day counts plus sourced canopy/AC-access/redlining context (E1)
 
 Date: 2026-07-09. Status: accepted.
 

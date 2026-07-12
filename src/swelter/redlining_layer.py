@@ -15,7 +15,7 @@ Scholarship Lab, University of Richmond). ``holc_grade`` is deliberately *not* a
 single external fact (the grade HOLC itself published) carried with its source, the same way
 ``canopy_pct`` carries a tree-canopy survey's number. Rendering it is a citation, not an opinion:
 callers must say what the grade *was*, in the 1930s, per the source — never what it implies
-today. See ``docs/decisions/0014-exposure-brief-and-equity-context.md`` for the full framing
+today. See ``docs/decisions/0018-exposure-brief-and-equity-context.md`` for the full framing
 discussion and the coverage gap (HOLC only mapped select cities, not every place swelter runs).
 """
 

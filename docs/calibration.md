@@ -12,12 +12,16 @@ are written to a versioned, timestamped registry; and every calibrated observati
 correction version that produced it. Re-running the fit on the committed co-location data reproduces
 the published registry byte-for-byte, so the calibration is auditable end to end.
 
+Heat index is the one parameter this does not describe: nothing co-locates a heat-index reference,
+so it is never fit. It is instead *derived* from a node's already-calibrated temperature plus
+co-timed humidity — see **Heat index: derived, not fitted** below.
+
 The implementation is `src/swelter/calibrate.py`. The committed evidence is
 `data/demo/colocation.jsonl` (the training pairs) and `data/demo/corrections.yaml` (the published
 registry). Nothing in this document is hand-computed prose detached from the code: the worked example
 at the end reproduces a real registry entry.
 
-Last verified: 2026-06-16. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
+Last verified: 2026-07-03. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
 registry, or the US-EPA PurpleAir correction lineage referenced below; otherwise every 12 months.
 
 ---
@@ -94,20 +98,21 @@ corrected = a·raw + b·humidity + c
   adopting fixed national constants, because each node's enclosure, siting, and sensor lot differ; the
   *structure* is borrowed, the *numbers* are local and earned from that node's co-location window.
 
-### Temperature (and heat index): enclosure-offset
+### Temperature: enclosure-offset
 
 ```
 corrected = a·raw + c
 ```
 
 - `a` is a small gain correction and `c` is the enclosure offset — the few degrees a sun-baked box adds.
-- Method id: `enclosure-offset`. Heat index uses the same form.
+- Method id: `enclosure-offset`.
 
 ### Default
 
 Any other parameter falls back to a simple linear correction (`corrected = a·raw + c`, method id
 `linear`). No parameter is special-cased anywhere else in the pipeline; adding one is a model entry
-here plus its predictor list.
+here plus its predictor list. `heat_index_c` is the one exception — see the section below — it is
+never fit and so never falls back to this default either.
 
 The predictor-to-method mapping, verbatim from the engine:
 
@@ -116,8 +121,118 @@ The predictor-to-method mapping, verbatim from the engine:
 | `pm25_ugm3` | `raw`, `humidity` | `epa-humidity` |
 | `pm10_ugm3` | `raw`, `humidity` | `epa-humidity` |
 | `temp_c` | `raw` | `enclosure-offset` |
-| `heat_index_c` | `raw` | `enclosure-offset` |
 | (default) | `raw` | `linear` |
+| `heat_index_c` | *(derived, not fit — see below)* | `derived-enclosure` |
+
+---
+
+## Heat index: derived, not fitted
+
+Heat index does not fit the co-location model above, because there is nothing to co-locate it
+against: a reference-grade instrument reports temperature and humidity, not a "true" heat index, so
+`data/demo/colocation.jsonl` has no `heat_index_c` rows and `swelter calibrate` never produces a
+`heat_index_c` entry in the registry. Earlier, `calibrate._METHOD` still listed `heat_index_c` as
+using the `enclosure-offset` method — a claim that never actually fired, so every heat-index
+observation stayed raw/provisional forever, even for a node whose temperature was tightly
+calibrated. See ADR 0014 for the full reasoning; this section documents the fix plainly.
+
+Instead, `calibrate.apply()` derives a calibrated heat index directly. For every raw `heat_index_c`
+observation whose `(node_id, timestamp)` has *both* a calibrated `temp_c` (produced by the
+enclosure-offset correction earlier in the same `apply()` call) and a co-timed humidity reading
+(`humidity_index()` — raw, since humidity has no fitted correction in this network; see the caveat
+below), it emits an additional observation:
+
+```
+calibrated_heat_index_c = models.heat_index_c(calibrated_temp_c, humidity_pct)
+```
+
+using the same NWS Rothfusz function `data/demo` was generated from. This is recomputation from
+exact, calibrated inputs, not a new statistical fit — no coefficient is estimated, so it adds
+nothing to `corrections.yaml` and the byte-for-byte co-location replay is untouched.
+
+The emitted observation is tagged `heat_index_c.derived-enclosure.{node_id}` (method id
+`derived-enclosure`, distinct from `enclosure-offset` so a reader can tell "recomputed from
+calibrated inputs" from "fit against a reference" at a glance) and carries an `uncertainty` equal to
+the *temperature* correction's `residual_std` — heat index is monotonic and steep in temperature over
+the operating range, so the temperature error bar carried forward is a simple, defensible
+1-sigma stand-in rather than a properly propagated variance through the nonlinear regression. It does
+not account for humidity's own uncertainty, because humidity is uncalibrated in this network (see
+below), and it does not scale by the local `∂HI/∂T`, which would be a more precise but more
+complex propagation.
+
+**Caveat, stated honestly:** humidity is never calibrated in this demo network — no node has a
+fitted humidity correction, so `humidity_index()` always returns raw, QC-passing humidity, and that
+is what the heat-index derivation uses. A calibrated heat index is therefore calibrated with respect
+to temperature and exact with respect to the Rothfusz function, but it inherits whatever error an
+uncalibrated humidity sensor carries. If a network ever fits a humidity correction,
+`humidity_index()` would need to prefer it — that is out of scope here.
+
+A raw `heat_index_c` observation is left provisional in exactly two cases: its node's temperature
+never got calibrated (no correction, or the reading itself was QC-rejected), or the co-timed
+humidity is missing or QC-rejected. Both are honest outcomes: a node with no trustworthy inputs has
+no basis for a trustworthy derived value, and the map shows it as provisional rather than promoting
+it on an uncalibrated input.
+
+---
+
+## Per-model bias: sensor-model-aware calibration families
+
+The predictor-to-method mapping above is keyed by parameter alone, but the EPA-PurpleAir humidity
+lineage it borrows from is sensor-family-specific: different low-cost PM sensors have measurably
+different humidity responses because they differ in optics, onboard firmware, and whether they
+apply their own RH compensation before a reading ever leaves the device. A node can optionally
+register which hardware family produced its readings — `NodeConfig.sensor_model` in
+`network.yaml`, e.g. `sensor_model: PMS5003` — and `calibrate.py` uses it to select a
+(parameter, model) correction family when one is registered, falling back to the per-parameter
+default above for a node with no model or an unrecognized one. **This changes nothing about the
+raw/calibrated boundary (hard rule #3):** a model-aware correction is still fit from that node's
+own co-location evidence, the same as every other correction in this document; the model only
+picks which regression form to fit. `network.yaml`'s `sensor_model` field is public and must never
+hold a serial number or other per-device identifier — `swelter.config` rejects values that look
+like one (a long digit run, an explicit "serial"/"S/N" marker, a MAC address, a UUID) at load time
+(hard rule #1).
+
+The known families and the typical bias each is registered for:
+
+| Model | Onboard RH compensation | Registered family | Predictors | Method id |
+|---|---|---|---|---|
+| PMS5003 (Plantower) | No | humidity-aware, EPA-PurpleAir lineage | `raw`, `humidity` | `epa-humidity-pms5003` |
+| SDS011 (Nova Fitness) | No | humidity-aware, EPA-PurpleAir lineage | `raw`, `humidity` | `epa-humidity-sds011` |
+| SPS30 (Sensirion) | Yes (firmware-side) | linear, no humidity term | `raw` | `linear-onboard-rh-sps30` |
+
+- **PMS5003 and SDS011** are both optical particle counters with no onboard humidity correction, so
+  they fit the same humidity-aware form as the per-parameter default — the model-specific method id
+  exists so the registry and every calibrated observation's `calibration` version id trace which
+  family's bias the fit corrected, even though the regression form is identical.
+- **SPS30** applies its own RH compensation in firmware before the reading reaches swelter, so most
+  of the humidity-driven inflation described above is already removed by the time the raw value is
+  read. Adding a second humidity term at the network level would just fit noise against an already-
+  compensated signal, so the SPS30 family drops it and fits a plain linear correction instead.
+- These are *typical* biases for each hardware family, described qualitatively here and encoded as
+  a difference in predictor set / method id — not as a numeric prior a node can borrow instead of
+  its own co-location fit. Every coefficient in the registry, model-aware or not, is still earned
+  from that specific node's own training pairs (see **Co-location training** above); a model only
+  changes which regression form those pairs are fit against.
+
+### A model-typical bias is not calibration
+
+**A registered `sensor_model` alone never promotes a node past provisional.** Knowing a node runs a
+PMS5003 tells you the *shape* of correction a co-location fit for that node is likely to need — the
+family it borrows from — not what that node's actual coefficients are. A node with a
+`sensor_model` and no co-location fit has exactly the same `calibration: raw` status, the same
+provisional presentation on the map and table, and the same absence from the registry as a node
+with no model set at all (audit A1: raw and calibrated must never be silently blurred). If a future
+feature ever surfaces a "typical PMS5003 bias band" as a documented prior for context, it must be
+labeled explicitly as a prior, sourced independently of any specific node's evidence, and rendered
+in a way that cannot be mistaken for a fitted, node-specific correction — hard rule #3 forbids
+treating it as one.
+
+`src/swelter/sources/sensor_community.py` is where this field's provenance often originates: the
+Sensor.Community API already reports each sensor's hardware type (`sensor.sensor_type.name`), and
+the adapter maps it onto the discovered node's `sensor_model` in the generated `network.yaml`
+instead of discarding it — the readings stay raw/provisional exactly as they did before (that
+adapter has no co-location evidence to fit from), but the hardware family survives for the day a
+co-location window is recorded for one of these real sensors.
 
 ---
 
@@ -217,6 +332,7 @@ corrections:                     # list, one entry per fitted node/parameter
     reference: string            # the reference monitor / source identifier
     window_start: string         # ISO-8601 UTC timestamp of the first training pair
     window_end: string           # ISO-8601 UTC timestamp of the last training pair
+    model: string                # OPTIONAL — sensor family, e.g. "PMS5003"; omitted when unknown
 ```
 
 `coefficients` is positional: `coefficients[i]` multiplies `predictors[i]`, and the prediction is
@@ -225,6 +341,12 @@ there is one coefficient; for a PM entry `predictors` is `[raw, humidity]`, so t
 co-located node contributes three corrections (temp, PM2.5, PM10), so the demo registry holds 300
 corrections from the 100 co-located nodes. The remaining third of the network has no co-location
 records, so those nodes appear nowhere in the registry and their readings publish raw.
+
+`model` is a schema addition (EXP-03): it is only written when the node that produced the
+correction had a `sensor_model` registered in `network.yaml`, so every existing entry — including
+the whole committed demo registry, since none of its nodes register a model — parses and
+round-trips identically to before this field existed. A reader can treat a missing `model` key
+exactly as an empty string.
 
 ---
 

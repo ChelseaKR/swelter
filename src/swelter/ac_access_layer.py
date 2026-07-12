@@ -16,7 +16,7 @@ its own narrow allowlist instead.
 The real, citable source for this measurement is the U.S. Census Bureau's **Local Air
 Conditioning Estimates (LACE)** — an experimental, model-based estimate of AC prevalence at the
 state/county/census-tract level, built by fusing the American Housing Survey and the American
-Community Survey (see ``docs/decisions/0014-exposure-brief-and-equity-context.md`` for the
+Community Survey (see ``docs/decisions/0018-exposure-brief-and-equity-context.md`` for the
 research notes and known gaps). LACE is tract-level, not sensor-cell-level, so a real deployment
 joins it by geocoding each published cell to its census tract — that join is out of scope here;
 this module only loads and validates the resulting per-cell dataset, the same boundary
