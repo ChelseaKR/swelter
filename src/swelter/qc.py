@@ -42,6 +42,7 @@ _SPIKE_THRESHOLD: dict[str, float] = {
     "pm10_ugm3": 250.0,
     "no2_ppb": 200.0,
     "heat_index_c": 10.0,
+    "wbgt_c": 10.0,
 }
 
 #: A run of this many identical consecutive values reads as a stuck sensor.

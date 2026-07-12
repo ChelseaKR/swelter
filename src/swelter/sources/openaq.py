@@ -28,7 +28,7 @@ from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 
-from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
 from ._http import SourceError, get_json
 
 API = "https://api.openaq.org/v3"
@@ -153,6 +153,17 @@ def parse_latest(
                     timestamp=ts,
                     parameter="heat_index_c",
                     value=round(hi, 2),
+                    unit="degC",
+                )
+            )
+        with contextlib.suppress(TypeError, ValueError):
+            wbgt = wbgt_c(temp, humid)
+            out.append(
+                Observation(
+                    node_id=node_id,
+                    timestamp=ts,
+                    parameter="wbgt_c",
+                    value=round(wbgt, 2),
                     unit="degC",
                 )
             )

@@ -27,3 +27,5 @@ later ADR supersedes an earlier one.
 | [0016](0016-caveat-baked-share-card.md) | Bake the provisional label and hourly-window caveat into share-card pixels, not overlaid HTML | accepted |
 | [0017](0017-sensor-model-calibration-families.md) | Key calibration families by (parameter, sensor model), not parameter alone | accepted |
 | [0018](0018-exposure-brief-and-equity-context.md) | Historical Danger-day counts plus sourced canopy/AC-access/redlining context (E1) | accepted |
+| [0019](0019-estimated-wbgt.md) | Ship an estimated WBGT parameter, without guidance bands | accepted |
+| [0020](0020-static-publish-command.md) | Promote the Pages bash choreography into a tested `swelter publish` command | accepted |

@@ -43,7 +43,7 @@
         "lon": { "type": "number" },
         "parameter": {
           "type": "string",
-          "enum": ["temp_c", "heat_index_c", "pm25_ugm3", "pm10_ugm3", "no2_ppb", "exposure"]
+          "enum": ["temp_c", "heat_index_c", "wbgt_c", "pm25_ugm3", "pm10_ugm3", "no2_ppb", "exposure"]
         },
         "bucket": { "type": "string", "format": "date-time" },
         "mean": { "type": "number" },

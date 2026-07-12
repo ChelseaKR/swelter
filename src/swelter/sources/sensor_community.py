@@ -22,7 +22,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp
+from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
 from ._http import get_json
 
 AREA_URL = "https://data.sensor.community/airrohr/v1/filter/area="
@@ -158,6 +158,9 @@ def _emit_sensor_readings(
         with contextlib.suppress(TypeError, ValueError):
             hi = heat_index_c(float(temp), float(humid))
             _emit(out, node_id, ts, "heat_index_c", hi, "degC")
+        with contextlib.suppress(TypeError, ValueError):
+            wbgt = wbgt_c(float(temp), float(humid))
+            _emit(out, node_id, ts, "wbgt_c", wbgt, "degC")
 
 
 def parse_measurements(
