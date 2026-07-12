@@ -80,10 +80,11 @@ the dashboard, and the merge gate are built and green. The roadmap also carries 
 
 ```
 fmt-check  →  ruff format --check          (formatting)
-lint       →  ruff check                   (E, F, I, UP, B, SIM; line length 100)
+lint       →  ruff check                   (E, F, I, UP, B, SIM, C901≤10, S; line length 100)
 typecheck  →  mypy --strict                (passes clean over src + tests)
 a11y       →  scripts/a11y_check.py        (structural WCAG 2.2 AA gate, 12 checks)
-test       →  pytest                       (62 tests, all green)
+i18n       →  scripts/i18n_*_check.py      (UTF-8 G1, BCP-47 G3/G4, EN/ES parity G6, CLDR pin G12)
+test       →  pytest                       (257 tests, all green, 90% branch-coverage floor)
 ```
 
 Non-negotiables baked into the gate:
@@ -104,7 +105,7 @@ CodeQL. A red gate blocks merge; there is no override.
 
 ## How to run things
 
-Python ≥3.11, src-layout package, hatchling build backend, managed and run with **uv**. One runtime
+Python ≥3.12, src-layout package, hatchling build backend, managed and run with **uv**. One runtime
 dependency (PyYAML); everything else is the standard library.
 
 ```console

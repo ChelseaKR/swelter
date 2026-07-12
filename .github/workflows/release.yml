@@ -1,7 +1,11 @@
-# Release pipeline. Triggered by pushing a version tag (e.g. v0.1.0). Builds
-# the sdist + wheel with uv, generates SLSA build provenance, signs the
-# artifacts with Sigstore cosign (keyless / OIDC), and attaches everything to
-# a GitHub Release. Nothing here runs on an ordinary push.
+# Release pipeline. Triggered by pushing a version tag (e.g. v0.1.0). Re-verifies the tagged
+# commit against the full merge gate, builds the sdist + wheel with uv, generates SLSA build
+# provenance, signs the artifacts with Sigstore cosign (keyless / OIDC), and attaches everything
+# to a GitHub Release. Nothing here runs on an ordinary push.
+#
+# Gating on `make verify` at the tag (not just trusting that CI was green on `main` at some
+# earlier point) is deliberate: a red `main` must not be able to ship a signed, provenance-
+# attested release (audit 2026-07-05, P0-3).
 name: Release
 
 on:
@@ -9,29 +13,78 @@ on:
     tags:
       - "v*"
 
+# Default to no access; the one job below elevates only what it needs (CICD-04).
 permissions:
-  # id-token lets the keyless cosign/SLSA flow mint an OIDC token; contents
-  # lets the job create the Release and upload assets.
-  id-token: write
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
     name: build + sign
     runs-on: ubuntu-latest
+    permissions:
+      # id-token lets the keyless cosign/SLSA flow mint an OIDC token; contents
+      # lets the job create the Release and upload assets.
+      id-token: write
+      contents: write
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           persist-credentials: false
+          fetch-depth: 0 # need full history + tag objects for the tag/CHANGELOG assertions below
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          # Never cache in the job that mints SLSA provenance and cosign-signs artifacts
+          # (CICD-24) -- a poisoned cache must not be able to influence a signed release.
+          enable-cache: false
+
+      # REL-08: the pushed ref must be an annotated tag object, not a lightweight ref, so the
+      # release always carries tag metadata (tagger, date, message) and is a stable target for
+      # `git tag -v`. If the maintainer signs tags (`git tag -s`), the second check verifies the
+      # signature; that step requires the verifying key/allowed_signers to be available to this
+      # runner (e.g. via `gitsign` or a committed allowed-signers file) and is currently
+      # best-effort -- see the incident note (docs/decisions/, P0-2) for the interim posture on
+      # commit/tag signing.
+      - name: Assert annotated tag
+        run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          kind="$(git cat-file -t "${GITHUB_REF_NAME}")"
+          if [ "$kind" != "tag" ]; then
+            echo "::error::${GITHUB_REF_NAME} is a lightweight ref (kind=$kind), not an annotated tag object"
+            exit 1
+          fi
+
+      - name: Verify tag signature (best-effort until signing is wired, see incident note)
+        continue-on-error: true
+        run: git tag -v "${GITHUB_REF_NAME}"
+
+      # REL-10: the version being released must have its own dated CHANGELOG section, not just
+      # an [Unreleased] bucket -- a release with no changelog entry is a documentation defect.
+      - name: CHANGELOG has a dated section for this version
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          grep -Eq "^## \[${v}\] . [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md || {
+            echo "::error::CHANGELOG.md has no dated '## [${v}] - YYYY-MM-DD' section"
+            exit 1
+          }
+
+      # REL-14/REL-15: the full merge gate, re-run at the exact tagged commit -- not inherited
+      # from whatever `main`'s CI happened to report earlier. A red gate here fails the release
+      # before anything is built, signed, or published.
+      - name: Install (locked)
+        run: uv sync --locked
+
+      - name: make verify (fmt-check, lint, typecheck, a11y, i18n, test)
+        run: make verify
 
       # Reproducible build from the locked environment, into ./dist.
       - name: Build sdist + wheel
-        run: |
-          uv sync --locked
-          uv build
+        run: uv build
 
       # Hashes feed both the GitHub attestation and the cosign signatures, and
       # give downstream consumers a checksum to verify against.
@@ -44,7 +97,7 @@ jobs:
       # SLSA-style build provenance, kept native to GitHub so no extra trust
       # root is introduced. Produces a signed attestation bound to ./dist.
       - name: Generate build provenance attestation
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: "dist/*"
 
@@ -52,7 +105,7 @@ jobs:
       # id-token permission above), signs each artifact, and records it in the
       # public transparency log. No long-lived private key is stored.
       - name: Install cosign
-        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Sign artifacts (keyless)
         run: |

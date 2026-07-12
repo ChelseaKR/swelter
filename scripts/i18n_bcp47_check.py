@@ -53,6 +53,25 @@ _VARIANT = re.compile(r"^([A-Za-z0-9]{5,8}|[0-9][A-Za-z0-9]{3})$")  # e.g. 1996,
 _SINGLETON = re.compile(r"^[A-WY-Za-wy-z0-9]$")  # extension/private-use singleton (not 'x' start)
 
 
+def _walk_remaining_subtags(subtags: list[str]) -> str | None:
+    """Walk the subtags after the primary language in RFC 5646 order (script? region? variant* /
+    singleton...). Returns None if well-formed, else a failure reason."""
+    i = 1
+    if i < len(subtags) and _SCRIPT.match(subtags[i]):
+        i += 1
+    if i < len(subtags) and _REGION.match(subtags[i]):
+        i += 1
+    while i < len(subtags):
+        sub = subtags[i]
+        if _VARIANT.match(sub):
+            i += 1
+            continue
+        if len(sub) == 1 and _SINGLETON.match(sub) or sub.lower() == "x":
+            return None  # extension / private-use block — accept the tag as well-formed
+        return f"subtag {sub!r} is not a valid script/region/variant"
+    return None
+
+
 def _validate(tag: str) -> str | None:
     """Return None if ``tag`` is a well-formed, registered BCP 47 tag, else a failure reason."""
     if not tag or not tag.strip():
@@ -69,21 +88,7 @@ def _validate(tag: str) -> str | None:
     if len(primary) == 2 and primary.lower() not in ISO_639_1:
         return f"primary language subtag {primary!r} is not a registered ISO 639-1 code"
 
-    # Walk the remaining subtags in the RFC 5646 order (script? region? variant* / singleton...).
-    i = 1
-    if i < len(subtags) and _SCRIPT.match(subtags[i]):
-        i += 1
-    if i < len(subtags) and _REGION.match(subtags[i]):
-        i += 1
-    while i < len(subtags):
-        sub = subtags[i]
-        if _VARIANT.match(sub):
-            i += 1
-            continue
-        if len(sub) == 1 and _SINGLETON.match(sub) or sub.lower() == "x":
-            return None  # extension / private-use block — accept the tag as well-formed
-        return f"subtag {sub!r} is not a valid script/region/variant"
-    return None
+    return _walk_remaining_subtags(subtags)
 
 
 def _authored_tags() -> list[tuple[str, str]]:

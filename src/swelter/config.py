@@ -17,6 +17,7 @@ Two privacy rules are enforced *here*, before any value reaches the map:
 
 from __future__ import annotations
 
+import difflib
 import math
 import re
 from dataclasses import dataclass, field
@@ -27,6 +28,23 @@ import yaml
 
 DEFAULT_GRID_M = 150.0
 _METRES_PER_DEGREE_LAT = 111_320.0
+
+#: The only keys `network.yaml` may have at the top level. Anything else is almost always a typo
+#: (`language:` for `languages:`) or a stale field copied from another template —
+#: `config_concerns`/`swelter doctor` rejects it loudly instead of silently ignoring it.
+_KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
+    {
+        "name",
+        "grid_resolution_m",
+        "languages",
+        "nodes",
+        "reference_monitors",
+        "calibration_windows",
+        "alert_thresholds",
+        "twin_windows",
+    }
+)
+_KNOWN_LOCATIONS: frozenset[str] = frozenset({"coarse", "precise"})
 
 # Node labels are PUBLISHED (map, table, API, exports), so they must name a place, not a person or
 # an address (hard rule #1). These heuristics catch the obvious leaks — a street address, apartment
@@ -60,6 +78,8 @@ class NodeConfig:
     lat: float | None = None
     lon: float | None = None
     location: str = "coarse"  # "coarse" (snap to grid) or "precise" (host opted in)
+    # governance-log entry recording host consent for a precise location (governance.md §4)
+    consent_ref: str = ""
 
     def public_location(self, grid_m: float) -> tuple[float, float] | None:
         """The coordinate swelter is allowed to publish for this node.
@@ -96,6 +116,22 @@ class CalibrationWindow:
 
 
 @dataclass(frozen=True)
+class TwinWindow:
+    """A co-located sensor-twin window: two low-cost nodes sitting side by side, and when.
+
+    Unlike :class:`CalibrationWindow`, neither node is a reference monitor — this is a
+    precision check (do the twins agree with each other?), not an accuracy check (does either
+    twin agree with truth?). See ``qc.twin_agreement`` and ``docs/calibration.md``.
+    """
+
+    node_a: str
+    node_b: str
+    parameter: str
+    start: str
+    end: str
+
+
+@dataclass(frozen=True)
 class NetworkConfig:
     """The whole network as one reviewable document."""
 
@@ -105,6 +141,9 @@ class NetworkConfig:
     nodes: tuple[NodeConfig, ...] = ()
     reference_monitors: tuple[ReferenceMonitor, ...] = ()
     calibration_windows: tuple[CalibrationWindow, ...] = field(default_factory=tuple)
+    #: Co-located twin windows for the cross-checked precision tier (QC metadata only — see
+    #: ``qc.twin_agreement``). Empty means no twin pairs are configured; nothing changes.
+    twin_windows: tuple[TwinWindow, ...] = field(default_factory=tuple)
     #: Per-network danger floors for the alerts feed (keys: ``pm25_aqi``, ``heat_index_c``,
     #: ``exposure``). Empty means "use the documented public-health defaults" (see ``alerts.py``).
     alert_thresholds: dict[str, float] = field(default_factory=dict)
@@ -146,8 +185,21 @@ def _as_float(value: Any) -> float | None:
 
 def load_config(path: str | Path) -> NetworkConfig:
     """Load and validate ``network.yaml`` into a typed :class:`NetworkConfig`."""
+    return load_config_doc(path)[0]
+
+
+def load_config_doc(path: str | Path) -> tuple[NetworkConfig, dict[str, Any]]:
+    """Load ``network.yaml`` and also return the raw parsed mapping.
+
+    ``parse_config`` drops anything it does not recognize (an unknown top-level key, a typo'd
+    ``alert_thresholds`` entry), so a validator that wants to catch those mistakes needs the
+    document *before* that happens. Callers that only need the typed config should use
+    :func:`load_config`; ``swelter doctor`` and anything printing :func:`config_concerns` wants
+    both.
+    """
     raw: Any = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    return parse_config(raw if isinstance(raw, dict) else {})
+    doc = raw if isinstance(raw, dict) else {}
+    return parse_config(doc), doc
 
 
 def parse_config(doc: dict[str, Any]) -> NetworkConfig:
@@ -159,6 +211,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
             lat=_as_float(n.get("lat")),
             lon=_as_float(n.get("lon")),
             location=_as_str(n.get("location"), "coarse"),
+            consent_ref=_as_str(n.get("consent_ref")),
         )
         for n in doc.get("nodes", []) or []
     )
@@ -180,6 +233,16 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         )
         for w in doc.get("calibration_windows", []) or []
     )
+    twin_windows = tuple(
+        TwinWindow(
+            node_a=_as_str(t.get("node_a")),
+            node_b=_as_str(t.get("node_b")),
+            parameter=_as_str(t.get("parameter")),
+            start=_as_str(t.get("start")),
+            end=_as_str(t.get("end")),
+        )
+        for t in doc.get("twin_windows", []) or []
+    )
     languages = tuple(str(lang) for lang in doc.get("languages", ["en"]) or ["en"])
     thresholds = {
         str(k): float(v) for k, v in (doc.get("alert_thresholds") or {}).items() if v is not None
@@ -191,6 +254,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         nodes=nodes,
         reference_monitors=monitors,
         calibration_windows=windows,
+        twin_windows=twin_windows,
         alert_thresholds=thresholds,
     )
 
@@ -216,3 +280,131 @@ def label_concerns(config: NetworkConfig) -> list[str]:
                 continue
             break
     return out
+
+
+def consent_concerns(config: NetworkConfig) -> list[str]:
+    """Warn about precise nodes with no recorded host consent.
+
+    Disclosing a precise location is a decision only the host of that node may make, and
+    governance.md §4 requires it be written down as a dated entry in the governance log. This
+    does not gate ``public_location`` — a node missing ``consent_ref`` still publishes its precise
+    coordinate — it only warns, so a host or steward can go record the consent that governance
+    already requires; the CLI prints these on load.
+    """
+    out: list[str] = []
+    for node in config.nodes:
+        if node.location == "precise" and not node.consent_ref.strip():
+            out.append(
+                f"{node.node_id}: location is 'precise' but no consent_ref recorded — a precise "
+                f"location requires a dated governance-log consent entry (governance.md §4)"
+            )
+    return out
+
+
+def _did_you_mean(key: str, candidates: frozenset[str]) -> str:
+    """A short ` (did you mean 'x'?)` hint, or `""` when nothing is close enough to suggest."""
+    match = difflib.get_close_matches(key, sorted(candidates), n=1, cutoff=0.6)
+    return f" (did you mean {match[0]!r}?)" if match else ""
+
+
+def config_concerns(config: NetworkConfig, doc: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Validate a loaded config against the raw document it came from.
+
+    Returns ``(errors, warnings)``. Errors name a mistake that would silently corrupt data or
+    safety behaviour (a duplicate node id merging two sensors into one cell identity, an
+    `alert_thresholds` typo that reverts a danger floor to the default without saying so) —
+    ``swelter doctor`` exits nonzero when there are any. Warnings name something a host probably
+    did not intend but that swelter can fail-safe around (a stray `location:` value falls back to
+    `coarse`, an unresolved calibration reference just does not calibrate) — printed, never
+    blocking. Every message names the offending item and the fix in plain language; ``doc`` is the
+    raw parsed mapping (before ``parse_config`` drops anything it does not recognize), because
+    that is the only place an unknown or misspelled key is still visible.
+    """
+    from . import alerts  # deferred: alerts -> aggregate -> config would otherwise cycle
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    _unknown_key_concerns(doc, errors)
+    _node_id_concerns(config, errors)
+    _threshold_concerns(config, frozenset(alerts.DEFAULT_THRESHOLDS), errors)
+    _node_field_concerns(config, errors, warnings)
+    _window_concerns(config, warnings)
+    return errors, warnings
+
+
+def _unknown_key_concerns(doc: dict[str, Any], errors: list[str]) -> None:
+    for key in doc:
+        if key not in _KNOWN_TOP_LEVEL_KEYS:
+            hint = _did_you_mean(str(key), _KNOWN_TOP_LEVEL_KEYS)
+            errors.append(
+                f"network.yaml: unknown top-level key {key!r}{hint} — remove it or fix the typo "
+                f"(recognized keys: {', '.join(sorted(_KNOWN_TOP_LEVEL_KEYS))})"
+            )
+
+
+def _node_id_concerns(config: NetworkConfig, errors: list[str]) -> None:
+    seen_ids: dict[str, int] = {}
+    for node in config.nodes:
+        if not node.node_id:
+            errors.append(
+                "nodes: a node has an empty or missing node_id — every node needs a unique, "
+                "non-empty node_id (this is what identifies it everywhere downstream)"
+            )
+            continue
+        seen_ids[node.node_id] = seen_ids.get(node.node_id, 0) + 1
+    for node_id, count in seen_ids.items():
+        if count > 1:
+            errors.append(
+                f"nodes: node_id {node_id!r} is reused by {count} nodes — give each node a "
+                f"unique node_id, or their readings will merge into one cell identity"
+            )
+
+
+def _threshold_concerns(
+    config: NetworkConfig, valid_threshold_keys: frozenset[str], errors: list[str]
+) -> None:
+    for key in config.alert_thresholds:
+        if key not in valid_threshold_keys:
+            hint = _did_you_mean(key, valid_threshold_keys)
+            errors.append(
+                f"alert_thresholds: unknown key {key!r}{hint} — it is ignored at runtime and the "
+                f"default danger floor stays in effect; recognized keys: "
+                f"{', '.join(sorted(valid_threshold_keys))}"
+            )
+
+
+def _node_field_concerns(config: NetworkConfig, errors: list[str], warnings: list[str]) -> None:
+    for node in config.nodes:
+        label = node.node_id or "<missing node_id>"
+        if node.lat is not None and not (-90.0 <= node.lat <= 90.0):
+            errors.append(
+                f"{label}: lat {node.lat} is out of range (-90..90) — check for a typo or a "
+                f"swapped lat/lon"
+            )
+        if node.lon is not None and not (-180.0 <= node.lon <= 180.0):
+            errors.append(
+                f"{label}: lon {node.lon} is out of range (-180..180) — check for a typo or a "
+                f"swapped lat/lon"
+            )
+        if node.location not in _KNOWN_LOCATIONS:
+            warnings.append(
+                f"{label}: location {node.location!r} is not 'coarse' or 'precise' — treating it "
+                f"as 'coarse' (fail-safe); set 'location: precise' if the host opted into an "
+                f"exact coordinate"
+            )
+
+
+def _window_concerns(config: NetworkConfig, warnings: list[str]) -> None:
+    node_ids = {n.node_id for n in config.nodes if n.node_id}
+    monitor_ids = {m.monitor_id for m in config.reference_monitors if m.monitor_id}
+    for window in config.calibration_windows:
+        if window.node_id not in node_ids:
+            warnings.append(
+                f"calibration_windows: node_id {window.node_id!r} is not a registered node — add "
+                f"it under nodes: or fix the typo (this window will not calibrate anything)"
+            )
+        if window.reference not in monitor_ids:
+            warnings.append(
+                f"calibration_windows: reference {window.reference!r} is not a registered "
+                f"reference monitor — add it under reference_monitors: or fix the typo"
+            )

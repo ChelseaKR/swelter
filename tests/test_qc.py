@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from swelter import qc
+from swelter.config import TwinWindow
 from swelter.models import Observation
 
 from .conftest import make_obs
@@ -151,3 +152,176 @@ def test_node_health_flags_incomplete_node_as_degraded() -> None:
     }
     assert health["node-A"].status == "ok"
     assert health["node-B"].status == "degraded"  # online, but only 40% complete
+
+
+def _twin_series(
+    node_id: str, values: list[float], parameter: str = "pm25_ugm3", unit: str = "ug/m3"
+) -> list[Observation]:
+    return [
+        make_obs(
+            node_id=node_id,
+            timestamp=f"2026-06-01T{i:02d}:00:00Z",
+            parameter=parameter,
+            unit=unit,
+            value=v,
+        )
+        for i, v in enumerate(values)
+    ]
+
+
+_TWIN_WINDOW = TwinWindow(
+    node_a="twin-a",
+    node_b="twin-b",
+    parameter="pm25_ugm3",
+    start="2026-06-01T00:00:00Z",
+    end="2026-06-01T23:00:00Z",
+)
+
+
+def test_twin_agreement_identical_series_has_zero_spread() -> None:
+    values = [10.0, 11.0, 12.0, 13.0]
+    obs = _twin_series("twin-a", values) + _twin_series("twin-b", values)
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == len(values)
+    assert result.residual_spread == 0.0
+    # Cross-checked is annotation only: it never touches a value or assigns a calibration.
+    assert all(o.calibration == "raw" and o.value in values for o in obs)
+
+
+def test_twin_agreement_divergent_series_has_nonzero_spread() -> None:
+    obs = _twin_series("twin-a", [10.0, 20.0, 10.0, 20.0]) + _twin_series(
+        "twin-b", [10.0, 10.0, 20.0, 20.0]
+    )
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == 4
+    assert result.residual_spread > 0.0
+
+
+def test_twin_agreement_no_matching_timestamps_reports_zero_pairs() -> None:
+    # Same window, same parameter, but the two nodes' readings never land near each other in
+    # time (a full day apart) — nothing pairs within the default tolerance.
+    obs = _twin_series("twin-a", [10.0, 11.0]) + [
+        make_obs(
+            node_id="twin-b",
+            timestamp=f"2026-06-02T{i:02d}:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=v,
+        )
+        for i, v in enumerate([10.0, 11.0])
+    ]
+    window = TwinWindow(
+        node_a="twin-a",
+        node_b="twin-b",
+        parameter="pm25_ugm3",
+        start="2026-06-01T00:00:00Z",
+        end="2026-06-02T23:00:00Z",
+    )
+    [result] = qc.twin_agreement(obs, [window])
+    assert result.n_pairs == 0
+    assert result.residual_spread == 0.0
+
+
+def test_twin_agreement_window_filters_out_of_range_readings() -> None:
+    # twin-b's second reading falls outside the configured window and must not be paired.
+    obs = _twin_series("twin-a", [10.0, 11.0]) + [
+        make_obs(
+            node_id="twin-b",
+            timestamp="2026-06-01T00:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=10.0,
+        ),
+        make_obs(
+            node_id="twin-b",
+            timestamp="2026-06-05T00:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=999.0,
+        ),
+    ]
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == 1
+    assert result.residual_spread == 0.0
+
+
+def test_twin_agreement_skips_twin_bs_unmatched_leading_readings() -> None:
+    # twin-b reports twice before twin-a starts (beyond tolerance) — those leading readings must
+    # be skipped rather than matched, and pairing resumes once the two series overlap in time.
+    obs = [
+        make_obs(
+            node_id="twin-b",
+            timestamp="2026-06-01T00:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=1.0,
+        ),
+        make_obs(
+            node_id="twin-b",
+            timestamp="2026-06-01T01:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=2.0,
+        ),
+        make_obs(
+            node_id="twin-b",
+            timestamp="2026-06-01T02:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=10.0,
+        ),
+        make_obs(
+            node_id="twin-a",
+            timestamp="2026-06-01T02:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=10.0,
+        ),
+    ]
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == 1
+    assert result.residual_spread == 0.0
+
+
+def test_health_report_omits_twin_agreement_by_default() -> None:
+    report: Any = qc.health_report([make_obs(node_id="node-01")])
+    assert "twin_agreement" not in report
+
+
+def test_health_report_omits_twin_agreement_when_observations_empty_and_no_windows() -> None:
+    report: Any = qc.health_report([])
+    assert "twin_agreement" not in report
+
+
+def test_health_report_surfaces_twin_agreement_when_configured() -> None:
+    values = [10.0, 10.0, 10.0]
+    obs = _twin_series("twin-a", values) + _twin_series("twin-b", values)
+    report: Any = qc.health_report(obs, twin_windows=[_TWIN_WINDOW])
+    assert report["twin_agreement"] == [
+        {
+            "node_a": "twin-a",
+            "node_b": "twin-b",
+            "parameter": "pm25_ugm3",
+            "n_pairs": 3,
+            "residual_spread": 0.0,
+            "window_start": "2026-06-01T00:00:00Z",
+            "window_end": "2026-06-01T23:00:00Z",
+        }
+    ]
+    # The rest of the report shape (summary keys) is unaffected by the twin block riding along.
+    assert set(report["summary"]) == {"total", "ok", "degraded", "offline"}
+
+
+def test_health_report_surfaces_twin_agreement_for_empty_observations() -> None:
+    report: Any = qc.health_report([], twin_windows=[_TWIN_WINDOW])
+    assert report["twin_agreement"] == [
+        {
+            "node_a": "twin-a",
+            "node_b": "twin-b",
+            "parameter": "pm25_ugm3",
+            "n_pairs": 0,
+            "residual_spread": 0.0,
+            "window_start": "2026-06-01T00:00:00Z",
+            "window_end": "2026-06-01T23:00:00Z",
+        }
+    ]

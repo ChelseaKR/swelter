@@ -10,6 +10,13 @@ boilerplate. How the audits work, and what "auto-gated" versus "review-gated" me
 [audits/privacy-dpia.md](audits/privacy-dpia.md) and
 [audits/accessibility-report.md](audits/accessibility-report.md).
 
+**Applicability.** Audits A–F below apply and are in scope. Internationalization is in scope
+separately at [`docs/I18N.md`](I18N.md) (en/es resident-facing copy). **AI-evaluation is N/A**: no
+LLM or AI feature exists anywhere in swelter; the sole runtime dependency is PyYAML, and the
+pipeline is deterministic ordinary-least-squares fitting and rule-based QC, not a model. See also
+the README's [Standards conformance](../README.md#standards-conformance) table for the full
+11-standard declaration.
+
 Each checklist marks every item one of two ways:
 
 - **[auto]** — a deterministic check in `make verify` or a CI workflow blocks the merge if it
@@ -18,10 +25,10 @@ Each checklist marks every item one of two ways:
   repo (an ADR in `docs/decisions/`, an updated section in one of these audit docs, or a manual
   review note).
 
-The full merge gate is `make verify` = `fmt-check` + `lint` + `typecheck` + `a11y` + `test`
-(currently green). The supply-chain and code-scanning gates (`pip-audit`, `gitleaks`,
-CodeQL, signed releases) run as CI workflows alongside it; `gitleaks` also runs as a pre-commit
-hook.
+The full merge gate is `make verify` = `fmt-check` + `lint` + `typecheck` + `a11y` + `i18n` +
+`hygiene` + `version-check` + `test` (currently green). The supply-chain and code-scanning gates
+(`pip-audit`, `gitleaks`, Semgrep, zizmor, CodeQL, a weekly full-history TruffleHog sweep, signed
+releases) run as CI workflows alongside it; `gitleaks` also runs as a pre-commit hook.
 
 ---
 

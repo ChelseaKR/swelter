@@ -12,12 +12,16 @@ are written to a versioned, timestamped registry; and every calibrated observati
 correction version that produced it. Re-running the fit on the committed co-location data reproduces
 the published registry byte-for-byte, so the calibration is auditable end to end.
 
+Heat index is the one parameter this does not describe: nothing co-locates a heat-index reference,
+so it is never fit. It is instead *derived* from a node's already-calibrated temperature plus
+co-timed humidity — see **Heat index: derived, not fitted** below.
+
 The implementation is `src/swelter/calibrate.py`. The committed evidence is
 `data/demo/colocation.jsonl` (the training pairs) and `data/demo/corrections.yaml` (the published
 registry). Nothing in this document is hand-computed prose detached from the code: the worked example
 at the end reproduces a real registry entry.
 
-Last verified: 2026-06-16. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
+Last verified: 2026-07-03. Recheck cadence: on any change to `src/swelter/calibrate.py`, the demo
 registry, or the US-EPA PurpleAir correction lineage referenced below; otherwise every 12 months.
 
 ---
@@ -94,20 +98,21 @@ corrected = a·raw + b·humidity + c
   adopting fixed national constants, because each node's enclosure, siting, and sensor lot differ; the
   *structure* is borrowed, the *numbers* are local and earned from that node's co-location window.
 
-### Temperature (and heat index): enclosure-offset
+### Temperature: enclosure-offset
 
 ```
 corrected = a·raw + c
 ```
 
 - `a` is a small gain correction and `c` is the enclosure offset — the few degrees a sun-baked box adds.
-- Method id: `enclosure-offset`. Heat index uses the same form.
+- Method id: `enclosure-offset`.
 
 ### Default
 
 Any other parameter falls back to a simple linear correction (`corrected = a·raw + c`, method id
 `linear`). No parameter is special-cased anywhere else in the pipeline; adding one is a model entry
-here plus its predictor list.
+here plus its predictor list. `heat_index_c` is the one exception — see the section below — it is
+never fit and so never falls back to this default either.
 
 The predictor-to-method mapping, verbatim from the engine:
 
@@ -116,8 +121,57 @@ The predictor-to-method mapping, verbatim from the engine:
 | `pm25_ugm3` | `raw`, `humidity` | `epa-humidity` |
 | `pm10_ugm3` | `raw`, `humidity` | `epa-humidity` |
 | `temp_c` | `raw` | `enclosure-offset` |
-| `heat_index_c` | `raw` | `enclosure-offset` |
 | (default) | `raw` | `linear` |
+| `heat_index_c` | *(derived, not fit — see below)* | `derived-enclosure` |
+
+---
+
+## Heat index: derived, not fitted
+
+Heat index does not fit the co-location model above, because there is nothing to co-locate it
+against: a reference-grade instrument reports temperature and humidity, not a "true" heat index, so
+`data/demo/colocation.jsonl` has no `heat_index_c` rows and `swelter calibrate` never produces a
+`heat_index_c` entry in the registry. Earlier, `calibrate._METHOD` still listed `heat_index_c` as
+using the `enclosure-offset` method — a claim that never actually fired, so every heat-index
+observation stayed raw/provisional forever, even for a node whose temperature was tightly
+calibrated. See ADR 0014 for the full reasoning; this section documents the fix plainly.
+
+Instead, `calibrate.apply()` derives a calibrated heat index directly. For every raw `heat_index_c`
+observation whose `(node_id, timestamp)` has *both* a calibrated `temp_c` (produced by the
+enclosure-offset correction earlier in the same `apply()` call) and a co-timed humidity reading
+(`humidity_index()` — raw, since humidity has no fitted correction in this network; see the caveat
+below), it emits an additional observation:
+
+```
+calibrated_heat_index_c = models.heat_index_c(calibrated_temp_c, humidity_pct)
+```
+
+using the same NWS Rothfusz function `data/demo` was generated from. This is recomputation from
+exact, calibrated inputs, not a new statistical fit — no coefficient is estimated, so it adds
+nothing to `corrections.yaml` and the byte-for-byte co-location replay is untouched.
+
+The emitted observation is tagged `heat_index_c.derived-enclosure.{node_id}` (method id
+`derived-enclosure`, distinct from `enclosure-offset` so a reader can tell "recomputed from
+calibrated inputs" from "fit against a reference" at a glance) and carries an `uncertainty` equal to
+the *temperature* correction's `residual_std` — heat index is monotonic and steep in temperature over
+the operating range, so the temperature error bar carried forward is a simple, defensible
+1-sigma stand-in rather than a properly propagated variance through the nonlinear regression. It does
+not account for humidity's own uncertainty, because humidity is uncalibrated in this network (see
+below), and it does not scale by the local `∂HI/∂T`, which would be a more precise but more
+complex propagation.
+
+**Caveat, stated honestly:** humidity is never calibrated in this demo network — no node has a
+fitted humidity correction, so `humidity_index()` always returns raw, QC-passing humidity, and that
+is what the heat-index derivation uses. A calibrated heat index is therefore calibrated with respect
+to temperature and exact with respect to the Rothfusz function, but it inherits whatever error an
+uncalibrated humidity sensor carries. If a network ever fits a humidity correction,
+`humidity_index()` would need to prefer it — that is out of scope here.
+
+A raw `heat_index_c` observation is left provisional in exactly two cases: its node's temperature
+never got calibrated (no correction, or the reading itself was QC-rejected), or the co-timed
+humidity is missing or QC-rejected. Both are honest outcomes: a node with no trustworthy inputs has
+no basis for a trustworthy derived value, and the map shows it as provisional rather than promoting
+it on an uncalibrated input.
 
 ---
 
@@ -251,6 +305,46 @@ Python, and the output is reproducible to the byte. Calibration is checkable, no
 
 ---
 
+## Cross-checked: an inter-sensor agreement statistic, not a calibration tier
+
+Some no-reference networks — no regulatory monitor to co-locate against — still want a QC signal
+stronger than "raw." **Cross-checked** is that signal, and it is deliberately narrow: two low-cost
+nodes placed side by side (a "sensor twin" pair) for a window, and `qc.twin_agreement` reports how
+tightly their readings of the same parameter agree — paired by nearest timestamp, the spread
+(population standard deviation) of the residuals `value_a - value_b`, plus how many pairs matched.
+
+**Read it correctly, or not at all:**
+
+- **Cross-checked bounds precision, never accuracy.** A tight residual spread rules out sensor
+  noise, drift, or a hardware fault as the source of disagreement between the two nodes — it says
+  the twins are *consistent with each other*. It says nothing about whether either twin reads the
+  *true* concentration or temperature. Two twins with the same systematic bias (both reading PM2.5
+  high on a humid morning, say) will agree tightly with each other while both being wrong in the
+  same direction. Only a reference-grade co-location (the rest of this document) can establish
+  accuracy.
+- **Cross-checked ≠ calibrated.** A twin-agreement statistic never touches an `Observation`'s
+  `value`, never assigns a correction version, and never sets `uncertainty`. `calibration` stays the
+  `raw` sentinel (hard rule #3 — every value the pipeline ships is either raw or corrected by a
+  reference-fitted registry entry; a twin check is neither). This is QC/health metadata, surfaced
+  under `twin_agreement` in `qc.health_report`'s JSON, not a third value on the calibration axis.
+- **EPA non-regulatory framing.** This mirrors how the US EPA treats low-cost sensor networks in its
+  own guidance: co-location agreement among non-reference sensors informs data quality and QC flags,
+  it does not confer regulatory-grade accuracy. swelter's cross-checked tier is that same
+  QC-not-accuracy read, not a house-brand claim of correctness.
+- **No surface promotes a cross-checked value past provisional.** The map, the table, the export, and
+  the API all still show a node with only a twin-agreement record as **provisional** raw data, exactly
+  as before this feature existed. `twin_agreement` is additive annotation for an operator's health
+  dashboard — evidence that a QC/health investigation can lean on — never a signal that changes what a
+  reader sees on the map.
+
+Configure a pair in `network.yaml` under `twin_windows` (`node_a`, `node_b`, `parameter`, `start`,
+`end` — see the worked example in the repo root); pass the parsed windows to
+`qc.health_report(..., twin_windows=config.twin_windows)` to have the read ride along under
+`twin_agreement`. Omit `twin_windows` (the default) and the JSON shape is byte-for-byte what it was
+before this section existed.
+
+---
+
 ## How a reader interprets a value's trust
 
 Every observation is one of two things, and the dashboard, the export, and the API never silently mix
@@ -330,3 +424,6 @@ re-derive it.
 - `data/demo/corrections.yaml` — the published, reproducible correction registry.
 - `src/swelter/models.py` — `Observation.calibration`, `uncertainty`, and the calibrated-vs-raw
   invariant the map relies on.
+- `src/swelter/qc.py` — `twin_agreement()` and `TwinAgreement`, the cross-checked precision tier
+  (QC/health metadata only — see the section above).
+- `src/swelter/config.py` — `TwinWindow`, `NetworkConfig.twin_windows`.

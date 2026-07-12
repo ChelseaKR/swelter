@@ -24,6 +24,20 @@ def test_version(capsys: pytest.CaptureFixture[str]) -> None:
     assert "swelter" in capsys.readouterr().out
 
 
+def test_crosswalk_csv(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["crosswalk"]) == 0
+    out = capsys.readouterr().out
+    assert "swelter_param" in out.splitlines()[0]
+    assert "pm25_ugm3" in out
+
+
+def test_crosswalk_json(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["crosswalk", "--format", "json"]) == 0
+    rows = json.loads(capsys.readouterr().out)
+    heat_index = next(row for row in rows if row["swelter_param"] == "heat_index_c")
+    assert heat_index["openaq_param"] is None
+
+
 def test_init_scaffolds_a_loadable_network(tmp_path: Path) -> None:
     from swelter.config import load_config
 
@@ -43,6 +57,39 @@ def test_init_refuses_to_overwrite_without_force(tmp_path: Path) -> None:
     assert cfg.read_text(encoding="utf-8") == "name: keep me\n"  # untouched
     assert main(["init", "--config", str(cfg), "--force"]) == 0  # --force overwrites
     assert "keep me" not in cfg.read_text(encoding="utf-8")
+
+
+def test_doctor_exits_zero_on_the_demo_network() -> None:
+    assert main(["doctor", "--config", str(ROOT / "network.yaml")]) == 0
+
+
+def test_doctor_exits_nonzero_on_a_network_with_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = tmp_path / "network.yaml"
+    cfg.write_text(
+        "name: broken\n"
+        "unexpected_key: true\n"
+        "nodes:\n"
+        "- node_id: node-01\n"
+        "  lat: 1.0\n"
+        "  lon: 1.0\n"
+        "- node_id: node-01\n"
+        "  lat: 2.0\n"
+        "  lon: 2.0\n"
+        "alert_thresholds:\n"
+        "  heat_index: 37.0\n",  # typo for heat_index_c
+        encoding="utf-8",
+    )
+    assert main(["doctor", "--config", str(cfg)]) == 1
+    err = capsys.readouterr().err
+    assert "unexpected_key" in err
+    assert "node-01" in err
+    assert "heat_index" in err
+
+
+def test_doctor_missing_config_is_a_clean_error() -> None:
+    assert main(["doctor", "--config", "/no/such/network.yaml"]) == 1
 
 
 def test_demo_pipeline_calibrates_and_aggregates(tmp_path: Path) -> None:
@@ -285,7 +332,9 @@ def test_node_key_creates_a_key_ingest_serve_actually_authenticates_against(
 
 
 def _ingest_post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    request = urllib.request.Request(  # noqa: S310 (localhost)
+        url, data=body, headers=headers, method="POST"
+    )
     try:
         with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 (localhost)
             return response.status, json.loads(response.read().decode("utf-8"))

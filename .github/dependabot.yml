@@ -11,6 +11,11 @@ updates:
       prefix: "build"
     labels:
       - "dependencies"
+    # Wait a week after a version publishes before proposing it -- a newly published release
+    # (malicious or just unstable) doesn't land here on day one. renovate.json applies the same
+    # 72h floor via `minimumReleaseAge`; this is dependabot's equivalent.
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -22,3 +27,5 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    cooldown:
+      default-days: 7
