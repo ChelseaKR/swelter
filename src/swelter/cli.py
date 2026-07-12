@@ -384,7 +384,7 @@ def cmd_alerts(args: argparse.Namespace) -> int:
         sys.stdout.write(json.dumps(feed.to_json(), indent=2) + "\n")
     if args.web:
         _write_web_alerts(Path(args.web), surface, config)
-        _err(f"swelter: wrote alerts.json + alerts.xml → {args.web}/")
+        _err(f"swelter: wrote alerts.json + alerts.xml + alerts.es.xml → {args.web}/")
     _err(f"swelter: {len(feed.alerts)} active alert(s) at {feed.bucket or 'no data'}")
     return 0
 
@@ -752,10 +752,15 @@ def _write_web_health(
 
 
 def _write_web_alerts(web_dir: Path, surface: aggregate.Surface, config: NetworkConfig) -> None:
-    """Bake the neighborhood-alerts feed (JSON + Atom) so the static site can show and syndicate it.
+    """Bake the neighborhood-alerts feed (JSON + English and Spanish Atom) so the static site can
+    show and syndicate it.
 
-    Deployment-neutral relative links and data-derived timestamps keep the committed artifact
-    deterministic — re-running the pipeline on the same store reproduces it byte for byte."""
+    Deployment-neutral relative links and data-derived timestamps keep the committed artifacts
+    deterministic — re-running the pipeline on the same store reproduces them byte for byte. The
+    JSON already carries both ``headline`` and ``headline_es`` per alert (see
+    :meth:`swelter.alerts.Alert.as_record`); ``alerts.es.xml`` is the Spanish Atom feed, built
+    from the same server-side catalog (:mod:`swelter.i18n_alerts`) — machine-drafted and labeled
+    as such."""
     if not web_dir.is_dir():
         return
     feed = alerts.build_feed(
@@ -763,6 +768,7 @@ def _write_web_alerts(web_dir: Path, surface: aggregate.Surface, config: Network
     )
     (web_dir / "alerts.json").write_text(json.dumps(feed.to_json(), indent=2), encoding="utf-8")
     (web_dir / "alerts.xml").write_text(feed.to_atom(), encoding="utf-8")
+    (web_dir / "alerts.es.xml").write_text(feed.to_atom(lang="es"), encoding="utf-8")
 
 
 def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
@@ -1289,7 +1295,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_alerts.add_argument("--format", choices=("json", "atom", "none"), default="json")
     p_alerts.add_argument(
-        "--web", default="", help="also bake alerts.json + alerts.xml into this web dir"
+        "--web",
+        default="",
+        help="also bake alerts.json + alerts.xml + alerts.es.xml into this web dir",
     )
     p_alerts.add_argument(
         "--base-url", default="http://localhost:8000", help="base URL for feed self/links"

@@ -169,6 +169,16 @@ license field varies by source.
 
 ## FIX-06 — Bilingual machine-readable surfaces: the alerts feed speaks Spanish
 
+**Status: done.** Implemented on `roadmap/fix-06-bilingual-machine-readable-surfac`: a server-side
+catalog (`src/swelter/i18n_alerts.py`, `ALERT_STRINGS`, `MACHINE_TRANSLATED = True`) backs
+`Alert.headline(lang)` / `headline_es`, `alerts.json`'s `headline_es` + `note_es` +
+`"translation": "machine"`, and `AlertFeed.to_atom(lang="es")`. `cli._write_web_alerts` and
+`server.py`'s `/api/alerts.es.xml` route both bake/serve the Spanish Atom feed (`xml:lang="es"`,
+`hreflang` alternate link, a `<generator>` machine-translation note); the dashboard's subscribe UI
+links to it (`web/i18n` `aa-es-feed` / `aa-es-feed-note`, kept at EN/ES parity).
+`scripts/i18n_parity.py` now gates both `web/i18n/*.json` and `ALERT_STRINGS` for key parity and
+non-empty ES values.
+
 **Pitch.** Extend EN/ES parity past the dashboard catalogs into the generated artifacts —
 `alerts.json` headlines, the Atom feed, health/coverage notes — via per-language feed variants.
 

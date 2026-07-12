@@ -168,6 +168,8 @@
   "aa-copied": "Feed link copied — paste it into any RSS/Atom reader to subscribe.",
   "aa-copy-fail": "Couldn't copy — the alert feed is at /api/alerts.xml.",
   "aa-note": "Subscribe by adding the alert feed to any RSS/Atom reader, or point an automation at it. The feed is public and carries no personal data; thresholds follow US-EPA and US-NWS bands.",
+  "aa-es-feed": "Subscribe to the Spanish feed",
+  "aa-es-feed-note": "Headlines and feed text are machine-translated, not reviewed by a person.",
   "cooling-heading": "Cooling centers",
   "cooling-intro": "Public places to cool down — libraries, community and senior centers, and cooled public buildings. The list below is the accessible equivalent of the map overlay; everything shown on the map is here in text.",
   "cooling-show": "Show cooling centers on the map",

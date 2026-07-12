@@ -1822,6 +1822,11 @@ async function loadAreaAlerts() {
   state.alertsLive = !!live;
   // The Atom feed sits beside whichever JSON we loaded; resolve it to an absolute, shareable URL.
   state.alertsXmlUrl = new URL(live ? "api/alerts.xml" : "alerts.xml", location.href).href;
+  // The Spanish Atom feed (machine-translated, see swelter.i18n_alerts) sits right beside it.
+  const esFeedLink = $("#aa-es-feed-link");
+  if (esFeedLink) {
+    esFeedLink.href = live ? "api/alerts.es.xml" : "alerts.es.xml";
+  }
   $("#area-alerts").hidden = false;
   renderAreaAlerts();
 }
