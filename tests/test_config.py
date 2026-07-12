@@ -243,6 +243,7 @@ def test_parse_config_rejects_serial_like_sensor_model() -> None:
     with pytest.raises(ValueError, match="sensor_model"):
         parse_config({"nodes": [{"node_id": "node-01", "sensor_model": "SN000123456"}]})
 
+
 # -- config_concerns (strict validation / `swelter doctor`) ------------------
 
 

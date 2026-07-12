@@ -206,6 +206,7 @@ def test_correction_model_roundtrips_through_yaml(tmp_path: Path) -> None:
     assert restored.model == "SPS30"
     assert reloaded.to_dict() == registry.to_dict()
 
+
 def _temp_registry() -> CorrectionRegistry:
     registry = CorrectionRegistry()
     registry.add(
