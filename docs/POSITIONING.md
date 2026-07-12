@@ -16,6 +16,15 @@ swelter is the open, community-owned **trust layer** for neighborhood heat-and-a
 reading is calibrated against a reference monitor, labeled with its uncertainty and calibration
 state, snapped to a privacy grid, served through open standards, and the collective keeps it.
 
+**The headline capability underneath that sentence is that a community can run it themselves.**
+Copy `network.yaml`, register your nodes, your reference monitor, and your co-location windows, and
+`ADD-YOUR-NEIGHBORHOOD.md` walks a non-specialist through a working instance — dashboard, API, and
+exports — in an afternoon with no hardware at all (real sensors take longer). There is no account,
+no hosted service, and no vendor to switch off: the whole thing runs on a Raspberry-Pi-class host and
+scales to zero when it is quiet. This is what turns "trust layer" from a feature claim into a
+survival claim — see the funding-path evidence below (local ownership is the one factor that has
+been shown to outlast a grant cycle) and ADR 0021.
+
 The uniqueness is not any single feature — it is the **set**. In the scan, every comparable tool
 held one to three of the properties below; none held all of them.
 
@@ -28,6 +37,7 @@ held one to three of the properties below; none held all of them.
 | Open-standard egress (OGC SensorThings) | no | no | no | no | no | no | yes |
 | Community-owned governance | no | no | no | no | no | vendor-run | yes |
 | Merge-gated WCAG 2.2 AA, bilingual, map = table = list | no | no | partial | no | no | no | yes |
+| Self-hostable: copy one config file, run your own instance, no vendor | no (proprietary devices) | no (hosted platform) | no (federal service) | no (hosted SaaS) | no (hosted SaaS) | no (vendor-run campaign) | yes |
 
 "partial" on heat: PurpleAir and OpenAQ carry temperature and humidity but do not publish a
 calibrated heat surface. "partial" on accessibility: AirNow has a list view and does not use colour
@@ -49,6 +59,9 @@ only what holds.
   copyable Datasette-openable store.
 - The hosting collective owns siting, location precision, and governance; there is no hosted
   dependency to switch off.
+- Any community can register its own network by copying `network.yaml` — a working demo instance
+  (dashboard, API, exports) stands up in an afternoon with no hardware; going live with real sensors
+  takes longer, because co-location and siting take real time (`ADD-YOUR-NEIGHBORHOOD.md`).
 - The dashboard meets WCAG 2.2 AA as a merge gate, in English and Spanish, with map, table, and list
   as three equal views.
 

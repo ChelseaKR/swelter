@@ -29,3 +29,4 @@ later ADR supersedes an earlier one.
 | [0018](0018-exposure-brief-and-equity-context.md) | Historical Danger-day counts plus sourced canopy/AC-access/redlining context (E1) | accepted |
 | [0019](0019-estimated-wbgt.md) | Ship an estimated WBGT parameter, without guidance bands | accepted |
 | [0020](0020-static-publish-command.md) | Promote the Pages bash choreography into a tested `swelter publish` command | accepted |
+| [0021](0021-register-your-own-network-headline.md) | Lead with "register your own network" as the headline capability in positioning and funder material | accepted |
