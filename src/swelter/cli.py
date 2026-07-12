@@ -1,5 +1,6 @@
 """The ``swelter`` command line: ingest, qc, calibrate, aggregate, export, serve, demo, rebuild —
-plus the operator-side write path (ingest-serve, node-key).
+plus the operator-side write path (ingest-serve, node-key) and the host-facing preview
+(node-preview).
 
 This is the one-command surface a neighbourhood collective actually touches. Every subcommand
 is a thin wrapper over the library functions, so anything the CLI does is equally scriptable
@@ -31,14 +32,17 @@ from . import (
     export,
     ingest,
     ingest_server,
+    integrity,
     obs,
     qc,
     snapshot,
 )
 from .config import (
     NetworkConfig,
+    NodeConfig,
     config_concerns,
     consent_concerns,
+    haversine_m,
     label_concerns,
     load_config,
     load_config_doc,
@@ -453,6 +457,56 @@ def cmd_node_key(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_node_preview(node: NodeConfig, config: NetworkConfig) -> None:
+    """Print what the map/API publishes for one node, versus its private exact coordinate."""
+    label = f" ({node.label})" if node.label else ""
+    print(f"node {node.node_id}{label}")
+    if node.lat is None or node.lon is None:
+        print("  not placed — publishes nothing (no location on record)")
+        print()
+        return
+    print(f"  your private coordinate — never published: {node.lat:.6f}, {node.lon:.6f}")
+    published = node.public_location(config.grid_resolution_m)
+    assert published is not None  # noqa: S101 (lat/lon set, so this cannot be None)
+    cell_id, cell_label = aggregate.node_cell_map(config).get(node.node_id, ("", ""))
+    label_suffix = f" ({cell_label})" if cell_label else ""
+    print(f"  published coordinate: {published[0]:.6f}, {published[1]:.6f}")
+    print(f"  published cell: {cell_id}{label_suffix}")
+    offset_m = haversine_m(node.lat, node.lon, published[0], published[1])
+    print(f"  map shows a point ~{offset_m:.0f} m from your sensor")
+    print(f"  location mode: {node.location}")
+    if node.location == "precise":
+        print(
+            "  ⚠ WARNING: location is 'precise' — your EXACT coordinate is published as-is. "
+            "Coarse-by-default grid-snap protection is OFF for this node. Switch `location` "
+            "back to 'coarse' in network.yaml to publish only the grid cell."
+        )
+    print()
+
+
+def cmd_node_preview(args: argparse.Namespace) -> int:
+    """Show a host exactly what the map/API publishes for their node(s).
+
+    Read-only and host-facing: it never changes a node's location or its published mode, it
+    just makes visible — in the host's own terminal — the same coordinate the map and API
+    already publish, so "coarse by default" is a fact a host can verify, not just a promise.
+    """
+    config = _load_config(args.config)
+    if args.node_id:
+        node = config.node(args.node_id)
+        if node is None:
+            _err(f"swelter: node {args.node_id} not found in {args.config}")
+            return 1
+        _print_node_preview(node, config)
+        return 0
+    if not config.nodes:
+        _err(f"swelter: no nodes registered in {args.config}")
+        return 0
+    for node in config.nodes:
+        _print_node_preview(node, config)
+    return 0
+
+
 def cmd_demo(args: argparse.Namespace) -> int:
     data = Path(args.data)
     config = _load_config(args.config)
@@ -506,7 +560,11 @@ def cmd_demo(args: argparse.Namespace) -> int:
         )
         _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
         _write_web_health(
-            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+            Path(args.web),
+            store.read(calibration=RAW),
+            args.interval,
+            coverage=_coverage,
+            store_dir=args.store,
         )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
@@ -572,14 +630,19 @@ def _write_web_health(
     interval_s: float,
     *,
     coverage: dict[str, object] | None = None,
+    store_dir: str | Path | None = None,
 ) -> None:
     """Bake the node-health summary so the static dashboard shows coverage with no live API.
 
     A coverage-equity block (calibrated-vs-raw per cell) rides along when provided, so the static
-    site carries the same calibration-coverage read as the live ``/api/health.json``."""
+    site carries the same calibration-coverage read as the live ``/api/health.json``. An
+    integrity block (chain head from ``digests.jsonl``, read cheaply — see ``qc.health_report``)
+    rides along too when ``store_dir`` is given."""
     if not web_dir.is_dir():
         return
-    report = qc.health_report(raw, expected_interval_s=interval_s, coverage=coverage)
+    report = qc.health_report(
+        raw, expected_interval_s=interval_s, coverage=coverage, store_dir=store_dir
+    )
     (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
@@ -760,7 +823,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         _write_web_sample(Path(args.web), surface, attribution=attribution)
         _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
         _write_web_health(
-            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+            Path(args.web),
+            store.read(calibration=RAW),
+            args.interval,
+            coverage=_coverage,
+            store_dir=args.store,
         )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
@@ -812,6 +879,73 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     )
     _err(f"swelter: rebuilt surface ({len(surface.cells)} cell-hours)")
     return 0
+
+
+def cmd_verify_archive(args: argparse.Namespace) -> int:
+    """Recompute every stored row's content hash and (optionally) publish the chained daily digest.
+
+    Exit nonzero the moment a single row's stored hash disagrees with what its own fields hash
+    to — that is the tamper signal. ``--write`` only (re)publishes ``digests.jsonl`` when
+    verification passed; a known-corrupted archive never gets a fresh, misleadingly clean head
+    written over it.
+    """
+    with open_store(args.store) as store:
+        mismatches = integrity.verify_rows(store)
+        digests = integrity.daily_digests(store)
+    ok = not mismatches
+    rows_checked = sum(d.row_count for d in digests)
+    head = digests[-1].chain if digests else ""
+
+    written_path: Path | None = None
+    if args.write:
+        if ok:
+            written_path = integrity.write_digests(args.store, digests)
+        else:
+            _err("swelter: not writing digests.jsonl — verification failed")
+
+    if args.json:
+        payload = {
+            "ok": ok,
+            "rows_checked": rows_checked,
+            "days": len(digests),
+            "head": head,
+            "mismatches": [
+                {
+                    "node_id": m.node_id,
+                    "timestamp": m.timestamp,
+                    "parameter": m.parameter,
+                    "calibration": m.calibration,
+                    "expected": m.expected,
+                    "actual": m.actual,
+                }
+                for m in mismatches
+            ],
+            "digests_path": str(written_path) if written_path else None,
+        }
+        print(json.dumps(payload, indent=2))
+        return 0 if ok else 1
+
+    if ok:
+        _err(
+            f"swelter: verify-archive OK — {rows_checked} row(s) match their stored hash "
+            f"across {len(digests)} day(s)"
+        )
+        _err(f"  head chain  {head or '(empty store)'}")
+        if written_path is not None:
+            _err(f"  wrote {written_path}")
+    else:
+        _err(
+            f"swelter: verify-archive FAILED — {len(mismatches)} of {rows_checked} row(s) do not "
+            "match their stored hash"
+        )
+        for m in mismatches[:20]:
+            _err(
+                f"  MISMATCH  {m.node_id}/{m.parameter}@{m.timestamp} ({m.calibration})  "
+                f"expected={m.expected[:12]}…  actual={m.actual[:12]}…"
+            )
+        if len(mismatches) > 20:
+            _err(f"  … and {len(mismatches) - 20} more")
+    return 0 if ok else 1
 
 
 def cmd_snapshot(args: argparse.Namespace) -> int:
@@ -1051,6 +1185,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_key.set_defaults(func=cmd_node_key)
 
+    p_preview = sub.add_parser(
+        "node-preview", help="show a host the exact coordinate the map/API publishes for a node"
+    )
+    p_preview.add_argument(
+        "node_id", nargs="?", default=None, help="show one node (default: every placed node)"
+    )
+    add_config(p_preview)
+    p_preview.set_defaults(func=cmd_node_preview)
+
     p_demo = sub.add_parser("demo", help="replay recorded data through the whole pipeline")
     p_demo.add_argument("--data", default=DEFAULT_DATA)
     p_demo.add_argument("--store", default=f"{DEFAULT_STORE}/demo")
@@ -1133,6 +1276,17 @@ def build_parser() -> argparse.ArgumentParser:
         "omit for a clearly-labelled placeholder",
     )
     p_snap.set_defaults(func=cmd_snapshot)
+
+    p_verify = sub.add_parser(
+        "verify-archive",
+        help="recompute row hashes and publish a chained daily digest (tamper-evidence)",
+    )
+    add_store(p_verify)
+    p_verify.add_argument(
+        "--write", action="store_true", help="(re)write digests.jsonl in the store folder"
+    )
+    p_verify.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_verify.set_defaults(func=cmd_verify_archive)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)

@@ -46,9 +46,10 @@ class ServerContext:
     web_dir: Path
     base_url: str = "http://localhost:8000"
     cooling_centers_path: Path | None = None  # curated cooling-center dataset (optional overlay)
-    # The store directory `/api/health.json` reads `run-manifest.json` from (obs.read_manifest).
-    # None when a caller builds a ServerContext without a store-backed pipeline run behind it
-    # (e.g. tests); the health report simply omits the `run` block in that case.
+    # The store directory `/api/health.json` reads `run-manifest.json` (obs.read_manifest) and
+    # the integrity chain head (qc.health_report's store_dir) from. None when a caller builds a
+    # ServerContext without a store-backed pipeline run behind it (e.g. tests); the health
+    # report simply omits the `run` and `integrity` blocks in that case.
     store_dir: Path | None = None
 
 
@@ -305,7 +306,9 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             # calibrated-vs-raw coverage-equity read rides along (needs the full stream + config to
             # know which nodes are calibrated and which published cell each sits in).
             coverage = qc.coverage_equity(ctx.store.all(), aggregate.node_cell_map(ctx.config))
-            report = qc.health_report(ctx.store.read(calibration=RAW), coverage=coverage)
+            report = qc.health_report(
+                ctx.store.read(calibration=RAW), coverage=coverage, store_dir=ctx.store_dir
+            )
             # Name the pipeline run that built the currently-published surface, if one has run
             # against this store (obs.write_manifest, wired into ingest/calibrate/aggregate/demo).
             # A store predating this feature, or one no pipeline command has touched yet, simply
