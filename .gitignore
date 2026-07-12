@@ -24,6 +24,10 @@ build/
 # firmware build artifacts
 firmware/build/
 
+# web/ dev-only test tooling (FIX-07) — node_modules is never a runtime dependency of the
+# framework-free dashboard; package-lock.json is committed so CI installs the exact locked tree.
+web/node_modules/
+
 # infra: provider binaries and local state/secrets are local; lockfiles are committed
 **/.terraform/
 *.tfstate

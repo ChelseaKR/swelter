@@ -21,4 +21,10 @@ later ADR supersedes an earlier one.
 | [0011](0011-cooling-center-overlay.md) | Add a curated, provenance-bearing cooling-center overlay with accessible list parity | accepted |
 | [0012](0012-gate-bypass-incident-and-ruleset.md) | Incident note: the 2026-07-02 gate bypass, and the branch-protection ruleset that should prevent recurrence | accepted |
 | [0013](0013-accumulating-fetch-store-via-actions-cache.md) | `swelter fetch --accumulate` persists the demo store via a GitHub Actions cache | accepted |
-| [0017](0017-estimated-wbgt.md) | Ship an estimated WBGT parameter, without guidance bands | accepted |
+| [0013](0013-context-layer-overlay.md) | Descriptive tree-canopy context overlay, computed locally, never a schema field | accepted |
+| [0014](0014-heat-index-derived-from-calibrated.md) | Derive calibrated heat index from calibrated temperature, don't fit it | accepted |
+| [0015](0015-strict-config-doctor.md) | Validate `network.yaml` loudly and add a `swelter doctor` gate | accepted |
+| [0016](0016-caveat-baked-share-card.md) | Bake the provisional label and hourly-window caveat into share-card pixels, not overlaid HTML | accepted |
+| [0017](0017-sensor-model-calibration-families.md) | Key calibration families by (parameter, sensor model), not parameter alone | accepted |
+| [0018](0018-exposure-brief-and-equity-context.md) | Historical Danger-day counts plus sourced canopy/AC-access/redlining context (E1) | accepted |
+| [0019](0019-estimated-wbgt.md) | Ship an estimated WBGT parameter, without guidance bands | accepted |

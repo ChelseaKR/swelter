@@ -31,6 +31,9 @@ from ._http import SourceError, get_json
 
 #: Provenance tag carried in the calibration field of every reading from this source.
 SOURCE = "copernicus-cams"
+#: Open-Meteo re-publishes Copernicus CAMS under CC BY 4.0 (open-meteo.com/en/license); the
+#: underlying Copernicus terms are themselves attribution-only, so this is the binding term.
+LICENSE = "CC BY 4.0 (Copernicus CAMS via Open-Meteo)"
 ATTRIBUTION = (
     "Real hourly readings for California cities from the Copernicus Atmosphere Monitoring "
     "Service (CAMS) via Open-Meteo — atmospheric model data, not physical sensors, "

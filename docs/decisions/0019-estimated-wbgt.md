@@ -1,4 +1,4 @@
-# ADR 0017: Ship an estimated WBGT parameter, without guidance bands
+# ADR 0019: Ship an estimated WBGT parameter, without guidance bands
 
 Date: 2026-07-02. Status: accepted.
 

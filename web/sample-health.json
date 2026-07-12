@@ -2618,5 +2618,8 @@
       }
     ],
     "note": "Descriptive coverage of calibration, not a ranking of neighborhoods. Whether a coverage gap correlates with frontline blocks (audit B4) needs external context swelter does not hold and is a governance decision."
+  },
+  "integrity": {
+    "available": false
   }
 }

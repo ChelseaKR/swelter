@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ChelseaKR/swelter/schemas/sample-surface.schema.json",
+  "title": "swelter surface payload",
+  "description": "The Python↔JS contract for `/api/surface.json` and `web/sample-surface.json` — the aggregated, gridded heat/AQI surface the dashboard reads. Emitted by `cli._write_web_sample` / `server.py` (src/swelter/aggregate.py `CellReading.as_record`); consumed by `web/app.js` `setData()`. A deliberate field change on either side must edit this schema and both validating tests in the same PR (FIX-07).",
+  "type": "object",
+  "required": ["interval", "buckets", "cells"],
+  "additionalProperties": true,
+  "properties": {
+    "interval": { "type": "string", "minLength": 1 },
+    "attribution": { "type": "string" },
+    "buckets": {
+      "type": "array",
+      "items": { "type": "string", "format": "date-time" }
+    },
+    "cells": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cellReading" }
+    }
+  },
+  "$defs": {
+    "cellReading": {
+      "type": "object",
+      "required": [
+        "cell_id",
+        "label",
+        "lat",
+        "lon",
+        "parameter",
+        "bucket",
+        "mean",
+        "n",
+        "provisional",
+        "uncertainty",
+        "aqi",
+        "category"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "cell_id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" },
+        "parameter": {
+          "type": "string",
+          "enum": ["temp_c", "heat_index_c", "pm25_ugm3", "pm10_ugm3", "no2_ppb", "exposure"]
+        },
+        "bucket": { "type": "string", "format": "date-time" },
+        "mean": { "type": "number" },
+        "n": { "type": "integer", "minimum": 0 },
+        "provisional": { "type": "boolean" },
+        "uncertainty": { "type": ["number", "null"] },
+        "aqi": { "type": ["integer", "null"] },
+        "category": { "type": ["string", "null"] },
+        "nodes": { "type": "array", "items": { "type": "string" } },
+        "method": { "type": "string" },
+        "reference": { "type": "string" },
+        "aqi_window": { "type": "string" },
+        "heat_category": { "type": ["string", "null"] },
+        "air_category": { "type": ["string", "null"] },
+        "compound": { "type": "boolean" }
+      }
+    }
+  }
+}

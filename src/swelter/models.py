@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Final
@@ -168,6 +169,47 @@ def pm25_aqi(concentration: float) -> tuple[int, str]:
     return 500, "Hazardous"
 
 
+def nowcast_concentration(concentrations: Sequence[float]) -> float | None:
+    """EPA NowCast-weighted PM2.5 concentration from trailing hourly means.
+
+    ``concentrations`` is **most-recent-first** (index 0 = the current hour); only the leading 12
+    entries are used (EPA's NowCast window), and at least 3 are required — fewer is too noisy to
+    publish, so this returns ``None`` rather than a shaky estimate. The weight ``w = max(c_min /
+    c_max, 0.5)`` is the range ratio over the window, floored at 0.5 so a single old low reading
+    can't collapse the trend to noise; the NowCast is the w-weighted average
+    ``sum(w**i * c_i) / sum(w**i)`` for ``i`` counted in hours-ago from the most recent reading
+    (``i = 0``), so older hours are discounted relative to the current one.
+
+    See EPA/AirNow's "Technical Assistance Document for the Reporting of Daily Air Quality – the
+    Air Quality Index (AQI)" (NowCast appendix) and the AirNow NowCast formula description
+    (airnow.gov). This is decision-support, matching the AQI's non-regulatory framing (ADR 0009),
+    not the official 24-hour AQI.
+    """
+    window = list(concentrations)[:12]
+    if len(window) < 3:
+        return None
+    c_min, c_max = min(window), max(window)
+    weight = max(c_min / c_max, 0.5) if c_max > 0 else 1.0
+    numerator = sum((weight**i) * c for i, c in enumerate(window))
+    denominator = sum(weight**i for i in range(len(window)))
+    return numerator / denominator
+
+
+def nowcast_aqi(concentrations: Sequence[float]) -> tuple[int, str] | None:
+    """Convert trailing hourly PM2.5 means (most-recent-first) to an EPA NowCast AQI + category.
+
+    Thin wrapper: :func:`nowcast_concentration` does the EPA NowCast weighting, then
+    :func:`pm25_aqi` supplies the breakpoint table and truncation convention — so a NowCast AQI
+    and an hourly-mean AQI are always read off the exact same EPA bands, just from a differently
+    weighted concentration. Returns ``None`` when fewer than 3 hourly means are available
+    (mirrors :func:`nowcast_concentration`).
+    """
+    nowcast = nowcast_concentration(concentrations)
+    if nowcast is None:
+        return None
+    return pm25_aqi(nowcast)
+
+
 def heat_index_c(temp_c: float, humidity_pct: float) -> float:
     """NWS heat index (Rothfusz regression), Celsius in and out.
 
@@ -262,6 +304,12 @@ def heat_index_category(heat_index_c: float) -> tuple[int, str]:
     return level, name
 
 
+def _component_levels(heat_index_c: float, aqi_category: str) -> tuple[int, int]:
+    """(heat concern level, air concern level) — the shared input to `exposure_level` and
+    `exposure_bounding_component`, so the two never disagree about which axis is driving."""
+    return heat_index_category(heat_index_c)[0], _AIR_CONCERN.get(aqi_category, 0)
+
+
 def exposure_level(heat_index_c: float, aqi_category: str) -> tuple[int, str, bool]:
     """Combine a heat-index value and a PM2.5 AQI category into one exposure level.
 
@@ -272,8 +320,22 @@ def exposure_level(heat_index_c: float, aqi_category: str) -> tuple[int, str, bo
     case the evidence flags as worse than either hazard alone. This is decision-support, not a
     validated health index (see ADR 0009).
     """
-    heat = heat_index_category(heat_index_c)[0]
-    air = _AIR_CONCERN.get(aqi_category, 0)
+    heat, air = _component_levels(heat_index_c, aqi_category)
     level = max(heat, air)
     compound = heat >= 2 and air >= 2
     return level, EXPOSURE_LEVELS[level], compound
+
+
+def exposure_bounding_component(heat_index_c: float, aqi_category: str) -> str:
+    """Which axis determines `exposure_level`'s ordinal: ``"heat"``, ``"air"``, or ``"both"``.
+
+    Exposure's ``mean`` is an ordinal level, not a physical quantity with its own sigma —
+    fabricating a σ for it would misrepresent that. So instead of a number, the exposure cell
+    publishes *which* component bounds the level, letting a reader go look at that component's
+    real uncertainty (or provisional flag) directly. ``"both"`` marks a tie, which is also exactly
+    the ``compound`` condition's boundary.
+    """
+    heat, air = _component_levels(heat_index_c, aqi_category)
+    if heat == air:
+        return "both"
+    return "heat" if heat > air else "air"

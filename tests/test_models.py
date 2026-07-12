@@ -10,10 +10,13 @@ import pytest
 from swelter.models import (
     PARAMETERS,
     RAW,
+    exposure_bounding_component,
     exposure_level,
     format_timestamp,
     heat_index_c,
     heat_index_category,
+    nowcast_aqi,
+    nowcast_concentration,
     parse_timestamp,
     pm25_aqi,
     wbgt_c,
@@ -128,3 +131,43 @@ def test_exposure_flags_compound_when_both_elevated() -> None:
     level, name, compound = exposure_level(35.0, "Unhealthy for Sensitive Groups")
     assert (level, name) == (2, "Elevated")
     assert compound is True
+
+
+def test_exposure_bounding_component_names_the_dominant_axis() -> None:
+    assert exposure_bounding_component(20.0, "Unhealthy") == "air"  # air drives, per the test above
+    assert exposure_bounding_component(45.0, "Good") == "heat"  # heat drives, per the test above
+    # Extreme Caution heat (2) tied with Unhealthy-for-Sensitive air (2): neither alone bounds it.
+    assert exposure_bounding_component(35.0, "Unhealthy for Sensitive Groups") == "both"
+
+
+def test_nowcast_aqi_none_below_three_hours() -> None:
+    assert nowcast_aqi([]) is None
+    assert nowcast_aqi([10.0]) is None
+    assert nowcast_aqi([10.0, 12.0]) is None
+    assert nowcast_concentration([10.0, 12.0]) is None
+
+
+def test_nowcast_aqi_hand_computed_example() -> None:
+    # Most-recent-first hourly means 12, 10, 8 ug/m3. min/max = 8/12 = 0.6667 (above the 0.5
+    # floor), so weight w = 0.6667. NowCast = (12*w^0 + 10*w^1 + 8*w^2) / (w^0 + w^1 + w^2)
+    #   = (12 + 6.6667 + 3.5556) / (1 + 0.6667 + 0.4444) = 22.2222 / 2.1111 ≈ 10.526 ug/m3,
+    # which lands in the EPA "Moderate" band (9.1-35.4 ug/m3 -> AQI 51-100) at AQI 54.
+    window = [12.0, 10.0, 8.0]
+    conc = nowcast_concentration(window)
+    assert conc is not None
+    assert conc == pytest.approx(10.526315789473683)
+
+    result = nowcast_aqi(window)
+    assert result is not None
+    aqi, category = result
+    assert (aqi, category) == (54, "Moderate")
+    # nowcast_aqi is exactly nowcast_concentration + pm25_aqi's own breakpoint table/truncation —
+    # never a separately-drifting lookup.
+    assert result == pm25_aqi(conc)
+
+
+def test_nowcast_concentration_uses_at_most_the_trailing_twelve_hours() -> None:
+    # A 13th (oldest) hour with an outlier value must not move the result at all.
+    window = [10.0] * 12
+    outlier_appended = [*window, 1000.0]
+    assert nowcast_concentration(window) == nowcast_concentration(outlier_appended)

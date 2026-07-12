@@ -15,8 +15,10 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from statistics import median, pstdev
 
+from . import integrity
 from .config import TwinWindow
 from .models import (
     PARAMETERS,
@@ -297,13 +299,18 @@ def health_report(
     expected_interval_s: float = 3600.0,
     max_gaps: int = 10,
     coverage: dict[str, object] | None = None,
+    store_dir: str | Path | None = None,
     twin_windows: Iterable[TwinWindow] = (),
 ) -> dict[str, object]:
     """A JSON-able network-health summary — per-node status, a count by status, and the worst gaps.
 
     Backs the ``/api/health.json`` route and the dashboard's coverage panel; computed over raw
     readings. An optional ``coverage`` block (from :func:`coverage_equity`) rides along under
-    ``coverage_equity`` so the calibration-coverage read travels with the liveness read.
+    ``coverage_equity`` so the calibration-coverage read travels with the liveness read. An
+    optional ``integrity`` block rides along too when ``store_dir`` is given: the current
+    tamper-evidence chain head, read cheaply from ``digests.jsonl`` (:func:`swelter.integrity.
+    read_head`) rather than re-hashing the whole store on every request — ``available`` is false
+    until a steward runs ``swelter verify-archive --write`` at least once.
 
     ``twin_windows`` is optional and defaults to empty, so callers that do not configure sensor
     twins get exactly the JSON shape they always have — no ``twin_agreement`` key at all. When
@@ -322,6 +329,8 @@ def health_report(
         }
         if coverage is not None:
             report["coverage_equity"] = coverage
+        if store_dir is not None:
+            report["integrity"] = _integrity_block(store_dir)
         if twins:
             report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
         return report
@@ -365,9 +374,24 @@ def health_report(
     }
     if coverage is not None:
         report["coverage_equity"] = coverage
+    if store_dir is not None:
+        report["integrity"] = _integrity_block(store_dir)
     if twins:
         report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
     return report
+
+
+def _integrity_block(store_dir: str | Path) -> dict[str, object]:
+    """The ``integrity`` block of :func:`health_report`: current chain head, cheaply."""
+    head = integrity.read_head(store_dir)
+    if head is None:
+        return {"available": False}
+    return {
+        "available": True,
+        "head": head.get("head"),
+        "last_verified_day": head.get("last_day"),
+        "days": head.get("days"),
+    }
 
 
 def coverage_equity(

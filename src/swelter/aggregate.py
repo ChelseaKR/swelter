@@ -10,16 +10,29 @@ halves exist, inherits their provisional flag, and never blends them into a fabr
 higher of the two concerns, plus a ``compound`` flag when both are elevated.
 
 Trust is preserved through the rollup. For a given cell, hour, and parameter, the mean is taken
-over *calibrated, QC-clean* values when any exist (and carries their mean 1-sigma uncertainty); a
-cell that has only raw QC-clean readings is still shown, but marked ``provisional`` so the map can
-render it as not-yet-fact rather than dropping it. A QC-rejected value is never placed on the map,
-even provisionally. Each cell carries its host-assigned ``label`` so the dashboard can name a block
-instead of an anonymous "Cell N". PM2.5 cells carry an EPA AQI value and category, computed from the
-**hourly** mean (``aqi_window = "hourly-mean"``), not a 24-hour NowCast.
+over *calibrated, QC-clean* values when any exist; a cell that has only raw QC-clean readings is
+still shown, but marked ``provisional`` so the map can render it as not-yet-fact rather than
+dropping it. A QC-rejected value is never placed on the map, even provisionally. Each cell carries
+its host-assigned ``label`` so the dashboard can name a block instead of an anonymous "Cell N".
+PM2.5 cells carry an EPA AQI value and category, computed from the **hourly** mean
+(``aqi_window = "hourly-mean"``) by default, plus an alternate ``"nowcast"`` reading per cell when
+enough trailing hours exist (see :func:`_nowcast_cells`) — the two never share a bucket's value.
+
+A calibrated cell publishes **two distinct** uncertainty numbers, under distinct names, so no
+consumer can silently reinterpret one as the other: ``mean_member_sigma`` is the plain mean of the
+per-value 1-sigmas that went into the cell (the old, simpler number), and ``uncertainty`` is the
+cell's own standard error — ``sqrt(sum(sigma_i^2)) / n`` — which is what should actually be quoted
+as "the cell's uncertainty" when averaging several independent-ish readings. It carries a caveat:
+members of one cell often share a calibration fit (same node, same correction), so their errors are
+not fully independent, and this SE is a lower bound on the true combined uncertainty, not an exact
+one. The derived ``exposure`` cell has no σ of its own — its mean is an ordinal level, not a
+physical quantity — so instead of a fabricated number it carries an ``uncertainty_note`` identifying
+which component (heat or air) bounds the published level.
 """
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -29,8 +42,10 @@ from .config import NetworkConfig
 from .models import (
     QC_REJECTED,
     Observation,
+    exposure_bounding_component,
     exposure_level,
     heat_index_category,
+    nowcast_concentration,
     parse_timestamp,
     pm25_aqi,
 )
@@ -44,6 +59,10 @@ EXPOSURE = "exposure"
 
 #: The averaging window behind the published AQI — hourly mean, not the EPA 24-hour/NowCast value.
 AQI_WINDOW = "hourly-mean"
+
+#: The EPA NowCast alternate window (see `_nowcast_cells`) — a distinct, never-conflated tag. The
+#: 3-hour floor and 12-hour cap it requires live in `models.nowcast_concentration`.
+AQI_WINDOW_NOWCAST = "nowcast"
 
 
 def hour_bucket(timestamp: str) -> str:
@@ -64,12 +83,22 @@ class CellReading:
     mean: float
     n: int
     provisional: bool
-    uncertainty: float | None = None  # mean 1-sigma of the calibrated values; None when provisional
+    # Cell standard error: sqrt(sum(sigma_i^2)) / n over the calibrated members' own 1-sigmas.
+    # None when provisional. Treats member sigmas as independent — members of one cell often share
+    # a calibration fit, so this is a *lower bound* on the true combined uncertainty, not exact.
+    uncertainty: float | None = None
+    # The plain mean of the calibrated members' 1-sigmas — distinct from `uncertainty` above on
+    # purpose (a statistician reproducing this from exported per-observation sigmas should never
+    # have to guess which one they're looking at). None when provisional.
+    mean_member_sigma: float | None = None
     aqi: int | None = None
     category: str | None = None
+    aqi_window: str | None = None  # pm25_ugm3 only: "hourly-mean" or "nowcast"
     heat_category: str | None = None  # exposure only: NWS heat-index tier name
     air_category: str | None = None  # exposure only: PM2.5 AQI category name
     compound: bool = False  # exposure only: heat AND air both at least mid-tier
+    # exposure only: which axis (heat/air/both) bounds the level — see `_exposure_cells`.
+    uncertainty_note: str | None = None
     method: str | None = None  # calibration method(s) behind a confirmed value
     reference: str | None = None  # reference monitor(s) the value was calibrated against
     nodes: tuple[str, ...] = ()  # the node id(s) published into this cell (for the data download)
@@ -86,6 +115,9 @@ class CellReading:
             "n": self.n,
             "provisional": self.provisional,
             "uncertainty": None if self.uncertainty is None else round(self.uncertainty, 3),
+            "mean_member_sigma": (
+                None if self.mean_member_sigma is None else round(self.mean_member_sigma, 3)
+            ),
             "aqi": self.aqi,
             "category": self.category,
         }
@@ -96,11 +128,12 @@ class CellReading:
         if self.reference:
             record["reference"] = self.reference
         if self.parameter == "pm25_ugm3":
-            record["aqi_window"] = AQI_WINDOW
+            record["aqi_window"] = self.aqi_window
         if self.parameter == EXPOSURE:
             record["heat_category"] = self.heat_category
             record["air_category"] = self.air_category
             record["compound"] = self.compound
+            record["uncertainty_note"] = self.uncertainty_note
         return record
 
 
@@ -115,9 +148,17 @@ class Surface:
         return [c.as_record() for c in self.cells]
 
     def latest_by_cell(self) -> dict[str, dict[str, CellReading]]:
-        """cell_id → parameter → the most recent hourly reading, for the map snapshot."""
+        """cell_id → parameter → the most recent hourly reading, for the map snapshot.
+
+        NowCast rows are skipped here on purpose: the map snapshot promises the hourly-mean value
+        for `pm25_ugm3` (`aqi_window="hourly-mean"`), and a NowCast reading — tagged
+        `aqi_window="nowcast"` — is an alternate, opt-in view (`Surface.to_records`), never a
+        silent substitute for it.
+        """
         out: dict[str, dict[str, CellReading]] = defaultdict(dict)
         for cell in self.cells:
+            if cell.aqi_window == AQI_WINDOW_NOWCAST:
+                continue
             current = out[cell.cell_id].get(cell.parameter)
             if current is None or cell.bucket > current.bucket:
                 out[cell.cell_id][cell.parameter] = cell
@@ -140,6 +181,8 @@ class Surface:
                 props[parameter] = round(reading.mean, 3)
                 if reading.uncertainty is not None:
                     props[f"{parameter}_uncertainty"] = round(reading.uncertainty, 3)
+                if reading.mean_member_sigma is not None:
+                    props[f"{parameter}_mean_member_sigma"] = round(reading.mean_member_sigma, 3)
                 props[f"{parameter}_provisional"] = reading.provisional
                 if reading.method:
                     props[f"{parameter}_method"] = reading.method
@@ -148,13 +191,14 @@ class Surface:
                 if parameter == "pm25_ugm3":
                     props["pm25_aqi"] = reading.aqi
                     props["aqi_category"] = reading.category
-                    props["aqi_window"] = AQI_WINDOW
+                    props["aqi_window"] = reading.aqi_window
                 if parameter == EXPOSURE:
                     props["exposure_level"] = int(reading.mean)
                     props["exposure_category"] = reading.category
                     props["exposure_heat"] = reading.heat_category
                     props["exposure_air"] = reading.air_category
                     props["compound"] = reading.compound
+                    props["exposure_uncertainty_note"] = reading.uncertainty_note
             features.append(
                 {
                     "type": "Feature",
@@ -269,18 +313,30 @@ def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
             values = trustworthy
             provisional = False
             uncs = b.trusted_unc[key]
-            uncertainty: float | None = (sum(uncs) / len(uncs)) if any(uncs) else None
+            has_unc = any(uncs)
+            # (a) the plain mean of the members' own 1-sigmas — the old, simpler number.
+            mean_member_sigma: float | None = (sum(uncs) / len(uncs)) if has_unc else None
+            # (b) the cell's own standard error, combining independent per-value sigmas as
+            # sqrt(sum(sigma_i^2)) / n (see the module docstring for the within-cell-correlation
+            # caveat: this treats members as independent, which co-located/same-fit members
+            # aren't fully, so it is a lower bound on the true combined uncertainty).
+            uncertainty: float | None = (
+                (math.sqrt(sum(u * u for u in uncs)) / len(uncs)) if has_unc else None
+            )
             method = " / ".join(sorted(b.trusted_methods[key])) or None
             reference = " / ".join(sorted(b.trusted_refs[key])) or None
         else:
             values = b.provisional_vals[key]
             provisional = True
             uncertainty = None
+            mean_member_sigma = None
         mean = sum(values) / len(values)
         aqi: int | None = None
         category: str | None = None
+        aqi_window: str | None = None
         if parameter == "pm25_ugm3":
             aqi, category = pm25_aqi(mean)
+            aqi_window = AQI_WINDOW
         cells.append(
             CellReading(
                 cell_id=cell_id,
@@ -293,8 +349,10 @@ def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
                 n=len(values),
                 provisional=provisional,
                 uncertainty=uncertainty,
+                mean_member_sigma=mean_member_sigma,
                 aqi=aqi,
                 category=category,
+                aqi_window=aqi_window,
                 method=method,
                 reference=reference,
                 nodes=tuple(sorted(b.cell_nodes[cell_id])),
@@ -323,8 +381,36 @@ def aggregate(
     )
     cells = _build_cells(buckets, labels)
     cells.extend(_exposure_cells(cells))
+    cells.extend(_nowcast_cells(cells))
     cells.sort(key=lambda c: (c.cell_id, c.bucket, c.parameter))
     return Surface(interval="hour", cells=tuple(cells))
+
+
+def _exposure_uncertainty_note(heat: CellReading, air: CellReading, air_category: str) -> str:
+    """The exposure cell's uncertainty statement: which axis bounds the published level.
+
+    ``exposure.mean`` is an ordinal (the higher of two concern tiers), not a physical quantity, so
+    it has no σ of its own — fabricating one would misrepresent it. Instead this names the bounding
+    component and points at *that* component's real signal (its category, and its own uncertainty
+    or provisional status) so a reader can go verify it directly. ``air_category`` is passed in
+    (rather than read off ``air.category``) because the caller has already established it is not
+    ``None`` before building an exposure cell at all.
+    """
+    component = exposure_bounding_component(heat.mean, air_category)
+    if component == "both":
+        return (
+            f"tied — heat ({heat_index_category(heat.mean)[1]}) and air ({air_category}) "
+            "both bound this level; see each component's own uncertainty"
+        )
+    bound = heat if component == "heat" else air
+    category = heat_index_category(heat.mean)[1] if component == "heat" else air_category
+    if bound.uncertainty is not None:
+        detail = f"cell standard error {bound.uncertainty:.3f}"
+    elif bound.provisional:
+        detail = "provisional, no numeric uncertainty"
+    else:
+        detail = "no numeric uncertainty"
+    return f"bounded by {component}: {category} ({detail})"
 
 
 def _exposure_cells(cells: list[CellReading]) -> list[CellReading]:
@@ -332,8 +418,9 @@ def _exposure_cells(cells: list[CellReading]) -> list[CellReading]:
 
     Built only where a calibrated-or-provisional heat-index cell *and* a PM2.5 cell exist for the
     same cell and hour, so the compound claim is never made from a single axis. The exposure cell
-    is provisional whenever either component is, and carries no fabricated value — its ``mean`` is
-    the ordinal level used for sorting; the human signal is in ``category`` and the components.
+    is provisional whenever either component is, and carries no fabricated σ — its ``mean`` is the
+    ordinal level used for sorting; the human signal is in ``category``, the components, and
+    ``uncertainty_note`` (which axis bounds the level — see `_exposure_uncertainty_note`).
     """
     by_cell_bucket: dict[tuple[str, str], dict[str, CellReading]] = defaultdict(dict)
     for cell in cells:
@@ -357,12 +444,59 @@ def _exposure_cells(cells: list[CellReading]) -> list[CellReading]:
                 n=min(heat.n, air.n),
                 provisional=heat.provisional or air.provisional,
                 uncertainty=None,
+                mean_member_sigma=None,
                 aqi=None,
                 category=name,
                 heat_category=heat_index_category(heat.mean)[1],
                 air_category=air.category,
                 compound=compound,
+                uncertainty_note=_exposure_uncertainty_note(heat, air, air.category),
                 nodes=heat.nodes,
+            )
+        )
+    return out
+
+
+def _nowcast_cells(cells: list[CellReading]) -> list[CellReading]:
+    """EPA NowCast PM2.5 reading per cell, from the trailing hourly means already rolled up.
+
+    NowCast reacts faster to changing PM2.5 than a flat hourly mean — the EPA/AirNow "right now"
+    air-quality number. Built once per cell, at its most recent PM2.5 bucket, from up to the 12
+    preceding hourly means (most-recent-first); skipped when fewer than 3 are available
+    (:func:`swelter.models.nowcast_concentration` returns ``None``). Tagged
+    ``aqi_window="nowcast"`` — a distinct *alternate* reading, not a replacement: the hourly-mean
+    cell for the same bucket is untouched, and `Surface.latest_by_cell` deliberately skips NowCast
+    rows so the map snapshot never shows one in place of the promised hourly mean.
+    """
+    by_cell: dict[str, list[CellReading]] = defaultdict(list)
+    for cell in cells:
+        if cell.parameter == "pm25_ugm3" and cell.aqi_window != AQI_WINDOW_NOWCAST:
+            by_cell[cell.cell_id].append(cell)
+    out: list[CellReading] = []
+    for readings in by_cell.values():
+        window = sorted(readings, key=lambda c: c.bucket, reverse=True)[:12]
+        nowcast = nowcast_concentration([c.mean for c in window])
+        if nowcast is None:
+            continue
+        aqi, category = pm25_aqi(nowcast)
+        latest = window[0]
+        out.append(
+            CellReading(
+                cell_id=latest.cell_id,
+                label=latest.label,
+                lat=latest.lat,
+                lon=latest.lon,
+                parameter="pm25_ugm3",
+                bucket=latest.bucket,
+                mean=nowcast,
+                n=len(window),
+                provisional=any(c.provisional for c in window),
+                uncertainty=None,
+                mean_member_sigma=None,
+                aqi=aqi,
+                category=category,
+                aqi_window=AQI_WINDOW_NOWCAST,
+                nodes=latest.nodes,
             )
         )
     return out
