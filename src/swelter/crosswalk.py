@@ -73,6 +73,14 @@ _CROSSWALK: dict[str, CrosswalkEntry] = {
         None,
         None,
     ),
+    "wbgt_c": CrosswalkEntry(
+        # swelter-derived (estimated shade WBGT from temp_c + humidity_pct, ADR 0019) — like
+        # heat_index_c, neither network publishes WBGT, so there is nothing to map to.
+        "wbgt_c",
+        "degC",
+        None,
+        None,
+    ),
 }
 
 assert set(_CROSSWALK) == set(PARAMETERS), (  # noqa: S101 (module-load invariant)
