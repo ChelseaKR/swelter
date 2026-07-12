@@ -140,7 +140,9 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "20"
+          # `node --test` only expands glob arguments from Node 21 on; the test
+          # script passes "tests/**/*.test.js", so Node 20 fails "could not find".
+          node-version: "22"
           cache: "npm"
           cache-dependency-path: web/package-lock.json
 
