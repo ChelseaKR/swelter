@@ -168,6 +168,8 @@
   "aa-copied": "Enlace del feed copiado — pégalo en cualquier lector RSS/Atom para suscribirte.",
   "aa-copy-fail": "No se pudo copiar — el feed de alertas está en /api/alerts.xml.",
   "aa-note": "Suscríbete agregando el feed de alertas a cualquier lector RSS/Atom, o apunta una automatización a él. El feed es público y no contiene datos personales; los umbrales siguen las bandas de US-EPA y US-NWS.",
+  "aa-es-feed": "Suscríbete al feed en español",
+  "aa-es-feed-note": "Los titulares y el texto del feed son traducción automática, sin revisión humana.",
   "cooling-heading": "Centros de enfriamiento",
   "cooling-intro": "Lugares públicos para refrescarse — bibliotecas, centros comunitarios y de mayores, y edificios públicos con aire acondicionado. La lista de abajo es el equivalente accesible de la capa del mapa; todo lo que se muestra en el mapa está aquí en texto.",
   "cooling-show": "Mostrar centros de enfriamiento en el mapa",

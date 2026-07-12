@@ -175,6 +175,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                     self._alerts(query, fmt="json")
                 elif path == "/api/alerts.xml":
                     self._alerts(query, fmt="atom")
+                elif path == "/api/alerts.es.xml":
+                    self._alerts(query, fmt="atom", lang="es")
                 elif path == "/api/cooling-centers.geojson":
                     self._cooling_centers()
                 elif path == "/export.csv":
@@ -267,9 +269,11 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 cache_id=f"surface.json:hours={hours}",
             )
 
-        def _alerts(self, query: dict[str, list[str]], *, fmt: str) -> None:
+        def _alerts(self, query: dict[str, list[str]], *, fmt: str, lang: str = "en") -> None:
             # The generated neighborhood-alerts feed: cells crossing a danger threshold in the
             # latest hour. `?area=<area_id>` narrows it to one cell (the per-neighborhood feed).
+            # `lang="es"` (the /api/alerts.es.xml route) renders the Atom feed via the
+            # machine-translated swelter.i18n_alerts catalog; see AlertFeed.to_atom.
             surface = cache.surface_for(ctx.store, ctx.config)
             feed = alerts.build_feed(
                 surface,
@@ -280,10 +284,10 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             area = _one(query, "area")
             if area:
                 feed = feed.for_area(area)
-            cache_id = f"alerts.{fmt}:area={area or ''}"
+            cache_id = f"alerts.{fmt}:lang={lang}:area={area or ''}"
             if fmt == "atom":
                 self._body(
-                    feed.to_atom().encode("utf-8"),
+                    feed.to_atom(lang=lang).encode("utf-8"),
                     "application/atom+xml; charset=utf-8",
                     cache_id=cache_id,
                 )

@@ -57,6 +57,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | `/api/schema.json` | Machine-readable data dictionary + `data_schema_version` (generated, never hand-copied) |
 | `/api/alerts.json` | Neighborhood heat/AQI alerts (areas past a danger threshold) |
 | `/api/alerts.xml` | The same alerts as a subscribable Atom 1.0 feed (`?area=<id>` to narrow) |
+| `/api/alerts.es.xml` | The Atom alerts feed in Spanish (same entries via the i18n_alerts catalog) |
 | `/api/cooling-centers.geojson` | Curated cooling-center overlay (validated FeatureCollection) |
 | `/export.csv` | Flat CSV dump (filterable) |
 | `/export.json` | Flat JSON dump (filterable) |

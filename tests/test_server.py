@@ -171,6 +171,16 @@ def test_alerts_atom_endpoint(base_url: str) -> None:
     assert root.tag.endswith("feed")
 
 
+def test_alerts_atom_es_endpoint(base_url: str) -> None:
+    import xml.etree.ElementTree as ET
+
+    status, body = _get(f"{base_url}/api/alerts.es.xml")
+    assert status == 200
+    root = ET.fromstring(body)  # noqa: S314 -- our own server response; malformed would raise
+    assert root.tag.endswith("feed")
+    assert root.get("{http://www.w3.org/XML/1998/namespace}lang") == "es"
+
+
 def test_cooling_centers_endpoint_empty_when_unconfigured(base_url: str) -> None:
     # The fixture builds a context with no cooling-center path, so the overlay is a valid empty set.
     status, body = _get(f"{base_url}/api/cooling-centers.geojson")
