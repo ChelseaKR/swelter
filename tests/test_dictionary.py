@@ -6,7 +6,7 @@ import json
 import threading
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -33,7 +33,7 @@ def test_data_schema_version_is_a_positive_int() -> None:
 
 def test_parameters_match_the_registry_exactly() -> None:
     doc = build_data_dictionary()
-    by_name = {p["name"]: p for p in doc["parameters"]}
+    by_name = {p["name"]: p for p in cast(list[dict[str, Any]], doc["parameters"])}
     assert set(by_name) == set(PARAMETERS)
     for name, param in PARAMETERS.items():
         entry = by_name[name]
@@ -50,7 +50,7 @@ def test_csv_columns_equal_export_csv_fields() -> None:
 
 def test_qc_verdicts_cover_all_five_constants_and_flag_rejected() -> None:
     doc = build_data_dictionary()
-    by_name = {v["name"]: v for v in doc["qc_verdicts"]}
+    by_name = {v["name"]: v for v in cast(list[dict[str, Any]], doc["qc_verdicts"])}
     assert set(by_name) == {QC_OK, QC_RANGE, QC_SPIKE, QC_FLATLINE, QC_MISSING}
     for name, entry in by_name.items():
         assert entry["rejected"] == (name in QC_REJECTED)
@@ -67,7 +67,7 @@ def test_dictionary_carries_version_signals_and_license() -> None:
 
 def test_observation_fields_cover_the_dataclass() -> None:
     doc = build_data_dictionary()
-    names = {f["name"] for f in doc["observation_fields"]}
+    names = {f["name"] for f in cast(list[dict[str, Any]], doc["observation_fields"])}
     assert names == {
         "node_id",
         "timestamp",
