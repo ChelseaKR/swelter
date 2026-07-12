@@ -34,6 +34,7 @@ from . import (
     ingest_server,
     integrity,
     obs,
+    plan,
     qc,
     snapshot,
     steward,
@@ -936,6 +937,55 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parse_lat_lon(raw: str) -> tuple[float, float] | None:
+    """Parse a ``"lat,lon"`` string; ``None`` on anything that is not exactly two numbers."""
+    parts = raw.split(",")
+    if len(parts) != 2:
+        return None
+    try:
+        return (float(parts[0].strip()), float(parts[1].strip()))
+    except ValueError:
+        return None
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    """Siting what-if: simulate a candidate node's coverage, redundancy, and reference distance
+    before any hardware moves (EXP-08). Pure function over the current config — descriptive
+    numbers only, never an "optimal placement" score."""
+    parsed = _parse_lat_lon(args.add_node)
+    if parsed is None:
+        _err(f'swelter: --add-node expects "lat,lon", got {args.add_node!r}')
+        return 1
+    lat, lon = parsed
+    config = _load_config(args.config)
+    result = plan.simulate_add_node(config, lat, lon)
+    if args.json:
+        print(json.dumps(result))
+        return 0
+    cell = cast(dict[str, float], result["candidate_cell"])
+    _err(
+        f"swelter: candidate cell {cell['lat']:.6f},{cell['lon']:.6f} — "
+        f"{'new coverage' if result['new_cell'] else 'already covered'}"
+    )
+    _err(f"  redundancy: {result['redundancy']} existing node(s) already in this cell")
+    nearest_node = cast("dict[str, Any] | None", result["nearest_node"])
+    if nearest_node is not None:
+        _err(f"  nearest node: {nearest_node['node_id']} ({nearest_node['distance_m']:.1f} m)")
+    else:
+        _err("  nearest node: none placed yet")
+    nearest_ref = cast("dict[str, Any] | None", result["nearest_reference"])
+    if nearest_ref is not None:
+        _err(
+            f"  nearest reference monitor: {nearest_ref['monitor_id']} "
+            f"({nearest_ref['distance_m']:.1f} m)"
+        )
+    elif result["reference_note"]:
+        _err(f"  {result['reference_note']}")
+    else:
+        _err("  no reference monitors configured")
+    return 0
+
+
 def cmd_verify_archive(args: argparse.Namespace) -> int:
     """Recompute every stored row's content hash and (optionally) publish the chained daily digest.
 
@@ -1323,6 +1373,19 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_rebuild)
     add_config(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild)
+
+    p_plan = sub.add_parser(
+        "plan", help="siting what-if: coverage/redundancy/distance simulation for a candidate node"
+    )
+    p_plan.add_argument(
+        "--add-node",
+        required=True,
+        metavar="lat,lon",
+        help="candidate coordinate to simulate, e.g. --add-node 33.87,-117.92",
+    )
+    p_plan.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    add_config(p_plan)
+    p_plan.set_defaults(func=cmd_plan)
 
     p_doctor = sub.add_parser(
         "doctor", help="validate network.yaml loudly; exit nonzero on any error"

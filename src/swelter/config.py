@@ -152,6 +152,12 @@ class ReferenceMonitor:
     monitor_id: str
     label: str = ""
     source: str = ""  # e.g. "US EPA AQS site 06-067-0010"
+    #: Optional; a public, published station coordinate (regulatory monitors are already public
+    #: record, unlike a host's node — no grid-snap privacy boundary applies here). Enables
+    #: distance-to-reference in `swelter plan` (EXP-08); omit and the monitor simply has no
+    #: distance reported.
+    lat: float | None = None
+    lon: float | None = None
 
 
 @dataclass(frozen=True)
@@ -285,6 +291,8 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
             monitor_id=_as_str(m.get("monitor_id") or m.get("id")),
             label=_as_str(m.get("label")),
             source=_as_str(m.get("source")),
+            lat=_as_float(m.get("lat")),
+            lon=_as_float(m.get("lon")),
         )
         for m in doc.get("reference_monitors", []) or []
     )

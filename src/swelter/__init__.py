@@ -19,6 +19,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from .config import NetworkConfig, haversine_m, load_config, snap_to_grid
 from .models import PARAMETERS, Observation, heat_index_c, pm25_aqi
+from .plan import simulate_add_node
 
 try:
     # Single source of truth: `pyproject.toml`'s `[project] version`, read back from the
@@ -36,5 +37,6 @@ __all__ = [
     "heat_index_c",
     "load_config",
     "pm25_aqi",
+    "simulate_add_node",
     "snap_to_grid",
 ]

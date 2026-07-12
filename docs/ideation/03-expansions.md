@@ -196,7 +196,13 @@ between "context" and "implied ranking" is the whole design problem here. Data l
 **Excellent.** A resident can toggle canopy context and the UI never says or implies "this
 neighborhood scores worse"; the overlay module rejects any dataset field outside its allowlist.
 
-### EXP-08 — Siting what-if: coverage simulation for governance decisions
+### EXP-08 — Siting what-if: coverage simulation for governance decisions — **Done**
+
+> Implemented: `simulate_add_node()` in `src/swelter/plan.py` (pure function over
+> `NetworkConfig` + `snap_to_grid`) and `swelter plan --add-node lat,lon` (text + `--json`) in
+> `src/swelter/cli.py`. `ReferenceMonitor` gained optional `lat`/`lon` (additive, back-compatible)
+> so distance-to-reference is reported when a network's `network.yaml` carries monitor
+> coordinates, with an explicit note when it doesn't. Tests: `tests/test_plan.py`.
 
 **Pitch.** `swelter plan --add-node lat,lon` — show what a candidate node or co-location slot does
 to coverage (new cells, redundancy, distance-to-reference) before hardware moves.
