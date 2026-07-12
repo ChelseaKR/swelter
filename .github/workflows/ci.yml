@@ -84,8 +84,9 @@ jobs:
 
       # SAST beyond CodeQL: OWASP-style Python rules + secrets/injection patterns (SEC-07).
       # No SEMGREP_APP_TOKEN is configured, so this runs the open default+python rule packs
-      # locally rather than Semgrep's hosted policy/Supply Chain features. Any finding at
-      # Semgrep's default blocking severity fails the build (no `|| true`, no continue-on-error).
+      # locally rather than Semgrep's hosted policy/Supply Chain features. This step has no
+      # error-suppressing shell fallback and no continue-on-error, so any finding at Semgrep's
+      # default blocking severity fails the build for real.
       # Version pinned so a new Semgrep release can't silently redden the gate with new rules;
       # bump deliberately via Dependabot/Renovate or a reviewed PR, same discipline as pre-commit.
       - name: Semgrep (SAST)

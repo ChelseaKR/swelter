@@ -64,6 +64,20 @@ The calibration models, their training windows, error bounds, and the reference 
 fit against are documented in `docs/calibration.md` and queryable from the API, so a value's
 trustworthiness is inspectable rather than asserted.
 
+- **Citable, versioned data snapshots.** `swelter snapshot` freezes the immutable raw observations,
+  the fitted correction registry, and the latest gridded surface into a self-contained, identified
+  release — a `MANIFEST.json` with per-file SHA-256, record count, and observation time-window, plus
+  a dataset `DATA-CITATION.cff` (Citation File Format 1.2.0, `type: dataset`, CC0-1.0, distinct from
+  the repository's software `CITATION.cff`) and a ready-to-paste `CITATION.txt`. Local artifacts
+  only — no external DOI service is called; pass `--doi` once a collective has minted one (e.g. via
+  Zenodo/DataCite), otherwise the release carries an honestly-labelled placeholder.
+
+  ```console
+  $ swelter snapshot --store store --out dist/snapshot --doi 10.5281/zenodo.1234567
+  swelter: snapshot 0.1.0 → dist/snapshot (126510 raw observations, 3 file(s))
+  Kelly-Reif, C. (2026). swelter observation snapshot 0.1.0 [Data set]. CC0-1.0. https://doi.org/10.5281/zenodo.1234567
+  ```
+
 **Synthetic demo vs. real data.** `swelter demo` replays a *synthetic* fixture (deterministic, the
 calibration story made checkable) — the dashboard labels it as such. `swelter fetch` pulls **real**
 current data from a live open-data source — no API key, no hardware — through the identical pipeline

@@ -243,6 +243,12 @@ traceable to the archive digest; the "what we could not see" section is never em
 
 ### EXP-11 — Low-tech distribution: printable neighborhood cards from the feed
 
+**Status: Implemented.** `swelter cards` (`src/swelter/cards.py`, `src/swelter/qr.py`) ships this —
+one print-CSS bilingual card per published cell, composing the aggregated surface, the
+cooling-center overlay, and the committed R1/i18n guidance strings, with a per-cell feed QR
+(`?area=<cell_id>`, the same query the alerts feed accepts) and a `--large-type` variant. See
+`tests/test_cards.py` and `tests/test_qr.py`.
+
 **Pitch.** Auto-generate print artifacts — a door flyer / fridge card per neighborhood cell with
 current-week readings, what they mean, the cooling-center nearest, and the feed QR — bilingual,
 from the same data the alerts feed uses.
