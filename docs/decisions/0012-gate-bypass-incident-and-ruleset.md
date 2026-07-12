@@ -101,5 +101,22 @@ but do not prevent one. The single-maintainer compensating control for required 
 gap against the standard's ≥2-reviewer expectation, not a full substitute; it should be revisited
 the moment a second maintainer or trusted reviewer is available.
 
-Last verified: 2026-07-05. Recheck cadence: re-verify the ruleset is still active whenever
+## Status update — 2026-07-10
+
+A ruleset on `main` is now **active**, verified via
+`gh api repos/ChelseaKR/swelter/rules/branches/main`. It enforces: branch deletion blocked,
+non-fast-forward (force) pushes blocked, and six required status checks — `checks`, `security`,
+`firmware`, `a11y-advisory`, `analyze (python)`, `analyze (actions)`. Differences from the design
+above, stated plainly rather than glossed:
+
+- **No require-pull-request rule yet**, so the ruleset requires green checks but not a PR or a
+  review record; the self-review compensating control above therefore still carries weight.
+- Signed commits and linear history are not asserted by the active rules.
+- `.github/rulesets/main.json` (the committed export of the live setting) does not exist yet, so
+  verifying the ruleset still requires a live API call.
+
+The core exposure — a red-gate commit landing directly on `main` — is now blocked by the
+required-status-check rules; the remaining deltas above stay open items.
+
+Last verified: 2026-07-10. Recheck cadence: re-verify the ruleset is still active whenever
 `.github/rulesets/main.json` would be expected to change, and at least once per release.

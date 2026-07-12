@@ -4,10 +4,34 @@ The swelter HTTP surface is **read-only**. It only ever answers `GET` (and `OPTI
 (`POST`/`PUT`/`PATCH`/`DELETE`) returns `405` with a JSON body. There is no write path to expose, and
 no account or API key. CORS is open (`Access-Control-Allow-Origin: *`) because the data is open.
 
-The observation **data is CC0** (CC0-1.0 Public Domain Dedication; see `DATA-LICENSE`). You can
-copy, modify, redistribute, and build on it, including commercially, without asking. Attribution is
-not required but appreciated: "Environmental data from the swelter community sensing network." The
-swelter source code is licensed separately under Apache-2.0 (see `LICENSE`).
+The observation **data is CC0** (CC0-1.0 Public Domain Dedication; see `DATA-LICENSE`) — for a
+network's own nodes. You can copy, modify, redistribute, and build on it, including commercially,
+without asking. Attribution is not required but appreciated: "Environmental data from the swelter
+community sensing network." The swelter source code is licensed separately under Apache-2.0 (see
+`LICENSE`).
+
+**Mixed stores (native + fetched third-party data).** The store itself is source-agnostic: it has
+no license field, and a store can hold a network's own CC0 observations, readings fetched from a
+third-party source (`swelter fetch`), or both. CC0 is true only for a network's own observations.
+A fetched source keeps its own terms. Open-Meteo serves its API data under CC BY 4.0;
+Sensor.Community labels its database contents ODC-DbCL-1.0. OpenAQ is an aggregator, not a blanket
+CC BY dataset: every v3 location includes original-provider license and attribution metadata, and
+OpenAQ's Terms require users to follow those varying provider terms. `export.py` does **not** infer
+or track which rows came from where, so it cannot safely emit a single license for a store that mixes sources. The `--license`
+(and `--attribution`) flags on `swelter export`, and the matching keyword arguments on
+`export.to_json()` / `to_csv()` / `summarize()`, let the caller state the license explicitly at
+export time; the default remains CC0-1.0 so a network's own store is unchanged. **If you run `swelter
+fetch` into a store that already holds other observations, export that store per source** (e.g. one
+store per fetch, as the Pages workflow does) rather than trusting a single export to get a mixed
+store's license right — nothing today prevents `swelter export` from mislabeling a mixed store, so
+that discipline is on the operator, not (yet) enforced by the store.
+
+**Keep the terms attached downstream.** The `/sensors/` export names Sensor.Community's DbCL v1.0
+contents terms and links to the official license. OpenAQ exports need the license and attribution
+ledger from each returned location; a generic “OpenAQ” credit does not replace the original-source
+requirements. Keep each source's rows distinguishable and review the linked upstream terms before
+redistributing or combining a fetched dataset. The Pages workflow uses separate accumulated stores
+for OpenAQ, CAMS, and Sensor.Community so a fallback cannot silently relabel yesterday's rows.
 
 The server is the standard library's `http.server`, single-threaded and stateless: it reads the
 store and answers. It is scale-to-zero friendly and runs as well on a Raspberry-Pi-class host with
@@ -20,6 +44,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | Path | Returns |
 | --- | --- |
 | `/health` | Liveness and observation count |
+| `/healthz` | Alias of `/health` (Kubernetes-style liveness probe convention) |
 | `/v1.1` | SensorThings service document |
 | `/v1.1/Things` | Nodes, with published (grid-snapped) locations |
 | `/v1.1/Locations` | The published cell centres |
@@ -275,14 +300,40 @@ Gridded hourly rollups of the readings. A cell's mean is taken over **calibrated
 when any exist; a cell with only raw or flagged readings is still shown but marked `provisional`.
 PM2.5 cells carry their US-EPA AQI value and category.
 
+**Two distinct uncertainty fields, on purpose.** A calibrated cell carries both `uncertainty` and
+`mean_member_sigma` — never one field silently standing in for the other. `uncertainty` is the
+cell's own **standard error**, `sqrt(sum(sigma_i^2)) / n` over the calibrated members' individual
+1-sigmas: this is what "the cell's uncertainty" should mean when several readings were averaged.
+`mean_member_sigma` is the plain mean of those same member sigmas — a simpler, looser number, kept
+under its own name so a client that wants it can have it without mistaking it for the combined
+error. Both are reproducible from the per-observation `uncertainty` values exported by
+`/v1.1/Observations` (or CSV/JSON export) for the same node(s)/timestamps/parameter feeding the
+cell. **Caveat:** the standard-error formula treats member sigmas as independent; members of one
+cell often share a calibration fit (same node, same correction), so their errors are not fully
+independent and `uncertainty` is a *lower bound* on the true combined uncertainty, not an exact one.
+Both fields are `null` on a provisional cell.
+
 A derived **`exposure`** layer combines the heat index and the PM2.5 AQI into one level per cell and
 hour (ADR 0009). It appears only where a cell has both a heat-index and a PM2.5 reading for that
 hour, is `provisional` whenever either component is, and never blends the two into a fabricated
 number — its `mean` is the ordinal level `0`–`4` (`category` is the matching name `Minimal`, `Low`,
 `Elevated`, `High`, `Extreme`), taken as the **higher** of the heat and air concern. It adds
 `heat_category` (the NWS heat-index tier), `air_category` (the PM2.5 AQI category), and a `compound`
-flag (true when heat *and* air are each at least the mid tier). It is decision-support, not a
-validated health index, and never a claim that conditions are safe.
+flag (true when heat *and* air are each at least the mid tier). `exposure` has no `uncertainty` of
+its own — an ordinal level is not a physical quantity with a σ — so instead it carries
+`uncertainty_note`, a plain-text statement naming which component (`"heat"`, `"air"`, or `"both"`
+when tied) bounds the published level and pointing at that component's own uncertainty/category,
+e.g. `"bounded by air: Unhealthy for Sensitive Groups (cell standard error 0.900)"`. It is
+decision-support, not a validated health index, and never a claim that conditions are safe.
+
+**PM2.5's two `aqi_window` variants.** Every PM2.5 cell is published as an `"hourly-mean"` reading
+(the AQI applied to that hour's mean concentration, as always). When a cell has at least 3 of the
+preceding 12 hourly means available, an additional **`"nowcast"`** reading is published for the same
+cell at its latest bucket: an EPA NowCast-weighted concentration (recent hours weighted more,
+in-window volatility discounted per the EPA formula), run through the same AQI breakpoint table.
+The two variants are always distinct rows — `GET /api/surface.geojson` (the map snapshot) only ever
+shows the `"hourly-mean"` value, `GET /api/surface.json?hours=N` carries both so a client can opt in
+to NowCast explicitly by filtering on `aqi_window`. Neither is the official EPA 24-hour AQI.
 
 ### `GET /api/surface.geojson`
 
@@ -292,12 +343,16 @@ parameter's most recent hourly value. Served as `Content-Type: application/geo+j
 
 Each feature carries the cell's host-assigned `label`, a top-level `provisional` flag (true if *any*
 parameter in the cell is provisional), and, per parameter, the value plus a `{param}_provisional`
-flag and — when the value is calibrated — a `{param}_uncertainty` (mean 1-sigma in the parameter's
-unit), a `{param}_method` (the calibration method), and a `{param}_reference` (the monitor it was
-fitted against). PM2.5 cells add `pm25_aqi`, `aqi_category`, and `aqi_window` (always
-`"hourly-mean"`). A cell
-with both a heat-index and a PM2.5 value adds the derived `exposure` level plus `exposure_level`,
-`exposure_category`, `exposure_heat`, `exposure_air`, and `compound`.
+flag and — when the value is calibrated — a `{param}_uncertainty` (the cell's standard error,
+`sqrt(sum(sigma_i^2)) / n`, in the parameter's unit), a `{param}_mean_member_sigma` (the plain mean
+of the calibrated members' own 1-sigmas — a distinct, looser number; see Surface endpoints, above),
+a `{param}_method` (the calibration method), and a `{param}_reference` (the monitor it was fitted
+against). PM2.5 cells add `pm25_aqi`, `aqi_category`, and `aqi_window` — always `"hourly-mean"` here,
+never `"nowcast"` (the map snapshot never substitutes a NowCast value for the promised hourly mean;
+fetch `/api/surface.json?hours=N` and filter `aqi_window` to read NowCast). A cell with both a
+heat-index and a PM2.5 value adds the derived `exposure` level plus `exposure_level`,
+`exposure_category`, `exposure_heat`, `exposure_air`, `compound`, and `exposure_uncertainty_note`
+(which component bounds the level).
 
 ```json
 {
@@ -313,17 +368,20 @@ with both a heat-index and a PM2.5 value adds the derived `exposure` level plus 
         "provisional": true,
         "temp_c": 27.345,
         "temp_c_uncertainty": 0.476,
+        "temp_c_mean_member_sigma": 0.476,
         "temp_c_provisional": false,
         "heat_index_c": 29.87,
         "heat_index_c_provisional": true,
         "pm25_ugm3": 14.159,
         "pm25_ugm3_uncertainty": 0.9,
+        "pm25_ugm3_mean_member_sigma": 0.9,
         "pm25_ugm3_provisional": false,
         "pm25_aqi": 60,
         "aqi_category": "Moderate",
         "aqi_window": "hourly-mean",
         "pm10_ugm3": 29.168,
         "pm10_ugm3_uncertainty": 1.609,
+        "pm10_ugm3_mean_member_sigma": 1.609,
         "pm10_ugm3_provisional": false
       }
     }
@@ -332,9 +390,13 @@ with both a heat-index and a PM2.5 value adds the derived `exposure` level plus 
 ```
 
 Note `heat_index_c` is published raw/provisional, so it has a `_provisional: true` flag and no
-`_uncertainty` — while the calibrated `temp_c`, `pm25_ugm3`, and `pm10_ugm3` in the same cell carry
-their uncertainty and read `_provisional: false`. The top-level `provisional` is therefore `true`
-here because the heat-index value is provisional.
+`_uncertainty`/`_mean_member_sigma` — while the calibrated `temp_c`, `pm25_ugm3`, and `pm10_ugm3` in
+the same cell carry both uncertainty fields and read `_provisional: false`. `uncertainty` and
+`mean_member_sigma` read equal here because each of these example cells has exactly one contributing
+member (`n=1`); with `n>1` calibrated members they diverge — `uncertainty` (the standard error)
+shrinks relative to `mean_member_sigma` as members are combined, which is the whole point of
+publishing the two under distinct names. The top-level `provisional` is therefore `true` here
+because the heat-index value is provisional.
 
 ### `GET /api/surface.json?hours=N`
 
@@ -346,15 +408,17 @@ payload small. This is what the dashboard's time slider reads.
 | `hours` | Number of most-recent hourly buckets to include | `48` |
 
 Each record carries the cell's `label`, the rolled-up `mean`, the count `n`, a `provisional` flag,
-and the mean 1-sigma `uncertainty` (null when the cell is provisional). A confirmed record also
-carries `method` (the calibration method, e.g. `epa-humidity`) and `reference` (the monitor it was
-fitted against); both are omitted on provisional records — the "show your work" provenance the
-dashboard surfaces per location. Every record also carries `nodes`, the published node id(s) in the
-cell, so a reader can pull the raw readings behind it (e.g. `GET /export.csv?node=<id>`). PM2.5
-records also carry
-`aqi`, `category`, and `aqi_window` (`"hourly-mean"`); `aqi`/`category`/`aqi_window` are absent or
-null for other parameters. `exposure` records set `category` to the level name and add
-`heat_category`, `air_category`, and `compound` (see Surface endpoints, above):
+the cell standard error `uncertainty`, and the plain mean-of-sigmas `mean_member_sigma` (both null
+when the cell is provisional — see Surface endpoints, above, for why the two are published under
+distinct names). A confirmed record also carries `method` (the calibration method, e.g.
+`epa-humidity`) and `reference` (the monitor it was fitted against); both are omitted on provisional
+records — the "show your work" provenance the dashboard surfaces per location. Every record also
+carries `nodes`, the published node id(s) in the cell, so a reader can pull the raw readings behind
+it (e.g. `GET /export.csv?node=<id>`). PM2.5 records also carry `aqi`, `category`, and `aqi_window`
+(`"hourly-mean"` or `"nowcast"`, see below); `aqi`/`category`/`aqi_window` are absent or null for
+other parameters. `exposure` records leave `uncertainty`/`mean_member_sigma` null, set `category` to
+the level name, and add `heat_category`, `air_category`, `compound`, and `uncertainty_note` (see
+Surface endpoints, above):
 
 ```json
 {
@@ -368,11 +432,13 @@ null for other parameters. `exposure` records set `category` to the level name a
   "n": 1,
   "provisional": false,
   "uncertainty": null,
+  "mean_member_sigma": null,
   "aqi": null,
   "category": "Elevated",
   "heat_category": "Extreme Caution",
   "air_category": "Unhealthy for Sensitive Groups",
-  "compound": true
+  "compound": true,
+  "uncertainty_note": "bounded by air: Unhealthy for Sensitive Groups (no numeric uncertainty)"
 }
 ```
 
@@ -392,9 +458,26 @@ null for other parameters. `exposure` records set `category` to the level name a
       "n": 1,
       "provisional": false,
       "uncertainty": 0.9,
+      "mean_member_sigma": 0.9,
       "aqi": 60,
       "category": "Moderate",
       "aqi_window": "hourly-mean"
+    },
+    {
+      "cell_id": "38.567867,-121.515433",
+      "label": "Elm & 3rd",
+      "lat": 38.567867,
+      "lon": -121.515433,
+      "parameter": "pm25_ugm3",
+      "bucket": "2026-06-07T23:00:00Z",
+      "mean": 14.203,
+      "n": 4,
+      "provisional": false,
+      "uncertainty": null,
+      "mean_member_sigma": null,
+      "aqi": 60,
+      "category": "Moderate",
+      "aqi_window": "nowcast"
     },
     {
       "cell_id": "38.567867,-121.515433",
@@ -407,6 +490,7 @@ null for other parameters. `exposure` records set `category` to the level name a
       "n": 1,
       "provisional": false,
       "uncertainty": 0.476,
+      "mean_member_sigma": 0.476,
       "aqi": null,
       "category": null
     }
@@ -414,7 +498,12 @@ null for other parameters. `exposure` records set `category` to the level name a
 }
 ```
 
-`aqi`, `category`, and `aqi_window` are non-null / present only for `pm25_ugm3` records.
+`aqi`, `category`, and `aqi_window` are non-null / present only for `pm25_ugm3` records. A cell with
+enough trailing hourly history (at least 3 of the preceding 12 hourly means) publishes **two**
+`pm25_ugm3` records at the same `bucket` — one `aqi_window: "hourly-mean"` and one
+`aqi_window: "nowcast"` — never one record wearing both tags, and never a record with neither. The
+NowCast record's own `uncertainty`/`mean_member_sigma` are null: NowCast blends unevenly-weighted
+hours, and no single combined σ is published for that blend.
 
 ### `GET /api/health.json`
 
@@ -494,17 +583,20 @@ downloader can see what was measured and what was corrected.
 
 ### `GET /export.csv`
 
-`text/csv; charset=utf-8`. Columns, in this fixed order (note the final `trustworthy` column):
+`text/csv; charset=utf-8`. Columns, in this fixed order (the final two provenance columns keep a
+downloaded or filtered subset's source terms attached to every row):
 
 ```
-node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy
-node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False
-node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True
+node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy,data_license,data_attribution
+node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False,CC0-1.0,
+node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True,CC0-1.0,
 ```
 
 `trustworthy` is `True` only for a calibrated, QC-clean reading; a `raw` row leaves `uncertainty`
-empty and reads `False`. (Text cells that begin with a spreadsheet formula character are neutralised
-on export, so a self-reported `node_id` can't smuggle a formula into a spreadsheet.)
+empty and reads `False`. `data_license` and `data_attribution` come from the export invocation; the
+default is CC0 for a network's native store, while fetched third-party stores must pass their actual
+source terms. (Text cells that begin with a spreadsheet formula character are neutralised on export,
+so a self-reported `node_id` can't smuggle a formula into a spreadsheet.)
 
 ### `GET /export.json`
 
@@ -626,8 +718,13 @@ micrometres and smaller; the basis for the AQI shown on the map. Calibrated node
 humidity-aware correction in the US-EPA PurpleAir lineage
 (`pm25_ugm3.epa-humidity.{node_id}`, `corrected = a*raw + b*humidity + c`), because optical PM
 counts inflate in humid air. Surface cells carry an EPA AQI value and category (US-EPA 2024
-breakpoints). The AQI is computed from the cell's **hourly** mean, not a 24-hour average or NowCast —
-read it as an hourly indication, not the official 24-hour AQI. Valid range 0 to 1000 ug/m3.
+breakpoints), by default computed from the cell's **hourly** mean, not a 24-hour average —
+`aqi_window: "hourly-mean"`, read it as an hourly indication, not the official 24-hour AQI. Where a
+cell has at least 3 of the preceding 12 hourly means available, an **EPA NowCast** variant is
+published alongside it (`aqi_window: "nowcast"`, `GET /api/surface.json?hours=N` only — the map
+snapshot always shows the hourly-mean value) — a recency-weighted concentration that reacts faster
+to changing PM2.5 than a flat hourly mean, still not the official 24-hour AQI. Valid range 0 to 1000
+ug/m3.
 
 ## pm10_ugm3
 
@@ -651,7 +748,8 @@ correction is fit. Treat it as indicative, not calibrated. Valid range −40 to 
 
 ---
 
-Last verified: 2026-06-19. Recheck cadence: review when the API surface, the export shape, or the
+Last verified: 2026-07-03. Recheck cadence: review when the API surface, the export shape, or the
 `PARAMETERS` registry change, and at least annually (the AQI applies US-EPA 2024 PM2.5 breakpoints
-to the cell's hourly mean — `aqi_window: "hourly-mean"`, not the official 24-hour AQI; recheck on
-each EPA revision).
+to the cell's hourly mean — `aqi_window: "hourly-mean"` — or to an EPA NowCast-weighted
+concentration — `aqi_window: "nowcast"` — never the official 24-hour AQI; recheck both on each EPA
+revision).

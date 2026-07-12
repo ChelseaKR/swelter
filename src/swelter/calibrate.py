@@ -22,6 +22,11 @@ no opaque library:
 * **Reproducible.** Coefficients are rounded to a fixed precision, so re-running ``fit`` on the
   committed co-location data reproduces the published registry byte-for-byte. Anyone can check
   the calibration instead of trusting it.
+* **Heat index derived, not fitted.** There is no field reference for heat index to co-locate
+  against, so it is never fit. Instead, ``apply`` recomputes it from a node's *already-calibrated*
+  temperature plus co-timed humidity, using the same NWS Rothfusz function the demo generator uses.
+  It is calibrated exactly where temperature is, and stays raw/provisional everywhere else — see
+  ADR 0014 and the "Heat index: derived, not fitted" section of ``calibration.md``.
 """
 
 from __future__ import annotations
@@ -37,6 +42,7 @@ from typing import Any
 import yaml
 
 from .models import QC_REJECTED, RAW, Observation
+from .models import heat_index_c as _heat_index_c
 
 #: Decimal places coefficients/metrics are rounded to. Fixed precision is what makes the
 #: fitted registry reproducible byte-for-byte across machines and runs.
@@ -65,9 +71,14 @@ _METHOD: dict[str, str] = {
     "pm25_ugm3": "epa-humidity",
     "pm10_ugm3": "epa-humidity",
     "temp_c": "enclosure-offset",
-    "heat_index_c": "enclosure-offset",
 }
 _DEFAULT_METHOD = "linear"
+
+#: Method id for a heat-index observation derived from a node's calibrated temperature plus
+#: co-timed humidity, rather than fit against a reference — there is no field heat-index
+#: reference to co-locate against (see ADR 0014). Kept out of `_METHOD` above because that map
+#: names methods a co-location *fit* can produce; heat index is never fit.
+_DERIVED_HEAT_INDEX_METHOD = "derived-enclosure"
 
 
 @dataclass(frozen=True)
@@ -352,9 +363,19 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
     raw reading with a registered correction, an additional calibrated observation is emitted,
     tagged with the correction version and carrying its uncertainty. A node with no correction
     yields only raw observations, which the map renders as provisional.
+
+    Heat index is a second pass, not a registered correction: there is no field heat-index
+    reference to co-locate against, so `heat_index_c` is never fit (ADR 0014). Instead, once the
+    first pass above has produced every calibrated `temp_c` this call will produce, a raw
+    `heat_index_c` observation whose (node_id, timestamp) has *both* a calibrated temperature and
+    co-timed humidity is recomputed from those calibrated inputs with `models.heat_index_c` and
+    emitted as an additional, calibrated observation. A node whose temperature stayed raw, or
+    whose humidity at that instant is missing/QC-rejected, gets no derived heat index — it stays
+    raw/provisional, honestly, rather than being promoted on an uncalibrated input.
     """
     observations = list(observations)
     humidity = humidity_index(observations)
+    calibrated_temp: dict[tuple[str, str], tuple[float, float]] = {}
     out: list[Observation] = []
     for obs in observations:
         out.append(obs)
@@ -370,4 +391,27 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
             continue
         corrected_value = correction.predict(obs.value, rh)
         out.append(obs.calibrated(correction.version, corrected_value, correction.residual_std))
+        if obs.parameter == "temp_c":
+            calibrated_temp[(obs.node_id, obs.timestamp)] = (
+                corrected_value,
+                correction.residual_std,
+            )
+
+    # Second pass: derive heat index from calibrated temp + co-timed humidity. This runs after
+    # the loop above so every calibrated temp_c this call can produce is already indexed —
+    # a raw heat_index_c earlier in the stream than its node's calibrated temp_c must still see it.
+    for obs in observations:
+        if obs.parameter != "heat_index_c" or obs.calibration != RAW:
+            continue
+        temp = calibrated_temp.get((obs.node_id, obs.timestamp))
+        rh = humidity.get((obs.node_id, obs.timestamp))
+        if temp is None or rh is None:
+            continue
+        temp_value, temp_residual_std = temp
+        derived_value = _heat_index_c(temp_value, rh)
+        version = f"heat_index_c.{_DERIVED_HEAT_INDEX_METHOD}.{obs.node_id}"
+        # Heat index is monotonic in temperature over the operating range; carrying the temp
+        # correction's residual_std forward as the derived value's 1-sigma is the simplest
+        # defensible propagation (see ADR 0014) rather than a fitted uncertainty of its own.
+        out.append(obs.calibrated(version, derived_value, temp_residual_std))
     return out
