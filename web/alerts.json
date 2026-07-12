@@ -9,5 +9,7 @@
   },
   "count": 0,
   "alerts": [],
-  "note": "Public, aggregate environmental alerts \u2014 no account, no PII. Subscribe via the Atom feed at /api/alerts.xml in any reader; live servers accept ?area=<area_id>."
+  "note": "Public, aggregate environmental alerts \u2014 no account, no PII. Subscribe via the Atom feed at /api/alerts.xml in any reader; live servers accept ?area=<area_id>.",
+  "note_es": "Alertas ambientales p\u00fablicas y agregadas \u2014 sin cuenta, sin datos personales. Suscr\u00edbete al feed Atom en /api/alerts.xml con cualquier lector; los servidores en vivo aceptan ?area=<area_id>.",
+  "translation": "machine"
 }

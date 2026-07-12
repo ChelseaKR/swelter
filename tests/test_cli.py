@@ -59,6 +59,39 @@ def test_init_refuses_to_overwrite_without_force(tmp_path: Path) -> None:
     assert "keep me" not in cfg.read_text(encoding="utf-8")
 
 
+def test_doctor_exits_zero_on_the_demo_network() -> None:
+    assert main(["doctor", "--config", str(ROOT / "network.yaml")]) == 0
+
+
+def test_doctor_exits_nonzero_on_a_network_with_errors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = tmp_path / "network.yaml"
+    cfg.write_text(
+        "name: broken\n"
+        "unexpected_key: true\n"
+        "nodes:\n"
+        "- node_id: node-01\n"
+        "  lat: 1.0\n"
+        "  lon: 1.0\n"
+        "- node_id: node-01\n"
+        "  lat: 2.0\n"
+        "  lon: 2.0\n"
+        "alert_thresholds:\n"
+        "  heat_index: 37.0\n",  # typo for heat_index_c
+        encoding="utf-8",
+    )
+    assert main(["doctor", "--config", str(cfg)]) == 1
+    err = capsys.readouterr().err
+    assert "unexpected_key" in err
+    assert "node-01" in err
+    assert "heat_index" in err
+
+
+def test_doctor_missing_config_is_a_clean_error() -> None:
+    assert main(["doctor", "--config", "/no/such/network.yaml"]) == 1
+
+
 def test_demo_pipeline_calibrates_and_aggregates(tmp_path: Path) -> None:
     store_dir = tmp_path / "store"
     rc = main(
@@ -109,6 +142,9 @@ def test_demo_bakes_alerts_and_cooling_into_web(tmp_path: Path) -> None:
     assert "alerts" in feed and "thresholds" in feed
     assert feed["generated"]  # a data-derived timestamp, even on a calm week
     assert (web / "alerts.xml").read_text(encoding="utf-8").startswith("<?xml")
+    es_atom = (web / "alerts.es.xml").read_text(encoding="utf-8")
+    assert es_atom.startswith("<?xml")
+    assert 'xml:lang="es"' in es_atom
     cooling = json.loads((web / "cooling-centers.geojson").read_text(encoding="utf-8"))
     assert cooling["type"] == "FeatureCollection"
     assert len(cooling["features"]) >= 1

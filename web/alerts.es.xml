@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:georss="http://www.georss.org/georss" xml:lang="es">
+  <title>swelter demo network (downtown) — alertas de calor y calidad del aire</title>
+  <id>/api/alerts.es.xml</id>
+  <link rel="self" href="/api/alerts.es.xml"/>
+  <link rel="alternate" hreflang="en" href="/api/alerts.xml"/>
+  <updated>2026-06-08T00:00:00Z</updated>
+  <subtitle>Zonas donde el calor o la calidad del aire superó un umbral de peligro de salud pública. Datos ambientales agregados, sin datos personales.</subtitle>
+  <generator>swelter i18n_alerts (machine-translated, not human-reviewed)</generator>
+</feed>

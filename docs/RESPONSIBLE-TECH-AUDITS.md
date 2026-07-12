@@ -25,10 +25,10 @@ Each checklist marks every item one of two ways:
   repo (an ADR in `docs/decisions/`, an updated section in one of these audit docs, or a manual
   review note).
 
-The full merge gate is `make verify` = `fmt-check` + `lint` + `typecheck` + `a11y` + `test`
-(currently green). The supply-chain and code-scanning gates (`pip-audit`, `gitleaks`,
-CodeQL, signed releases) run as CI workflows alongside it; `gitleaks` also runs as a pre-commit
-hook.
+The full merge gate is `make verify` = `fmt-check` + `lint` + `typecheck` + `a11y` + `i18n` +
+`hygiene` + `version-check` + `test` (currently green). The supply-chain and code-scanning gates
+(`pip-audit`, `gitleaks`, Semgrep, zizmor, CodeQL, a weekly full-history TruffleHog sweep, signed
+releases) run as CI workflows alongside it; `gitleaks` also runs as a pre-commit hook.
 
 ---
 

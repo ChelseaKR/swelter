@@ -1,4 +1,4 @@
-# ADR 0016: Promote the Pages bash choreography into a tested `swelter publish` command
+# ADR 0020: Promote the Pages bash choreography into a tested `swelter publish` command
 
 Date: 2026-07-03. Status: accepted.
 

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/ChelseaKR/swelter/schemas/sample-health.schema.json",
+  "title": "swelter network-health payload",
+  "description": "The Python↔JS contract for `/api/health.json` and `web/sample-health.json` — per-node liveness/QC status and gap list. Emitted by `qc.health_report`; consumed by `web/app.js` `renderHealthDetail()` / `healthLine()` / `coverageLine()`. A deliberate field change on either side must edit this schema and both validating tests in the same PR (FIX-07).",
+  "type": "object",
+  "required": ["interval_s", "summary", "nodes", "gaps"],
+  "additionalProperties": true,
+  "properties": {
+    "interval_s": { "type": "number" },
+    "latest": { "type": "string" },
+    "summary": {
+      "type": "object",
+      "required": ["total", "ok", "degraded", "offline"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "ok": { "type": "integer", "minimum": 0 },
+        "degraded": { "type": "integer", "minimum": 0 },
+        "offline": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/nodeHealth" }
+    },
+    "gaps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gap" }
+    },
+    "coverage_equity": { "type": "object" }
+  },
+  "$defs": {
+    "nodeHealth": {
+      "type": "object",
+      "required": [
+        "node_id",
+        "status",
+        "observations",
+        "completeness",
+        "flagged_fraction",
+        "online",
+        "last_seen"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "node_id": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["ok", "degraded", "offline"] },
+        "observations": { "type": "integer", "minimum": 0 },
+        "completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+        "flagged_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "online": { "type": "boolean" },
+        "last_seen": { "type": ["string", "null"] }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "required": ["node_id", "parameter", "start", "end", "minutes"],
+      "additionalProperties": true,
+      "properties": {
+        "node_id": { "type": "string", "minLength": 1 },
+        "parameter": { "type": "string", "minLength": 1 },
+        "start": { "type": "string" },
+        "end": { "type": "string" },
+        "minutes": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

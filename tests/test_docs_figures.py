@@ -1,0 +1,198 @@
+"""Docs-figures gate: the checker itself must catch a deliberate doc/source mismatch.
+
+``scripts/docs_figures_check.py`` re-proves countable claims in prose against their sources of
+truth. It is not an installed package (a `scripts/*.py` gate, like `a11y_check.py` and
+`i18n_parity.py`), so it is loaded directly from its file path with importlib — the same
+technique ``tests/test_firmware_drivers.py`` uses for the firmware driver modules.
+
+These tests exercise each rule's pure extraction/comparison functions against small fixture
+doc+source pairs, independent of this repo's own current prose — so a rule change here catches
+real regressions in the checker rather than in swelter's docs.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+from types import ModuleType
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+
+
+def _load_script(name: str) -> ModuleType:
+    path = SCRIPTS_DIR / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"_test_{name}", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses in the loaded module need this to resolve types
+    spec.loader.exec_module(module)
+    return module
+
+
+docs_figures = _load_script("docs_figures_check")
+
+
+# --- rule 1: test count -----------------------------------------------------------------------
+
+
+def test_extract_claude_test_count_reads_the_documented_number() -> None:
+    text = "test       →  pytest                       (205 tests, all green)\n"
+    assert docs_figures.extract_claude_test_count(text) == 205
+
+
+def test_extract_claude_test_count_missing_line_returns_none() -> None:
+    assert docs_figures.extract_claude_test_count("no such claim here") is None
+
+
+def test_check_test_count_passes_when_claim_matches_reality() -> None:
+    text = "test → pytest (205 tests, all green)\n"
+    result = docs_figures.check_test_count(text, actual_count=205)
+    assert result.ok is True
+    assert result.blocking is False  # CLAUDE.md is agent-do-not-modify: advisory, never fails CI
+
+
+def test_check_test_count_detects_a_deliberate_mismatch() -> None:
+    """The load-bearing case: a doc fed the *wrong* number must be caught, not silently passed."""
+    text = "test → pytest (62 tests, all green)\n"
+    result = docs_figures.check_test_count(text, actual_count=205)
+    assert result.ok is False
+    assert "62" in result.detail
+    assert "205" in result.detail
+    # Advisory: wrong even though it must be reported, this rule cannot fail the process.
+    assert result.blocking is False
+
+
+# --- rule 2: registry (correction) count ------------------------------------------------------
+
+
+def test_extract_roadmap_correction_count() -> None:
+    text = "— 300 corrections across the 100 co-located nodes at the default size."
+    assert docs_figures.extract_roadmap_correction_count(text) == 300
+
+
+def test_check_corrections_count_fails_on_mismatch_and_is_blocking() -> None:
+    text = "— 300 corrections across the 100 co-located nodes at the default size."
+    result = docs_figures.check_corrections_count(text, actual_count=299)
+    assert result.ok is False
+    assert result.blocking is True  # docs/ROADMAP.md is editable: this rule hard-gates
+
+
+def test_check_corrections_count_passes_on_match() -> None:
+    text = "— 300 corrections across the 100 co-located nodes at the default size."
+    result = docs_figures.check_corrections_count(text, actual_count=300)
+    assert result.ok is True
+
+
+# --- rule 3: route list -------------------------------------------------------------------------
+
+
+def test_extract_api_md_routes_parses_table_and_strips_query_strings() -> None:
+    text = """
+## Endpoints at a glance
+
+| Path | Returns |
+| --- | --- |
+| `/health` | Liveness |
+| `/api/surface.json?hours=N` | Records |
+| `/LICENSE`, `/DATA-LICENSE` | License files |
+| `web/` static | The dashboard |
+
+## Next section
+not a table row
+"""
+    routes = docs_figures.extract_api_md_routes(text)
+    assert routes == {"/health", "/api/surface.json", "/LICENSE", "/DATA-LICENSE"}
+
+
+def test_extract_server_routes_matches_literal_and_versioned_paths() -> None:
+    api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
+    server_source = """
+if path in ("/health", "/healthz"):
+    pass
+elif path == v:
+    pass
+elif path == f"{v}/Things":
+    pass
+elif path == "/export.csv":
+    pass
+"""
+    routes = docs_figures.extract_server_routes(server_source, api_source)
+    assert routes == {"/health", "/healthz", "/v1.1", "/v1.1/Things", "/export.csv"}
+
+
+def test_check_routes_flags_a_route_registered_but_undocumented() -> None:
+    api_md = """
+## Endpoints at a glance
+
+| Path | Returns |
+| --- | --- |
+| `/health` | Liveness |
+"""
+    api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
+    server_source = """
+if path in ("/health", "/healthz"):
+    pass
+"""
+    result = docs_figures.check_routes(api_md, server_source, api_source)
+    assert result.ok is False
+    assert result.blocking is True
+    assert "/healthz" in result.detail
+
+
+def test_check_routes_passes_when_doc_and_server_agree() -> None:
+    api_md = """
+## Endpoints at a glance
+
+| Path | Returns |
+| --- | --- |
+| `/health` | Liveness |
+"""
+    api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
+    server_source = """
+if path == "/health":
+    pass
+"""
+    result = docs_figures.check_routes(api_md, server_source, api_source)
+    assert result.ok is True
+
+
+# --- rule 5: duplicate-paragraph lint ---------------------------------------------------------
+
+
+def test_find_duplicate_paragraphs_detects_a_repeated_bullet() -> None:
+    text = (
+        "Intro paragraph that is long enough to matter for the minimum length threshold here.\n\n"
+        "- `swelter fetch --source sensor-community` — real physical low-cost sensors from the\n"
+        "  community network, ingested raw and shown provisional until calibrated.\n"
+        "- `swelter fetch --source sensor-community` — real physical low-cost sensors from the\n"
+        "  community network, ingested raw and shown provisional until calibrated.\n"
+    )
+    dupes = docs_figures.find_duplicate_paragraphs(text)
+    assert len(dupes) == 1
+    assert "sensor-community" in dupes[0]
+
+
+def test_find_duplicate_paragraphs_no_false_positive_on_distinct_bullets() -> None:
+    text = (
+        "- first bullet with genuinely distinct long-enough content to pass the length floor\n"
+        "- second bullet with different and also long-enough content to pass the length floor\n"
+    )
+    assert docs_figures.find_duplicate_paragraphs(text) == []
+
+
+def test_check_readme_duplicate_paragraphs_is_advisory() -> None:
+    text = "- one two three four five six seven eight nine ten eleven twelve thirteen fourteen\n"
+    result = docs_figures.check_readme_duplicate_paragraphs(text)
+    assert result.ok is True
+    assert result.blocking is False
+
+
+# --- end-to-end smoke: the real repo's blocking rules pass today ------------------------------
+
+
+def test_run_all_reports_five_rules_and_blocking_rules_pass_on_this_repo() -> None:
+    results = docs_figures.run_all(docs_figures.ROOT)
+    assert len(results) == 5
+    blocking_failures = [r for r in results if r.blocking and not r.ok]
+    assert not blocking_failures, blocking_failures

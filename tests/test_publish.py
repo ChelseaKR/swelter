@@ -204,3 +204,28 @@ def test_publish_data_license_content_matches_repo(demo_store: Path, tmp_path: P
     baked = (web / "DATA-LICENSE").read_bytes()
     source = (ROOT / "DATA-LICENSE").read_bytes()
     assert baked == source
+
+
+def test_publish_license_overrides_travel_into_the_artifact(
+    demo_store: Path, tmp_path: Path
+) -> None:
+    """--license/--attribution replace the CC0 default everywhere provenance shows: the baked
+    DATA-LICENSE names the real terms (never the repo's CC0 file) and export.csv carries the same
+    license/attribution columns — a fetched third-party store must not publish as CC0 (FIX-05)."""
+    web = tmp_path / "web"
+    rc = _publish(
+        demo_store,
+        web,
+        license="ODC-DbCL-1.0",
+        attribution="Real readings from a third-party network — uncalibrated.",
+    )
+    assert rc == 0
+    baked = (web / "DATA-LICENSE").read_text(encoding="utf-8")
+    assert "ODC-DbCL-1.0" in baked
+    assert "Real readings from a third-party network" in baked
+    assert baked != (ROOT / "DATA-LICENSE").read_text(encoding="utf-8")
+    csv_text = (web / "export.csv").read_text(encoding="utf-8")
+    assert "ODC-DbCL-1.0" in csv_text
+    # the sample surface carries the attribution the dashboard shows
+    sample = json.loads((web / "sample-surface.json").read_text(encoding="utf-8"))
+    assert sample["attribution"].startswith("Real readings from a third-party network")
