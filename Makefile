@@ -3,7 +3,7 @@
 
 .PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild snapshot \
         fmt fmt-check lint typecheck test a11y i18n hygiene version-check reading-level \
-        docs-figures verify check clean
+        docs-figures web-test verify check clean
 
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -77,6 +77,11 @@ reading-level:  ## Advisory (not merge-blocking yet): Flesch-Kincaid grade over 
 
 docs-figures:  ## Re-prove countable claims in docs against their sources of truth (report-only where prose is agent-do-not-modify)
 	uv run python scripts/docs_figures_check.py
+
+# Not part of `verify` — CI runs it as its own merge-blocking job (`web-tests`), since it needs
+# `npm ci`, not `uv`.
+web-test:  ## app.js unit tests + JS-side schema contract (FIX-07)
+	cd web && npm ci && npm test
 
 verify: fmt-check lint typecheck a11y i18n hygiene version-check docs-figures test  ## The full merge gate, end to end
 	@echo "swelter: all gates green"
