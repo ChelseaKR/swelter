@@ -159,7 +159,11 @@ jobs:
   # dynamic counterpart backing it up too; pa11y is pinned to an exact release, same discipline as
   # the other pinned scanners in `security` below.
   a11y:
-    name: a11y
+    # Still published under the name the branch-protection ruleset requires ("a11y-advisory").
+    # The job itself is merge-blocking (FIX-07): the ruleset requires it to pass, and it no
+    # longer swallows failures. Renaming it needs a ruleset edit first, or every PR wedges on
+    # an "expected" check that never reports.
+    name: a11y-advisory
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
