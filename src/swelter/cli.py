@@ -31,6 +31,7 @@ from . import (
     export,
     ingest,
     ingest_server,
+    integrity,
     obs,
     qc,
     snapshot,
@@ -506,7 +507,11 @@ def cmd_demo(args: argparse.Namespace) -> int:
         )
         _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
         _write_web_health(
-            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+            Path(args.web),
+            store.read(calibration=RAW),
+            args.interval,
+            coverage=_coverage,
+            store_dir=args.store,
         )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
@@ -572,14 +577,19 @@ def _write_web_health(
     interval_s: float,
     *,
     coverage: dict[str, object] | None = None,
+    store_dir: str | Path | None = None,
 ) -> None:
     """Bake the node-health summary so the static dashboard shows coverage with no live API.
 
     A coverage-equity block (calibrated-vs-raw per cell) rides along when provided, so the static
-    site carries the same calibration-coverage read as the live ``/api/health.json``."""
+    site carries the same calibration-coverage read as the live ``/api/health.json``. An
+    integrity block (chain head from ``digests.jsonl``, read cheaply — see ``qc.health_report``)
+    rides along too when ``store_dir`` is given."""
     if not web_dir.is_dir():
         return
-    report = qc.health_report(raw, expected_interval_s=interval_s, coverage=coverage)
+    report = qc.health_report(
+        raw, expected_interval_s=interval_s, coverage=coverage, store_dir=store_dir
+    )
     (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
@@ -760,7 +770,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         _write_web_sample(Path(args.web), surface, attribution=attribution)
         _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
         _write_web_health(
-            Path(args.web), store.read(calibration=RAW), args.interval, coverage=_coverage
+            Path(args.web),
+            store.read(calibration=RAW),
+            args.interval,
+            coverage=_coverage,
+            store_dir=args.store,
         )
         _write_web_alerts(Path(args.web), surface, config)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
@@ -812,6 +826,73 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     )
     _err(f"swelter: rebuilt surface ({len(surface.cells)} cell-hours)")
     return 0
+
+
+def cmd_verify_archive(args: argparse.Namespace) -> int:
+    """Recompute every stored row's content hash and (optionally) publish the chained daily digest.
+
+    Exit nonzero the moment a single row's stored hash disagrees with what its own fields hash
+    to — that is the tamper signal. ``--write`` only (re)publishes ``digests.jsonl`` when
+    verification passed; a known-corrupted archive never gets a fresh, misleadingly clean head
+    written over it.
+    """
+    with open_store(args.store) as store:
+        mismatches = integrity.verify_rows(store)
+        digests = integrity.daily_digests(store)
+    ok = not mismatches
+    rows_checked = sum(d.row_count for d in digests)
+    head = digests[-1].chain if digests else ""
+
+    written_path: Path | None = None
+    if args.write:
+        if ok:
+            written_path = integrity.write_digests(args.store, digests)
+        else:
+            _err("swelter: not writing digests.jsonl — verification failed")
+
+    if args.json:
+        payload = {
+            "ok": ok,
+            "rows_checked": rows_checked,
+            "days": len(digests),
+            "head": head,
+            "mismatches": [
+                {
+                    "node_id": m.node_id,
+                    "timestamp": m.timestamp,
+                    "parameter": m.parameter,
+                    "calibration": m.calibration,
+                    "expected": m.expected,
+                    "actual": m.actual,
+                }
+                for m in mismatches
+            ],
+            "digests_path": str(written_path) if written_path else None,
+        }
+        print(json.dumps(payload, indent=2))
+        return 0 if ok else 1
+
+    if ok:
+        _err(
+            f"swelter: verify-archive OK — {rows_checked} row(s) match their stored hash "
+            f"across {len(digests)} day(s)"
+        )
+        _err(f"  head chain  {head or '(empty store)'}")
+        if written_path is not None:
+            _err(f"  wrote {written_path}")
+    else:
+        _err(
+            f"swelter: verify-archive FAILED — {len(mismatches)} of {rows_checked} row(s) do not "
+            "match their stored hash"
+        )
+        for m in mismatches[:20]:
+            _err(
+                f"  MISMATCH  {m.node_id}/{m.parameter}@{m.timestamp} ({m.calibration})  "
+                f"expected={m.expected[:12]}…  actual={m.actual[:12]}…"
+            )
+        if len(mismatches) > 20:
+            _err(f"  … and {len(mismatches) - 20} more")
+    return 0 if ok else 1
 
 
 def cmd_snapshot(args: argparse.Namespace) -> int:
@@ -1133,6 +1214,17 @@ def build_parser() -> argparse.ArgumentParser:
         "omit for a clearly-labelled placeholder",
     )
     p_snap.set_defaults(func=cmd_snapshot)
+
+    p_verify = sub.add_parser(
+        "verify-archive",
+        help="recompute row hashes and publish a chained daily digest (tamper-evidence)",
+    )
+    add_store(p_verify)
+    p_verify.add_argument(
+        "--write", action="store_true", help="(re)write digests.jsonl in the store folder"
+    )
+    p_verify.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_verify.set_defaults(func=cmd_verify_archive)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)

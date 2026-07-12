@@ -174,6 +174,26 @@ class SqliteStore:
         for row in cur:
             yield _row_to_obs(row)
 
+    def iter_rows(self) -> Iterator[tuple[Observation, str]]:
+        """Every stored row as ``(reconstructed Observation, stored content_hash)``.
+
+        For integrity verification (:mod:`swelter.integrity`): unlike :meth:`all`, the persisted
+        hash rides along instead of being dropped, so a caller can recompute
+        ``obs.content_hash()`` and compare without a second query. Ordered by UTC day first (the
+        timestamp column is canonical ``YYYY-MM-DDTHH:MM:SSZ``, so a lexical prefix sort is a
+        correct day sort with no parsing), then by the same node_id/parameter/timestamp order as
+        :meth:`all` — deterministic, and lets a caller fold hashes into daily digests in one pass
+        without buffering the whole store.
+        """
+        # `_COLUMNS` is a fixed module-level constant, not user input; no values are interpolated.
+        # nosemgrep: formatted-sql-query,sqlalchemy-execute-raw-query
+        cur = self._conn.execute(
+            f"SELECT {_COLUMNS} FROM observations "  # noqa: S608
+            "ORDER BY substr(timestamp, 1, 10), node_id, parameter, timestamp"
+        )
+        for row in cur:
+            yield _row_to_obs(row), str(row["content_hash"])
+
     def latest_raw(self) -> list[Observation]:
         """Every immutable raw observation — the source the rest is rebuilt from."""
         return self.read(calibration=RAW)
@@ -229,6 +249,7 @@ def store_paths(store_dir: str | Path) -> dict[str, Path]:
         "quarantine": base / "quarantine.jsonl",
         "aggregate": base / "aggregate.geojson",
         "registry": base / "corrections.yaml",
+        "digests": base / "digests.jsonl",
     }
 
 

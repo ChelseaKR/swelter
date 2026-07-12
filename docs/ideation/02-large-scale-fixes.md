@@ -372,6 +372,24 @@ figure names its source of truth; the gate has never cried wolf (no flaky rules)
 
 ## FIX-13 — Verifiable integrity: re-check content hashes, chain daily digests
 
+**Status: ✅ Done** (2026-07-03)
+
+Shipped as `swelter verify-archive` (`src/swelter/integrity.py`): `SqliteStore.iter_rows()`
+exposes the persisted `content_hash` alongside each reconstructed row; `verify_rows()` recomputes
+and compares it per row; `daily_digests()` groups stored hashes by UTC day (sorted, so digest
+order does not depend on write order) into one canonical SHA-256 per day, then chains days
+oldest-first (`chain = sha256(prev_chain + date + day_digest)`, seeded with the empty string) so
+a single-byte mutation anywhere in history changes every chain value after it; `write_digests()`
+publishes `digests.jsonl` in the store folder, byte-for-byte reproducible across runs (checked by
+`make demo` replay determinism). The CLI recomputes + compares, prints a human or `--json` report,
+exits nonzero on any mismatch, and only (re)writes `digests.jsonl` on a clean verify. The current
+head and last verified day ride along in `/api/health.json` under `integrity`, read cheaply from
+`digests.jsonl` (`qc.health_report`'s `store_dir` parameter) rather than re-hashed per request.
+Procedure documented in `docs/ARCHITECTURE.md`; the health field in `docs/api.md`. No signing —
+key custody stays a governance question, deferred per the pitch. Tests: `tests/test_integrity.py`
+(round-trip, tamper detection at both the library and CLI layer, digest/head determinism,
+chain-changes-on-earlier-day-edit).
+
 **Pitch.** Make the stored `content_hash` earn its keep: an integrity-verification command and a
 per-day hash chain that makes the archive tamper-*evident*, not just tamper-resistant.
 
