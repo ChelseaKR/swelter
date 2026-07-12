@@ -25,6 +25,7 @@ from . import (
     aggregate,
     alerts,
     calibrate,
+    cards,
     cooling_centers,
     crosswalk,
     export,
@@ -313,6 +314,33 @@ def cmd_alerts(args: argparse.Namespace) -> int:
         _write_web_alerts(Path(args.web), surface, config)
         _err(f"swelter: wrote alerts.json + alerts.xml → {args.web}/")
     _err(f"swelter: {len(feed.alerts)} active alert(s) at {feed.bucket or 'no data'}")
+    return 0
+
+
+def cmd_cards(args: argparse.Namespace) -> int:
+    """Emit print-CSS bilingual neighborhood cards — one door flyer / fridge card per published
+    cell, from the same surface + cooling-center + i18n data the dashboard and alerts feed use
+    (EXP-11). The paper channel for residents a screen or a connection doesn't reach."""
+    config = _load_config(args.config)
+    with open_store(args.store) as store:
+        surface = aggregate.aggregate(store.all(), config)
+    cooling_path = _cooling_path(args.cooling_centers)
+    dataset = cooling_centers.load(cooling_path) if cooling_path else cooling_centers.empty()
+    html = cards.render_cards(
+        surface,
+        dataset,
+        lang=args.lang,
+        area=args.area or None,
+        large_type=args.large_type,
+        feed_url=args.feed_url,
+    )
+    if args.out and args.out != "-":
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html, encoding="utf-8")
+        _err(f"swelter: wrote {len(surface.latest_by_cell())} card(s) → {out}")
+    else:
+        sys.stdout.write(html)
     return 0
 
 
@@ -930,6 +958,28 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_agg)
     add_config(p_agg)
     p_agg.set_defaults(func=cmd_aggregate)
+
+    p_cards = sub.add_parser(
+        "cards",
+        help="emit print-CSS bilingual neighborhood cards (door flyers / fridge cards) per cell",
+    )
+    p_cards.add_argument(
+        "--area", default="", help="limit to one published cell (area_id, as in alerts ?area=)"
+    )
+    p_cards.add_argument("--lang", choices=("en", "es"), default="en", help="card language")
+    p_cards.add_argument(
+        "--large-type", action="store_true", help="larger base font size for low-vision printing"
+    )
+    p_cards.add_argument("--out", default="", help="HTML output path (default: stdout)")
+    p_cards.add_argument(
+        "--feed-url",
+        default="",
+        help="base alerts-feed URL to encode as each card's QR (?area=<cell> is added per cell)",
+    )
+    add_store(p_cards)
+    add_config(p_cards)
+    add_cooling(p_cards)
+    p_cards.set_defaults(func=cmd_cards)
 
     p_alerts = sub.add_parser(
         "alerts", help="build the neighborhood heat/AQI alerts feed (JSON + Atom)"
