@@ -37,10 +37,11 @@ unchanged on Pages. Atom is a 20-year-old open standard with universal reader su
 webhook bridging, so the feature needs no new runtime dependency. Thresholds are public-health bands
 with citable provenance, not swelter inventions, so an alert is defensible.
 
-For collectives that do want a push (a neighborhood Slack/Discord/SMS relay), the answer is a
+For collectives that do want a push (a neighborhood Slack/Discord/SMS/WhatsApp relay), the answer is a
 **webhook bridge they run in their own infrastructure**: a scheduled job diffs the public feed and
 POSTs new alerts to a URL they control, keeping any contact details on their side, never in swelter.
-`docs/alerts.md` documents this pattern with a SHA-pinned `actions/checkout` example.
+`docs/alerts.md` documents this pattern with SHA-pinned Action examples, including a hardened
+SMS/WhatsApp delivery recipe with dedup state, an `area_id` allowlist, and a per-run send cap.
 
 ## Known weakness / Consequences
 
