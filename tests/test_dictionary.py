@@ -94,7 +94,7 @@ def base_url(tmp_path: Path):  # type: ignore[no-untyped-def]
     config = NetworkConfig(nodes=(NodeConfig(node_id="node-01", lat=38.58, lon=-121.49),))
     web = tmp_path / "web"
     web.mkdir()
-    (web / "index.html").write_text('<!doctype html><title>swelter</title>', "utf-8")
+    (web / "index.html").write_text("<!doctype html><title>swelter</title>", "utf-8")
     ctx = ServerContext(store=db, config=config, web_dir=web)
     httpd = make_server(ctx, "127.0.0.1", 0)
     port = httpd.server_address[1]
