@@ -129,13 +129,24 @@ and R11 sequencing. Formulas cite EPA documentation; keep the non-regulatory fra
 
 ## FIX-05 — License provenance: stop exporting third-party data as CC0
 
+**Status: done.** `LICENSE` constants added next to each source's `ATTRIBUTION`
+(`sources/openaq.py`, `sources/sensor_community.py`, `sources/openmeteo.py`); `export.py` gained
+`DEFAULT_LICENSE = "CC0-1.0"` and `license`/`attribution` kwargs on `to_json()`, `to_csv()` (as
+standards-compliant per-row `data_license` / `data_attribution` columns), and `summarize()`; the CLI's `export`
+subcommand grew `--license`/`--attribution` flags (default CC0-1.0) and `fetch` now reports the
+real fetched source's license in its summary banner; `pages.yml` computes the license per branch of
+its fallback chain and writes it into each surface's `DATA-LICENSE` instead of always copying the
+repo's CC0 one; `docs/api.md` documents the mixed-store and upstream-provider cases. The
+`Observation` model and store schema are untouched — license is threaded as an export-time
+parameter, not a stored field. See `roadmap/fix-05-license-provenance-stop-exporting`.
+
 **Pitch.** Per-source license metadata that travels with observations, so exports of fetched
-OpenAQ (CC BY 4.0) / Sensor.Community (CC BY-SA 4.0) data carry their real license instead of the
+OpenAQ (provider-specific terms) / Sensor.Community (ODC-DbCL-1.0) data stop inheriting the
 hardcoded CC0 banner.
 
 **Why it matters.** `export.py` hardcodes `"license": "CC0-1.0"` (line 79) and
 `DATA_LICENSE_LINE`; `pages.yml` copies the CC0 `DATA-LICENSE` beside `export.csv` built from
-CC BY/CC BY-SA sources. This is a live licensing error on the public demo and a candor problem for
+third-party sources. This is a live licensing error on the public demo and a candor problem for
 a project whose brand is provenance. CC0 is true only for community-network observations.
 
 **Shape of the work.** Add a source/license registry (per source adapter constant); thread a
@@ -147,7 +158,8 @@ network stores. Document the mixed-store case (fetched + native) honestly in `do
 
 **Effort.** M (S for the export surface, M with the Pages workflow and docs).
 **Risks/dependencies.** None technical; small legal-review gate on the exact attribution wording.
-CC BY-SA share-alike interaction with downstream reuse deserves one careful paragraph.
+OpenAQ's per-location provider-license interaction with downstream reuse deserves one careful
+paragraph and a provenance ledger before its mixed-provider export can claim full compliance.
 
 **Excellent looks like.** Every export artifact names the license of what is actually in it; the
 live demo's `/sensors/` page never claims CC0 over Sensor.Community data; a test asserts the
@@ -272,6 +284,11 @@ a copyable, Datasette-openable set of files.
 
 ## FIX-10 — Strict config: `swelter doctor` and no silently-ignored safety knobs
 
+**Status: done.** `config.config_concerns()` (errors/warnings against the raw parsed doc) and the
+`swelter doctor` subcommand shipped; `serve`/`demo`/`fetch` print warnings on load; unknown
+`alert_thresholds` keys are a hard error at `doctor`/load time (ADR 0015). See
+`src/swelter/config.py`, `src/swelter/cli.py`, `tests/test_config.py`, `tests/test_cli.py`.
+
 **Pitch.** Validate `network.yaml` loudly — duplicate/empty node ids, unknown keys, and above all
 `alert_thresholds` typos that today silently revert danger floors to defaults.
 
@@ -354,6 +371,24 @@ figure names its source of truth; the gate has never cried wolf (no flaky rules)
 ---
 
 ## FIX-13 — Verifiable integrity: re-check content hashes, chain daily digests
+
+**Status: ✅ Done** (2026-07-03)
+
+Shipped as `swelter verify-archive` (`src/swelter/integrity.py`): `SqliteStore.iter_rows()`
+exposes the persisted `content_hash` alongside each reconstructed row; `verify_rows()` recomputes
+and compares it per row; `daily_digests()` groups stored hashes by UTC day (sorted, so digest
+order does not depend on write order) into one canonical SHA-256 per day, then chains days
+oldest-first (`chain = sha256(prev_chain + date + day_digest)`, seeded with the empty string) so
+a single-byte mutation anywhere in history changes every chain value after it; `write_digests()`
+publishes `digests.jsonl` in the store folder, byte-for-byte reproducible across runs (checked by
+`make demo` replay determinism). The CLI recomputes + compares, prints a human or `--json` report,
+exits nonzero on any mismatch, and only (re)writes `digests.jsonl` on a clean verify. The current
+head and last verified day ride along in `/api/health.json` under `integrity`, read cheaply from
+`digests.jsonl` (`qc.health_report`'s `store_dir` parameter) rather than re-hashed per request.
+Procedure documented in `docs/ARCHITECTURE.md`; the health field in `docs/api.md`. No signing —
+key custody stays a governance question, deferred per the pitch. Tests: `tests/test_integrity.py`
+(round-trip, tamper detection at both the library and CLI layer, digest/head determinism,
+chain-changes-on-earlier-day-edit).
 
 **Pitch.** Make the stored `content_hash` earn its keep: an integrity-verification command and a
 per-day hash chain that makes the archive tamper-*evident*, not just tamper-resistant.
