@@ -25,14 +25,24 @@ from . import (
     aggregate,
     alerts,
     calibrate,
+    cards,
     cooling_centers,
     crosswalk,
     export,
     ingest,
     ingest_server,
+    obs,
     qc,
+    snapshot,
 )
-from .config import NetworkConfig, consent_concerns, label_concerns, load_config
+from .config import (
+    NetworkConfig,
+    config_concerns,
+    consent_concerns,
+    label_concerns,
+    load_config,
+    load_config_doc,
+)
 from .models import RAW, Observation
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
@@ -89,9 +99,39 @@ def _err(message: str) -> None:
     print(message, file=sys.stderr)
 
 
+def _corrections_skipped_stale(
+    raw: list[Observation],
+    registry: calibrate.CorrectionRegistry,
+    calibrated: list[Observation],
+) -> int:
+    """Raw readings that had a registered correction available but were left raw.
+
+    Mirrors ``calibrate.apply()``'s own "leave it raw" branch (a correction is registered for
+    the node/parameter but its required co-timed predictor — e.g. humidity — was not present
+    on that reading) without duplicating that logic: it diffs the set of ``(node, ts,
+    parameter)`` keys that *could* have been corrected against the set that actually were.
+    """
+    candidates = {
+        (o.node_id, o.timestamp, o.parameter)
+        for o in raw
+        if registry.get(o.node_id, o.parameter) is not None
+    }
+    applied = {(o.node_id, o.timestamp, o.parameter) for o in calibrated}
+    return len(candidates - applied)
+
+
+def _print_concerns(errors: list[str], warnings: list[str]) -> None:
+    for message in errors:
+        _err(f"swelter: ✗ {message}")
+    for message in warnings:
+        _err(f"swelter: ⚠ {message}")
+
+
 def _load_config(path: str) -> NetworkConfig:
     if Path(path).is_file():
-        config = load_config(path)
+        config, doc = load_config_doc(path)
+        errors, warnings = config_concerns(config, doc)
+        _print_concerns(errors, warnings)
         for concern in label_concerns(config):
             _err(f"swelter: ⚠ {concern}")
         for concern in consent_concerns(config):
@@ -109,8 +149,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         _err(f"swelter: input {args.input} not found")
         return 1
     paths = store_paths(args.store)
+    manifest = obs.RunManifest()
     with open_store(args.store) as store:
         result = ingest.ingest_file(args.input, store, quarantine_path=paths["quarantine"])
+    manifest.record(
+        "ingest",
+        "payloads ingested",
+        payloads_accepted=result.accepted_payloads,
+        payloads_quarantined=result.quarantined,
+    )
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     _err(
         f"swelter: ingested {result.accepted_payloads} payloads → "
         f"{result.observations_written} new observations "
@@ -206,23 +255,42 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     _err(f"swelter: fit {len(registry)} corrections → {paths['registry']}")
     for c in registry.all():
         _err(f"  {c.version:<28} n={c.n:<4} R²={c.r2:.3f}  ±{c.residual_std} {c.parameter}")
+    manifest = obs.RunManifest()
     if not args.fit_only:
         with open_store(args.store) as store:
             raw = store.read(calibration=RAW)
             store.drop_calibrated()
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
             written = store.write(calibrated)
+        manifest.record(
+            "calibrate",
+            "corrections applied",
+            corrections_applied=written.written,
+            corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
+        )
         _err(f"swelter: applied corrections → {written.written} calibrated observations")
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     return 0
 
 
 def cmd_aggregate(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
+    paths = store_paths(args.store)
     with open_store(args.store) as store:
         surface = aggregate.aggregate(store.all(), config)
-    out = Path(args.out or store_paths(args.store)["aggregate"])
+    out = Path(args.out or paths["aggregate"])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8")
+    manifest = obs.RunManifest()
+    manifest.record(
+        "aggregate",
+        "surface built",
+        cells_built=len(surface.cells),
+        cells_provisional=sum(1 for c in surface.cells if c.provisional),
+    )
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
     _err(f"swelter: {len(surface.cells)} cell-hours → {out}")
     return 0
 
@@ -249,6 +317,33 @@ def cmd_alerts(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cards(args: argparse.Namespace) -> int:
+    """Emit print-CSS bilingual neighborhood cards — one door flyer / fridge card per published
+    cell, from the same surface + cooling-center + i18n data the dashboard and alerts feed use
+    (EXP-11). The paper channel for residents a screen or a connection doesn't reach."""
+    config = _load_config(args.config)
+    with open_store(args.store) as store:
+        surface = aggregate.aggregate(store.all(), config)
+    cooling_path = _cooling_path(args.cooling_centers)
+    dataset = cooling_centers.load(cooling_path) if cooling_path else cooling_centers.empty()
+    html = cards.render_cards(
+        surface,
+        dataset,
+        lang=args.lang,
+        area=args.area or None,
+        large_type=args.large_type,
+        feed_url=args.feed_url,
+    )
+    if args.out and args.out != "-":
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html, encoding="utf-8")
+        _err(f"swelter: wrote {len(surface.latest_by_cell())} card(s) → {out}")
+    else:
+        sys.stdout.write(html)
+    return 0
+
+
 def cmd_export(args: argparse.Namespace) -> int:
     with open_store(args.store) as store:
         observations = store.read(
@@ -257,10 +352,16 @@ def cmd_export(args: argparse.Namespace) -> int:
         raw = store.read(calibration=RAW)
     gaps = qc.detect_gaps(raw, args.interval)
     if args.format == "json":
-        sys.stdout.write(export.to_json(observations, indent=2))
+        sys.stdout.write(
+            export.to_json(
+                observations, indent=2, license=args.license, attribution=args.attribution
+            )
+        )
     else:
-        sys.stdout.write(export.to_csv(observations))
-    _err(export.summarize(observations, gaps=gaps))
+        sys.stdout.write(
+            export.to_csv(observations, license=args.license, attribution=args.attribution)
+        )
+    _err(export.summarize(observations, gaps=gaps, license=args.license))
     return 0
 
 
@@ -280,6 +381,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         web_dir=Path(args.web),
         base_url=base,
         cooling_centers_path=_cooling_path(args.cooling_centers),
+        store_dir=store_paths(args.store)["dir"],
     )
     _err(f"swelter: serving dashboard + API at {base}  (Ctrl-C to stop)")
     _err(f"  dashboard {base}/   ·   SensorThings {base}/v1.1   ·   export {base}/export.csv")
@@ -356,10 +458,17 @@ def cmd_demo(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
     paths = store_paths(args.store)
     paths["db"].unlink(missing_ok=True)  # a fresh demo store every run; replay is idempotent
+    manifest = obs.RunManifest()
 
     with SqliteStore(paths["db"]) as store:
         result = ingest.ingest_file(
             data / "observations.jsonl", store, quarantine_path=paths["quarantine"]
+        )
+        manifest.record(
+            "ingest",
+            "demo replay ingested",
+            payloads_accepted=result.accepted_payloads,
+            payloads_quarantined=result.quarantined,
         )
         _err(f"swelter demo: replayed {result.observations_seen} observations from recorded data")
 
@@ -370,11 +479,23 @@ def cmd_demo(args: argparse.Namespace) -> int:
             raw = store.read(calibration=RAW)
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
             store.write(calibrated)
+            manifest.record(
+                "calibrate",
+                "demo replay calibrated",
+                corrections_applied=len(calibrated),
+                corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
+            )
             _err(
                 f"swelter demo: fit {len(registry)} corrections, wrote {len(calibrated)} calibrated"
             )
 
         surface = aggregate.aggregate(store.all(), config)
+        manifest.record(
+            "aggregate",
+            "demo replay surface built",
+            cells_built=len(surface.cells),
+            cells_provisional=sum(1 for c in surface.cells if c.provisional),
+        )
         paths["aggregate"].write_text(
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
@@ -393,6 +514,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
 
+    manifest.finish()
+    obs.write_manifest(paths["dir"], manifest)
+
     if args.serve:
         store = open_store(args.store)
         base = f"http://{args.host}:{args.port}"
@@ -402,6 +526,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             web_dir=Path(args.web),
             base_url=base,
             cooling_centers_path=_cooling_path(args.cooling_centers),
+            store_dir=paths["dir"],
         )
         _err(f"swelter demo: serving at {base}  (Ctrl-C to stop)")
         try:
@@ -483,8 +608,8 @@ def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
 
 
 _FetchOk = tuple[
-    list[Observation], dict[str, Any], str, str
-]  # observations, network, attrib, label
+    list[Observation], dict[str, Any], str, str, str
+]  # observations, network, attribution, source label, license
 
 
 def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, Any]:
@@ -535,7 +660,7 @@ def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned from OpenAQ")
         return 1
     network = openaq.network_doc("California", nodes)
-    return observations, network, openaq.ATTRIBUTION, "OpenAQ"
+    return observations, network, openaq.ATTRIBUTION, "OpenAQ", openaq.LICENSE
 
 
 def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
@@ -556,7 +681,13 @@ def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
         return 1
     network = sensor_community.network_doc(area.name, nodes)
-    return observations, network, sensor_community.ATTRIBUTION, "Sensor.Community"
+    return (
+        observations,
+        network,
+        sensor_community.ATTRIBUTION,
+        "Sensor.Community",
+        sensor_community.LICENSE,
+    )
 
 
 def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
@@ -579,7 +710,13 @@ def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned")
         return 1
     network = openmeteo.network_doc(places)
-    return observations, network, openmeteo.ATTRIBUTION, "Copernicus CAMS via Open-Meteo"
+    return (
+        observations,
+        network,
+        openmeteo.ATTRIBUTION,
+        "Copernicus CAMS via Open-Meteo",
+        openmeteo.LICENSE,
+    )
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -600,14 +737,14 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         result = _fetch_openmeteo(args)
     if isinstance(result, int):
         return result
-    observations, network, attribution, source_label = result
+    observations, network, attribution, source_label, license = result
 
     observations = qc.apply(observations)
     config_path = Path(args.config)
     if args.accumulate:
         network = _merge_network_doc(config_path, network)
     config_path.write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
-    config = load_config(args.config)
+    config = _load_config(args.config)  # parse it back so we fail loudly if the write was bad
 
     paths = store_paths(args.store)
     if not args.accumulate:
@@ -633,7 +770,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             f"swelter: {mode} {written.written} new of {len(all_obs)} total real observations "
             f"from {len(config.nodes)} locations (source: {source_label})"
         )
-        _err(export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval)))
+        _err(
+            export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval), license=license)
+        )
 
     if args.serve:
         store = open_store(args.store)
@@ -644,6 +783,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             web_dir=Path(args.web),
             base_url=base,
             cooling_centers_path=_cooling_path(args.cooling_centers),
+            store_dir=paths["dir"],
         )
         _err(f"swelter: serving REAL data ({source_label}) at {base}  (Ctrl-C to stop)")
         try:
@@ -674,6 +814,24 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_snapshot(args: argparse.Namespace) -> int:
+    """Freeze a citable, versioned data release: raw observations + corrections + surface, a
+    MANIFEST.json with per-file SHA-256, and a dataset CITATION.cff/CITATION.txt pair. Local
+    artifacts only — no external DOI service; pass --doi once a collective has minted one."""
+    manifest = snapshot.build_snapshot(
+        Path(args.store), Path(args.out), args.version, args.doi or None
+    )
+    citation_text = (Path(args.out) / snapshot.CITATION_TXT_FILENAME).read_text(encoding="utf-8")
+    _err(
+        f"swelter: snapshot {manifest.release_version} → {args.out} "
+        f"({manifest.record_count} raw observations, {len(manifest.files)} file(s))"
+    )
+    for note in manifest.notes:
+        _err(f"  ⚠ {note}")
+    print(citation_text.strip())
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     """Scaffold a starter network.yaml so a community can stand up its own instance fast."""
     path = Path(args.config)
@@ -689,6 +847,32 @@ def cmd_init(args: argparse.Namespace) -> int:
     _err("      swelter demo --serve")
     _err(f"      …or run the pipeline against your own config with --config {path}")
     return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Validate a network.yaml loudly: report every mistake in one pass, exit nonzero on errors.
+
+    Unlike the other subcommands (which load a config and keep going so a typo does not take down
+    a running network), `doctor` is the strict gate — the thing to run before committing a
+    `network.yaml` change, and the thing CI can run on a PR. It reuses the same checks
+    (`config_concerns`, `label_concerns`) the other subcommands print warnings from on load.
+    """
+    path = Path(args.config)
+    if not path.is_file():
+        _err(f"swelter: config {path} not found")
+        return 1
+    config, doc = load_config_doc(str(path))
+    errors, warnings = config_concerns(config, doc)
+    warnings = [*warnings, *label_concerns(config)]
+    if not errors and not warnings:
+        _err(f"swelter: {path} — clean ({len(config.nodes)} nodes, no concerns)")
+        return 0
+    _print_concerns(errors, warnings)
+    _err(
+        f"swelter: {path} — {len(errors)} error(s), {len(warnings)} warning(s)"
+        + (" — fix the errors above before deploying" if errors else "")
+    )
+    return 1 if errors else 0
 
 
 def cmd_version(_: argparse.Namespace) -> int:
@@ -775,6 +959,28 @@ def build_parser() -> argparse.ArgumentParser:
     add_config(p_agg)
     p_agg.set_defaults(func=cmd_aggregate)
 
+    p_cards = sub.add_parser(
+        "cards",
+        help="emit print-CSS bilingual neighborhood cards (door flyers / fridge cards) per cell",
+    )
+    p_cards.add_argument(
+        "--area", default="", help="limit to one published cell (area_id, as in alerts ?area=)"
+    )
+    p_cards.add_argument("--lang", choices=("en", "es"), default="en", help="card language")
+    p_cards.add_argument(
+        "--large-type", action="store_true", help="larger base font size for low-vision printing"
+    )
+    p_cards.add_argument("--out", default="", help="HTML output path (default: stdout)")
+    p_cards.add_argument(
+        "--feed-url",
+        default="",
+        help="base alerts-feed URL to encode as each card's QR (?area=<cell> is added per cell)",
+    )
+    add_store(p_cards)
+    add_config(p_cards)
+    add_cooling(p_cards)
+    p_cards.set_defaults(func=cmd_cards)
+
     p_alerts = sub.add_parser(
         "alerts", help="build the neighborhood heat/AQI alerts feed (JSON + Atom)"
     )
@@ -796,6 +1002,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--node", default=None)
     p_exp.add_argument("--parameter", default=None)
     p_exp.add_argument("--bbox", default=None, help="named area (reserved; see docs/api.md)")
+    p_exp.add_argument(
+        "--license",
+        default=export.DEFAULT_LICENSE,
+        help="license of the exported data (default: CC0-1.0, the store's native default; "
+        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+    )
+    p_exp.add_argument(
+        "--attribution", default=None, help="attribution text to carry alongside --license"
+    )
     add_store(p_exp)
     add_interval(p_exp)
     p_exp.set_defaults(func=cmd_export)
@@ -895,6 +1110,29 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_rebuild)
     add_config(p_rebuild)
     p_rebuild.set_defaults(func=cmd_rebuild)
+
+    p_doctor = sub.add_parser(
+        "doctor", help="validate network.yaml loudly; exit nonzero on any error"
+    )
+    add_config(p_doctor)
+    p_doctor.set_defaults(func=cmd_doctor)
+
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="freeze a citable, versioned data release (MANIFEST + dataset CITATION.cff/.txt)",
+    )
+    add_store(p_snap)
+    p_snap.add_argument("--out", default="dist/snapshot", help="directory to write the release to")
+    p_snap.add_argument(
+        "--version", default=__version__, help="release version (defaults to the swelter version)"
+    )
+    p_snap.add_argument(
+        "--doi",
+        default="",
+        help="DOI for this release, if one has been minted (e.g. via Zenodo/DataCite); "
+        "omit for a clearly-labelled placeholder",
+    )
+    p_snap.set_defaults(func=cmd_snapshot)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)

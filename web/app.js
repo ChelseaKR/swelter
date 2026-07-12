@@ -517,7 +517,7 @@ function renderDownload(row) {
 // PNG instead — the reading, the measurement + hour, the "hourly mean, not 24-hour average"
 // window caveat, and (when the cell is unconfirmed) a visible provisional band — all rendered as
 // canvas pixels, so the context travels with the image no matter how it's cropped or shared
-// (ADR 0014). It reuses the same reading text the list/detail view already shows (`describe`), so
+// (ADR 0016). It reuses the same reading text the list/detail view already shows (`describe`), so
 // the exported number always matches the screen.
 
 const SHARE_CARD_WIDTH = 1000;

@@ -1,4 +1,4 @@
-# ADR 0014: Bake the provisional label and hourly-window caveat into share-card pixels, not overlaid HTML
+# ADR 0016: Bake the provisional label and hourly-window caveat into share-card pixels, not overlaid HTML
 
 Date: 2026-07-02. Status: accepted.
 
