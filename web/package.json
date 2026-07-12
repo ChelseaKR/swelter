@@ -1,0 +1,17 @@
+{
+  "name": "swelter-dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Dev-only test tooling for the framework-free web/app.js dashboard (FIX-07). Not a runtime dependency of swelter — the dashboard itself ships zero JS dependencies.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

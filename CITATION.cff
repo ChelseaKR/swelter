@@ -21,6 +21,13 @@ authors:
     alias: "ChelseaKR"
 version: "0.1.0"
 date-released: "2026-06-16"
+# doi: 10.5281/zenodo.XXXXXXX
+#   No DOI exists yet. Minting one is an owner UI action, not something a PR can do:
+#   enable the Zenodo GitHub webhook for ChelseaKR/swelter at zenodo.org, then publish
+#   a tagged GitHub release. Zenodo archives the release and mints the DOI; put the
+#   concept DOI here (uncomment the line above) in a follow-up commit. The release
+#   metadata Zenodo uses comes from `.zenodo.json` (which mirrors this file and takes
+#   precedence over it when both exist). Steps: docs/citability.md.
 license: "Apache-2.0"
 repository-code: "https://github.com/ChelseaKR/swelter"
 url: "https://github.com/ChelseaKR/swelter"

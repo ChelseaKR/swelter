@@ -29,9 +29,18 @@ _CSV_FIELDS = (
     "qc",
     "uncertainty",
     "trustworthy",
+    "data_license",
+    "data_attribution",
 )
 
 DATA_LICENSE_LINE = "CC0-1.0 (observations) · see DATA-LICENSE"
+
+#: The store itself is source-agnostic (native network observations are CC0), so this is the
+#: default when a caller doesn't say otherwise. A fetched third-party source (OpenAQ's
+#: provider-specific terms; Sensor.Community's ODC-DbCL-1.0; Open-Meteo's CC BY 4.0) keeps its own
+#: terms and must pass them explicitly at export time — see the ``LICENSE`` constants in
+#: ``sources/*.py``.
+DEFAULT_LICENSE = "CC0-1.0"
 
 # Characters that make a spreadsheet treat a cell as a formula. node_id is self-reported by
 # untrusted field devices, so a CSV cell starting with one of these is neutralised on export.
@@ -65,20 +74,39 @@ def to_records(observations: Iterable[Observation]) -> list[dict[str, object]]:
     ]
 
 
-def to_csv(observations: Iterable[Observation]) -> str:
+def to_csv(
+    observations: Iterable[Observation],
+    *,
+    license: str = DEFAULT_LICENSE,
+    attribution: str | None = None,
+) -> str:
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=_CSV_FIELDS)
     writer.writeheader()
     for record in to_records(observations):
-        writer.writerow({key: _csv_safe(value) for key, value in record.items()})
+        row = {
+            **record,
+            # Keep provenance in-band without inventing non-standard comment lines before the
+            # header. Repeating it per row makes an extracted subset self-describing and leaves
+            # the result readable by ordinary csv.DictReader/pandas consumers.
+            "data_license": license,
+            "data_attribution": attribution or "",
+        }
+        writer.writerow({key: _csv_safe(value) for key, value in row.items()})
     return buffer.getvalue()
 
 
-def to_json(observations: Iterable[Observation], *, indent: int | None = None) -> str:
-    payload = {
-        "license": "CC0-1.0",
-        "observations": to_records(observations),
-    }
+def to_json(
+    observations: Iterable[Observation],
+    *,
+    indent: int | None = None,
+    license: str = DEFAULT_LICENSE,
+    attribution: str | None = None,
+) -> str:
+    payload: dict[str, object] = {"license": license}
+    if attribution:
+        payload["attribution"] = attribution
+    payload["observations"] = to_records(observations)
     return json.dumps(payload, indent=indent, allow_nan=False)
 
 
@@ -91,6 +119,7 @@ def summarize(
     *,
     gaps: Sequence[Gap] = (),
     registry: CorrectionRegistry | None = None,
+    license: str = DEFAULT_LICENSE,
 ) -> str:
     """Build the multi-line export banner the README shows, from real counts."""
     total = len(observations)
@@ -119,7 +148,10 @@ def summarize(
         longest = gaps[0]
         gap_note = f", longest gap {round(longest.seconds / 60)} min ({longest.node_id} offline)"
     lines.append(f"         coverage: {coverage}{gap_note}")
-    lines.append(f"         data license: {DATA_LICENSE_LINE}")
+    # The richer native-store line only applies to the CC0 default (it names DATA-LICENSE, which
+    # exists for the repo's own observations); a fetched third-party license stands on its own.
+    license_line = DATA_LICENSE_LINE if license == DEFAULT_LICENSE else license
+    lines.append(f"         data license: {license_line}")
     return "\n".join(lines)
 
 

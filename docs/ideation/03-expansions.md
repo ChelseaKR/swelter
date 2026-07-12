@@ -61,6 +61,14 @@ worked example.
 
 ### EXP-03 — Sensor-model-aware calibration families
 
+**Status.** ✅ Implemented 2026-07-03 (branch `roadmap/exp-03-sensor-model-aware-calibration-fa`) —
+`NodeConfig.sensor_model` (rejects serial-number-like values, hard rule #1); `calibrate._MODEL_PREDICTORS`/
+`_MODEL_METHOD` keyed by (parameter, model) with fallback to parameter, then default; `Correction.model`
+serialized only when non-empty (demo registry rebuilds byte-for-byte); `sensor_community.py` now maps
+its known sensor type onto `sensor_model` instead of discarding it; per-model bias section in
+`docs/calibration.md` states plainly that a model-typical prior is never calibration and never promotes
+a node past provisional. See `docs/decisions/0017-sensor-model-calibration-families.md`.
+
 **Pitch.** Teach the pipeline what hardware produced a reading: an optional, public-safe
 `sensor_model` in `network.yaml` nodes, and per-model correction lineages (PMS5003 vs SDS011 vs
 SPS30 have different humidity responses).
@@ -105,6 +113,17 @@ is the guard); Datasette-Lite (WASM) linkage is a nice-to-have, keep optional.
 workflow contains no logic that isn't also a tested CLI path.
 
 ### EXP-05 — The steward console: calibration age, service queue, co-location planner
+
+**Status: done.** `swelter status --plan` (`--json` optional) ships in `src/swelter/steward.py` —
+a pure, import-only `plan()` composing `qc.health_report`, `qc.coverage_equity`, and the
+correction registry's window ages (FIX-03) into one ranked, evidence-cited `Action` list: offline
+nodes rank above degraded nodes above expired-vs-expiring corrections above coverage gaps, and
+coverage gaps are ordered strictly by ascending `calibrated_nodes` (never by neighborhood
+characteristics — the `coverage_equity` note travels verbatim into each action's evidence). The
+CLI (`cli.cmd_status`) prints the plan plain-language to stderr or as JSON, and always closes with
+"The tool proposes; the collective disposes" (audit B4/B5). `web/steward.html` was scoped out of
+this pass per the spec's own "optionally" — the CLI report is the core deliverable. See
+`tests/test_steward.py` and `roadmap/exp-05-steward-console-calibration-age-s`.
 
 **Pitch.** One operator surface (static page or rich CLI report) that turns existing signals —
 `qc.health_report`, coverage-equity, FIX-03 correction ages, QC flag rates — into a prioritized
@@ -177,7 +196,13 @@ between "context" and "implied ranking" is the whole design problem here. Data l
 **Excellent.** A resident can toggle canopy context and the UI never says or implies "this
 neighborhood scores worse"; the overlay module rejects any dataset field outside its allowlist.
 
-### EXP-08 — Siting what-if: coverage simulation for governance decisions
+### EXP-08 — Siting what-if: coverage simulation for governance decisions — **Done**
+
+> Implemented: `simulate_add_node()` in `src/swelter/plan.py` (pure function over
+> `NetworkConfig` + `snap_to_grid`) and `swelter plan --add-node lat,lon` (text + `--json`) in
+> `src/swelter/cli.py`. `ReferenceMonitor` gained optional `lat`/`lon` (additive, back-compatible)
+> so distance-to-reference is reported when a network's `network.yaml` carries monitor
+> coordinates, with an explicit note when it doesn't. Tests: `tests/test_plan.py`.
 
 **Pitch.** `swelter plan --add-node lat,lon` — show what a candidate node or co-location slot does
 to coverage (new cells, redundancy, distance-to-reference) before hardware moves.
@@ -242,6 +267,12 @@ catalog. Statistical claims stay descriptive (counts, hours) — no health-outco
 traceable to the archive digest; the "what we could not see" section is never empty-by-omission.
 
 ### EXP-11 — Low-tech distribution: printable neighborhood cards from the feed
+
+**Status: Implemented.** `swelter cards` (`src/swelter/cards.py`, `src/swelter/qr.py`) ships this —
+one print-CSS bilingual card per published cell, composing the aggregated surface, the
+cooling-center overlay, and the committed R1/i18n guidance strings, with a per-cell feed QR
+(`?area=<cell_id>`, the same query the alerts feed accepts) and a `--large-type` variant. See
+`tests/test_cards.py` and `tests/test_qr.py`.
 
 **Pitch.** Auto-generate print artifacts — a door flyer / fridge card per neighborhood cell with
 current-week readings, what they mean, the cooling-center nearest, and the feed QR — bilingual,

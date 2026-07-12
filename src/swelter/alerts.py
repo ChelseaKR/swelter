@@ -204,6 +204,14 @@ class AlertFeed:
 
 
 def _resolve_thresholds(overrides: Mapping[str, float] | None) -> dict[str, float]:
+    """Merge network-level `alert_thresholds` overrides onto the public-health defaults.
+
+    Unknown keys are ignored here on purpose — a build must never crash mid-pipeline on a typo.
+    But an ignored key is a silent safety failure (a host who typos ``heat_index_c`` as
+    ``heat_index`` believes they lowered the danger floor and did not), so that same mistake is a
+    **hard error** at load time: see ``config.config_concerns`` and ``swelter doctor``, which check
+    every ``alert_thresholds`` key against ``DEFAULT_THRESHOLDS`` before a build ever gets here.
+    """
     merged = dict(DEFAULT_THRESHOLDS)
     if overrides:
         for key, value in overrides.items():
