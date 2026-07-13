@@ -63,7 +63,18 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => cached);
+        // Same rule as the API branch above: an asset that is neither cached (not in SHELL, or
+        // never visited before going offline) nor reachable over the network must still resolve
+        // to a defined Response, not `undefined` — respondWith(undefined) surfaces a raw browser
+        // error instead of a graceful offline message.
+        .catch(
+          () =>
+            cached ||
+            new Response("Offline — this asset isn't cached yet.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain" },
+            }),
+        );
       return cached || fetched;
     }),
   );

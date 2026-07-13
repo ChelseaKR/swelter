@@ -101,7 +101,17 @@ _RS_BLOCKS: dict[int, list[tuple[int, int, int]]] = {
     7: [(4, 49, 31)],
     8: [(2, 60, 38), (2, 61, 39)],
     9: [(3, 58, 36), (2, 59, 37)],
-    10: [(2, 68 + 18, 68), (2, 69 + 18, 69)],
+    # Was (2, 68+18, 68), (2, 69+18, 69) — that is version 10's *Level-L* block structure (274
+    # data codewords; matches the 271-byte capacity `_choose_version` used to allow). `_format_bits`
+    # hard-codes the EC-level indicator to level M for every symbol this module emits, so a real
+    # decoder trusts the format info, reads "level M", and de-interleaves using level-M block
+    # boundaries — which never matched the level-L split actually used here, corrupting every
+    # version-10 code regardless of mask (verified: all 8 mask patterns failed to decode against
+    # an independent decoder before this fix; capacity/self-consistency checks never caught it
+    # because encode and this module's own tests both derived from the same wrong table). The
+    # correct level-M structure is 4 blocks of 43 data codewords + 1 block of 44 (216 data
+    # codewords total, 213-byte capacity — the publicly documented version-10-M figure).
+    10: [(4, 69, 43), (1, 70, 44)],
 }
 
 #: Alignment-pattern center coordinates per version (empty for version 1, which has none).
