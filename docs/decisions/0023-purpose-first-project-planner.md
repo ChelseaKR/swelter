@@ -1,4 +1,4 @@
-# ADR 0014: Decide whether evidence requires sensors before planning hardware
+# ADR 0023: Decide whether evidence requires sensors before planning hardware
 
 Date: 2026-07-09. Status: accepted.
 

@@ -170,3 +170,10 @@ def test_planner_has_no_answer_storage_or_network_submission() -> None:
     assert "forced-colors" in css
     assert "focus-visible" in css
     assert "@media print" in css
+
+
+def test_copy_fallback_reports_failure_instead_of_claiming_success() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'copied = document.execCommand("copy") === true' in script
+    assert "Copy failed. Select the plan text and copy it manually" in script

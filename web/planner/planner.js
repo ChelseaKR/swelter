@@ -166,8 +166,10 @@
 
   async function copyPlan() {
     if (!currentPlan) return;
+    let copied = false;
     try {
       await navigator.clipboard.writeText(currentPlan);
+      copied = true;
     } catch (_clipboardError) {
       const transfer = document.createElement("textarea");
       transfer.value = currentPlan;
@@ -176,10 +178,17 @@
       transfer.style.opacity = "0";
       document.body.append(transfer);
       transfer.select();
-      document.execCommand("copy");
-      transfer.remove();
+      try {
+        copied = document.execCommand("copy") === true;
+      } catch (_legacyCopyError) {
+        copied = false;
+      } finally {
+        transfer.remove();
+      }
     }
-    copyStatus.textContent = "Plan copied. Nothing was sent or saved.";
+    copyStatus.textContent = copied
+      ? "Plan copied. Nothing was sent or saved."
+      : "Copy failed. Select the plan text and copy it manually; nothing was sent or saved.";
   }
 
   copyButton?.addEventListener("click", copyPlan);
