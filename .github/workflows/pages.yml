@@ -119,7 +119,10 @@ jobs:
           rm -f web/sensors/cooling-centers.geojson  # the sample centers are Sacramento, not Stuttgart
           # --cooling-centers points at a path that doesn't exist so the sensors page won't re-bake them.
           SC_LICENSE="ODC-DbCL-1.0"
-          SC_ATTRIBUTION="Real readings from the Sensor.Community network of community low-cost sensors (sensor.community, ODC-DbCL-1.0; terms: opendatacommons.org/licenses/dbcl/1-0) — uncalibrated, so shown raw / provisional."
+          # Keep this byte-for-byte aligned with sensor_community.ATTRIBUTION: the contract is
+          # built from fetch output before publish rewrites the same surface, so attribution drift
+          # would make build_input_attribution disagree with the shipped sample-surface.json.
+          SC_ATTRIBUTION="Real readings from the Sensor.Community network of community low-cost sensors (sensor.community, ODC-DbCL-1.0) — uncalibrated, so shown raw / provisional."
           if uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
               --web web/sensors --cooling-centers /dev/null/none --accumulate; then
             uv run python scripts/build_demo_contract.py --source sensor-community \

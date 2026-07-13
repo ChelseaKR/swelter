@@ -11,6 +11,8 @@ from typing import Any, cast
 
 import pytest
 
+from swelter.sources import openaq, openmeteo, sensor_community
+
 from .conftest import ROOT
 
 SCRIPT = ROOT / "scripts" / "build_demo_contract.py"
@@ -174,6 +176,12 @@ def test_pages_build_records_each_fallback_winner() -> None:
     assert workflow.count('build_demo_contract.py --source "$primary_source"') == 2
     assert "build_demo_contract.py --source sensor-community" in workflow
     assert "--fallback-for sensor-community" in workflow
+    # The contract is built from fetch output immediately before publish rebuilds the surface.
+    # These duplicated shell values must therefore stay identical to the adapters' attribution;
+    # otherwise demo.json would describe a different input from the shipped sample surface.
+    assert openaq.ATTRIBUTION in workflow
+    assert openmeteo.ATTRIBUTION in workflow
+    assert sensor_community.ATTRIBUTION in workflow
 
 
 def test_static_runtime_uses_baked_files_without_api_probes() -> None:
