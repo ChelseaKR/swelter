@@ -9,9 +9,24 @@
   const result = document.querySelector("#result");
   const copyButton = document.querySelector("#copy-plan");
   const printButton = document.querySelector("#print-plan");
+  const manualCopyPanel = document.querySelector("#manual-copy-panel");
+  const manualCopyField = document.querySelector("#manual-copy");
   const copyStatus = document.querySelector("#copy-status");
 
-  if (!form || !modelNode || !progress || !error || !empty || !result) return;
+  if (
+    !form ||
+    !modelNode ||
+    !progress ||
+    !error ||
+    !empty ||
+    !result ||
+    !copyButton ||
+    !printButton ||
+    !manualCopyPanel ||
+    !manualCopyField ||
+    !copyStatus
+  )
+    return;
 
   const fieldLabels = {
     goal: "Decision",
@@ -24,6 +39,18 @@
 
   let model;
   let currentPlan = "";
+
+  function clearManualCopy() {
+    manualCopyField.value = "";
+    manualCopyPanel.hidden = true;
+  }
+
+  function selectManualCopy() {
+    manualCopyField.value = currentPlan;
+    manualCopyPanel.hidden = false;
+    manualCopyField.focus();
+    manualCopyField.select();
+  }
 
   try {
     model = JSON.parse(modelNode.textContent);
@@ -120,6 +147,7 @@
     replaceList("#result-red-lines", recommendation.red_lines);
     buildAnswerRecord();
     currentPlan = planAsText(recommendation);
+    clearManualCopy();
     copyStatus.textContent = "";
     empty.hidden = true;
     result.hidden = false;
@@ -146,6 +174,7 @@
       result.hidden = true;
       empty.hidden = false;
       currentPlan = "";
+      clearManualCopy();
       copyStatus.textContent = "";
     }, 0);
   });
@@ -171,27 +200,24 @@
       await navigator.clipboard.writeText(currentPlan);
       copied = true;
     } catch (_clipboardError) {
-      const transfer = document.createElement("textarea");
-      transfer.value = currentPlan;
-      transfer.setAttribute("aria-hidden", "true");
-      transfer.style.position = "fixed";
-      transfer.style.opacity = "0";
-      document.body.append(transfer);
-      transfer.select();
+      selectManualCopy();
       try {
         copied = document.execCommand("copy") === true;
       } catch (_legacyCopyError) {
         copied = false;
-      } finally {
-        transfer.remove();
       }
     }
-    copyStatus.textContent = copied
-      ? "Plan copied. Nothing was sent or saved."
-      : "Copy failed. Select the plan text and copy it manually; nothing was sent or saved.";
+    if (copied) {
+      clearManualCopy();
+      copyButton.focus();
+      copyStatus.textContent = "Plan copied. Nothing was sent or saved.";
+    } else {
+      copyStatus.textContent =
+        "Automatic copy failed. The full plan is selected below; press Ctrl+C or Command+C. Nothing was sent or saved.";
+    }
   }
 
-  copyButton?.addEventListener("click", copyPlan);
-  printButton?.addEventListener("click", () => window.print());
+  copyButton.addEventListener("click", copyPlan);
+  printButton.addEventListener("click", () => window.print());
   updateProgress();
 })();

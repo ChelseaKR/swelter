@@ -40,6 +40,7 @@ a {
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 summary:focus-visible,
 [tabindex="-1"]:focus-visible {
   outline: 4px solid var(--focus);
@@ -169,17 +170,8 @@ h1 {
   background: #ffffff;
   color: #081c2c;
   border: 0.18rem solid var(--ink);
+  border-top: 0.55rem solid var(--water);
   box-shadow: 0.65rem 0.65rem 0 var(--ink);
-}
-
-.privacy-docket::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 0.55rem;
-  background: var(--water);
-  content: "";
 }
 
 .docket-number {
@@ -187,7 +179,7 @@ h1 {
   top: 0.7rem;
   right: 1.1rem;
   margin: 0;
-  color: #526b76;
+  color: #17394d;
   font-family: var(--mono);
   font-size: 2rem;
   font-weight: 900;
@@ -387,16 +379,7 @@ h1 {
   color: #ffffff;
 }
 
-.button-primary > span {
-  background: #081c2c;
-  color: #ffffff;
-}
-
 .button-primary:hover {
-  background: var(--water);
-}
-
-.button-primary:hover > span {
   background: var(--water);
 }
 
@@ -554,6 +537,31 @@ h1 {
   border-color: var(--white);
   background: transparent;
   color: var(--white);
+}
+
+.manual-copy {
+  margin-top: 1rem;
+}
+
+.manual-copy label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--signal);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.manual-copy textarea {
+  display: block;
+  width: 100%;
+  min-height: 11rem;
+  padding: 0.75rem;
+  resize: vertical;
+  background: var(--white);
+  border: 2px solid var(--signal);
+  color: var(--ink);
+  font: 0.82rem/1.45 var(--mono);
 }
 
 .copy-status {
@@ -752,6 +760,7 @@ footer p {
   footer,
   .result-empty,
   .result-actions,
+  .manual-copy,
   .copy-status {
     display: none !important;
   }

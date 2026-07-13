@@ -160,6 +160,58 @@ def test_safety_gates_override_sensor_enthusiasm() -> None:
     assert _recommend(model, raw)["decision"] == "DO NOT EXPAND"
 
 
+def test_every_urgent_decision_uses_public_evidence_without_delay() -> None:
+    page = _page()
+    model = page.model
+    fields = model["required"]
+    domains = [page.radios[field] for field in fields]
+
+    for values in itertools.product(*domains):
+        answers = dict(zip(fields, values, strict=True))
+        if answers["goal"] == "act_now" or answers["timeline"] == "days":
+            outcome = _recommend(model, answers)
+            assert outcome["decision"] == "DO NOT DEPLOY FOR THIS DECISION"
+            assert (
+                "Do not delay protective action while waiting for a new sensor."
+                in outcome["red_lines"]
+            )
+
+
+def test_network_operation_requires_every_readiness_gate() -> None:
+    page = _page()
+    model = page.model
+    fields = model["required"]
+    domains = [page.radios[field] for field in fields]
+
+    for values in itertools.product(*domains):
+        answers = dict(zip(fields, values, strict=True))
+        outcome = _recommend(model, answers)
+        if outcome["decision"] == "OPERATE IN STAGES":
+            assert answers["goal"] != "act_now"
+            assert answers["timeline"] != "days"
+            assert answers["evidence"] == "calibrated_sensors"
+            assert answers["stewardship"] == "team"
+            assert answers["governance"] == "policy_approved"
+            assert answers["calibration"] == "reference_ready"
+
+
+def test_nonurgent_missing_governance_or_stewardship_stays_paused() -> None:
+    model = _page().model
+    ready = {
+        "goal": "intervention",
+        "evidence": "calibrated_sensors",
+        "timeline": "months",
+        "stewardship": "team",
+        "governance": "policy_approved",
+        "calibration": "reference_ready",
+    }
+
+    assert _recommend(model, {**ready, "governance": "not_discussed"})["decision"] == (
+        "DO NOT DEPLOY"
+    )
+    assert _recommend(model, {**ready, "stewardship": "none"})["decision"] == ("DO NOT DEPLOY")
+
+
 def test_planner_has_no_answer_storage_or_network_submission() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
     css = STYLES.read_text(encoding="utf-8")
@@ -172,8 +224,14 @@ def test_planner_has_no_answer_storage_or_network_submission() -> None:
     assert "@media print" in css
 
 
-def test_copy_fallback_reports_failure_instead_of_claiming_success() -> None:
+def test_copy_fallback_leaves_an_operable_selected_plan_on_failure() -> None:
+    page = _page()
     script = SCRIPT.read_text(encoding="utf-8")
 
+    assert {"manual-copy-panel", "manual-copy"} <= page.ids
+    assert 'document.createElement("textarea")' not in script
+    assert "manualCopyField.focus();" in script
+    assert "manualCopyField.select();" in script
     assert 'copied = document.execCommand("copy") === true' in script
-    assert "Copy failed. Select the plan text and copy it manually" in script
+    assert "Automatic copy failed. The full plan is selected below" in script
+    assert "copyButton.focus();" in script
