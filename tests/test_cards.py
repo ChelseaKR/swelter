@@ -4,6 +4,7 @@ catalogs, like every other swelter surface."""
 
 from __future__ import annotations
 
+from html.parser import HTMLParser
 from pathlib import Path
 
 from swelter import aggregate, cards
@@ -18,6 +19,18 @@ _NODE = NodeConfig(
     node_id="node-01", label="Oak & 4th", lat=38.5816, lon=-121.4944, location="precise"
 )
 _CONFIG = NetworkConfig(grid_resolution_m=150.0, nodes=(_NODE,))
+
+
+class _LinkCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hrefs: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "a":
+            self.hrefs.extend(
+                value for name, value in attrs if name == "href" and value is not None
+            )
 
 
 def _surface(*obs: object) -> aggregate.Surface:
@@ -69,6 +82,20 @@ def test_no_feed_url_omits_the_qr_block() -> None:
     surface = _surface(make_obs(parameter="temp_c", value=25.0, calibration="v1"))
     html = cards.render_cards(surface, empty(), feed_url="")
     assert "<svg" not in html
+
+
+def test_a_feed_url_too_long_for_the_qr_encoder_degrades_to_link_only() -> None:
+    # A verbose --feed-url (or a long cell_id folded into ?area=) can push the per-cell URL past
+    # what qr.qr_svg can encode; the page must still render — just without that cell's QR image —
+    # rather than let one long URL take down the whole cards run (cards.py:_render_qr).
+    surface = _surface(make_obs(parameter="temp_c", value=25.0, calibration="v1"))
+    long_feed_url = "https://example.org/" + "a" * 300 + "/api/alerts.xml"
+    html = cards.render_cards(surface, empty(), feed_url=long_feed_url)
+    assert "<svg" not in html  # QR omitted for the too-long URL …
+    links = _LinkCollector()
+    links.feed(html)
+    expected = cards._feed_url_for_cell(long_feed_url, surface.cells[0].cell_id)
+    assert links.hrefs == [expected]  # … but the complete, correctly scoped text link still renders
 
 
 def test_nearest_cooling_center_is_selected_over_a_farther_one() -> None:

@@ -59,9 +59,19 @@ def _store_version(store: Store) -> object:
     The store is append-only for raw rows, but ``drop_calibrated()`` (the rebuild path) deletes
     and rewrites derived rows *without changing the row count* — so the version key must include
     a change counter, not just ``count()``, or a rebuild would serve a stale cached surface.
+
+    SQLite exposes two complementary change counters. ``connection_change_count()`` catches
+    same-connection rewrites, but not work committed by another process. ``data_version()``
+    catches those cross-connection commits, but SQLite deliberately leaves it unchanged for this
+    connection's own writes. The fingerprint therefore needs both counters as well as the count.
     """
     if isinstance(store, SqliteStore):
-        return ("sqlite", store.count(), store._total_changes())
+        return (
+            "sqlite",
+            store.count(),
+            store.connection_change_count(),
+            store.data_version(),
+        )
     path = getattr(store, "path", None)
     if path is not None:
         candidate = Path(path)

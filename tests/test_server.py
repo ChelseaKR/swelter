@@ -277,8 +277,8 @@ def test_etag_mismatch_returns_full_body(server: _Server) -> None:
 
 
 def test_surface_cache_invalidates_after_store_write(server: _Server) -> None:
-    # total_changes bumps on a write without the row *count* necessarily telling the same
-    # story on its own — the version key must react to a write, not just to row count.
+    # connection_change_count() bumps on a write without the row *count* necessarily telling the
+    # same story on its own — the version key must react to a write, not just to row count.
     _, first_body = _get(f"{server.url}/api/surface.geojson")
     first = json.loads(first_body)
 
@@ -304,15 +304,42 @@ def test_surface_cache_invalidates_after_rebuild_with_unchanged_row_count(
     server: _Server,
 ) -> None:
     # drop_calibrated() deletes and (via re-ingest) rewrites derived rows without necessarily
-    # changing the row count, so the version key must key off total_changes, not count() alone.
+    # changing the row count. This same connection's change counter must invalidate the cache;
+    # SQLite's data_version deliberately does not move for a connection's own writes.
     _, first_body = _get(f"{server.url}/api/surface.geojson")
-    json.loads(first_body)  # warms the cache
+    first = json.loads(first_body)  # warms the cache
 
     count_before = server.db.count()
     server.db.drop_calibrated()
     server.db.write([make_obs(parameter="pm25_ugm3", unit="ug/m3", value=42.0, calibration="v1")])
-    assert server.db.count() == count_before  # row count unchanged; total_changes still moved
+    assert server.db.count() == count_before  # row count unchanged; own change count still moved
 
     _, second_body = _get(f"{server.url}/api/surface.geojson")
     second = json.loads(second_body)
-    assert second["features"], "the surface must reflect the rebuilt data, not a stale cache"
+    assert second != first
+    assert second["features"][0]["properties"]["pm25_ugm3"] == 42.0
+
+
+def test_surface_cache_invalidates_after_out_of_process_rebuild(server: _Server) -> None:
+    # The realistic case: `swelter rebuild` runs as a *separate* process/connection against the
+    # same store file while `swelter serve` keeps its own long-lived connection open. A rebuild
+    # that leaves the row count unchanged must still invalidate the server's cached surface — the
+    # version key can't rely on this connection's own change count, which never sees writes made
+    # through a different connection (see swelter.server._store_version).
+    _, first_body = _get(f"{server.url}/api/surface.geojson")
+    json.loads(first_body)  # warms the cache
+
+    other = SqliteStore(server.db.path)
+    try:
+        count_before = server.db.count()
+        other.drop_calibrated()
+        other.write([make_obs(parameter="pm25_ugm3", unit="ug/m3", value=77.0, calibration="v2")])
+        assert server.db.count() == count_before  # row count unchanged from this connection's view
+    finally:
+        other.close()
+
+    _, second_body = _get(f"{server.url}/api/surface.geojson")
+    second = json.loads(second_body)
+    assert second["features"], "an out-of-process rebuild must not be served from a stale cache"
+    assert second != json.loads(first_body)
+    assert second["features"][0]["properties"]["pm25_ugm3"] == 77.0

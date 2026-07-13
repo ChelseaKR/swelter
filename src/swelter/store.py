@@ -206,6 +206,25 @@ class SqliteStore:
         cur = self._conn.execute("SELECT COUNT(*) AS n FROM observations")
         return int(cur.fetchone()["n"])
 
+    def data_version(self) -> int:
+        """SQLite's cross-connection change counter for this database file.
+
+        Unlike ``connection_change_count()`` (this connection's own write count, silent about
+        writes made by any other connection), ``PRAGMA data_version`` bumps whenever another
+        connection commits a change to the file — including a same-row-count rewrite. It does
+        not bump for writes made by this connection, so cache fingerprints need both counters.
+        """
+        return int(self._conn.execute("PRAGMA data_version").fetchone()[0])
+
+    def connection_change_count(self) -> int:
+        """Number of rows changed by statements run through this connection.
+
+        SQLite's ``total_changes`` catches same-connection rewrites that leave ``count()``
+        unchanged. It complements, rather than replaces, ``data_version()`` because it cannot
+        see writes committed through another connection.
+        """
+        return int(self._conn.total_changes)
+
     def drop_calibrated(self) -> int:
         """Remove all derived (non-raw) rows, leaving the immutable raw log. For rebuild."""
         before = self._total_changes()
@@ -217,7 +236,7 @@ class SqliteStore:
         self._conn.close()
 
     def _total_changes(self) -> int:
-        return int(self._conn.total_changes)
+        return self.connection_change_count()
 
     def __enter__(self) -> SqliteStore:
         return self
