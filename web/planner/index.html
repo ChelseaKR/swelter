@@ -188,7 +188,7 @@
           <p id="form-error" class="form-error" role="alert" tabindex="-1" hidden></p>
           <div class="form-actions">
             <button class="button button-secondary" type="reset">Clear answers</button>
-            <button class="button button-primary" type="submit">Build the evidence plan <span aria-hidden="true">→</span></button>
+            <button class="button button-primary" type="submit">Build the evidence plan →</button>
           </div>
         </form>
 
@@ -234,6 +234,10 @@
             <div class="result-actions">
               <button id="copy-plan" class="button button-primary" type="button">Copy plan</button>
               <button id="print-plan" class="button button-secondary" type="button">Print plan</button>
+            </div>
+            <div id="manual-copy-panel" class="manual-copy" hidden>
+              <label for="manual-copy">Copy the plan manually</label>
+              <textarea id="manual-copy" readonly rows="8"></textarea>
             </div>
             <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
           </article>
@@ -282,13 +286,13 @@
         "schema_version": 1,
         "required": ["goal", "evidence", "timeline", "stewardship", "governance", "calibration"],
         "rules": [
+          {"id": "urgent-decision", "when": {"any": [{"field": "timeline", "in": ["days"]}, {"field": "goal", "in": ["act_now"]}]}, "outcome": "use_public_now"},
           {"id": "mandate-first", "when": {"all": [{"field": "governance", "in": ["not_discussed"]}]}, "outcome": "pause_governance"},
           {"id": "steward-first", "when": {"all": [{"field": "stewardship", "in": ["none"]}]}, "outcome": "pause_stewardship"},
-          {"id": "urgent-decision", "when": {"any": [{"field": "timeline", "in": ["days"]}, {"field": "goal", "in": ["act_now"]}]}, "outcome": "use_public_now"},
           {"id": "raw-needs-calibration", "when": {"all": [{"field": "evidence", "in": ["raw_sensors"]}, {"field": "calibration", "in": ["none"]}]}, "outcome": "calibrate_before_claims"},
           {"id": "public-baseline", "when": {"all": [{"field": "evidence", "in": ["public"]}, {"field": "goal", "in": ["baseline", "accountability", "methods"]}]}, "outcome": "use_public_first"},
           {"id": "inventory-first", "when": {"all": [{"field": "evidence", "in": ["none"]}, {"field": "calibration", "in": ["none"]}]}, "outcome": "use_public_first"},
-          {"id": "governed-network", "when": {"all": [{"field": "evidence", "in": ["calibrated_sensors"]}, {"field": "governance", "in": ["policy_approved"]}, {"field": "stewardship", "in": ["team"]}]}, "outcome": "governed_network"},
+          {"id": "governed-network", "when": {"all": [{"field": "evidence", "in": ["calibrated_sensors"]}, {"field": "governance", "in": ["policy_approved"]}, {"field": "stewardship", "in": ["team"]}, {"field": "calibration", "in": ["reference_ready"]}]}, "outcome": "governed_network"},
           {"id": "calibrated-pilot", "when": {"all": [{"field": "evidence", "in": ["calibrated_sensors"]}]}, "outcome": "strengthen_pilot"},
           {"id": "bounded-pilot", "outcome": "bounded_pilot"}
         ],
