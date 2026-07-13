@@ -59,9 +59,16 @@ def _store_version(store: Store) -> object:
     The store is append-only for raw rows, but ``drop_calibrated()`` (the rebuild path) deletes
     and rewrites derived rows *without changing the row count* — so the version key must include
     a change counter, not just ``count()``, or a rebuild would serve a stale cached surface.
+
+    That change counter has to be ``data_version()`` (SQLite's cross-connection counter), not the
+    store's own ``_total_changes()``: `swelter serve` runs as one long-lived process holding one
+    connection, while `swelter rebuild` / `calibrate` typically run as a *separate* process/
+    connection against the same store file. `_total_changes()` only counts writes made through
+    this connection, so it would never notice an out-of-process rebuild that leaves the row count
+    unchanged — the exact case this fingerprint exists to catch.
     """
     if isinstance(store, SqliteStore):
-        return ("sqlite", store.count(), store._total_changes())
+        return ("sqlite", store.count(), store.data_version())
     path = getattr(store, "path", None)
     if path is not None:
         candidate = Path(path)

@@ -206,6 +206,18 @@ class SqliteStore:
         cur = self._conn.execute("SELECT COUNT(*) AS n FROM observations")
         return int(cur.fetchone()["n"])
 
+    def data_version(self) -> int:
+        """SQLite's cross-connection change counter for this database file.
+
+        Unlike ``_total_changes()`` (this connection's own write count, silent about writes made
+        by any other connection), ``PRAGMA data_version`` bumps whenever *any* connection commits
+        a change to the file — including a same-row-count rewrite (e.g. ``drop_calibrated()``
+        followed by a re-apply). That is exactly what a long-running ``swelter serve`` process
+        needs: `swelter rebuild` / `calibrate` typically run as a separate process against the
+        same store file, so this connection's own change counter never sees their writes.
+        """
+        return int(self._conn.execute("PRAGMA data_version").fetchone()[0])
+
     def drop_calibrated(self) -> int:
         """Remove all derived (non-raw) rows, leaving the immutable raw log. For rebuild."""
         before = self._total_changes()
