@@ -1,13 +1,14 @@
 // Minimal service worker: cache the app shell so the dashboard installs as a PWA and opens
 // offline at a tenant meeting or a council hearing where there is no signal. The cached
 // sample surface means it renders something useful even with no network and no server.
-const CACHE = "swelter-shell-v2";
+const CACHE = "swelter-shell-v3";
 const SHELL = [
   ".",
   "index.html",
   "styles.css",
   "app.js",
   "manifest.webmanifest",
+  "icon-512.png",
   "icon.svg",
   "i18n/en.json",
   "i18n/es.json",

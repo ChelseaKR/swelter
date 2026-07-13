@@ -57,3 +57,18 @@ $ make demo          # replay recorded data and serve at http://127.0.0.1:8000
 # or
 $ swelter serve --store store
 ```
+
+## GitHub Pages search metadata
+
+The committed HTML stays portable for self-hosting. During the GitHub Pages build,
+`scripts/pages_seo.py` consumes the built demo contract, then replaces the marked metadata block
+with an absolute canonical URL for each known route, source-aware social metadata, and a Schema.org
+graph for the software and the dataset that actually won the live-source fallback. A compatibility
+path reads the baked attribution on pre-contract artifacts and fails if it cannot identify exactly
+one source. The same build writes `/swelter/sitemap.xml`.
+
+There is intentionally no `web/robots.txt`. This repository publishes a GitHub Pages **project**
+site at `/swelter/`, while the robots exclusion protocol only recognizes `/robots.txt` at the
+origin root. A `/swelter/robots.txt` file would look authoritative but control no crawler. Until the
+origin root or a custom domain is controlled, the dashboard uses page-level `robots` metadata and
+the sitemap can be submitted directly to search engines.
