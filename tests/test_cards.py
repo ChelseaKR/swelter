@@ -71,6 +71,17 @@ def test_no_feed_url_omits_the_qr_block() -> None:
     assert "<svg" not in html
 
 
+def test_a_feed_url_too_long_for_the_qr_encoder_degrades_to_link_only() -> None:
+    # A verbose --feed-url (or a long cell_id folded into ?area=) can push the per-cell URL past
+    # what qr.qr_svg can encode; the page must still render — just without that cell's QR image —
+    # rather than let one long URL take down the whole cards run (cards.py:_render_qr).
+    surface = _surface(make_obs(parameter="temp_c", value=25.0, calibration="v1"))
+    long_feed_url = "https://example.org/" + "a" * 300 + "/api/alerts.xml"
+    html = cards.render_cards(surface, empty(), feed_url=long_feed_url)
+    assert "<svg" not in html  # QR omitted for the too-long URL …
+    assert "example.org" in html  # … but the text link (and the rest of the card) still renders
+
+
 def test_nearest_cooling_center_is_selected_over_a_farther_one() -> None:
     near = CoolingCenter(name="Near Library", lat=38.5816, lon=-121.4944)  # same spot as the node
     far = CoolingCenter(name="Far Center", lat=39.5, lon=-122.5)

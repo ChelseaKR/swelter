@@ -29,7 +29,7 @@ from . import aggregate
 from .aggregate import CellReading, Surface
 from .cooling_centers import CoolingCenter, CoolingCenterSet
 from .models import heat_index_category
-from .qr import qr_svg
+from .qr import QRTooLargeError, qr_svg
 
 ROOT = Path(__file__).resolve().parents[2]
 I18N_DIR = ROOT / "web" / "i18n"
@@ -267,7 +267,13 @@ def _render_qr(cell: _CellReadings, feed_url: str) -> str:
     url = _feed_url_for_cell(feed_url, cell.cell_id)
     if not url:
         return ""
-    svg = qr_svg(url, module_px=3)
+    try:
+        svg = qr_svg(url, module_px=3)
+    except QRTooLargeError:
+        # A long --feed-url (or a verbose cell_id) can push the per-cell URL past the QR encoder's
+        # capacity. Degrade to a text-only link for this one cell rather than let the whole cards
+        # page fail to render — the same graceful-omission pattern as the `if not url` case above.
+        svg = ""
     return (
         '<div class="qr">'
         f"{svg}"

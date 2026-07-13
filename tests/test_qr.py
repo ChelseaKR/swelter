@@ -46,6 +46,34 @@ def test_too_long_a_payload_raises() -> None:
         qr.qr_svg("x" * 500)
 
 
+def test_version_10_block_structure_matches_level_m_not_level_l() -> None:
+    # Regression: `_RS_BLOCKS[10]` once held version 10's *Level-L* block split (274 data
+    # codewords / 271-byte capacity) even though `_format_bits` always declares level M for every
+    # symbol this module emits — so a standards-compliant reader de-interleaved using level-M
+    # block boundaries against data actually split at level-L boundaries, corrupting every
+    # version-10 code regardless of mask. Internal self-consistency checks (capacity == traversal
+    # coverage, encode-then-decode-with-the-same-code round trips) never caught this because they
+    # all derive from the same (wrong) table; only cross-checking against the *publicly documented*
+    # level-M figures for version 10 (216 data codewords, 346 total, 213-byte byte-mode capacity)
+    # catches a mismatch like this. See ISO/IEC 18004 Table 9 / any published QR capacity table.
+    blocks = qr._RS_BLOCKS[10]
+    data_codewords = sum(n * data for n, _total, data in blocks)
+    total_codewords = sum(n * total for n, total, _data in blocks)
+    assert data_codewords == 216
+    assert total_codewords == 346
+    assert qr._data_codewords(10) == 216
+
+
+def test_version_10_byte_capacity_is_the_documented_level_m_figure() -> None:
+    # 213 bytes is the publicly documented version-10, error-correction-level-M byte-mode capacity
+    # (271 is level L's, the bug this guards against). One byte over must still raise cleanly.
+    import pytest
+
+    assert qr._choose_version(213) == 10
+    with pytest.raises(qr.QRTooLargeError):
+        qr._choose_version(214)
+
+
 def test_matrix_is_valid_qr_structure() -> None:
     # Finder patterns occupy the three 7x7 corners; the center module of each must be dark, and
     # the ring immediately around it light — the classic finder signature every QR reader looks
