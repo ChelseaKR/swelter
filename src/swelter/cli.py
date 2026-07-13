@@ -827,7 +827,14 @@ def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, 
         previous = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     except yaml.YAMLError:
         return network  # a corrupt prior file shouldn't block today's fetch
-    prior_nodes = {n["node_id"]: n for n in previous.get("nodes", []) if "node_id" in n}
+    # A named geographic scope is also a cache boundary. An older unscoped file (or one produced
+    # against a different boundary vintage) may contain bbox spillover, so do not silently carry its
+    # nodes into today's scoped network. Once the scope ids match, normal come-and-go accumulation
+    # resumes. Raw observations remain append-only; only the published network membership changes.
+    scope_changed = network.get("geographic_scope") != previous.get("geographic_scope")
+    prior_nodes = {
+        n["node_id"]: n for n in previous.get("nodes", []) if "node_id" in n and not scope_changed
+    }
     for node in network.get("nodes", []):
         prior_nodes[node["node_id"]] = node  # today's data wins for nodes seen again
     merged = dict(network)

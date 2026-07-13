@@ -30,3 +30,4 @@ later ADR supersedes an earlier one.
 | [0019](0019-estimated-wbgt.md) | Ship an estimated WBGT parameter, without guidance bands | accepted |
 | [0020](0020-static-publish-command.md) | Promote the Pages bash choreography into a tested `swelter publish` command | accepted |
 | [0021](0021-register-your-own-network-headline.md) | Lead with "register your own network" as the headline capability in positioning and funder material | accepted |
+| [0022](0022-california-boundary-filter.md) | Filter California OpenAQ discovery against a Census boundary before counting or fetching sites | accepted |

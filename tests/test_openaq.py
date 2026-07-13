@@ -9,8 +9,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from swelter.models import RAW, Observation
+from swelter.sources import _california_boundary as california_boundary
 from swelter.sources import openaq
+from swelter.sources._geometry import contains_point, decode_multipolygon
 
 
 def _row(sid: int, value: float, when: str = "2026-06-17T23:00:00Z") -> dict[str, Any]:
@@ -59,12 +63,111 @@ def test_sensor_parameters_indexes_by_sensor_id() -> None:
     assert sp == {10: ("pm25_ugm3", "ug/m3")}  # co dropped, pm25 mapped
 
 
-def test_network_doc_marks_uncalibrated() -> None:
-    doc = openaq.network_doc("California", {"oaq-5": ("Downtown LA", 34.05, -118.24)})
+def test_network_doc_marks_uncalibrated_coarse_and_california_only() -> None:
+    doc = openaq.network_doc(
+        "California",
+        {
+            "oaq-5": ("Downtown LA", 34.05, -118.24),
+            "oaq-6": ("Yuma", 32.6927, -114.6277),
+        },
+    )
     node = doc["nodes"][0]
-    assert node["location"] == "precise"  # real sensor coordinates
+    assert [candidate["node_id"] for candidate in doc["nodes"]] == ["oaq-5"]
+    assert node["location"] == "coarse"  # upstream publication is not swelter host consent
     assert doc["calibration_windows"] == []  # real, but not swelter-calibrated
+    assert doc["geographic_scope"]["id"] == "US-CA"
     assert "OpenAQ" in doc["name"]
+
+
+@pytest.mark.parametrize(
+    ("name", "lat", "lon", "expected"),
+    [
+        ("Sacramento", 38.5816, -121.4944, True),
+        ("South Lake Tahoe", 38.9399, -119.9772, True),
+        ("Avalon on Santa Catalina Island", 33.3428, -118.3278, True),
+        ("Yuma, Arizona", 32.6927, -114.6277, False),
+        ("Sparks, Nevada", 39.5349, -119.7527, False),
+        ("Brookings, Oregon", 42.0526, -124.2839, False),
+    ],
+)
+def test_california_boundary_rejects_bbox_spillover(
+    name: str, lat: float, lon: float, expected: bool
+) -> None:
+    assert california_boundary.contains(lat, lon) is expected, name
+
+
+def test_multipolygon_holes_and_boundaries() -> None:
+    geometry = decode_multipolygon(
+        {
+            "type": "MultiPolygon",
+            "coordinates": [
+                [
+                    [[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]],
+                    [[2, 2], [3, 2], [3, 3], [2, 3], [2, 2]],
+                ],
+                [[[10, 10], [11, 10], [11, 11], [10, 11], [10, 10]]],
+            ],
+        }
+    )
+    assert contains_point(geometry, 1.0, 1.0)  # first polygon interior
+    assert not contains_point(geometry, 2.5, 2.5)  # hole interior is excluded
+    assert contains_point(geometry, 2.0, 2.5)  # hole boundary belongs to the polygon boundary
+    assert contains_point(geometry, 0.0, 1.0)  # exterior boundary is included
+    assert contains_point(geometry, 10.5, 10.5)  # second polygon is included
+    assert not contains_point(geometry, 8.0, 8.0)
+    assert not contains_point(geometry, float("nan"), 1.0)
+
+
+@pytest.mark.parametrize(
+    "geometry",
+    [
+        None,
+        {"type": "Polygon", "coordinates": []},
+        {"type": "MultiPolygon", "coordinates": []},
+        {"type": "MultiPolygon", "coordinates": [[]]},
+        {"type": "MultiPolygon", "coordinates": [[None]]},
+        {"type": "MultiPolygon", "coordinates": [[[[0]]]]},
+        {
+            "type": "MultiPolygon",
+            "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 1]]]],
+        },
+        {
+            "type": "MultiPolygon",
+            "coordinates": [[[[True, 0], [1, 0], [1, 1], [True, 0]]]],
+        },
+        {
+            "type": "MultiPolygon",
+            "coordinates": [[[[float("inf"), 0], [1, 0], [1, 1], [float("inf"), 0]]]],
+        },
+    ],
+)
+def test_multipolygon_decoder_rejects_malformed_geometry(geometry: object) -> None:
+    with pytest.raises(ValueError):
+        decode_multipolygon(geometry)
+
+
+def test_california_boundary_rejects_non_finite_coordinates() -> None:
+    assert not california_boundary.contains(float("nan"), -121.49)
+    assert not california_boundary.contains(38.58, float("inf"))
+
+
+def test_california_boundary_includes_points_on_its_actual_edge() -> None:
+    lon, lat = california_boundary._boundary()[0][0][0]
+    assert california_boundary.contains(lat, lon)
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        {},
+        {"coordinates": []},
+        {"coordinates": {"latitude": 38.5}},
+        {"coordinates": {"latitude": "invalid", "longitude": -121.5}},
+        {"coordinates": {"latitude": float("nan"), "longitude": -121.5}},
+    ],
+)
+def test_openaq_coordinates_reject_malformed_or_non_finite(location: dict[str, Any]) -> None:
+    assert openaq._coordinates(location) is None
 
 
 def _pm(node: str, ts: str, value: float) -> Observation:

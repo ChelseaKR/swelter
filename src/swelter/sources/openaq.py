@@ -24,11 +24,13 @@ from __future__ import annotations
 import contextlib
 import math
 import time
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 
 from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
+from . import _california_boundary
 from ._http import SourceError, get_json
 
 API = "https://api.openaq.org/v3"
@@ -67,8 +69,13 @@ def _locations(
     *,
     max_locations: int,
     per_page: int = 1000,
+    include: Callable[[dict[str, Any]], bool] | None = None,
 ) -> list[dict[str, Any]]:
-    """Page through the locations in the bbox up to ``max_locations``."""
+    """Page through bbox candidates until ``max_locations`` accepted locations are found.
+
+    ``include`` is applied before the cap. This matters for jurisdiction-shaped scopes: locations
+    outside the boundary must not consume a slot merely because the upstream API queries a box.
+    """
     west, south, east, north = bbox
     limit = min(per_page, 1000)  # OpenAQ's own page-size cap
     out: list[dict[str, Any]] = []
@@ -84,7 +91,8 @@ def _locations(
         results = payload.get("results", []) if isinstance(payload, dict) else []
         if not isinstance(results, list) or not results:
             break
-        out += [r for r in results if isinstance(r, dict)]
+        candidates = [row for row in results if isinstance(row, dict)]
+        out += [row for row in candidates if include is None or include(row)]
         # A short page means the server has no more to give — compare against the *actual*
         # requested page size (`limit`, clamped to OpenAQ's 1000 cap), not the raw `per_page`
         # argument: a caller passing per_page > 1000 would otherwise see every full (1000-row)
@@ -93,6 +101,24 @@ def _locations(
             break
         page += 1
     return out[:max_locations]
+
+
+def _coordinates(location: dict[str, Any]) -> tuple[float, float] | None:
+    """Return a location's finite ``(latitude, longitude)``, or ``None`` when malformed."""
+    coordinates = location.get("coordinates")
+    if not isinstance(coordinates, dict):
+        return None
+    try:
+        lat = float(coordinates["latitude"])
+        lon = float(coordinates["longitude"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return (lat, lon) if math.isfinite(lat) and math.isfinite(lon) else None
+
+
+def _in_california(location: dict[str, Any]) -> bool:
+    coordinates = _coordinates(location)
+    return coordinates is not None and _california_boundary.contains(*coordinates)
 
 
 def _sensor_parameters(locations: list[dict[str, Any]]) -> dict[int, tuple[str, str]]:
@@ -179,22 +205,24 @@ def fetch(
     max_locations: int = 200,
     throttle_s: float = 1.1,
 ) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
-    """Fetch the latest reading for each real sensor location in the bbox (one /latest call each).
+    """Fetch each California sensor location in the bbox (one ``/latest`` call per site).
 
-    Throttled to respect the free-tier rate limit and capped at ``max_locations`` so a statewide
-    pull is bounded. Returns (observations, node metadata). A single failing location is skipped.
+    OpenAQ accepts a rectangle, not a state polygon. Every bbox candidate is therefore checked
+    against the packaged U.S. Census California boundary before it counts toward ``max_locations``
+    or triggers a per-site request. The check is repeated here defensively so a replacement location
+    provider cannot bypass the jurisdiction boundary. A single failing location is skipped.
     """
-    locations = _locations(bbox, api_key, max_locations=max_locations)
+    locations = _locations(bbox, api_key, max_locations=max_locations, include=_in_california)
+    locations = [location for location in locations if _in_california(location)]
     sensor_param = _sensor_parameters(locations)
     out: list[Observation] = []
     nodes: dict[str, tuple[str, float, float]] = {}
     for loc in locations:
-        coords = loc.get("coordinates") or {}
         lid = loc.get("id")
-        try:
-            lat, lon = float(coords["latitude"]), float(coords["longitude"])
-        except (KeyError, TypeError, ValueError):
+        coordinates = _coordinates(loc)
+        if coordinates is None:
             continue
+        lat, lon = coordinates
         if not isinstance(lid, int):
             continue
         try:
@@ -236,15 +264,25 @@ def network_doc(
     nodes: dict[str, tuple[str, float, float]],
     languages: tuple[str, ...] = ("en", "es"),
 ) -> dict[str, Any]:
-    """A ``network.yaml`` document for the discovered OpenAQ sensors (precise real locations)."""
+    """A California-scoped ``network.yaml`` document for discovered OpenAQ sensors.
+
+    Vendor coordinates are used for the jurisdiction test, then published through swelter's normal
+    coarse-grid path. An upstream public coordinate is not treated as host consent to republish a
+    precise porch-level location.
+    """
     return {
         "name": f"swelter — {name} (real sensors, OpenAQ)",
         "grid_resolution_m": 150,
         "languages": list(languages),
+        "geographic_scope": {
+            "id": "US-CA",
+            "boundary": _california_boundary.SCOPE_ID,
+        },
         "reference_monitors": [],
         "nodes": [
-            {"node_id": nid, "label": label, "lat": lat, "lon": lon, "location": "precise"}
+            {"node_id": nid, "label": label, "lat": lat, "lon": lon, "location": "coarse"}
             for nid, (label, lat, lon) in sorted(nodes.items())
+            if _california_boundary.contains(lat, lon)
         ],
         "calibration_windows": [],  # real sensors, but not swelter-calibrated (raw/provisional)
     }

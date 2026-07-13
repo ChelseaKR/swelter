@@ -151,6 +151,36 @@ def test_openaq_locations_survives_a_failing_page(monkeypatch: pytest.MonkeyPatc
     assert len(locs) == 1000  # page 1 kept, page 2's failure did not crash the run
 
 
+def test_openaq_locations_filters_before_the_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    pages = {
+        1: [
+            {"id": 1, "coordinates": {"latitude": 32.6927, "longitude": -114.6277}},
+            {"id": 2, "coordinates": {"latitude": 39.5349, "longitude": -119.7527}},
+        ],
+        2: [
+            {"id": 3, "coordinates": {"latitude": 34.0522, "longitude": -118.2437}},
+            {"id": 4, "coordinates": {"latitude": 38.5816, "longitude": -121.4944}},
+        ],
+    }
+    requested_pages: list[int] = []
+
+    def fake_get(url: str, api_key: str, **_kwargs: Any) -> Any:
+        page = int(url.rsplit("page=", 1)[1])
+        requested_pages.append(page)
+        return {"results": pages.get(page, [])}
+
+    monkeypatch.setattr(openaq, "_get_json", fake_get)
+    locations = openaq._locations(
+        openaq.CALIFORNIA_BBOX,
+        "key",
+        max_locations=2,
+        per_page=2,
+        include=openaq._in_california,
+    )
+    assert [location["id"] for location in locations] == [3, 4]
+    assert requested_pages == [1, 2]  # bbox spillover did not consume the two-site cap
+
+
 def test_openaq_fetch_skips_a_failing_location(monkeypatch: pytest.MonkeyPatch) -> None:
     locations = [
         {
@@ -181,6 +211,39 @@ def test_openaq_fetch_skips_a_failing_location(monkeypatch: pytest.MonkeyPatch) 
     obs, nodes = openaq.fetch("key", throttle_s=0.0)
     assert set(nodes) == {"oaq-1"}  # the good site survived, the bad one was skipped
     assert obs and all(o.node_id == "oaq-1" for o in obs)
+
+
+def test_openaq_fetch_never_requests_out_of_state_latest(monkeypatch: pytest.MonkeyPatch) -> None:
+    locations = [
+        {
+            "id": 1,
+            "coordinates": {"latitude": 32.6927, "longitude": -114.6277},
+            "name": "Yuma",
+            "sensors": [{"id": 10, "parameter": {"name": "pm25"}}],
+        },
+        {
+            "id": 2,
+            "coordinates": {"latitude": 34.0522, "longitude": -118.2437},
+            "name": "Los Angeles",
+            "sensors": [{"id": 20, "parameter": {"name": "pm25"}}],
+        },
+    ]
+    monkeypatch.setattr(openaq, "_locations", lambda *_args, **_kwargs: locations)
+    requested: list[str] = []
+
+    def fake_latest(url: str, api_key: str, **_kwargs: Any) -> Any:
+        requested.append(url)
+        return {
+            "results": [
+                {"sensorsId": 20, "value": 12.0, "datetime": {"utc": "2026-06-17T23:00:00Z"}}
+            ]
+        }
+
+    monkeypatch.setattr(openaq, "_get_json", fake_latest)
+    observations, nodes = openaq.fetch("key", throttle_s=0.0)
+    assert set(nodes) == {"oaq-2"}
+    assert observations and {observation.node_id for observation in observations} == {"oaq-2"}
+    assert requested == [f"{openaq.API}/locations/2/latest"]
 
 
 # --- sensor.community: empty + failure --------------------------------------------------------

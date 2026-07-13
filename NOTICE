@@ -19,3 +19,10 @@ matter, and derived heat/air-quality indices. They contain no personal
 information, no device-as-tracker identifiers, and no field capable of locating
 a person. Node locations are the hosting collective's to disclose and are
 published snapped to a coarse grid unless a host opts in to a precise location.
+
+Boundary data
+-------------
+The packaged California boundary is derived from the U.S. Census Bureau TIGERweb
+States layer (January 1, 2025 vintage), a U.S. government work in the public
+domain in the United States. It is simplified to a 0.0002-degree maximum offset;
+source and retrieval metadata are embedded in california_boundary.geojson.
