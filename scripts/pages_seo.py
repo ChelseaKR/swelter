@@ -517,9 +517,11 @@ def write_page_metadata(
     if len(_TITLE_PATTERN.findall(html)) != 1 or len(_DESCRIPTION_PATTERN.findall(html)) != 1:
         raise ValueError(f"{index} must contain exactly one title and meta description")
     spec = _contract_source_spec(web_dir, source)
-    html = _TITLE_PATTERN.sub(f"<title>{escape(spec.page_title)}</title>", html)
+    title = f"<title>{escape(spec.page_title)}</title>"
+    html = _TITLE_PATTERN.sub(lambda _match: title, html)
     description = escape(spec.page_description, quote=True)
-    html = _DESCRIPTION_PATTERN.sub(f'<meta name="description" content="{description}" />', html)
+    description_tag = f'<meta name="description" content="{description}" />'
+    html = _DESCRIPTION_PATTERN.sub(lambda _match: description_tag, html)
     block = _metadata_block(
         base_url=base_url,
         route=route,
@@ -527,7 +529,10 @@ def write_page_metadata(
         surface_path=surface,
         source_spec=spec,
     )
-    index.write_text(pattern.sub(block, html), encoding="utf-8")
+    # Callable replacements keep backslashes in truthful source metadata and JSON-LD literal.
+    # Passing generated text directly as a replacement template would interpret values such as
+    # ``\1`` as regex group references or reject other backslash sequences.
+    index.write_text(pattern.sub(lambda _match: block, html), encoding="utf-8")
     return source
 
 

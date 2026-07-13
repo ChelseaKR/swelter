@@ -8,6 +8,7 @@ import shutil
 import struct
 import sys
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -158,6 +159,29 @@ def test_sensor_route_replaces_metadata_idempotently(tmp_path: Path) -> None:
     assert dataset["license"] == "https://opendatacommons.org/licenses/dbcl/1-0/"
     assert dataset["spatialCoverage"]["name"] == "Stuttgart region, Germany"
     assert "Open-Meteo" not in once
+
+
+def test_generated_metadata_is_literal_not_a_regex_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    web_dir = _built_page(tmp_path)
+    original = pages_seo.SOURCE_SPECS["openaq"]
+    literal = replace(
+        original,
+        page_title=r"swelter — source \1",
+        page_description=r"Source path C:\data\hourly",
+        dataset_description=r"Literal \g<1> metadata and a safe </script> boundary.",
+    )
+    monkeypatch.setitem(pages_seo.SOURCE_SPECS, "openaq", literal)
+
+    pages_seo.write_page_metadata(web_dir, route="/", source="openaq")
+    parser, document = _parse(web_dir)
+
+    assert parser.title == literal.page_title
+    assert {meta.get("content") for meta in parser.metas if meta.get("name") == "description"} == {
+        literal.page_description
+    }
+    assert _graph_item(document, "Dataset")["description"] == literal.dataset_description
 
 
 def test_demo_contract_is_authoritative_when_present(tmp_path: Path) -> None:
