@@ -36,8 +36,12 @@ keyboard operable and announces its value through an `aria-live` output.
 | Full export | `GET /export.csv`, `GET /export.json` | — |
 | SensorThings | `GET /v1.1/Things`, `/v1.1/Observations` | — |
 
-If the live API is unreachable (for example, opened as static files), the page falls back to
-the committed `sample-surface.json` so it still renders.
+The GitHub Pages build also writes `demo.json`, a source-of-truth contract generated from the
+surface that actually won the OpenAQ → CAMS → synthetic fallback. It names that source and its
+geography, calibration posture, reuse terms, and exact available measurements. Its `runtime:
+"static"` flag lets the dashboard load the baked files directly instead of probing `/api/*` routes
+that cannot exist on Pages. A normal `swelter serve` deployment has no contract and continues to
+prefer the live API before falling back to `sample-surface.json`.
 
 ## Accessibility
 

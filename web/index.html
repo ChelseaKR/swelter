@@ -20,7 +20,7 @@
       <div class="brand">
         <h1>swelter</h1>
         <p class="tagline" data-i18n="tagline">
-          Neighborhood heat and air quality, calibrated and open.
+          Neighborhood heat and air quality, with calibration state and provenance shown.
         </p>
       </div>
       <div class="header-controls">
@@ -53,9 +53,28 @@
       <p id="headline" class="headline" role="status" aria-live="polite"></p>
       <p id="data-source" class="data-source"></p>
 
-      <nav class="source-switch" aria-label="Data source">
-        <a id="switch-cams" href="./">California · CAMS model</a>
-        <a id="switch-sensors" href="sensors/">Stuttgart · real sensors</a>
+      <section id="dataset-truth" class="dataset-truth" aria-labelledby="dataset-truth-heading" hidden>
+        <h2 id="dataset-truth-heading" data-i18n="truth-heading">About these readings</h2>
+        <dl>
+          <dt data-i18n="truth-source">Source</dt>
+          <dd id="truth-source"></dd>
+          <dt data-i18n="truth-geography">Geography</dt>
+          <dd id="truth-geography"></dd>
+          <dt data-i18n="truth-status">Calibration status</dt>
+          <dd id="truth-status"></dd>
+          <dt data-i18n="truth-license">Reuse terms</dt>
+          <dd id="truth-license"></dd>
+        </dl>
+        <p id="truth-fallback" class="truth-fallback" hidden></p>
+      </section>
+
+      <nav
+        class="source-switch"
+        data-i18n-attr="aria-label:source-switch-label"
+        aria-label="Data source"
+      >
+        <a id="switch-cams" href="./" data-i18n="source-primary">Primary data view</a>
+        <a id="switch-sensors" href="sensors/" data-i18n="source-community">Community sensor view</a>
       </nav>
 
       <section class="controls" aria-labelledby="controls-heading">
@@ -373,7 +392,7 @@
 
       <details class="explain trust" id="how-to-read">
         <summary data-i18n="how-to-read">How to read this — and what it does not say</summary>
-        <p data-i18n="trust-summary">
+        <p id="trust-summary" data-i18n="trust-summary">
           Confirmed readings are calibrated against a reference monitor and carry a ± uncertainty.
           Provisional readings are early and uncalibrated. This page reports what the air and heat
           readings are; it does not tell anyone they are safe. Use it alongside how you feel and
@@ -381,23 +400,23 @@
         </p>
         <p class="method-heading" data-i18n="method-heading">How the numbers are made</p>
         <ul class="method-list">
-          <li data-i18n="method-calibration">Confirmed means calibrated against a reference monitor; a sensor with no fit stays raw and is shown provisional.</li>
-          <li data-i18n="method-uncertainty">Every confirmed reading carries a ± 1-sigma uncertainty, published alongside it.</li>
-          <li data-i18n="method-location">Published locations snap to a ~150 m grid, so the map shows the area, not the porch.</li>
+          <li id="method-calibration" data-i18n="method-calibration">Confirmed means calibrated against a reference monitor; a sensor with no fit stays raw and is shown provisional.</li>
+          <li id="method-uncertainty" data-i18n="method-uncertainty">Every confirmed reading carries a ± 1-sigma uncertainty, published alongside it.</li>
+          <li id="method-location" data-i18n="method-location">Published locations snap to a ~150 m grid, so the map shows the area, not the porch.</li>
           <li data-i18n="method-aqi">The AQI shown comes from each location's hourly mean, not the official 24-hour average.</li>
           <li data-i18n="method-exposure">Heat + air exposure takes the higher of the heat and air levels — it never blends them into one number.</li>
-          <li data-i18n="method-open">All readings are public-domain (CC0) and downloadable — no account, no key.</li>
+          <li id="method-open" data-i18n="method-open">Reuse terms and attribution depend on the active source and are shown above. Readings are downloadable without an account or key.</li>
         </ul>
       </details>
     </main>
 
     <footer>
-      <p data-i18n="footer-data">
-        Observations are public domain (CC0-1.0). Download the full history — no account, no key.
+      <p id="footer-data" data-i18n="footer-data">
+        Reuse terms for the active source are shown above. Download the full history — no account,
+        no key.
       </p>
       <p class="footer-links">
-        <a href="DATA-LICENSE" data-i18n="footer-license-link">Read the data license (CC0)</a>
-        ·
+        <span id="footer-license-links"><a href="DATA-LICENSE" data-i18n="footer-license-link">Read source license information</a> · </span>
         <a href="export.csv" data-i18n="footer-download">Download CSV</a>
       </p>
       <p data-i18n="footer-note">

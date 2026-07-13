@@ -151,6 +151,8 @@ const state = {
   coolingCenters: null, // the curated cooling-center overlay dataset (validated FeatureCollection)
   coolingMeta: null, // the cooling-center dataset's provenance metadata
   coolingVisible: false, // is the cooling-center overlay drawn on the map?
+  demo: null, // build-generated truth contract for a static deployment; absent on a live server
+  attribution: "", // attribution from the surface currently driving every view
 };
 
 // Personal alert thresholds: on-device only (localStorage, like the other prefs), no account, no
@@ -282,14 +284,116 @@ async function loadBasemap() {
 function setData(doc) {
   state.cells = doc.cells || [];
   state.buckets = doc.buckets || [...new Set(state.cells.map((c) => c.bucket))].sort();
+  state.attribution = doc.attribution || state.demo?.attribution || "";
+  syncStaticParameters();
   indexCells();
   state.bucketIdx = Math.max(0, state.buckets.length - 1);
   const slider = $("#time-slider");
   slider.max = String(Math.max(0, state.buckets.length - 1));
   slider.value = String(state.bucketIdx);
   slider.setAttribute("aria-disabled", state.buckets.length <= 1 ? "true" : "false");
-  const src = $("#data-source");
-  if (src) src.textContent = doc.attribution ? `Data: ${doc.attribution}` : "";
+  renderDemoContract();
+}
+
+function isStaticDeployment() {
+  return state.demo?.runtime === "static";
+}
+
+// A contract carries resident-facing facts in every shipped language. Keep source names, geography,
+// and caveats out of an English-only build string while retaining English as a safe fallback.
+function contractText(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+  const lang = document.documentElement.lang === "es" ? "es" : "en";
+  return value[lang] || value.en || "";
+}
+
+function sourceTerm(key, fallbackKey) {
+  return contractText(state.demo?.source?.terminology?.[key]) || t(fallbackKey);
+}
+
+function appendContractLinks(el, links, { trailingSeparator = false } = {}) {
+  const usable = Array.isArray(links) ? links : [];
+  usable.forEach((link, i) => {
+    if (i) el.append(document.createTextNode(" · "));
+    const a = document.createElement("a");
+    a.href = link.href;
+    a.textContent = contractText(link.label);
+    el.append(a);
+  });
+  if (trailingSeparator && usable.length) el.append(document.createTextNode(" · "));
+}
+
+// Render the source contract in a text-first card and repeat its reuse terms in the footer. Values
+// are inserted with textContent/DOM nodes (never innerHTML), and every fact shown visually is in the
+// same accessible reading order for screen-reader and keyboard users.
+function renderDemoContract() {
+  const contract = state.demo;
+  const source = contract?.source;
+  const attribution = source
+    ? contractText(source.attribution)
+    : state.attribution || contract?.attribution || "";
+  const dataSource = $("#data-source");
+  dataSource.textContent = attribution
+    ? fillIn(t("data-attribution"), "{attribution}", attribution)
+    : "";
+  if (!source) return;
+
+  const truth = $("#dataset-truth");
+  truth.hidden = false;
+  $("#truth-source").textContent = contractText(source.name);
+  $("#truth-geography").textContent = contractText(source.geography);
+  $("#truth-status").textContent = contractText(source.calibration);
+
+  const license = source.license || {};
+  const licenseEl = $("#truth-license");
+  licenseEl.replaceChildren(document.createTextNode(contractText(license.summary)));
+  if (Array.isArray(license.links) && license.links.length) {
+    licenseEl.append(document.createTextNode(" "));
+    appendContractLinks(licenseEl, license.links);
+  }
+
+  const fallback = $("#truth-fallback");
+  const fallbackMessage = contractText(contract.fallback?.message);
+  fallback.textContent = fallbackMessage;
+  fallback.hidden = !fallbackMessage;
+
+  const tagline = $(".tagline");
+  if (tagline) tagline.textContent = contractText(source.tagline);
+  const activeSource = document.querySelector('.source-switch [aria-current="page"]');
+  if (activeSource) activeSource.textContent = contractText(source.navigation_label);
+
+  const licenseSummary = contractText(license.summary);
+  $("#trust-summary").textContent = `${contractText(source.calibration)} ${t("trust-safety")}`;
+  $("#method-calibration").textContent = contractText(source.calibration);
+  $("#method-uncertainty").textContent = contractText(source.uncertainty);
+  $("#method-location").textContent = contractText(source.location);
+  $("#method-open").textContent = licenseSummary;
+  $("#footer-data").textContent = licenseSummary;
+  const footerLinks = $("#footer-license-links");
+  footerLinks.replaceChildren();
+  appendContractLinks(footerLinks, license.links, { trailingSeparator: true });
+}
+
+// The generated contract derives this list from the baked surface. Intersect it with the surface
+// actually loaded before hiding controls, so even a corrupt/stale artifact cannot offer a measure
+// with no rows. The live server remains dynamic and keeps its complete control set.
+function syncStaticParameters() {
+  if (!isStaticDeployment()) return;
+  const declared = new Set(state.demo?.surface?.parameters || []);
+  const present = new Set(state.cells.map((cell) => cell.parameter));
+  const available = new Set(
+    [...declared].filter((parameter) => present.has(parameter) && PARAM_I18N[parameter]),
+  );
+  const select = $("#parameter-select");
+  for (const option of select.options) {
+    const show = available.has(option.value);
+    option.hidden = !show;
+    option.disabled = !show;
+  }
+  if (!available.size || available.has(state.parameter)) return;
+  state.parameter = available.has("pm25_ugm3") ? "pm25_ugm3" : [...available][0];
+  select.value = state.parameter;
 }
 
 function indexCells() {
@@ -424,7 +528,7 @@ function provenanceText(row) {
   if (row.provisional) {
     parts.push(t("prov-provisional"));
   } else {
-    parts.push(t("prov-confirmed"));
+    parts.push(sourceTerm("non_provisional_explanation", "prov-confirmed"));
     if (!isExposure() && row.uncertainty != null) {
       const u =
         PARAM_BASE_UNIT[state.parameter] === "C" && state.unit === "F"
@@ -458,7 +562,12 @@ function renderProvenance(row) {
     dl.appendChild(dd);
   };
 
-  addRow("prov-verdict-label", row.provisional ? t("prov-verdict-provisional") : t("prov-verdict-confirmed"));
+  addRow(
+    "prov-verdict-label",
+    row.provisional
+      ? t("prov-verdict-provisional")
+      : sourceTerm("non_provisional_label", "prov-verdict-confirmed"),
+  );
 
   if (!row.provisional) {
     if (!isExposure() && row.uncertainty != null) {
@@ -483,6 +592,17 @@ function renderProvenance(row) {
 // A ready-to-paste, plain-language summary of this location: the reading, how it compares, the
 // trend, its calibration state, an open-data attribution, and the shareable link. Closes the
 // data-to-action gap — something an advocate can drop into an email, a flyer, or testimony.
+function briefSourceText() {
+  const source = state.demo?.source;
+  if (!source) return t("brief-source");
+  const attribution = fillIn(
+    t("data-attribution"),
+    "{attribution}",
+    contractText(source.attribution),
+  );
+  return `${attribution} ${contractText(source.license?.summary)}`;
+}
+
 function briefText(row) {
   const lines = [`${placeName(row)} — ${fmtBucket(currentBucket())}`];
   lines.push(readingText(row));
@@ -491,7 +611,7 @@ function briefText(row) {
   const tr = trendLine(row);
   if (tr) lines.push(tr);
   lines.push(provenanceText(row));
-  lines.push(t("brief-source"));
+  lines.push(briefSourceText());
   lines.push(location.href);
   return lines.join("\n");
 }
@@ -511,14 +631,14 @@ function networkBriefText() {
     $("#overview-spread").textContent,
     $("#overview-worst").textContent,
     $("#overview-fresh").textContent,
-    t("brief-source"),
+    briefSourceText(),
     location.href,
   ];
   return lines.filter((line) => line && line.trim()).join("\n");
 }
 
-// A download link to the raw CC0 readings behind a location, filtered to one of its nodes. Served
-// by `swelter serve`; the node id is the only identifier and is already public in the API.
+// A download link to the source-licensed readings behind a location, filtered to one of its nodes.
+// Served by `swelter serve`; the node id is the only identifier and is already public in the API.
 function downloadLink(node, text) {
   const a = document.createElement("a");
   a.href = `export.csv?node=${encodeURIComponent(node)}`;
@@ -895,13 +1015,14 @@ function renderHeadline() {
   const confirmed = pm25RowsNow().filter((r) => !r.provisional);
   const el = $("#headline");
   if (!confirmed.length) {
-    el.textContent = t("headline-none");
+    el.textContent = sourceTerm("headline_none", "headline-none");
     return;
   }
   const worst = confirmed.reduce((a, b) => (b.aqi > a.aqi ? b : a));
-  const lead = fillIn(t("headline-worst"), "{place}", placeName(worst))
-    .replace("{aqi}", String(worst.aqi))
-    .replace("{category}", localCategory(worst.category));
+  let lead = sourceTerm("headline_worst", "headline-worst");
+  lead = fillIn(lead, "{place}", placeName(worst));
+  lead = fillIn(lead, "{aqi}", String(worst.aqi));
+  lead = fillIn(lead, "{category}", localCategory(worst.category));
   el.textContent = `${lead} ${guidanceFor(worst.category)}`;
 }
 
@@ -924,7 +1045,9 @@ function healthLine() {
 }
 
 async function loadHealth() {
-  const doc = (await fetchJson("api/health.json")) || (await fetchJson("sample-health.json"));
+  const doc = isStaticDeployment()
+    ? await fetchJson("sample-health.json")
+    : (await fetchJson("api/health.json")) || (await fetchJson("sample-health.json"));
   if (doc && doc.summary) {
     state.health = doc;
     renderOverview();
@@ -938,6 +1061,19 @@ async function fetchJson(url) {
   } catch {
     return null;
   }
+}
+
+async function loadDemoContract() {
+  const doc = await fetchJson("demo.json");
+  if (
+    doc?.schema_version !== 1 ||
+    doc.runtime !== "static" ||
+    !doc.source ||
+    !Array.isArray(doc.surface?.parameters)
+  ) {
+    return null;
+  }
+  return doc;
 }
 
 // Sensor coverage: how many of the network's known sensors are actually reporting this hour. "Known"
@@ -1038,7 +1174,7 @@ function renderOverview() {
   }
   panel.hidden = false;
   const confirmed = rows.filter((r) => !r.provisional);
-  $("#overview-counts").textContent = t("overview-counts")
+  $("#overview-counts").textContent = sourceTerm("overview_counts", "overview-counts")
     .replace("{n}", rows.length)
     .replace("{confirmed}", confirmed.length)
     .replace("{provisional}", rows.length - confirmed.length);
@@ -1057,12 +1193,16 @@ function renderOverview() {
     const counts = new Map();
     for (const r of confirmed) counts.set(r.category, (counts.get(r.category) || 0) + 1);
     const parts = order.filter((c) => counts.get(c)).map((c) => `${localize(c)} ${counts.get(c)}`);
-    spread.textContent = parts.length ? parts.join(" · ") : t("overview-none-confirmed");
+    spread.textContent = parts.length
+      ? parts.join(" · ")
+      : sourceTerm("overview_none", "overview-none-confirmed");
     if (confirmed.length) {
       const worst = confirmed.reduce((a, b) =>
         order.indexOf(b.category) > order.indexOf(a.category) ? b : a,
       );
-      worstEl.appendChild(document.createTextNode(t("overview-worst-label") + " "));
+      worstEl.appendChild(
+        document.createTextNode(sourceTerm("overview_worst_label", "overview-worst-label") + " "),
+      );
       worstEl.appendChild(worstButton(worst, `${placeName(worst)} — ${localize(worst.category)}`));
     }
   } else {
@@ -1080,7 +1220,9 @@ function renderOverview() {
       ? t("estimated-value").replace("{value}", spreadText)
       : spreadText;
     const worst = rows.reduce((a, b) => (b.mean > a.mean ? b : a));
-    worstEl.appendChild(document.createTextNode(t("overview-worst-label") + " "));
+    worstEl.appendChild(
+      document.createTextNode(sourceTerm("overview_worst_label", "overview-worst-label") + " "),
+    );
     worstEl.appendChild(worstButton(worst, `${placeName(worst)} — ${fmtValue(worst.mean)}`));
   }
 }
@@ -1144,7 +1286,9 @@ function renderTable(rows) {
     const stateCell = document.createElement("td");
     const tag = document.createElement("span");
     tag.className = `tag ${row.provisional ? "provisional" : ""}`;
-    tag.textContent = row.provisional ? t("state-provisional") : t("state-calibrated");
+    tag.textContent = row.provisional
+      ? t("state-provisional")
+      : sourceTerm("non_provisional_label", "state-calibrated");
     stateCell.appendChild(tag);
     tr.appendChild(stateCell);
 
@@ -1860,7 +2004,7 @@ function updateAlerts() {
 // live API when served, or the baked alerts.json on the static site, and offers a per-area Atom feed
 // link so a resident subscribes to their neighborhood in any ordinary RSS/Atom reader — no account.
 async function loadAreaAlerts() {
-  const live = await fetchJson("api/alerts.json");
+  const live = isStaticDeployment() ? null : await fetchJson("api/alerts.json");
   const feed = live || (await fetchJson("alerts.json"));
   if (!feed || !Array.isArray(feed.alerts)) return;
   state.areaAlerts = feed;
@@ -1979,8 +2123,10 @@ function areaFeedUrl() {
 // equivalent (always rendered when the section is shown); the map overlay is a visual enhancement on
 // top, toggled on demand. Loaded from the live API or the baked file; absent → the section stays hidden.
 async function loadCoolingCenters() {
-  const doc =
-    (await fetchJson("api/cooling-centers.geojson")) || (await fetchJson("cooling-centers.geojson"));
+  const doc = isStaticDeployment()
+    ? await fetchJson("cooling-centers.geojson")
+    : (await fetchJson("api/cooling-centers.geojson")) ||
+      (await fetchJson("cooling-centers.geojson"));
   if (!doc || !Array.isArray(doc.features) || !doc.features.length) return;
   state.coolingCenters = doc.features
     .filter((f) => f.geometry && Array.isArray(f.geometry.coordinates))
@@ -2654,6 +2800,7 @@ function wireControls() {
   $("#lang-select").addEventListener("change", async (e) => {
     savePref("lang", e.target.value);
     await loadStrings(e.target.value);
+    renderDemoContract();
     render();
   });
   $("#unit-f").addEventListener("click", () => setUnit("F"));
@@ -2794,9 +2941,9 @@ function wireShortcuts() {
   });
 }
 
-// The live demo deploys two pages: "/" (Sacramento, Copernicus CAMS model data) and "/sensors/"
-// (Stuttgart, real Sensor.Community low-cost sensors). Both share this file, so resolve the links
-// relative to wherever we are and mark the active one — base-path agnostic (works under /swelter/).
+// The live demo deploys a primary route plus a community-sensor route. The build-generated contract
+// supplies the active route's actual source label after fallback selection; this function owns only
+// base-path-agnostic links and current-page semantics (works under /swelter/).
 function wireSourceSwitch() {
   const cams = $("#switch-cams");
   const sensors = $("#switch-sensors");
@@ -2805,9 +2952,13 @@ function wireSourceSwitch() {
   cams.setAttribute("href", onSensors ? "../" : "./");
   sensors.setAttribute("href", onSensors ? "./" : "sensors/");
   (onSensors ? sensors : cams).setAttribute("aria-current", "page");
+  renderDemoContract();
 }
 
 async function init() {
+  // Static builds publish this file; a live server does not. One positive capability check replaces
+  // five guaranteed 404s against nonexistent GitHub Pages /api/* routes.
+  state.demo = await loadDemoContract();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker
       .register("sw.js")
@@ -2840,8 +2991,10 @@ async function init() {
   setView(smallScreen() ? "tab-list" : "tab-list");
 
   // Fast first paint from a 1-hour snapshot, then enrich with history in the background (F16).
-  const snapshot =
-    (await fetchSurface("api/surface.json?hours=1")) || (await fetchSurface("sample-surface.json"));
+  const snapshot = isStaticDeployment()
+    ? await fetchSurface("sample-surface.json")
+    : (await fetchSurface("api/surface.json?hours=1")) ||
+      (await fetchSurface("sample-surface.json"));
   if (!snapshot) {
     $("#status").textContent = t("no-data");
     $("#time-slider").setAttribute("aria-disabled", "true");
@@ -2849,6 +3002,7 @@ async function init() {
   }
   applyHashParameter(); // open on the shared measurement before the first paint
   setData(snapshot);
+  state.historyLoaded = isStaticDeployment() && state.buckets.length > 1;
   render();
   restoreView();
 
@@ -2856,7 +3010,7 @@ async function init() {
   loadAreaAlerts();
   loadCoolingCenters();
 
-  const full = await fetchSurface("api/surface.json?hours=168");
+  const full = isStaticDeployment() ? null : await fetchSurface("api/surface.json?hours=168");
   if (full) {
     state.historyLoaded = true;
     setData(full);

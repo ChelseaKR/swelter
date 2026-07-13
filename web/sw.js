@@ -13,9 +13,18 @@ const SHELL = [
   "i18n/es.json",
   "sample-surface.json",
 ];
+// Static Pages builds add demo.json; live/local deployments may omit it. Cache
+// the truth contract when present without letting a 404 abort installation of
+// the core offline shell.
+const OPTIONAL_SHELL = ["demo.json"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
+  event.waitUntil(
+    caches.open(CACHE).then(async (cache) => {
+      await cache.addAll(SHELL);
+      await Promise.allSettled(OPTIONAL_SHELL.map((asset) => cache.add(asset)));
+    }),
+  );
   self.skipWaiting();
 });
 

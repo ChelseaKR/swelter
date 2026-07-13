@@ -1033,6 +1033,7 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
 #: only lists what actually landed on disk (checked by _write_publish_manifest, not assumed here).
 _PUBLISH_FILES = (
     "sample-surface.json",
+    "demo.json",
     "sample-health.json",
     "alerts.json",
     "alerts.xml",

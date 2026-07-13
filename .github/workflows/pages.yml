@@ -76,14 +76,17 @@ jobs:
           # succeeded and rides into `swelter publish` below. --accumulate keeps the
           # cache-restored store instead of wiping it, so the time slider covers weeks of real
           # history, not just today's fetch (a cache miss just starts fresh).
+          primary_source=synthetic
           if uv run swelter fetch --source openaq --store /tmp/openaq --config /tmp/openaq.yaml \
               --web web --max-locations 250 --accumulate; then
+            primary_source=openaq
             SOURCE1_STORE="/tmp/openaq"
             SOURCE1_CONFIG="/tmp/openaq.yaml"
             SOURCE1_LICENSE="Provider-specific terms (see OpenAQ location metadata)"
             SOURCE1_ATTRIBUTION="Real readings accessed via OpenAQ; original-provider licenses and attribution vary by location (docs.openaq.org/about/terms). Uncalibrated, so shown raw / provisional."
           elif uv run swelter fetch --source openmeteo --store /tmp/cams --config /tmp/cams.yaml \
               --web web --past-days 1 --accumulate; then
+            primary_source=openmeteo
             SOURCE1_STORE="/tmp/cams"
             SOURCE1_CONFIG="/tmp/cams.yaml"
             SOURCE1_LICENSE="CC BY 4.0 (Copernicus CAMS via Open-Meteo)"
@@ -95,6 +98,11 @@ jobs:
             SOURCE1_LICENSE="CC0-1.0"
             SOURCE1_ATTRIBUTION="Synthetic demonstration data — no real sensors (gen_demo_data.py)."
           fi
+          # Fail closed if the selected source's claims disagree with the surface it produced.
+          # Build before publish so demo.json is included in the auditable publish manifest;
+          # publish deterministically rebuilds the same surface from the selected store.
+          uv run python scripts/build_demo_contract.py --source "$primary_source" \
+            --surface web/sample-surface.json --output web/demo.json
           # The repository's cooling-center file is explicitly illustrative. Omitting it at
           # publish time keeps publish-manifest.json consistent with the artifact; the later
           # removal/check remains a defense against any other build step copying it back.
@@ -111,18 +119,26 @@ jobs:
           rm -f web/sensors/cooling-centers.geojson  # the sample centers are Sacramento, not Stuttgart
           # --cooling-centers points at a path that doesn't exist so the sensors page won't re-bake them.
           SC_LICENSE="ODC-DbCL-1.0"
-          SC_ATTRIBUTION="Real readings from the Sensor.Community network of community low-cost sensors (sensor.community, ODC-DbCL-1.0; terms: opendatacommons.org/licenses/dbcl/1-0) — uncalibrated, so shown raw / provisional."
+          # Keep this byte-for-byte aligned with sensor_community.ATTRIBUTION: the contract is
+          # built from fetch output before publish rewrites the same surface, so attribution drift
+          # would make build_input_attribution disagree with the shipped sample-surface.json.
+          SC_ATTRIBUTION="Real readings from the Sensor.Community network of community low-cost sensors (sensor.community, ODC-DbCL-1.0) — uncalibrated, so shown raw / provisional."
           if uv run swelter fetch --source sensor-community --store /tmp/sc --config /tmp/sc.yaml \
               --web web/sensors --cooling-centers /dev/null/none --accumulate; then
+            uv run python scripts/build_demo_contract.py --source sensor-community \
+              --surface web/sensors/sample-surface.json --output web/sensors/demo.json
             uv run swelter publish --store /tmp/sc --web web/sensors --config /tmp/sc.yaml \
               --cooling-centers /dev/null/none \
               --license "$SC_LICENSE" --attribution "$SC_ATTRIBUTION"
           else
             # sensor-community fetch failed: the sensors page falls back to page 1's surface, so
             # its license must say page 1's terms too, not the ODC-DbCL-1.0 default above.
-            cp web/sample-surface.json web/sensors/sample-surface.json
-            cp web/DATA-LICENSE web/sensors/DATA-LICENSE
-            cp web/export.csv web/sensors/export.csv
+            uv run python scripts/build_demo_contract.py --source "$primary_source" \
+              --surface web/sensors/sample-surface.json --output web/sensors/demo.json \
+              --fallback-for sensor-community
+            uv run swelter publish --store "$SOURCE1_STORE" --web web/sensors \
+              --config "$SOURCE1_CONFIG" --cooling-centers /dev/null/none \
+              --license "$SOURCE1_LICENSE" --attribution "$SOURCE1_ATTRIBUTION"
           fi
       - name: Exclude illustrative cooling centers from the public artifact
         run: |
