@@ -93,7 +93,11 @@ jobs:
             SOURCE1_LICENSE="CC0-1.0"
             SOURCE1_ATTRIBUTION="Synthetic demonstration data — no real sensors (gen_demo_data.py)."
           fi
+          # The repository's cooling-center file is explicitly illustrative. Omitting it at
+          # publish time keeps publish-manifest.json consistent with the artifact; the later
+          # removal/check remains a defense against any other build step copying it back.
           uv run swelter publish --store "$SOURCE1_STORE" --web web --config "$SOURCE1_CONFIG" \
+            --cooling-centers /dev/null/none \
             --license "$SOURCE1_LICENSE" --attribution "$SOURCE1_ATTRIBUTION"
           # Page 2 ("/sensors/"): real community low-cost sensors (Sensor.Community, Stuttgart).
           # Seed it from page 1's already-published static shell + data as a fallback, then try to
@@ -117,6 +121,23 @@ jobs:
             cp web/sample-surface.json web/sensors/sample-surface.json
             cp web/DATA-LICENSE web/sensors/DATA-LICENSE
             cp web/export.csv web/sensors/export.csv
+          fi
+      - name: Exclude illustrative cooling centers from the public artifact
+        run: |
+          # The committed file belongs to the synthetic/local demo only. A Pages route must use a
+          # jurisdiction-verified dataset rather than publishing the illustrative Sacramento list.
+          rm -f web/cooling-centers.geojson web/sensors/cooling-centers.geojson
+          # Scope the public service-worker cache to this revision so installed copies evict the
+          # previously cached illustrative file when this deployment activates.
+          for service_worker in web/sw.js web/sensors/sw.js; do
+            perl -pi -e \
+              's/^const CACHE = .*;/const CACHE = "swelter-pages-$ENV{GITHUB_SHA}";/' \
+              "$service_worker"
+            grep -Fq "const CACHE = \"swelter-pages-${GITHUB_SHA}\";" "$service_worker"
+          done
+          if find web -type f -name 'cooling-centers.geojson' -print -quit | grep -q .; then
+            echo "::error::Illustrative cooling-center data must not be published"
+            exit 1
           fi
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3

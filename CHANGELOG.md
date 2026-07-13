@@ -35,6 +35,13 @@ schema (see [`docs/VERSIONING.md`](docs/VERSIONING.md)).
   `data/context_layers.geojson` already set
   ([ADR 0014](docs/decisions/0014-exposure-brief-and-equity-context.md)).
 
+### Fixed
+
+- **Live-demo cooling centers.** The GitHub Pages build now excludes the explicitly illustrative
+  cooling-center dataset, evicts previously cached copies, and fails before upload if any copy
+  remains. The dataset stays available to the synthetic/local demo; a public deployment must provide
+  a jurisdiction-verified replacement.
+
 ## [0.1.0] — 2026-06-16
 
 The first reference implementation: a runnable pipeline, a calibration engine, an accessible
