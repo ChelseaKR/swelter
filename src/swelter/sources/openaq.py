@@ -70,13 +70,11 @@ def _locations(
 ) -> list[dict[str, Any]]:
     """Page through the locations in the bbox up to ``max_locations``."""
     west, south, east, north = bbox
+    limit = min(per_page, 1000)  # OpenAQ's own page-size cap
     out: list[dict[str, Any]] = []
     page = 1
     while len(out) < max_locations:
-        url = (
-            f"{API}/locations?bbox={west},{south},{east},{north}"
-            f"&limit={min(per_page, 1000)}&page={page}"
-        )
+        url = f"{API}/locations?bbox={west},{south},{east},{north}&limit={limit}&page={page}"
         try:
             payload = _get_json(url, api_key)
         except SourceError:
@@ -87,7 +85,11 @@ def _locations(
         if not isinstance(results, list) or not results:
             break
         out += [r for r in results if isinstance(r, dict)]
-        if len(results) < per_page:
+        # A short page means the server has no more to give — compare against the *actual*
+        # requested page size (`limit`, clamped to OpenAQ's 1000 cap), not the raw `per_page`
+        # argument: a caller passing per_page > 1000 would otherwise see every full (1000-row)
+        # page read as "short" against the un-clamped per_page and stop after page one.
+        if len(results) < limit:
             break
         page += 1
     return out[:max_locations]
