@@ -299,6 +299,16 @@ function indexCells() {
 
 // -- formatting --------------------------------------------------------------
 
+// String.prototype.replace() treats a *string* replacement's "$" sequences ($$, $&, $`, $',
+// $<name>) as special patterns even when the search value is a plain "{token}" string, not a
+// regex — so a host-supplied label, node id, or attribution string containing "$" would silently
+// corrupt the surrounding sentence. Use this instead of `.replace(token, value)` wherever `value`
+// is free text the network host controls (a place name, node id, calibration reference, etc.); a
+// function replacer is never scanned for "$" patterns.
+function fillIn(str, token, value) {
+  return str.replace(token, () => String(value));
+}
+
 function placeName(row) {
   return row.label || `${t("cell-word")} ${state.cellIndex.get(row.cell_id)}`;
 }
@@ -391,6 +401,16 @@ function describe(row) {
   return `${place}: ${fmtValue(row.mean)}${fmtUncertainty(row.uncertainty)}${prov}`;
 }
 
+// The reading part of `describe(row)`, with the leading "place: " stripped by prefix length —
+// not by splitting on ": ", which breaks when the place name/label itself contains ": " (e.g. a
+// host-chosen label like "Ward 3: Uptown"): a naive split matches every ": " in the string, not
+// just the one separating place from reading, and leaks part of the label into the "reading" text.
+function readingText(row) {
+  const prefix = `${placeName(row)}: `;
+  const full = describe(row);
+  return full.startsWith(prefix) ? full.slice(prefix.length) : full;
+}
+
 function guidanceFor(category) {
   const slug = CAT_SLUG[category];
   return slug ? t(`guide-${slug}`) : "";
@@ -413,7 +433,9 @@ function provenanceText(row) {
       parts.push(t("prov-uncertainty").replace("{u}", round1(u)).replace("{unit}", unitLabel()));
     }
     if (row.method && row.reference) {
-      parts.push(t("prov-method").replace("{method}", row.method).replace("{reference}", row.reference));
+      parts.push(
+        fillIn(fillIn(t("prov-method"), "{method}", row.method), "{reference}", row.reference)
+      );
     }
   }
   if (isExposure()) parts.push(t("prov-derived"));
@@ -463,7 +485,7 @@ function renderProvenance(row) {
 // data-to-action gap — something an advocate can drop into an email, a flyer, or testimony.
 function briefText(row) {
   const lines = [`${placeName(row)} — ${fmtBucket(currentBucket())}`];
-  lines.push(describe(row).split(": ").slice(1).join(": "));
+  lines.push(readingText(row));
   const c = contrastLine(row);
   if (c) lines.push(c);
   const tr = trendLine(row);
@@ -532,10 +554,10 @@ function renderDownload(row) {
 const SHARE_CARD_WIDTH = 1000;
 const SHARE_CARD_HEIGHT = 620;
 
-// The reading part of `describe(row)`, with the leading "place: " stripped — the same split
-// `briefText` already uses to separate place from reading.
+// The reading part of `describe(row)`, with the leading "place: " stripped — the same
+// `readingText` helper `briefText` already uses to separate place from reading.
 function shareCardReading(row) {
-  return describe(row).split(": ").slice(1).join(": ");
+  return readingText(row);
 }
 
 // Simple greedy word-wrap for the canvas 2D text API, which has no native wrapping. Returns the
@@ -877,8 +899,7 @@ function renderHeadline() {
     return;
   }
   const worst = confirmed.reduce((a, b) => (b.aqi > a.aqi ? b : a));
-  const lead = t("headline-worst")
-    .replace("{place}", placeName(worst))
+  const lead = fillIn(t("headline-worst"), "{place}", placeName(worst))
     .replace("{aqi}", String(worst.aqi))
     .replace("{category}", localCategory(worst.category));
   el.textContent = `${lead} ${guidanceFor(worst.category)}`;
@@ -987,8 +1008,7 @@ function renderHealthDetail() {
   }
   for (const n of attention) {
     const li = document.createElement("li");
-    li.textContent = t("health-node")
-      .replace("{node}", n.node_id)
+    li.textContent = fillIn(t("health-node"), "{node}", n.node_id)
       .replace("{status}", t(n.status === "offline" ? "health-stat-offline" : "health-stat-degraded"))
       .replace("{pct}", String(Math.round((n.completeness || 0) * 100)))
       .replace("{age}", n.last_seen ? ageText(n.last_seen) : "—");
@@ -1077,7 +1097,7 @@ function renderList(rows) {
     place.textContent = placeName(row) + " — ";
     const reading = document.createElement("span");
     reading.className = "reading";
-    reading.textContent = describe(row).split(": ").slice(1).join(": ");
+    reading.textContent = readingText(row);
     li.append(place, reading);
     li.addEventListener("click", () => select(row.cell_id));
     list.appendChild(li);
@@ -1743,8 +1763,7 @@ function watchReadingText(row) {
 // crossing is never asserted as a confirmed category (R: no false safety; calibrated/raw not mixed).
 function alertText(row, watch) {
   const param = t(PARAM_I18N[row.parameter] || "parameter");
-  let line = t("alert-line")
-    .replace("{place}", placeName(row))
+  let line = fillIn(t("alert-line"), "{place}", placeName(row))
     .replace("{param}", param)
     .replace("{reading}", watchReadingText(row))
     .replace("{threshold}", watchThresholdText(row.parameter, watch));
@@ -1868,12 +1887,12 @@ function alertSeverityText(alert) {
 function alertSentence(alert) {
   const sev = alertSeverityText(alert);
   if (alert.parameter === "pm25_ugm3") {
-    return t("aa-air").replace("{area}", alert.area).replace("{sev}", sev).replace("{aqi}", alert.aqi);
+    return fillIn(t("aa-air"), "{area}", alert.area).replace("{sev}", sev).replace("{aqi}", alert.aqi);
   }
   if (alert.parameter === "heat_index_c") {
-    return t("aa-heat").replace("{area}", alert.area).replace("{sev}", sev);
+    return fillIn(t("aa-heat"), "{area}", alert.area).replace("{sev}", sev);
   }
-  return t("aa-exposure").replace("{area}", alert.area).replace("{sev}", sev);
+  return fillIn(t("aa-exposure"), "{area}", alert.area).replace("{sev}", sev);
 }
 
 // Build the area <select> from every published cell (so a resident can pick their block and copy its
@@ -2019,9 +2038,11 @@ function renderCoolingCenters() {
     list.appendChild(li);
   }
   const meta = state.coolingMeta || {};
-  $("#cooling-source").textContent = t("cooling-source")
-    .replace("{attribution}", meta.attribution || meta.source || "")
-    .replace("{date}", meta.last_verified || "—");
+  $("#cooling-source").textContent = fillIn(
+    t("cooling-source"),
+    "{attribution}",
+    meta.attribution || meta.source || ""
+  ).replace("{date}", meta.last_verified || "—");
 }
 
 function toggleCooling() {
@@ -2363,7 +2384,15 @@ function parseHash() {
   const raw = location.hash.replace(/^#/, "");
   for (const part of raw.split("&")) {
     const eq = part.indexOf("=");
-    if (eq > 0) out[part.slice(0, eq)] = decodeURIComponent(part.slice(eq + 1));
+    if (eq > 0) {
+      try {
+        out[part.slice(0, eq)] = decodeURIComponent(part.slice(eq + 1));
+      } catch {
+        // A malformed/truncated percent-encoding in a copied, emailed, or hand-edited share link
+        // must not throw here: this runs in init() before the first render, so an uncaught
+        // URIError would blank the whole dashboard instead of just this one hash key.
+      }
+    }
   }
   return out;
 }
@@ -2591,7 +2620,7 @@ function locate() {
         state.search = "";
         $("#place-search").value = "";
         select(best.cell_id, true); // geolocation → center the map on the nearest location
-        $("#status").textContent = t("locate-found").replace("{place}", placeName(best));
+        $("#status").textContent = fillIn(t("locate-found"), "{place}", placeName(best));
       }
     },
     () => {

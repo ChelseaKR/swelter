@@ -145,6 +145,36 @@ test("describe — plain-language reading line, confirmed vs provisional framing
   assert.match(app.describe(provisional), /^cell-word 1: ~AQI 45 \(state-provisional\)/);
 });
 
+test("fillIn — substitutes a host-supplied value literally, not as a replace() pattern", async () => {
+  const app = await freshApp();
+  // String.prototype.replace() treats a *string* replacement's "$" sequences ($&, $`, $$) as
+  // special patterns even when the search value is a plain string, not a regex — a naive
+  // `.replace("{place}", value)` would corrupt the surrounding sentence for any of these.
+  assert.equal(app.fillIn("hi {place}!", "{place}", "Cedar & 4th$&Ave"), "hi Cedar & 4th$&Ave!");
+  assert.equal(app.fillIn("hi {place}!", "{place}", "weird$`prefix"), "hi weird$`prefix!");
+  assert.equal(app.fillIn("hi {place}!", "{place}", "trail$$ing"), "hi trail$$ing!");
+});
+
+test("readingText — strips only the place-name prefix, even when the label itself contains ': '", async () => {
+  const app = await freshApp();
+  app.state.cells = [{ cell_id: "c1", bucket: "2026-06-01T00:00:00Z" }];
+  app.indexCells();
+  app.state.parameter = "pm25_ugm3";
+
+  const row = {
+    cell_id: "c1",
+    label: "Ward 3: Uptown", // a host-chosen label that itself contains the "place: reading" separator
+    mean: 12,
+    aqi: 45,
+    category: "Good",
+    provisional: false,
+  };
+  // A naive `describe(row).split(": ").slice(1).join(": ")` would drop only up to the *first*
+  // ": " and leak "Uptown" (the second half of the label) into the reading text.
+  assert.equal(app.readingText(row), app.describe(row).slice(`${row.label}: `.length));
+  assert.doesNotMatch(app.readingText(row), /^Uptown:/);
+});
+
 test("compareDiff — category parameters compare ordinal severity, never raw numbers", async () => {
   const app = await freshApp();
   app.state.cells = [
@@ -303,4 +333,17 @@ test("fmtBucket — a real BCP-47 locale formats through Intl; an invalid one fa
 
   app.document.documentElement.lang = "not a real locale tag!!";
   assert.equal(app.fmtBucket("2026-06-01T14:30:00Z"), "2026-06-01 14:30 UTC");
+});
+
+test("parseHash — a malformed percent-encoding in one key must not throw or blank the page", async () => {
+  const app = await freshApp();
+  // A share link truncated or mangled by a copy/paste, email client, or hand edit can leave an
+  // invalid percent-encoding (a lone "%", or a cut-off UTF-8 sequence) in the fragment.
+  // decodeURIComponent() throws a URIError on all of these; parseHash() runs inside init() before
+  // the first render, so an uncaught throw here used to blank the whole dashboard.
+  app.location.hash = "#p=temp_c&l=abc%&t=2026-06-01T00%3A00%3A00Z";
+  const parsed = app.parseHash();
+  assert.equal(parsed.p, "temp_c"); // a well-formed key still parses …
+  assert.equal(parsed.t, "2026-06-01T00:00:00Z");
+  assert.equal(parsed.l, undefined); // … the malformed one is just skipped, not fatal
 });
