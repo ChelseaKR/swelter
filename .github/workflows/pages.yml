@@ -166,7 +166,7 @@ jobs:
           uv run python scripts/pages_seo.py page --web-dir web/sensors --route /sensors/
           uv run python scripts/pages_seo.py sitemap --output web/sitemap.xml
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: web
       - id: deploy
