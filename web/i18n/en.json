@@ -153,7 +153,7 @@
   "map-zoom-in": "Zoom in",
   "map-zoom-out": "Zoom out",
   "map-reset": "Reset",
-  "map-reset-label": "Reset map to fit California",
+  "map-reset-label": "Reset map pan and zoom",
   "detail-title": "Selected location",
   "spark-label": "{n} published observations from {start} to {end} — low {low}, high {high}{unit}.",
   "spark-all-provisional": "All plotted observations are provisional; this shape is rough.",

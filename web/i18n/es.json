@@ -153,7 +153,7 @@
   "map-zoom-in": "Acercar",
   "map-zoom-out": "Alejar",
   "map-reset": "Restablecer",
-  "map-reset-label": "Restablecer el mapa a California",
+  "map-reset-label": "Restablecer la posición y el zoom del mapa",
   "detail-title": "Ubicación seleccionada",
   "spark-label": "{n} observaciones publicadas de {start} a {end} — mínimo {low}, máximo {high}{unit}.",
   "spark-all-provisional": "Todas las observaciones trazadas son provisionales; esta forma es aproximada.",
