@@ -145,13 +145,14 @@ jobs:
           # The committed file belongs to the synthetic/local demo only. A Pages route must use a
           # jurisdiction-verified dataset rather than publishing the illustrative Sacramento list.
           rm -f web/cooling-centers.geojson web/sensors/cooling-centers.geojson
-          # Scope the public service-worker cache to this revision so installed copies evict the
-          # previously cached illustrative file when this deployment activates.
+          # Give each route-scoped worker this revision's release token. web/sw.js derives a
+          # separate ownership prefix from self.registration.scope, so root and /sensors/ never
+          # delete one another's caches (or another project site's caches on this shared origin).
           for service_worker in web/sw.js web/sensors/sw.js; do
             perl -pi -e \
-              's/^const CACHE = .*;/const CACHE = "swelter-pages-$ENV{GITHUB_SHA}";/' \
+              's/^const CACHE_RELEASE = .*;/const CACHE_RELEASE = "pages-$ENV{GITHUB_SHA}";/' \
               "$service_worker"
-            grep -Fq "const CACHE = \"swelter-pages-${GITHUB_SHA}\";" "$service_worker"
+            grep -Fq "const CACHE_RELEASE = \"pages-${GITHUB_SHA}\";" "$service_worker"
           done
           if find web -type f -name 'cooling-centers.geojson' -print -quit | grep -q .; then
             echo "::error::Illustrative cooling-center data must not be published"

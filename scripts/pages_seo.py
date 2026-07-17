@@ -26,8 +26,10 @@ REPOSITORY_URL = "https://github.com/ChelseaKR/swelter"
 SEO_START = "<!-- pages-seo:start -->"
 SEO_END = "<!-- pages-seo:end -->"
 KNOWN_ROUTES = ("/", "/sensors/")
-_TITLE_PATTERN = re.compile(r"<title>.*?</title>", re.DOTALL)
-_DESCRIPTION_PATTERN = re.compile(r'<meta\s+name="description"\s+content="[^"]*"\s*/>', re.DOTALL)
+_TITLE_PATTERN = re.compile(r"<title(?:\s[^>]*)?>.*?</title>", re.DOTALL)
+_DESCRIPTION_PATTERN = re.compile(
+    r'<meta\s+name="description"[^>]*\scontent="[^"]*"[^>]*/?>', re.DOTALL
+)
 
 
 @dataclass(frozen=True)
@@ -61,8 +63,9 @@ SOURCE_SPECS: dict[str, SourceSpec] = {
     "openaq": SourceSpec(
         page_title="swelter — California-region air-quality observations from OpenAQ",
         page_description=(
-            "Current physical-sensor air-quality observations selected from OpenAQ for Swelter's "
-            "California-region demo. Readings are uncalibrated by Swelter and shown provisional."
+            "Physical-sensor air-quality observations selected from OpenAQ for Swelter's "
+            "California-region demo. Readings are uncalibrated by Swelter, timestamped, and shown "
+            "provisional."
         ),
         dataset_name="Swelter California-region air-quality surface (OpenAQ-derived)",
         dataset_description=(
@@ -105,7 +108,7 @@ SOURCE_SPECS: dict[str, SourceSpec] = {
     "sensor-community": SourceSpec(
         page_title="swelter — Stuttgart community air-quality sensors",
         page_description=(
-            "Current low-cost air-sensor observations from Sensor.Community near Stuttgart. "
+            "Timestamped low-cost air-sensor observations from Sensor.Community near Stuttgart. "
             "Swelter has not calibrated these readings, so they are shown provisional."
         ),
         dataset_name="Swelter Stuttgart air-quality surface (Sensor.Community-derived)",

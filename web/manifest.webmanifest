@@ -1,13 +1,12 @@
 {
-  "name": "swelter — community heat & air-quality map",
+  "name": "swelter — neighborhood exposure observatory",
   "short_name": "swelter",
-  "description": "Neighborhood heat and air quality from a community sensor network: calibrated, open, and usable on a phone.",
+  "description": "Linked neighborhood heat and air-quality evidence across place, time, uncertainty, and sensor provenance.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#fbf7f2",
-  "theme_color": "#7b2d26",
+  "background_color": "#f2f7f5",
+  "theme_color": "#17211f",
   "lang": "en",
   "icons": [
     {
