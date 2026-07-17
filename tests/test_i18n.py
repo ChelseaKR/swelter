@@ -81,6 +81,13 @@ def test_no_empty_translations() -> None:
         assert not blank, f"empty strings in {lang}.json: {blank}"
 
 
+def test_map_reset_label_is_route_neutral() -> None:
+    """The shared shell serves California and Stuttgart, so its map copy cannot name one route."""
+    assert _load("en")["map-reset-label"] == "Reset map pan and zoom"
+    assert _load("es")["map-reset-label"] == "Restablecer la posición y el zoom del mapa"
+    assert 'aria-label="Reset map pan and zoom"' in INDEX.read_text(encoding="utf-8")
+
+
 def test_referenced_keys_resolve_in_every_locale() -> None:
     """Every i18n key the dashboard references must exist in every shipped locale.
 
