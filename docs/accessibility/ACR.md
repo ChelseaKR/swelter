@@ -2,8 +2,11 @@
 
 VPAT 2.5 (Rev 508) — Revised Section 508 Edition
 
-Last verified: 2026-06-16. Recheck cadence: regenerated and re-committed each release, and at
-least every 6 months when no release ships.
+Last full manual screen-reader verification: 2026-06-16. Observatory implementation regression
+review: 2026-07-16 (structural gate, bilingual parity, automated browser interactions at desktop and
+mobile widths, and CI axe/pa11y gate). The expanded linked visualizations retain text equivalents;
+NVDA and VoiceOver should be re-run for the next formal conformance-signoff. Recheck cadence:
+regenerated and re-committed each release, and at least every 6 months when no release ships.
 
 > swelter is an independent, community-run heat and air-quality dashboard. It is **not federal
 > ICT**, so the Revised Section 508 Standards (36 CFR Part 1194) do not apply to it as a matter
@@ -18,10 +21,10 @@ least every 6 months when no release ships.
 | --- | --- |
 | Name of product | swelter dashboard (the `web/` single-page application) |
 | Version | Tracks the repository release; this report covers the dashboard as committed on the date below |
-| Report date | 2026-06-16 |
-| Product description | A framework-free, dependency-free web dashboard showing neighborhood heat and air quality from a community sensor network. One aggregated surface is rendered as three equal views — a schematic map, a sortable data table, and a plain readings list — plus an air-quality legend. Served by `swelter serve`; installable as a PWA; also openable as static files. |
+| Report date | 2026-07-16 |
+| Product description | A framework-free, dependency-free exposure observatory for neighborhood heat and air quality. A resident-first Now view leads into linked history, distribution, map, sortable table, plain list, and evidence-inspector views of one aggregated surface. Served by `swelter serve`; installable as a PWA; deployable to static hosting. |
 | Contact information | Chelsea Kelly-Reif — github.com/ChelseaKR/swelter |
-| Notes | The dashboard is three static files (`web/index.html`, `web/styles.css`, `web/app.js`) plus per-language string bundles (`web/i18n/en.json`, `web/i18n/es.json`). No build step, no bundler, no runtime framework. |
+| Notes | The shell is four static files (`web/index.html`, `web/styles.css`, `web/observatory.css`, `web/app.js`) plus per-language string bundles (`web/i18n/en.json`, `web/i18n/es.json`). No build step, bundler, runtime framework, map tiles, or external font request. |
 | Evaluation methods used | See below. |
 
 ### Evaluation methods used
@@ -34,9 +37,11 @@ least every 6 months when no release ships.
   single `<h1>`, landmarks, a working skip link, labelled controls, a real data-table equivalent
   to the map, image text alternatives, no positive `tabindex`, a language switch, a
   `prefers-reduced-motion` rule, and a visible focus indicator. As of this report all twelve pass.
-- **Manual screen-reader review:** NVDA on Windows (Firefox and Chrome) and VoiceOver on macOS
-  (Safari), exercising every view, the parameter select, the time slider, the sortable table
-  headers, the tablist arrow-key navigation, and the language switch.
+- **Manual screen-reader review:** the 2026-06-16 baseline covered NVDA on Windows (Firefox and
+  Chrome) and VoiceOver on macOS (Safari), exercising every original data representation and
+  control. The 2026-07-16 observatory keeps those tested controls/IDs and adds text summaries for
+  its decorative SVG, but its expanded linked-view sequence awaits the next full NVDA/VoiceOver
+  signoff; this limitation is stated rather than silently rolling the old date forward.
 - **Keyboard-only review:** full task completion using only Tab / Shift+Tab, Enter / Space, and
   arrow keys, confirming a visible focus indicator on every interactive element and no keyboard
   trap.
@@ -73,26 +78,26 @@ incorporate by reference. The success-criteria table below uses the WCAG numberi
 
 | Criterion | Conformance level | Remarks and explanations |
 | --- | --- | --- |
-| 1.1.1 Non-text Content | Supports | No content `<img>` elements ship; the schematic map is built from text-labelled buttons, each with an `aria-label` stating its cell number and reading. The legend swatches are decorative and marked `aria-hidden="true"`, with the category named in adjacent text. The a11y gate asserts every `<img>` has `alt`. |
+| 1.1.1 Non-text Content | Supports | No content `<img>` elements ship; the map uses text-labelled buttons. The exposure-braid SVG is `aria-hidden` and described by keyboard instructions, a plain-text statistical summary, and a method/uncertainty note; the same readings remain in List and Table. Legend swatches are decorative with adjacent category text. The gate asserts every `<img>` has `alt`. |
 | 1.2.1 Audio-only and Video-only (Prerecorded) | Not Applicable | No audio or video content. |
 | 1.2.2 Captions (Prerecorded) | Not Applicable | No multimedia. |
 | 1.2.3 Audio Description or Media Alternative (Prerecorded) | Not Applicable | No multimedia. |
 | 1.3.1 Info and Relationships | Supports | Semantic HTML throughout: `<header>`/`<main>`/`<footer>` landmarks, one `<h1>` and section `<h2>`s, a real `<table>` with `<caption>`, `<th scope="col">` and per-row `<th scope="row">`, `<label for>` on every control, and `aria-sort` on sortable columns. The tablist uses `role="tablist"`/`tab`/`tabpanel` with `aria-controls`/`aria-labelledby`. |
-| 1.3.2 Meaningful Sequence | Supports | DOM order matches reading order: controls, view tabs, status, then the active panel. No CSS reordering changes meaning. |
+| 1.3.2 Meaningful Sequence | Supports | DOM order matches reading order: Now, Explore heading and controls, linked visual summaries, representation tabs and panels, inspector, Network, then Data & Method. Responsive CSS changes columns, not semantic order. |
 | 1.3.3 Sensory Characteristics | Supports | Instructions never rely on shape, size, or position alone; views are named "Map", "Table", "List" and severity is named in text. |
 | 1.4.1 Use of Color | Supports | Air-quality category is conveyed by **text and a distinct background pattern**, not color alone (see `.aqi-*` rules in `styles.css`, which pair each color with a unique hatch/dot pattern and an always-present text label). Provisional cells use a dashed border plus the word "provisional". |
 | 1.4.2 Audio Control | Not Applicable | No auto-playing audio. |
-| 2.1.1 Keyboard | Supports | Every control is a native focusable element: `<select>`, `<input type="range">`, `<button>`. The time slider is operated with arrow keys; tabs respond to Left/Right/Home/End; sort is a `<button>` in the `<th>`. All tasks are completable by keyboard. |
+| 2.1.1 Keyboard | Supports | Controls are native `<select>`, `<input type="range">`, links, and buttons. The exposure braid itself accepts Left/Right/Home/End, its range has two labelled native sliders, tabs use roving focus, map pan/zoom has button and arrow-key alternatives, and sort is a button in the table header. |
 | 2.1.2 No Keyboard Trap | Supports | Focus moves into and out of every component with Tab/Shift+Tab. No modal or custom focus capture exists. |
-| 2.1.4 Character Key Shortcuts | Not Applicable | No single-character key shortcuts are implemented. |
-| 2.2.1 Timing Adjustable | Not Applicable | No time limits. The time slider selects an hour bucket and never advances on its own. |
-| 2.2.2 Pause, Stop, Hide | Not Applicable | No moving, blinking, scrolling, or auto-updating content. |
+| 2.1.4 Character Key Shortcuts | Supports | Optional `l`, `t`, `m`, and `/` shortcuts never fire while typing or with a modifier, and can be disabled through the persistent “Enable keyboard shortcuts” checkbox. |
+| 2.2.1 Timing Adjustable | Not Applicable | No task or content has a time limit. |
+| 2.2.2 Pause, Stop, Hide | Supports | The hourly playback never starts automatically. Its initiating button becomes Pause; manual time/range input stops it, and reduced-motion preferences remove transitional motion. |
 | 2.3.1 Three Flashes or Below Threshold | Supports | Nothing flashes. |
 | 2.4.1 Bypass Blocks | Supports | A "Skip to the data" link targets `#main`; the a11y gate asserts the skip link points at a real in-page id. |
-| 2.4.2 Page Titled | Supports | `<title>` is "swelter — neighborhood heat & air-quality map"; the gate asserts a non-empty title. |
-| 2.4.3 Focus Order | Supports | Focus order follows the visual and DOM order; the active tab is the single tab stop (roving `tabindex`), panel content follows it. |
-| 2.4.4 Link Purpose (In Context) | Supports | The only link is the skip link, whose text states its purpose. |
-| 2.5.1 Pointer Gestures | Not Applicable | No multipoint or path-based gestures; all actions are single taps/clicks or keyboard. |
+| 2.4.2 Page Titled | Supports | `<title>` identifies the neighborhood heat-and-air evidence observatory and is localized with the page; the gate asserts a non-empty title. |
+| 2.4.3 Focus Order | Supports | Focus order follows the visual and DOM order; the active tab is the single tab stop (roving `tabindex`), panel content follows it, and rerendered map/list/table, ranking, overview, and alert controls restore focus to the equivalent control or the selected List row. |
+| 2.4.4 Link Purpose (In Context) | Supports | Skip, section navigation, source switching, “Open the evidence,” license, feed, and download links state their purpose in text and context. |
+| 2.5.1 Pointer Gestures | Supports | The map accepts pan/pinch, but none is required: zoom/reset buttons, arrow keys, selectable markers, List, and Table expose the same outcomes without a path-based or multipoint gesture. |
 | 2.5.2 Pointer Cancellation | Supports | Actions fire on `click`/`change`/`input` (up event), not `mousedown`; a pointer can be moved off before release. |
 | 2.5.3 Label in Name | Supports | Visible labels match accessible names; tab buttons' visible text is their name, controls are tied to visible `<label>`s. |
 | 2.5.4 Motion Actuation | Not Applicable | No device-motion or user-motion actuation. |
@@ -102,7 +107,7 @@ incorporate by reference. The success-criteria table below uses the WCAG numberi
 | 3.3.1 Error Identification | Not Applicable | No data-entry forms; the only inputs are a select and a slider with constrained values. The "no data" state is announced as text in the status region. |
 | 3.3.2 Labels or Instructions | Supports | Every control has a persistent visible `<label>`; the slider has a hint via `aria-describedby` and the map panel carries a text hint pointing to the Table and List. |
 | 4.1.1 Parsing | Supports | Valid HTML5; the gate parses the page with the standard-library HTML parser without structural error. (Obsolete in WCAG 2.2; reported as a courtesy.) |
-| 4.1.2 Name, Role, Value | Supports | Native controls expose name/role/value to the platform; the tablist exposes `aria-selected`, sortable headers expose `aria-sort` updated on sort, and the time readout uses `<output for>` with `aria-live="polite"`. |
+| 4.1.2 Name, Role, Value | Supports | Native controls expose name/role/value to the platform; the tablist exposes `aria-selected`, selectable Map/List/Table and distribution buttons expose the linked location with `aria-pressed`, sortable headers expose `aria-sort` updated on sort, and the time readout uses `<output for>` with `aria-live="polite"`. |
 
 ### Table 2: Success Criteria, Level AA
 
@@ -122,10 +127,10 @@ incorporate by reference. The success-criteria table below uses the WCAG numberi
 | 2.4.5 Multiple Ways | Supports | The same aggregated surface is reachable three ways within the page — Map, Table, and List tabs — and the page is a single view; export endpoints (`/export.csv`, `/export.json`) offer an additional path to the data. |
 | 2.4.6 Headings and Labels | Supports | Headings ("swelter", "Air-quality categories (PM2.5)") and control labels are descriptive; the visually-hidden "Controls" heading names the control group. |
 | 2.4.7 Focus Visible | Supports | A 3px `:focus-visible` outline with offset is applied to every interactive element, including map cells and tabs; the gate asserts a visible focus indicator exists in CSS. |
-| 2.4.11 Focus Not Obscured (Minimum) | Supports | Focused elements are not hidden by sticky or overlapping content; there is no sticky chrome that overlaps focusable controls. (WCAG 2.2.) |
+| 2.4.11 Focus Not Obscured (Minimum) | Supports | Sticky command-bar and desktop-inspector layouts reserve scroll padding/margins; the inspector stops being sticky in the stacked layout. Automated keyboard review found no focused control fully obscured. (WCAG 2.2.) |
 | 2.5.7 Dragging Movements | Supports | The time slider is fully operable with arrow keys; no action requires a dragging movement. (WCAG 2.2.) |
-| 2.5.8 Target Size (Minimum) | Supports | Interactive targets — tabs, selects, slider thumb, sort buttons, and map cells (min-width 2.6rem with padding) — meet the 24×24 CSS-pixel minimum, with spacing between adjacent map cells. (WCAG 2.2.) |
-| 3.1.2 Language of Parts | Supports | When the user selects Español the whole document's `lang` is updated to `es`; the page does not mix languages within a single rendering, so inline `lang` on parts is not required. |
+| 2.5.8 Target Size (Minimum) | Supports | Interactive targets — tabs, selects, slider thumbs, sort buttons, map cells, and distribution rows — meet the 24×24 CSS-pixel minimum or its spacing exception. The braid's full plot surface is one large pointer target that selects the nearest observation; compact dots also have expanded hit areas, and the time slider is an equivalent control. (WCAG 2.2.) |
+| 3.1.2 Language of Parts | Supports | UI strings follow the selected document language (`en`/`es`). Source-authored English exposure-method notes can appear inside the Spanish interface; those raw notes are explicitly marked `lang="en"` in the braid and provenance views so assistive technology switches pronunciation correctly. |
 | 3.2.3 Consistent Navigation | Supports | The single-page dashboard presents the same controls and tab order on every render. |
 | 3.2.4 Consistent Identification | Supports | The same components ("provisional" tag, AQI tag, view tabs) are labelled identically wherever they appear. |
 | 3.2.6 Consistent Help | Not Applicable | No help mechanism is provided across multiple pages; the dashboard is a single page. (WCAG 2.2.) |
@@ -133,7 +138,7 @@ incorporate by reference. The success-criteria table below uses the WCAG numberi
 | 3.3.4 Error Prevention (Legal, Financial, Data) | Not Applicable | No legal, financial, or data-modifying transactions; the dashboard is read-only. |
 | 3.3.7 Redundant Entry | Not Applicable | No multi-step process re-asks for information. (WCAG 2.2.) |
 | 3.3.8 Accessible Authentication (Minimum) | Not Applicable | No authentication; the data is open and requires no account. (WCAG 2.2.) |
-| 4.1.3 Status Messages | Supports | The cell-count status (`role="status"`, `aria-live="polite"`) and the time-slider readout (`<output>` with `aria-live="polite"`) announce changes without moving focus; the "no data" fallback is announced the same way. |
+| 4.1.3 Status Messages | Supports | Cell count, source headline, alert/copy/watch feedback, and no-data/offline states use status/live text without moving focus. Range values and braid summaries are persistent control descriptions rather than live regions, preventing announcement storms during slider input. |
 
 ---
 

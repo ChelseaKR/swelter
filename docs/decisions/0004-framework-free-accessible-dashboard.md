@@ -1,11 +1,12 @@
 # ADR 0004: Ship a framework-free dashboard with three equal views, held to WCAG 2.2 AA
 
-Date: 2026-06-16. Status: accepted.
+Date: 2026-06-16. Status: accepted. Amended 2026-07-16.
 
 ## Decision
 
 The dashboard under `web/` is plain HTML, CSS, and ES modules: no build step, no
-bundler, no npm. Three static files (`index.html`, `styles.css`, `app.js`) plus
+bundler, no runtime npm. Four static shell files (`index.html`, `styles.css`,
+`observatory.css`, `app.js`) plus
 per-language string bundles, served by `swelter serve` or by any static host /
 GitHub Pages. The Map, Table, and List tabs are three equal views of one
 aggregated surface — the map is never the only way in, and the sortable `<table>`
@@ -18,6 +19,15 @@ and installs as a PWA (`manifest.webmanifest` + `sw.js`). It reads
 `web/sample-surface.json` when the API is unreachable. Accessibility is held to a
 structural floor on every PR by `scripts/a11y_check.py` (`make a11y`, 12 checks),
 inside `make verify`.
+
+The 2026-07-16 amendment adds a resident-first **Now** view and an analytical
+**Explore** workspace without changing that architecture or data contract. Explore
+adds a native-SVG history braid, a linked location distribution, and a persistent
+evidence inspector around the existing Map/Table/List representations. The history
+renderer draws only published buckets, leaves missing buckets as gaps, and shows
+published uncertainty and provisional state directly. Desktop opens Map first;
+narrow screens retain the lower-friction List default. The extra stylesheet is a
+progressive visual layer; there are still no runtime dependencies or build output.
 
 ## Why
 
@@ -36,7 +46,7 @@ non-visual users and assumes a fast connection).
 
 ## Known weakness / Consequences
 
-No framework means shared UI logic is hand-written in `app.js` and the three
+No framework means shared UI logic is hand-written in `app.js` and the linked
 views must each be kept in sync with the surface shape by hand; there is no
 component model to lean on as the UI grows. The structural `a11y_check.py` gate
 catches a structural floor only — it is not a full audit, so an advisory axe/pa11y

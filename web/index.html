@@ -4,28 +4,40 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <title>swelter — neighborhood heat &amp; air-quality map</title>
+    <title data-i18n="document-title">swelter — neighborhood heat &amp; air evidence observatory</title>
     <meta
       name="description"
-      content="Neighborhood heat and air quality from a community sensor network. Calibrated, open, and readable as a map, a table, or a plain list."
+      data-i18n-attr="content:meta-description"
+      content="Explore neighborhood heat and air evidence across place and time, with linked visualizations, calibration state, uncertainty, provenance, and accessible map, list, and table views."
     />
     <!-- pages-seo:start -->
     <!-- The Pages build replaces this block once it knows which live-data fallback succeeded. -->
     <!-- pages-seo:end -->
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
-    <meta name="theme-color" content="#7b2d26" />
+    <link rel="stylesheet" href="observatory.css" />
+    <meta name="theme-color" content="#17211f" />
   </head>
   <body>
     <a class="skip-link" href="#main" data-i18n="skip">Skip to the data</a>
 
     <header>
       <div class="brand">
-        <h1>swelter</h1>
+        <h1>swelter <span class="brand-mode" data-i18n="brand-mode">/ field station</span></h1>
         <p class="tagline" data-i18n="tagline">
           Neighborhood heat and air quality, with calibration state and provenance shown.
         </p>
       </div>
+      <nav
+        class="observatory-nav"
+        data-i18n-attr="aria-label:observatory-nav-label"
+        aria-label="Observatory sections"
+      >
+        <a href="#now" data-i18n="nav-now">Now</a>
+        <a href="#explore" data-i18n="nav-explore">Explore</a>
+        <a href="#network" data-i18n="nav-network">Network</a>
+        <a href="#method" data-i18n="nav-method">Data &amp; method</a>
+      </nav>
       <div class="header-controls">
         <div class="units" role="group" aria-labelledby="units-label">
           <span id="units-label" data-i18n="units">Units</span>
@@ -49,42 +61,43 @@
       <p id="display-status" class="visually-hidden" role="status" aria-live="polite"></p>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
       <p id="offline" class="offline" role="status" aria-live="polite" data-i18n="offline-note" hidden>
         You're offline — showing the last readings this device loaded. Reconnect for the latest.
       </p>
-      <p id="headline" class="headline" role="status" aria-live="polite"></p>
-      <p id="data-source" class="data-source"></p>
 
-      <section id="dataset-truth" class="dataset-truth" aria-labelledby="dataset-truth-heading" hidden>
-        <h2 id="dataset-truth-heading" data-i18n="truth-heading">About these readings</h2>
-        <dl>
-          <dt data-i18n="truth-source">Source</dt>
-          <dd id="truth-source"></dd>
-          <dt data-i18n="truth-geography">Geography</dt>
-          <dd id="truth-geography"></dd>
-          <dt data-i18n="truth-status">Calibration status</dt>
-          <dd id="truth-status"></dd>
-          <dt data-i18n="truth-license">Reuse terms</dt>
-          <dd id="truth-license"></dd>
-        </dl>
-        <p id="truth-fallback" class="truth-fallback" hidden></p>
-      </section>
-
-      <nav
-        class="source-switch"
-        data-i18n-attr="aria-label:source-switch-label"
-        aria-label="Data source"
-      >
-        <a id="switch-cams" href="./" data-i18n="source-primary">Primary data view</a>
-        <a id="switch-sensors" href="sensors/" data-i18n="source-community">Community sensor view</a>
-      </nav>
-
-      <section class="controls" aria-labelledby="controls-heading">
-        <h2 id="controls-heading" class="visually-hidden" data-i18n="controls">Controls</h2>
-        <div class="control find">
-          <label for="place-search" data-i18n="search-label">Find your area</label>
-          <div class="find-row">
+      <section id="now" class="now-stage" aria-labelledby="now-heading">
+        <div class="now-intro">
+          <p class="section-kicker" data-i18n="now-kicker">Your exposure, in context</p>
+          <h2 id="now-heading" data-i18n="now-heading">Neighborhood observation</h2>
+          <p data-i18n="now-intro">
+            Find a location for a resident-first reading, then open the evidence behind it.
+          </p>
+        </div>
+        <div class="now-grid">
+          <article class="now-primary" aria-labelledby="now-place">
+            <p id="now-mode" class="section-kicker" data-i18n="now-network-focus">
+              Network high point
+            </p>
+            <h3 id="now-place">—</h3>
+            <p id="now-reading" class="now-reading">—</p>
+            <p id="now-context" class="now-context"></p>
+            <div
+              class="now-status"
+              role="group"
+              data-i18n-attr="aria-label:now-status-label"
+              aria-label="Reading status"
+            >
+              <span id="now-trust" class="status-chip">—</span>
+              <span id="now-freshness" class="status-chip">—</span>
+            </div>
+            <p id="now-guidance" class="now-guidance"></p>
+            <p><a id="now-open-evidence" class="primary-link" href="#explore" data-i18n="now-open-evidence">Open the evidence</a></p>
+          </article>
+          <div class="now-find">
+            <p class="section-kicker" data-i18n="now-find-kicker">Start with a place</p>
+            <label for="place-search" data-i18n="search-label">Find your area</label>
+            <div class="find-row">
             <input
               id="place-search"
               type="search"
@@ -92,9 +105,34 @@
               data-i18n-attr="placeholder:search-placeholder"
               placeholder="Search a location name…"
             />
-            <button id="locate" type="button" data-i18n="locate">Use my location</button>
+              <button id="locate" type="button" data-i18n="locate">Use my location</button>
+            </div>
+            <p id="headline" class="headline" role="status" aria-live="polite"></p>
+            <nav
+              class="source-switch"
+              data-i18n-attr="aria-label:source-switch-label"
+              aria-label="Data source"
+            >
+              <a id="switch-cams" href="./" data-i18n="source-primary">Primary data view</a>
+              <a id="switch-sensors" href="sensors/" data-i18n="source-community">Community sensor view</a>
+            </nav>
+            <p id="data-source" class="data-source"></p>
           </div>
         </div>
+      </section>
+
+      <section id="explore" class="explore-section" aria-labelledby="explore-heading">
+        <div class="section-heading">
+          <p class="section-kicker" data-i18n="explore-kicker">Exposure observatory</p>
+          <h2 id="explore-heading" data-i18n="explore-heading">See place, time, and evidence together</h2>
+          <p data-i18n="explore-intro">
+            Every view is linked. Change the hour, select a place, or adjust the evidence window and
+            the map, ranking, and evidence panel stay in step.
+          </p>
+        </div>
+
+        <section class="controls" aria-labelledby="controls-heading">
+          <h3 id="controls-heading" class="visually-hidden" data-i18n="controls">Controls</h3>
         <div class="control">
           <label for="parameter-select" data-i18n="parameter">Measurement</label>
           <select id="parameter-select">
@@ -122,74 +160,104 @@
             Play
           </button>
         </div>
-      </section>
+        </section>
 
-      <div class="views" role="tablist" aria-label="View" id="viewtabs">
-        <button id="tab-list" role="tab" aria-selected="true" aria-controls="panel-list" tabindex="0" data-i18n="view-list">List</button>
-        <button id="tab-table" role="tab" aria-selected="false" aria-controls="panel-table" tabindex="-1" data-i18n="view-table">Table</button>
-        <button id="tab-map" role="tab" aria-selected="false" aria-controls="panel-map" tabindex="-1" data-i18n="view-map">Map</button>
-      </div>
-
-      <p id="status" class="status" role="status" aria-live="polite"></p>
-
-      <section id="alerts" class="alerts" aria-labelledby="alerts-heading" role="status" aria-live="polite" hidden>
-        <h2 id="alerts-heading" data-i18n="alerts-heading">Your alerts</h2>
-        <ul id="alerts-list" class="alerts-list"></ul>
-        <p class="alerts-note" data-i18n="alerts-note">
-          Alerts update only while this page is open — there is no background push or account.
-        </p>
-      </section>
-
-      <section id="area-alerts" class="area-alerts" aria-labelledby="area-alerts-heading" hidden>
-        <h2 id="area-alerts-heading" data-i18n="aa-heading">Neighborhood alerts</h2>
-        <p class="aa-intro" data-i18n="aa-intro">
-          Areas where heat or air quality has crossed a public-health danger threshold this hour.
-          Aggregate environmental data — no account, no tracking.
-        </p>
-        <div class="control aa-pick">
-          <label for="area-select" data-i18n="aa-pick">Show alerts for</label>
-          <select id="area-select"></select>
+        <div
+          class="range-controls"
+          role="group"
+          aria-labelledby="range-heading"
+          aria-describedby="range-note"
+        >
+          <div>
+            <p id="range-heading" class="range-title" data-i18n="range-heading">Evidence window</p>
+            <p id="range-readout" class="range-readout">—</p>
+            <p id="range-note" class="range-note" data-i18n="range-note">
+              The window contains published observations, not guaranteed hourly coverage. Missing
+              intervals remain visible gaps and are never interpolated.
+            </p>
+          </div>
+          <label for="range-start" data-i18n="range-start">Window starts</label>
+          <input id="range-start" type="range" min="0" max="0" step="1" value="0" />
+          <label for="range-end" data-i18n="range-end">Window ends</label>
+          <input id="range-end" type="range" min="0" max="0" step="1" value="0" />
+          <button id="range-reset" type="button" data-i18n="range-reset">Latest 24 observations</button>
         </div>
-        <p id="area-alerts-status" class="aa-status" role="status" aria-live="polite"></p>
-        <ul id="area-alerts-list" class="aa-list"></ul>
-        <p class="aa-subscribe">
-          <button id="aa-copy-feed" type="button" data-i18n="aa-copy">Copy this area's alert-feed link</button>
-        </p>
-        <p id="aa-copy-status" class="aa-copy-status" role="status" aria-live="polite"></p>
-        <p class="aa-note" data-i18n="aa-note">
-          Subscribe by adding the alert feed to any RSS/Atom reader, or point an automation at it.
-          The feed is public and carries no personal data; thresholds follow US-EPA and US-NWS bands.
-        </p>
-        <p class="aa-es-feed">
-          <a id="aa-es-feed-link" href="alerts.es.xml" hreflang="es" type="application/atom+xml" data-i18n="aa-es-feed">Subscribe to the Spanish feed</a>
-          — <span data-i18n="aa-es-feed-note">Headlines and feed text are machine-translated, not reviewed by a person.</span>
-        </p>
-      </section>
 
-      <section id="overview" class="overview" aria-labelledby="overview-heading" hidden>
-        <h2 id="overview-heading" data-i18n="overview-heading">Right now across the network</h2>
-        <p id="overview-counts"></p>
-        <p id="overview-coverage"></p>
-        <p id="overview-health"></p>
-        <details id="health-detail" class="health-detail" hidden>
-          <summary data-i18n="health-detail-summary">Which sensors need attention</summary>
-          <ul id="health-list" class="health-list"></ul>
-        </details>
-        <p id="overview-spread"></p>
-        <p id="overview-worst"></p>
-        <p id="overview-fresh" class="overview-fresh"></p>
-        <p class="overview-actions">
-          <button id="copy-network" type="button" data-i18n="brief-network">Copy a summary of the whole network</button>
-        </p>
-      </section>
+        <div class="workspace-shell">
+          <div class="workspace-main">
+            <div class="linked-visuals">
+              <article class="viz-card braid-card" aria-labelledby="braid-heading">
+                <div class="viz-heading">
+                  <div>
+                    <p class="section-kicker" data-i18n="braid-kicker">Time × evidence</p>
+                    <h3 id="braid-heading" data-i18n="braid-heading">Exposure braid</h3>
+                  </div>
+                  <p class="viz-key" data-i18n="braid-key">Line = observed reading · band = published ± cell SE · hatch = provisional</p>
+                </div>
+                <p id="braid-instructions" class="viz-instructions" data-i18n="braid-instructions">
+                  Use Left and Right Arrow to change the selected observation. Home and End jump to
+                  the edges of the evidence window. You can also click or tap anywhere in the plot
+                  to choose the nearest observation.
+                </p>
+                <div
+                  id="exposure-braid"
+                  class="exposure-braid"
+                  role="group"
+                  tabindex="0"
+                  aria-labelledby="braid-heading"
+                  aria-describedby="braid-instructions braid-summary braid-method-note braid-status"
+                ></div>
+                <p id="braid-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
+                <p id="braid-summary" class="viz-summary"></p>
+                <p id="braid-method-note" class="viz-method-note" data-i18n="braid-se-note">
+                  For numeric measurements, the shaded band uses the published ± cell standard
+                  error. It is a lower-bound estimate of uncertainty, not a confidence interval.
+                </p>
+              </article>
 
-      <section id="panel-list" role="tabpanel" aria-labelledby="tab-list" tabindex="-1">
+              <article class="viz-card distribution-card" aria-labelledby="distribution-heading">
+                <div class="viz-heading">
+                  <div>
+                    <p class="section-kicker" data-i18n="distribution-kicker">Place × place</p>
+                    <h3 id="distribution-heading" data-i18n="distribution-heading">Network distribution</h3>
+                  </div>
+                  <p id="distribution-key" class="viz-key" data-i18n="distribution-key">Highest confirmed network readings at the selected observation</p>
+                </div>
+                <ol id="distribution-viz" class="distribution-viz"></ol>
+                <p class="viz-summary" data-i18n="distribution-note">
+                  Select a bar to link that location across every view. Confirmed readings are ranked
+                  when available; provisional readings are used only as a clearly labeled rough
+                  fallback. Pollutant bars start at zero, exposure bars use category levels, and
+                  temperature-like bars span the qualified network range; printed values and ranks
+                  are authoritative. Clear the location search to restore the whole network.
+                </p>
+              </article>
+            </div>
+
+            <div class="view-switcher">
+              <div
+                class="views"
+                role="tablist"
+                data-i18n-attr="aria-label:view-label"
+                aria-label="View"
+                id="viewtabs"
+              >
+                <button id="tab-map" role="tab" aria-selected="true" aria-controls="panel-map" tabindex="0" data-i18n="view-map">Map</button>
+                <button id="tab-list" role="tab" aria-selected="false" aria-controls="panel-list" tabindex="-1" data-i18n="view-list">List</button>
+                <button id="tab-table" role="tab" aria-selected="false" aria-controls="panel-table" tabindex="-1" data-i18n="view-table">Table</button>
+              </div>
+              <p id="status" class="status" role="status" aria-live="polite"></p>
+            </div>
+
+            <div class="data-surface">
+
+      <section id="panel-list" role="tabpanel" aria-labelledby="tab-list" tabindex="-1" hidden>
         <ul id="data-list" class="readings"></ul>
       </section>
 
       <section id="panel-table" role="tabpanel" aria-labelledby="tab-table" tabindex="-1" hidden>
         <table id="data-table">
-          <caption data-i18n="table-caption">Latest readings by location</caption>
+          <caption data-i18n="table-caption">Readings by location at the selected observation</caption>
           <thead>
             <tr>
               <th scope="col" aria-sort="none">
@@ -206,7 +274,7 @@
         </table>
       </section>
 
-      <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" tabindex="-1" hidden>
+      <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" tabindex="-1">
         <p class="hint" data-i18n="map-hint">
           An interactive map of sensor locations — drag to pan, scroll or pinch to zoom, or use the
           buttons and arrow keys. Each marker states its reading in text; the same data is in the
@@ -229,8 +297,10 @@
         </div>
       </section>
 
+            </div>
+
       <section id="cooling-centers" class="cooling" aria-labelledby="cooling-heading" hidden>
-        <h2 id="cooling-heading" data-i18n="cooling-heading">Cooling centers</h2>
+        <h3 id="cooling-heading" data-i18n="cooling-heading">Cooling centers</h3>
         <p class="cooling-intro" data-i18n="cooling-intro">
           Public places to cool down — libraries, community and senior centers, and cooled public
           buildings. The list below is the accessible equivalent of the map overlay; everything shown
@@ -245,26 +315,35 @@
         <p id="cooling-source" class="cooling-source"></p>
       </section>
 
+          </div>
+          <aside class="workspace-inspector" aria-labelledby="inspector-heading">
+            <h3 id="inspector-heading" class="section-kicker" data-i18n="inspector-heading">
+              Evidence inspector
+            </h3>
+            <p id="inspector-empty" class="inspector-empty" data-i18n="inspector-empty">
+              Select a place on the map, ranking, list, or table to inspect its trend, comparison,
+              actions, uncertainty, and provenance.
+            </p>
       <section id="detail" class="detail" aria-labelledby="detail-heading" hidden>
-        <h2 id="detail-heading" data-i18n="detail-title">Selected location</h2>
+        <h4 id="detail-heading" data-i18n="detail-title">Selected location</h4>
         <p id="detail-body" aria-live="polite"></p>
         <span id="detail-spark" class="spark"></span>
         <p id="detail-context" class="context"></p>
         <p id="detail-trend" class="trend"></p>
         <p id="detail-yesterday" class="trend"></p>
         <div id="history" class="history" hidden>
-          <h3 class="history-heading" data-i18n="history-heading">Recent days here</h3>
+          <h5 class="history-heading" data-i18n="history-heading">Recent days here</h5>
           <ul id="history-list" class="history-list"></ul>
         </div>
         <p id="detail-guidance" class="guidance"></p>
         <p class="guidance-source" data-i18n="guide-source">Health context: US EPA AirNow.</p>
         <div id="action-card" class="action-card" hidden>
-          <h3 class="action-heading" data-i18n="act-heading">What to do now</h3>
+          <h5 id="action-heading" class="action-heading" data-i18n="act-heading">What to do now</h5>
           <ul id="action-list" class="action-list"></ul>
           <p class="action-note" data-i18n="act-note">Practical steps drawn from US EPA and NWS guidance — not medical advice.</p>
         </div>
         <section class="explain provenance" id="provenance" aria-labelledby="provenance-heading">
-          <h3 id="provenance-heading" data-i18n="prov-summary">Show your work</h3>
+          <h5 id="provenance-heading" data-i18n="prov-summary">Show your work</h5>
           <dl id="provenance-body"></dl>
         </section>
         <div id="compare" class="compare">
@@ -273,7 +352,7 @@
           <div id="compare-result" class="compare-result" aria-live="polite"></div>
         </div>
         <div id="watch" class="watch">
-          <h3 class="watch-heading" data-i18n="watch-heading">Alert me about this location</h3>
+          <h5 class="watch-heading" data-i18n="watch-heading">Alert me about this location</h5>
           <p class="watch-intro" data-i18n="watch-intro">
             Set a level for this measurement. While this page is open, you'll see an alert here when
             this location reaches it. Saved on this device only — no account, no server.
@@ -308,9 +387,103 @@
         </p>
         <p id="download-cell" class="download-cell"></p>
       </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="network" class="network-section" aria-labelledby="network-heading">
+        <div class="section-heading">
+          <p class="section-kicker" data-i18n="network-kicker">Coverage &amp; collective action</p>
+          <h2 id="network-heading" data-i18n="network-heading">The network behind the reading</h2>
+          <p data-i18n="network-intro">
+            See coverage, sensor health, public alerts, and the places that may need attention.
+          </p>
+        </div>
+
+        <section id="alerts" class="alerts" aria-labelledby="alerts-heading" role="status" aria-live="polite" hidden>
+          <h3 id="alerts-heading" data-i18n="alerts-heading">Your alerts</h3>
+          <ul id="alerts-list" class="alerts-list"></ul>
+          <p class="alerts-note" data-i18n="alerts-note">
+            Alerts evaluate only the newest published observation and update only while this page is
+            open — there is no background push or account. Device notifications are suppressed when
+            that observation is stale.
+          </p>
+        </section>
+
+        <div class="network-grid">
+          <section id="overview" class="overview" aria-labelledby="overview-heading" hidden>
+            <h3 id="overview-heading" data-i18n="overview-heading">Across the network</h3>
+            <p id="overview-counts"></p>
+            <p id="overview-coverage"></p>
+            <p id="overview-health"></p>
+            <details id="health-detail" class="health-detail" hidden>
+              <summary data-i18n="health-detail-summary">Which sensors need attention</summary>
+              <ul id="health-list" class="health-list"></ul>
+            </details>
+            <p id="overview-spread"></p>
+            <p id="overview-worst"></p>
+            <p id="overview-fresh" class="overview-fresh"></p>
+            <p class="overview-actions">
+              <button id="copy-network" type="button" data-i18n="brief-network">Copy a summary of the whole network</button>
+            </p>
+          </section>
+
+          <section id="area-alerts" class="area-alerts" aria-labelledby="area-alerts-heading" hidden>
+            <h3 id="area-alerts-heading" data-i18n="aa-heading">Neighborhood alerts</h3>
+            <p class="aa-intro" data-i18n="aa-intro">
+              Published areas where heat or air quality crossed a public-health danger threshold.
+              Every result names its observation time. Aggregate environmental data — no account,
+              no tracking.
+            </p>
+            <div class="control aa-pick">
+              <label for="area-select" data-i18n="aa-pick">Show alerts for</label>
+              <select id="area-select"></select>
+            </div>
+            <p id="area-alerts-status" class="aa-status" role="status" aria-live="polite"></p>
+            <ul id="area-alerts-list" class="aa-list"></ul>
+            <p class="aa-subscribe">
+              <button id="aa-copy-feed" type="button" data-i18n="aa-copy">Copy this area's alert-feed link</button>
+            </p>
+            <p id="aa-copy-status" class="aa-copy-status" role="status" aria-live="polite"></p>
+            <p class="aa-note" data-i18n="aa-note">
+              Subscribe by adding the alert feed to any RSS/Atom reader, or point an automation at it.
+              The feed is public and carries no personal data; thresholds follow US-EPA and US-NWS bands.
+            </p>
+            <p class="aa-es-feed">
+              <a id="aa-es-feed-link" href="alerts.es.xml" hreflang="es" type="application/atom+xml" data-i18n="aa-es-feed">Subscribe to the Spanish feed</a>
+              — <span data-i18n="aa-es-feed-note">Headlines and feed text are machine-translated, not reviewed by a person.</span>
+            </p>
+          </section>
+        </div>
+      </section>
+
+      <section id="method" class="method-section" aria-labelledby="method-section-heading">
+        <div class="section-heading">
+          <p class="section-kicker" data-i18n="method-kicker">Inspect the evidence</p>
+          <h2 id="method-section-heading" data-i18n="method-section-heading">Data, method, and limits</h2>
+          <p data-i18n="method-intro">
+            Source, calibration state, uncertainty, location privacy, and reuse terms stay attached to the reading.
+          </p>
+        </div>
+
+        <div class="method-grid">
+          <section id="dataset-truth" class="dataset-truth" aria-labelledby="dataset-truth-heading" hidden>
+            <h3 id="dataset-truth-heading" data-i18n="truth-heading">About these readings</h3>
+            <dl>
+              <dt data-i18n="truth-source">Source</dt>
+              <dd id="truth-source"></dd>
+              <dt data-i18n="truth-geography">Geography</dt>
+              <dd id="truth-geography"></dd>
+              <dt data-i18n="truth-status">Calibration status</dt>
+              <dd id="truth-status"></dd>
+              <dt data-i18n="truth-license">Reuse terms</dt>
+              <dd id="truth-license"></dd>
+            </dl>
+            <p id="truth-fallback" class="truth-fallback" hidden></p>
+          </section>
 
       <section class="legend" aria-labelledby="legend-heading">
-        <h2 id="legend-heading" data-i18n="legend-title">Air-quality categories (PM2.5)</h2>
+        <h3 id="legend-heading" data-i18n="legend-title">Air-quality categories (PM2.5)</h3>
 
         <!-- PM2.5 → AQI categories + explainer. Shown only when PM2.5 is the active measurement. -->
         <div class="legend-block" data-legend="pm25">
@@ -401,7 +574,7 @@
           readings are; it does not tell anyone they are safe. Use it alongside how you feel and
           official advisories.
         </p>
-        <p class="method-heading" data-i18n="method-heading">How the numbers are made</p>
+        <h3 class="method-heading" data-i18n="method-heading">How the numbers are made</h3>
         <ul class="method-list">
           <li id="method-calibration" data-i18n="method-calibration">Confirmed means calibrated against a reference monitor; a sensor with no fit stays raw and is shown provisional.</li>
           <li id="method-uncertainty" data-i18n="method-uncertainty">Every confirmed reading carries a ± 1-sigma uncertainty, published alongside it.</li>
@@ -411,6 +584,8 @@
           <li id="method-open" data-i18n="method-open">Reuse terms and attribution depend on the active source and are shown above. Readings are downloadable without an account or key.</li>
         </ul>
       </details>
+        </div>
+      </section>
     </main>
 
     <footer>

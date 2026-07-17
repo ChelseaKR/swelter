@@ -104,6 +104,52 @@ test("t() — prefers a loaded string over the raw-key fallback", async () => {
   assert.equal(app.t("cat-good"), "Good (es)");
 });
 
+test("localizeDocumentMetadata — preserves Pages metadata on catalogue failure", async () => {
+  const app = await freshApp();
+  app.document.title = "Source-aware Pages title";
+  app.state.strings = {};
+  app.localizeDocumentMetadata();
+  assert.equal(app.document.title, "Source-aware Pages title");
+});
+
+test("localizeDocumentMetadata — prefers the loaded source-specific translation", async () => {
+  const app = await freshApp();
+  app.state.demo = { source: { id: "openaq" } };
+  app.state.strings = {
+    "document-title": "Generic title",
+    "document-title-openaq": "OpenAQ source title",
+  };
+  app.localizeDocumentMetadata();
+  assert.equal(app.document.title, "OpenAQ source title");
+});
+
+test("loadStrings — the latest language request wins an out-of-order race", async () => {
+  const app = await freshApp();
+  const pending = new Map();
+  app.fetch = (url) =>
+    new Promise((resolve) => {
+      pending.set(url, resolve);
+    });
+  const spanish = app.loadStrings("es");
+  const english = app.loadStrings("en");
+  pending.get("i18n/en.json")({ ok: true, json: async () => ({ language: "English" }) });
+  assert.equal(await english, true);
+  pending.get("i18n/es.json")({ ok: true, json: async () => ({ language: "Español" }) });
+  assert.equal(await spanish, false);
+  assert.equal(app.state.strings.language, "English");
+  assert.equal(app.document.documentElement.lang, "en");
+});
+
+test("loadStrings — a failed swap retains the prior catalogue and document language", async () => {
+  const app = await freshApp();
+  app.state.strings = { language: "Español" };
+  app.document.documentElement.lang = "es";
+  app.fetch = async () => ({ ok: false, json: async () => ({}) });
+  assert.equal(await app.loadStrings("en"), false);
+  assert.equal(app.state.strings.language, "Español");
+  assert.equal(app.document.documentElement.lang, "es");
+});
+
 test("localCategory / localExposure / localHeat — map a known label to its i18n key", async () => {
   const app = await freshApp();
   app.state.strings = {
@@ -231,6 +277,45 @@ test("watchCrossed — numeric parameters compare in base units, unaffected by t
   assert.equal(app.watchCrossed(row, { kind: "num", value: 60 }), false);
 });
 
+test("activeAlerts — historical slider positions never arm a personal alert", async () => {
+  const app = await freshApp();
+  const historical = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+  const latest = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  app.setData({
+    buckets: [historical, latest],
+    cells: [
+      { cell_id: "c1", label: "Cedar", parameter: "temp_c", bucket: historical, mean: 40 },
+      { cell_id: "c1", label: "Cedar", parameter: "temp_c", bucket: latest, mean: 20 },
+    ],
+  });
+  app.state.parameter = "temp_c";
+  app.state.bucketIdx = 0;
+  app.saveWatch("c1|temp_c", { kind: "num", value: 30 });
+  assert.equal(app.activeAlerts().length, 0);
+
+  app.state.cells.find((row) => row.bucket === latest).mean = 40;
+  const alerts = app.activeAlerts();
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].row.bucket, latest);
+  assert.equal(app.state.bucketIdx, 0); // evaluation never moves the evidence cursor
+});
+
+test("temporalContextText — historical and stale observations are explicitly non-current", async () => {
+  const app = await freshApp();
+  const historical = "2025-01-01T00:00:00Z";
+  const staleLatest = "2025-01-02T00:00:00Z";
+  app.state.buckets = [historical, staleLatest];
+  app.state.strings = {
+    "observation-historical": "Historical {time} — not current.",
+    "observation-stale": "Stale {time} — not current.",
+  };
+  app.state.bucketIdx = 0;
+  assert.match(app.temporalContextText(), /^Historical .*not current\.$/);
+  app.state.bucketIdx = 1;
+  assert.match(app.temporalContextText(), /^Stale .*not current\.$/);
+  assert.equal(app.isFreshObservation(), false);
+});
+
 test("contrastLine — needs at least 3 peers to say anything", async () => {
   const app = await freshApp();
   app.state.parameter = "pm25_ugm3";
@@ -265,6 +350,20 @@ test("contrastLine — otherwise reports a tie-safe count of strictly-worse peer
   assert.match(line, /^context-rank-bad/);
 });
 
+test("contrastLine — provisional outliers cannot distort a confirmed cohort", async () => {
+  const app = await freshApp();
+  app.state.parameter = "temp_c";
+  app.state.cells = [
+    { cell_id: "a", bucket: "h1", parameter: "temp_c", mean: 20, provisional: false },
+    { cell_id: "b", bucket: "h1", parameter: "temp_c", mean: 15, provisional: false },
+    { cell_id: "c", bucket: "h1", parameter: "temp_c", mean: 10, provisional: false },
+    { cell_id: "raw", bucket: "h1", parameter: "temp_c", mean: 100, provisional: true },
+  ];
+  const line = app.contrastLine(app.state.cells[0]);
+  assert.match(line, /^context-top-hot/);
+  assert.doesNotMatch(line, /context-rank-hot/);
+});
+
 test("trendLine — silent until history is loaded", async () => {
   const app = await freshApp();
   app.state.historyLoaded = false;
@@ -282,6 +381,53 @@ test("trendLine — rising/falling/steady against the reading a few buckets back
   assert.match(app.trendLine({ cell_id: "a", mean: 20 }), /^↑ trend-rising/);
   assert.match(app.trendLine({ cell_id: "a", mean: 0 }), /^↓ trend-falling/);
   assert.match(app.trendLine({ cell_id: "a", mean: 10.5 }), /^→ trend-steady/);
+});
+
+test("trendLine — names elapsed clock hours when published observations are sparse", async () => {
+  const app = await freshApp();
+  app.state.historyLoaded = true;
+  app.state.parameter = "pm25_ugm3";
+  app.state.strings = { "trend-rising": "Rising over {h} h" };
+  app.state.buckets = [
+    "2026-06-01T00:00:00Z",
+    "2026-06-01T02:00:00Z",
+    "2026-06-01T04:00:00Z",
+    "2026-06-01T06:00:00Z",
+  ];
+  app.state.bucketIdx = 3;
+  app.state.cells = [
+    {
+      cell_id: "a",
+      parameter: "pm25_ugm3",
+      bucket: "2026-06-01T00:00:00Z",
+      mean: 10,
+    },
+  ];
+  assert.equal(
+    app.trendLine({
+      cell_id: "a",
+      parameter: "pm25_ugm3",
+      bucket: "2026-06-01T06:00:00Z",
+      mean: 20,
+    }),
+    "↑ Rising over 6 h",
+  );
+});
+
+test("trendLine / dayChangeLine — cross-calibration comparisons stay silent", async () => {
+  const app = await freshApp();
+  app.state.historyLoaded = true;
+  app.state.parameter = "temp_c";
+  const prior = "2026-06-01T12:00:00Z";
+  const current = "2026-06-02T12:00:00Z";
+  app.state.buckets = [prior, current];
+  app.state.bucketIdx = 1;
+  app.state.cells = [
+    { cell_id: "a", parameter: "temp_c", bucket: prior, mean: 20, provisional: true },
+  ];
+  const row = { cell_id: "a", parameter: "temp_c", bucket: current, mean: 25, provisional: false };
+  assert.equal(app.trendLine(row), "");
+  assert.equal(app.dayChangeLine(row), "");
 });
 
 test("dayChangeLine — needs a reading within 90 minutes of ~24h ago", async () => {
@@ -346,4 +492,790 @@ test("parseHash — a malformed percent-encoding in one key must not throw or bl
   assert.equal(parsed.p, "temp_c"); // a well-formed key still parses …
   assert.equal(parsed.t, "2026-06-01T00:00:00Z");
   assert.equal(parsed.l, undefined); // … the malformed one is just skipped, not fatal
+});
+
+test("normalizeHistoryRange — clamps indices and lets the manipulated edge win", async () => {
+  const app = await freshApp();
+  assert.deepEqual([...app.normalizeHistoryRange(-4, 99, 23, "end")], [0, 23]);
+  assert.deepEqual([...app.normalizeHistoryRange(12, 5, 23, "start")], [12, 12]);
+  assert.deepEqual([...app.normalizeHistoryRange(12, 5, 23, "end")], [5, 5]);
+});
+
+test("resetHistoryRange — keeps 24 published observations while timestamps expose sparse hours", async () => {
+  const app = await freshApp();
+  const start = Date.parse("2026-06-01T00:00:00Z");
+  app.state.interval = "hour";
+  app.state.buckets = Array.from({ length: 30 }, (_, index) =>
+    new Date(start + index * 2 * 60 * 60 * 1000).toISOString(),
+  );
+  app.resetHistoryRange();
+  assert.equal(app.state.rangeStart, 6);
+  assert.equal(app.state.rangeEnd, 29);
+  assert.equal(app.expectedSlotsInRange(), 47);
+});
+
+test("seriesSegments — missing buckets stay visible as gaps", async () => {
+  const app = await freshApp();
+  const segments = app.seriesSegments([
+    { index: 0 },
+    { index: 1 },
+    { index: 4 },
+    { index: 5 },
+    { index: 9 },
+  ]);
+  // `seriesSegments()` comes from the vm harness, so compare serialized structure across realms.
+  assert.equal(
+    JSON.stringify(segments.map((segment) => segment.map((point) => point.index))),
+    JSON.stringify([[0, 1], [4, 5], [9]]),
+  );
+});
+
+test("seriesSegments / rangeStats — elapsed timestamp gaps survive compact bucket indices", async () => {
+  const app = await freshApp();
+  app.state.interval = "hour";
+  const points = [
+    {
+      index: 0,
+      timestamp: Date.parse("2026-06-01T00:00:00Z"),
+      value: 10,
+      row: { provisional: false },
+    },
+    {
+      index: 1,
+      timestamp: Date.parse("2026-06-01T02:00:00Z"),
+      value: 20,
+      row: { provisional: false },
+    },
+  ];
+  const segments = app.seriesSegments(points);
+  assert.equal(
+    JSON.stringify(segments.map((segment) => segment.map((point) => point.index))),
+    JSON.stringify([[0], [1]]),
+  );
+  const expected = app.expectedSlotsBetween(
+    "2026-06-01T00:00:00Z",
+    "2026-06-01T02:00:00Z",
+  );
+  assert.equal(expected, 3);
+  assert.equal(app.rangeStats(points, expected).gaps, 1);
+});
+
+test("rangeStats — reports median, provisional support, and missing hours", async () => {
+  const app = await freshApp();
+  const stats = app.rangeStats(
+    [
+      { index: 0, value: 10, row: { provisional: false } },
+      { index: 2, value: 30, row: { provisional: true } },
+      { index: 3, value: 20, row: { provisional: false } },
+    ],
+    4,
+  );
+  assert.equal(stats.count, 3);
+  assert.equal(stats.min, 10);
+  assert.equal(stats.median, 20);
+  assert.equal(stats.max, 30);
+  assert.equal(stats.provisional, 1);
+  assert.equal(stats.gaps, 1);
+});
+
+test("rangeStats — an even ordinal sample uses a conservative observed upper median", async () => {
+  const app = await freshApp();
+  app.state.parameter = "exposure";
+  const stats = app.rangeStats(
+    [
+      { index: 0, value: 1, row: { provisional: false } },
+      { index: 1, value: 2, row: { provisional: false } },
+    ],
+    2,
+  );
+  assert.equal(stats.median, 2);
+  assert.ok([1, 2].includes(stats.median));
+});
+
+test("seriesPath — ordinal exposure changes category with a step-after path", async () => {
+  const app = await freshApp();
+  const path = app.seriesPath(
+    [
+      { index: 0, value: 1 },
+      { index: 1, value: 2 },
+    ],
+    (index) => index * 10,
+    (value) => value * 10,
+    true,
+  );
+  assert.equal(path, "M0,10 L10,10 L10,20");
+});
+
+test("nearestSeriesIndex — pointer position snaps by elapsed time, not array position", async () => {
+  const app = await freshApp();
+  app.state.interval = "hour";
+  app.state.buckets = [
+    "2026-06-01T00:00:00Z",
+    "2026-06-01T01:00:00Z",
+    "2026-06-01T02:00:00Z",
+  ];
+  app.state.rangeStart = 0;
+  app.state.rangeEnd = 2;
+  const points = [
+    { index: 0, timestamp: Date.parse(app.state.buckets[0]) },
+    { index: 2, timestamp: Date.parse(app.state.buckets[2]) },
+  ];
+  assert.equal(app.nearestSeriesIndex(points, 0.1), 0);
+  assert.equal(app.nearestSeriesIndex(points, 0.75), 2);
+});
+
+test("sparkSeries / dailyHistory — historical selection excludes future and duplicate variants", async () => {
+  const app = await freshApp();
+  const t0 = "2026-06-01T00:00:00Z";
+  const t1 = "2026-06-02T02:00:00Z";
+  const t2 = "2026-06-03T04:00:00Z";
+  const future = "2026-06-04T06:00:00Z";
+  const row = (bucket, mean, aqiWindow = "hourly-mean") => ({
+    cell_id: "c1",
+    label: "Cedar",
+    parameter: "pm25_ugm3",
+    bucket,
+    mean,
+    aqi_window: aqiWindow,
+  });
+  app.setData({
+    interval: "hour",
+    buckets: [t0, t1, t2, future],
+    cells: [row(t0, 10), row(t1, 20), row(t2, 30), row(t2, 80, "nowcast"), row(future, 40)],
+  });
+  app.state.parameter = "pm25_ugm3";
+  app.state.bucketIdx = 2;
+  const sparkBuckets = app.sparkSeries({ cell_id: "c1" }).map((item) => item.bucket);
+  assert.equal(JSON.stringify(sparkBuckets), JSON.stringify([t0, t1, t2]));
+  const days = app.dailyHistory({ cell_id: "c1" });
+  assert.equal(days.length, 3);
+  assert.equal(days.some((day) => day.vals.includes(40)), false);
+  assert.equal(days.some((day) => day.vals.includes(80)), false);
+});
+
+test("calibratedEvidenceSeries / overviewStatisticRows — confirmed evidence excludes raw outliers", async () => {
+  const app = await freshApp();
+  const confirmed = { mean: 20, provisional: false };
+  const raw = { mean: 200, provisional: true };
+  const evidence = app.calibratedEvidenceSeries([confirmed, raw]);
+  assert.equal(JSON.stringify(evidence.series), JSON.stringify([confirmed]));
+  assert.equal(evidence.excludedProvisional, 1);
+  assert.equal(evidence.allProvisional, false);
+  assert.equal(JSON.stringify(app.overviewStatisticRows([confirmed, raw])), JSON.stringify([confirmed]));
+  assert.equal(JSON.stringify(app.overviewStatisticRows([raw])), JSON.stringify([raw]));
+
+  const confirmedPoint = { value: 2, row: { provisional: false } };
+  const rawPoint = { value: 99, row: { provisional: true } };
+  const qualifiedPoints = app.calibratedEvidenceSeries([confirmedPoint, rawPoint]);
+  assert.equal(JSON.stringify(qualifiedPoints.series), JSON.stringify([confirmedPoint]));
+  assert.equal(qualifiedPoints.excludedProvisional, 1);
+});
+
+test("dailyHistory — mixed days keep provisional evidence out of confirmed summaries", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T12:00:00Z";
+  app.setData({
+    buckets: [bucket],
+    cells: [
+      { cell_id: "c1", parameter: "temp_c", bucket, mean: 20, provisional: false },
+      {
+        cell_id: "c1",
+        parameter: "temp_c",
+        bucket: "2026-06-01T13:00:00Z",
+        mean: 200,
+        provisional: true,
+      },
+    ],
+  });
+  // Include both rows in the selected evidence horizon without making the provisional value future.
+  app.state.buckets = ["2026-06-01T13:00:00Z"];
+  app.state.bucketIdx = 0;
+  app.state.parameter = "temp_c";
+  const day = app.dailyHistory({ cell_id: "c1" })[0];
+  assert.equal(JSON.stringify(day.vals), JSON.stringify([20]));
+  assert.equal(JSON.stringify(day.provisionalVals), JSON.stringify([200]));
+  assert.equal(day.provisionalCount, 1);
+});
+
+test("area alert copy — zero-alert stale feeds name their publication time and staleness", async () => {
+  const app = await freshApp();
+  app.state.strings = {
+    "aa-none": "No published alerts as of {time}.",
+    "aa-stale": "Feed is stale.",
+  };
+  const line = app.areaAlertStatus({ generated: "2025-01-01T00:00:00Z" }, []);
+  assert.match(line, /No published alerts as of/);
+  assert.match(line, /Feed is stale\./);
+  assert.doesNotMatch(line, /right now/i);
+});
+
+test("showAlertObservation — an absent feed bucket never opens an unrelated observation", async () => {
+  const app = await freshApp();
+  const loaded = "2026-06-02T00:00:00Z";
+  const missing = "2026-06-01T00:00:00Z";
+  app.setData({
+    buckets: [loaded],
+    cells: [{ cell_id: "c1", parameter: "temp_c", bucket: loaded, mean: 20 }],
+  });
+  app.state.parameter = "temp_c";
+  app.state.selected = null;
+  app.state.strings = {
+    "alert-observation-unavailable": "Observation {time} is unavailable.",
+  };
+  assert.equal(app.showAlertObservation("c1", "temp_c", missing), false);
+  assert.equal(app.currentBucket(), loaded);
+  assert.equal(app.state.selected, null);
+  assert.match(app.document.querySelector("#area-alerts-status").textContent, /unavailable/);
+});
+
+test("PM2.5 linked views keep the hourly mean and exclude a same-hour NowCast variant", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T00:00:00Z";
+  app.setData({
+    interval: "hour",
+    buckets: [bucket],
+    cells: [
+      {
+        cell_id: "c1",
+        label: "Cedar",
+        parameter: "pm25_ugm3",
+        bucket,
+        mean: 12,
+        aqi: 50,
+        category: "Good",
+        aqi_window: "hourly-mean",
+      },
+      {
+        cell_id: "c1",
+        label: "Cedar",
+        parameter: "pm25_ugm3",
+        bucket,
+        mean: 30,
+        aqi: 89,
+        category: "Moderate",
+        aqi_window: "nowcast",
+      },
+    ],
+  });
+  app.state.parameter = "pm25_ugm3";
+  assert.equal(
+    JSON.stringify(app.current().map((row) => row.aqi_window)),
+    JSON.stringify(["hourly-mean"]),
+  );
+  assert.equal(
+    JSON.stringify(app.seriesPointsFor("c1").map((point) => point.row.aqi_window)),
+    JSON.stringify(["hourly-mean"]),
+  );
+});
+
+test("renderDetail — a selected place with no current observation is an explicit gap", async () => {
+  const app = await freshApp();
+  const oldBucket = "2026-06-01T00:00:00Z";
+  const currentBucket = "2026-06-01T01:00:00Z";
+  app.setData({
+    interval: "hour",
+    buckets: [oldBucket, currentBucket],
+    cells: [
+      {
+        cell_id: "chosen",
+        label: "Cedar & 4th",
+        parameter: "temp_c",
+        bucket: oldBucket,
+        mean: 28,
+      },
+      {
+        cell_id: "other",
+        label: "Market",
+        parameter: "temp_c",
+        bucket: currentBucket,
+        mean: 30,
+      },
+    ],
+  });
+  app.state.parameter = "temp_c";
+  app.state.selected = "chosen";
+  app.state.strings = {
+    "inspector-empty": "Select a place.",
+    "now-no-reading": "No reading at {time}.",
+    "now-gap": "The gap is preserved.",
+  };
+  assert.equal(app.focusRow(app.current()), null);
+  app.renderDetail();
+  const message = app.document.querySelector("#inspector-empty").textContent;
+  assert.match(message, /Cedar & 4th/);
+  assert.match(message, /No reading at/);
+  assert.match(message, /gap is preserved/);
+  assert.notEqual(message, "Select a place.");
+});
+
+test("renderNow — keeps a selected place's identity when it never reports the active parameter", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T00:00:00Z";
+  app.setData({
+    buckets: [bucket],
+    cells: [
+      { cell_id: "chosen", label: "Cedar & 4th", parameter: "pm25_ugm3", bucket, mean: 12 },
+      { cell_id: "other", label: "Market", parameter: "temp_c", bucket, mean: 30 },
+    ],
+  });
+  app.state.parameter = "temp_c";
+  app.state.selected = "chosen";
+  app.state.strings = {
+    "now-selected-focus": "Selected location",
+    "now-no-reading": "No reading at {time}.",
+    "now-gap": "The gap is preserved.",
+    "now-no-current": "No current observation",
+  };
+  app.renderNow(app.current());
+  assert.equal(app.document.querySelector("#now-place").textContent, "Cedar & 4th");
+  assert.match(app.document.querySelector("#now-reading").textContent, /No reading at/);
+});
+
+test("current / focusRow — an empty search has no synthetic network focus", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T00:00:00Z";
+  app.setData({
+    buckets: [bucket],
+    cells: [
+      { cell_id: "c1", label: "Cedar", parameter: "temp_c", bucket, mean: 28 },
+    ],
+  });
+  app.state.parameter = "temp_c";
+  app.state.search = "does not exist";
+  assert.equal(app.current().length, 0);
+  assert.equal(app.focusRow(app.current()), null);
+});
+
+test("guidanceForRow — compound exposure carries both hazard guidance and sources", async () => {
+  const app = await freshApp();
+  app.state.parameter = "exposure";
+  app.state.strings = {
+    "heat-guide-xcaution": "Reduce heat exposure.",
+    "guide-usg": "Reduce smoke exposure.",
+    "guide-source-both": "NWS heat guidance and EPA air guidance.",
+  };
+  const row = {
+    category: "Elevated",
+    heat_category: "Extreme Caution",
+    air_category: "Unhealthy for Sensitive Groups",
+    compound: true,
+  };
+  assert.equal(app.guidanceForRow(row), "Reduce heat exposure. Reduce smoke exposure.");
+  assert.equal(
+    app.guidanceSourceForRow(row),
+    "NWS heat guidance and EPA air guidance.",
+  );
+});
+
+test("braidEvidenceNote — exposure caveats and numeric uncertainty use separate method notes", async () => {
+  const app = await freshApp();
+  app.state.strings = {
+    "braid-exposure-note": "Exposure method: {note}",
+    "braid-se-note": "Band is published one-standard-error uncertainty.",
+    "braid-no-band": "No uncertainty band is available.",
+  };
+  app.state.parameter = "exposure";
+  app.state.bucketIdx = 2;
+  assert.equal(
+    app.braidEvidenceNote(null, [
+      { index: 1, row: { uncertainty_note: "An older note." } },
+      { index: 2, row: { uncertainty_note: "Ordinal joint hazard." } },
+    ]),
+    "Exposure method: Ordinal joint hazard.",
+  );
+  app.state.bucketIdx = 3;
+  assert.equal(
+    app.braidEvidenceNote(null, [
+      { index: 2, row: { uncertainty_note: "Ordinal joint hazard." } },
+    ]),
+    "No uncertainty band is available.",
+  );
+  app.state.parameter = "temp_c";
+  assert.equal(
+    app.braidEvidenceNote(null, [{ uncertainty: 0.8 }]),
+    "Band is published one-standard-error uncertainty.",
+  );
+  assert.equal(
+    app.braidEvidenceNote(null, [{ uncertainty: null }]),
+    "No uncertainty band is available.",
+  );
+});
+
+test("history enrichment preserves a bucket selected after the initial snapshot", async () => {
+  const app = await freshApp();
+  app.history = app.window.history;
+  const t0 = "2026-06-01T00:00:00Z";
+  const t1 = "2026-06-01T01:00:00Z";
+  const t2 = "2026-06-01T02:00:00Z";
+  const row = (bucket, mean) => ({
+    cell_id: "c1",
+    label: "Cedar",
+    parameter: "temp_c",
+    bucket,
+    mean,
+  });
+  app.state.parameter = "temp_c";
+  app.location.hash = `#p=temp_c&t=${encodeURIComponent(t2)}`;
+  app.applyHashParameter();
+  app.setData({ buckets: [t0, t1], cells: [row(t0, 20), row(t1, 21)] });
+  app.restoreView();
+  assert.equal(app.state.bucketIdx, 1); // deep-link hour is not in the fast snapshot
+
+  app.setBucketIndex(0, { pause: true }); // the reader scrubs while full history is in flight
+  app.setData({ buckets: [t0, t1, t2], cells: [row(t0, 20), row(t1, 21), row(t2, 22)] });
+  app.restoreView();
+  assert.equal(app.currentBucket(), t0);
+});
+
+test("history enrichment still resolves an initial deep-link absent from the snapshot", async () => {
+  const app = await freshApp();
+  app.history = app.window.history;
+  const t0 = "2026-06-01T00:00:00Z";
+  const t1 = "2026-06-01T01:00:00Z";
+  const row = (bucket, mean) => ({
+    cell_id: "c1",
+    label: "Cedar",
+    parameter: "temp_c",
+    bucket,
+    mean,
+  });
+  app.state.parameter = "temp_c";
+  app.location.hash = `#p=temp_c&t=${encodeURIComponent(t0)}`;
+  app.applyHashParameter();
+  app.setData({ buckets: [t1], cells: [row(t1, 21)] });
+  app.restoreView();
+  app.setData({ buckets: [t0, t1], cells: [row(t0, 20), row(t1, 21)] });
+  app.restoreView();
+  assert.equal(app.currentBucket(), t0);
+});
+
+test("history enrichment cannot restore a deep-link location cleared by an explicit search", async () => {
+  const app = await freshApp();
+  app.history = app.window.history;
+  const t0 = "2026-06-01T00:00:00Z";
+  const t1 = "2026-06-01T01:00:00Z";
+  const row = (cellId, bucket, mean) => ({
+    cell_id: cellId,
+    label: cellId,
+    parameter: "temp_c",
+    bucket,
+    mean,
+  });
+  app.location.hash = `#p=temp_c&t=${encodeURIComponent(t1)}&l=c1&c=c2`;
+  app.applyHashParameter();
+  app.setData({ buckets: [t1], cells: [row("c1", t1, 20), row("c2", t1, 21)] });
+  app.restoreView();
+  assert.equal(app.state.selected, "c1");
+  assert.equal(app.state.compareCell, "c2");
+
+  // The user begins a new search before the delayed seven-day payload resolves.
+  app.state.search = "new place";
+  app.clearPendingLocationView();
+  app.state.selected = null;
+  app.state.compareCell = null;
+  app.savePref("cell", null);
+  app.savePref("compare", null);
+
+  app.setData({
+    buckets: [t0, t1],
+    cells: [row("c1", t0, 19), row("c2", t0, 20), row("c1", t1, 20), row("c2", t1, 21)],
+  });
+  app.restoreView();
+  assert.equal(app.state.selected, null);
+  assert.equal(app.state.compareCell, null);
+});
+
+test("distributionEntries — retains a selected outlier with its real network rank", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T00:00:00Z";
+  const cells = Array.from({ length: 12 }, (_, index) => ({
+    cell_id: `c${index + 1}`,
+    label: `Place ${index + 1}`,
+    parameter: "temp_c",
+    bucket,
+    mean: 12 - index,
+  }));
+  app.setData({ buckets: [bucket], cells });
+  app.state.parameter = "temp_c";
+  app.state.selected = "c12";
+  const distribution = app.distributionEntries(app.current());
+  assert.equal(distribution.entries.length, 11);
+  assert.equal(distribution.networkCount, 12);
+  const selected = distribution.entries.find((entry) => entry.row.cell_id === "c12");
+  assert.equal(selected.rank, 12);
+  assert.equal(selected.selectedOutlier, true);
+});
+
+test("distributionEntries — equal readings share a competition rank", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T00:00:00Z";
+  app.setData({
+    buckets: [bucket],
+    cells: [
+      { cell_id: "a", label: "A", parameter: "temp_c", bucket, mean: 30 },
+      { cell_id: "b", label: "B", parameter: "temp_c", bucket, mean: 30 },
+      { cell_id: "c", label: "C", parameter: "temp_c", bucket, mean: 20 },
+    ],
+  });
+  app.state.parameter = "temp_c";
+  const ranks = app.distributionEntries(app.current()).entries.map(({ rank }) => rank);
+  assert.equal(JSON.stringify(ranks), JSON.stringify([1, 1, 3]));
+});
+
+test("distributionEntries — provisional outliers never rank inside a confirmed cohort", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T00:00:00Z";
+  app.setData({
+    buckets: [bucket],
+    cells: [
+      { cell_id: "a", label: "A", parameter: "temp_c", bucket, mean: 30, provisional: false },
+      { cell_id: "b", label: "B", parameter: "temp_c", bucket, mean: 20, provisional: false },
+      { cell_id: "raw", label: "Raw", parameter: "temp_c", bucket, mean: 200, provisional: true },
+    ],
+  });
+  app.state.parameter = "temp_c";
+  const qualified = app.distributionEntries(app.current());
+  assert.equal(
+    JSON.stringify(qualified.entries.map((entry) => entry.row.cell_id)),
+    JSON.stringify(["a", "b"]),
+  );
+  assert.equal(qualified.excludedProvisional, 1);
+  assert.equal(qualified.allProvisional, false);
+
+  app.state.cells = app.state.cells.filter((row) => row.provisional);
+  app.indexCells();
+  const fallback = app.distributionEntries(app.current());
+  assert.equal(fallback.entries[0].row.cell_id, "raw");
+  assert.equal(fallback.allProvisional, true);
+});
+
+test("distributionPercent — pollutant bars use zero while temperature bars use the network range", async () => {
+  const app = await freshApp();
+  app.state.parameter = "pm25_ugm3";
+  assert.equal(app.distributionPercent(10, { min: 8, max: 20 }), 50);
+  app.state.parameter = "temp_c";
+  assert.equal(app.distributionPercent(15, { min: 10, max: 20 }), 50);
+});
+
+test("wireTabs — arrow keys move focus to the new tab, never into its panel", async () => {
+  const app = await freshApp();
+  const listeners = new Map();
+  const makeTab = (id, panelId) => ({
+    id,
+    tabIndex: 0,
+    attributes: new Map([["aria-controls", panelId]]),
+    addEventListener(type, handler) {
+      listeners.set(`${id}:${type}`, handler);
+    },
+    getAttribute(name) {
+      return this.attributes.get(name);
+    },
+    setAttribute(name, value) {
+      this.attributes.set(name, String(value));
+    },
+    focus() {
+      this.focused = true;
+    },
+  });
+  const tabs = [makeTab("tab-list", "panel-list"), makeTab("tab-table", "panel-table")];
+  const panels = {
+    "panel-list": { hidden: false },
+    "panel-table": { hidden: true },
+  };
+  app.document.querySelectorAll = (selector) => (selector === '[role="tab"]' ? tabs : []);
+  app.document.getElementById = (id) => panels[id] || null;
+  app.wireTabs();
+  let prevented = false;
+  listeners.get("tab-list:keydown")({
+    key: "ArrowRight",
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  assert.equal(tabs[1].focused, true);
+  assert.equal(panels["panel-table"].hidden, false);
+});
+
+test("wireSectionNavigation — in-page scrolling preserves the shareable state hash", async () => {
+  const app = await freshApp();
+  let clickHandler = null;
+  let scrolled = false;
+  const link = {
+    addEventListener(type, handler) {
+      if (type === "click") clickHandler = handler;
+    },
+    getAttribute(name) {
+      return name === "href" ? "#explore" : null;
+    },
+  };
+  const section = {
+    scrollIntoView() {
+      scrolled = true;
+    },
+  };
+  app.document.querySelectorAll = (selector) =>
+    selector === '.observatory-nav a[href^="#"]' ? [link] : [];
+  app.document.getElementById = (id) => (id === "explore" ? section : null);
+  app.location.hash = "#p=temp_c&t=2026-06-01T00%3A00%3A00Z&l=c1&c=c2";
+  app.wireSectionNavigation();
+  let prevented = false;
+  clickHandler({
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  assert.equal(scrolled, true);
+  assert.equal(app.location.hash, "#p=temp_c&t=2026-06-01T00%3A00%3A00Z&l=c1&c=c2");
+});
+
+test("wireSectionNavigation — the skip link preserves state and moves focus to main", async () => {
+  const app = await freshApp();
+  let clickHandler = null;
+  let focused = false;
+  const skip = {
+    classList: { contains: (name) => name === "skip-link" },
+    addEventListener(type, handler) {
+      if (type === "click") clickHandler = handler;
+    },
+    getAttribute(name) {
+      return name === "href" ? "#main" : null;
+    },
+  };
+  const main = {
+    scrollIntoView() {},
+    focus() {
+      focused = true;
+    },
+  };
+  app.document.querySelectorAll = (selector) =>
+    selector === '.skip-link[href^="#"]' ? [skip] : [];
+  app.document.getElementById = (id) => (id === "main" ? main : null);
+  app.location.hash = "#p=temp_c&t=2026-06-01T00%3A00%3A00Z&l=c1";
+  app.wireSectionNavigation();
+  let prevented = false;
+  clickHandler({
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  assert.equal(focused, true);
+  assert.equal(app.location.hash, "#p=temp_c&t=2026-06-01T00%3A00%3A00Z&l=c1");
+});
+
+test("wireObservatory — Open evidence suppresses native fragment replacement", async () => {
+  const app = await freshApp();
+  let clickHandler = null;
+  let scrolled = false;
+  const originalQuery = app.document.querySelector;
+  const cta = {
+    addEventListener(type, handler) {
+      if (type === "click") clickHandler = handler;
+    },
+    getAttribute() {
+      return null; // no selected cell: isolate the in-page navigation behavior
+    },
+  };
+  app.document.querySelector = (selector) =>
+    selector === "#now-open-evidence" ? cta : originalQuery(selector);
+  app.document.getElementById = (id) =>
+    id === "explore" ? { scrollIntoView() { scrolled = true; } } : null;
+  app.location.hash = "#p=temp_c&t=2026-06-01T00%3A00%3A00Z&l=c1";
+  app.wireObservatory();
+  let prevented = false;
+  clickHandler({
+    currentTarget: cta,
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  assert.equal(scrolled, true);
+  assert.equal(app.location.hash, "#p=temp_c&t=2026-06-01T00%3A00%3A00Z&l=c1");
+});
+
+test("magnitudeFor — exposure stays ordinal while temperatures honor display units", async () => {
+  const app = await freshApp();
+  assert.equal(app.magnitudeFor({ category: "High", mean: 99 }, "exposure", "F"), 3);
+  assert.equal(app.magnitudeFor({ mean: 20 }, "temp_c", "C"), 20);
+  assert.equal(app.magnitudeFor({ mean: 20 }, "temp_c", "F"), 68);
+});
+
+test("semantic chart formatting — exposure ordinals become categories and WBGT stays estimated", async () => {
+  const app = await freshApp();
+  app.state.strings = {
+    "exp-elevated": "Elevated",
+    "estimated-value": "{value} (estimated)",
+    "estimated-short": "estimated",
+  };
+
+  app.state.parameter = "exposure";
+  assert.equal(app.formatMagnitude(2), "Elevated");
+
+  app.state.parameter = "wbgt_c";
+  app.state.unit = "C";
+  assert.equal(app.formatMagnitude(28.25), "28.3 °C (estimated)");
+  assert.equal(app.formatDifference(-2.25), "2.3 °C (estimated)");
+  assert.equal(app.unitContextLabel(), "°C · estimated");
+});
+
+test("sparkSegmentPath — categorical exposure history uses discrete steps", async () => {
+  const app = await freshApp();
+  const points = [
+    { x: 0, y: 10 },
+    { x: 5, y: 4 },
+    { x: 9, y: 8 },
+  ];
+  const coordinates = (point) => point;
+  assert.equal(
+    app.sparkSegmentPath(points, coordinates, true),
+    "M0.0,10.0 L5.0,10.0 L5.0,4.0 L9.0,4.0 L9.0,8.0",
+  );
+  assert.equal(app.sparkSegmentPath(points, coordinates, false), "M0.0,10.0 L5.0,4.0 L9.0,8.0");
+});
+
+test("dense map rendering keeps semantic exposure categories visible", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const source = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+  assert.match(source, /isExposure\(\)\s*\? formatMagnitude\(magnitudeFor\(row\)\)/);
+  assert.doesNotMatch(source, /isExposure\(\)\s*\? `\$\{Math\.round\(row\.mean\)\}`/);
+});
+
+test("braidSelectionText — an unknown saved location degrades to an empty observation status", async () => {
+  const app = await freshApp();
+  const bucket = "2026-06-01T00:00:00Z";
+  app.state.strings = {
+    "braid-selected-empty": "{time}. No location reports this measurement.",
+  };
+  app.setData({ buckets: [bucket], cells: [] });
+  app.state.selected = "missing-location";
+  assert.match(app.braidSelectionText(), /No location reports this measurement/);
+});
+
+test("sourceTerm — a non-provisional model row keeps upstream terminology", async () => {
+  const app = await freshApp();
+  app.document.documentElement.lang = "en";
+  app.state.demo = {
+    source: {
+      terminology: {
+        non_provisional_label: { en: "Upstream model", es: "Modelo externo" },
+      },
+    },
+  };
+  assert.equal(app.sourceTerm("non_provisional_label", "state-calibrated"), "Upstream model");
+});
+
+test("linked selectors expose selection state and dynamic action lists restore focus", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const source = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+  assert.match(source, /place\.setAttribute\("aria-pressed"/);
+  assert.match(source, /placeButton\.setAttribute\("aria-pressed"/);
+  assert.match(source, /btn\.setAttribute\("aria-pressed"/);
+  assert.match(source, /closest\?\.\("#overview-worst button"\)/);
+  assert.match(source, /closest\?\.\("#alerts-list button"\)/);
+  assert.match(source, /closest\?\.\("#area-alerts-list button"\)/);
 });

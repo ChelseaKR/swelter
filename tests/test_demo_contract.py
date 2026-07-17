@@ -8,6 +8,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote
 
 import pytest
 
@@ -184,13 +185,22 @@ def test_pages_build_records_each_fallback_winner() -> None:
     assert sensor_community.ATTRIBUTION in workflow
 
 
+def test_pages_rewrites_only_the_route_scoped_cache_release() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+
+    assert 'const CACHE_RELEASE = "pages-$ENV{GITHUB_SHA}";' in workflow
+    assert 'grep -Fq "const CACHE_RELEASE = \\"pages-${GITHUB_SHA}\\";"' in workflow
+    assert 'const CACHE = "swelter-pages-' not in workflow
+
+
 def test_static_runtime_uses_baked_files_without_api_probes() -> None:
     app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
 
     assert "state.demo = await loadDemoContract()" in app
     assert 'isStaticDeployment() ? null : await fetchJson("api/alerts.json")' in app
-    assert 'isStaticDeployment() ? null : await fetchSurface("api/surface.json?hours=168")' in app
     assert '? await fetchSurface("sample-surface.json")' in app
+    assert 'isStaticDeployment()\n    ? await fetchSurface("surface-7d.json")' in app
+    assert ': await fetchSurface("api/surface.json?hours=168")' in app
 
 
 def test_offline_shell_caches_the_contract_when_present_without_requiring_it() -> None:
@@ -198,6 +208,75 @@ def test_offline_shell_caches_the_contract_when_present_without_requiring_it() -
 
     assert 'const OPTIONAL_SHELL = ["demo.json"]' in worker
     assert "Promise.allSettled" in worker
+
+
+def test_offline_shell_owns_only_its_route_cache() -> None:
+    worker = (ROOT / "web" / "sw.js").read_text(encoding="utf-8")
+
+    assert "self.registration.scope" in worker
+    assert "encodeURIComponent(new URL(self.registration.scope).pathname)" in worker
+    assert ".pathname.replace" not in worker
+    assert "${CACHE_SCOPE}::" in worker
+    assert "key.startsWith(CACHE_PREFIX) && key !== CACHE" in worker
+    assert "caches.match(" not in worker
+    assert "caches.open(CACHE)" in worker
+
+    # CacheStorage is origin-wide. Preserve the full pathname so the root route is distinguishable
+    # from a route literally named `root`, and so nested and hyphenated routes stay unambiguous.
+    def cache_prefix(scope_path: str) -> str:
+        encoded_scope = quote(scope_path, safe="")
+        return f"swelter-shell-{encoded_scope}::"
+
+    origin_root_prefix = cache_prefix("/")
+    literal_root_prefix = cache_prefix("/root/")
+    root_prefix = cache_prefix("/swelter/")
+    sensors_prefix = cache_prefix("/swelter/sensors/")
+    hyphenated_project_prefix = cache_prefix("/swelter-sensors/")
+    assert origin_root_prefix != literal_root_prefix
+    assert not sensors_prefix.startswith(root_prefix)
+    assert not root_prefix.startswith(sensors_prefix)
+    assert sensors_prefix != hyphenated_project_prefix
+
+
+def test_shell_revalidation_is_attached_to_the_fetch_lifecycle() -> None:
+    worker = (ROOT / "web" / "sw.js").read_text(encoding="utf-8")
+
+    assert "const revalidation = cacheReady.then(async (cache) =>" in worker
+    assert "await cache.put(event.request, response.clone())" in worker
+    assert "event.waitUntil(" in worker
+    assert "cached ? revalidation.catch(() => undefined) : undefined" in worker
+    assert "return await revalidation" in worker
+    assert 'new Response("Offline — this asset isn\'t cached yet."' in worker
+
+
+def test_observatory_stylesheet_is_committed_and_cached_but_history_stays_lazy() -> None:
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    worker = (ROOT / "web" / "sw.js").read_text(encoding="utf-8")
+    stylesheet = ROOT / "web" / "observatory.css"
+
+    # CI runs from a clean checkout, so this existence assertion also prevents an HTML/SW edit
+    # from landing without the new required asset in the commit.
+    assert stylesheet.is_file()
+    assert 'href="observatory.css"' in html
+    assert '"observatory.css"' in worker
+    # The multi-megabyte history payload is fetched after first paint, never during SW install.
+    assert '"surface-7d.json"' not in worker
+
+
+def test_installed_dashboard_does_not_lock_screen_orientation() -> None:
+    manifest = json.loads((ROOT / "web" / "manifest.webmanifest").read_text(encoding="utf-8"))
+
+    # WCAG 1.3.4: residents must be able to use the installed field station in portrait or
+    # landscape; there is no essential orientation-specific interaction in this dashboard.
+    assert manifest.get("orientation", "any") == "any"
+
+
+def test_large_text_reflow_does_not_force_a_page_wide_minimum_width() -> None:
+    styles = (ROOT / "web" / "observatory.css").read_text(encoding="utf-8")
+
+    # At 320 CSS px, 130% text must reflow within the viewport. Wide charts and tables own their
+    # local scroll containers, so the page body itself must never impose the old 20rem floor.
+    assert "min-width: 20rem" not in styles
 
 
 def test_static_shell_avoids_fixed_source_and_license_claims() -> None:

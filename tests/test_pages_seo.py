@@ -94,11 +94,16 @@ def test_root_metadata_is_absolute_source_aware_and_valid_json_ld(tmp_path: Path
     web_dir = _built_page(tmp_path)
     pages_seo.write_page_metadata(web_dir, route="/", source="openaq")
     parser, document = _parse(web_dir)
+    built_html = (web_dir / "index.html").read_text(encoding="utf-8")
 
     canonical = "https://chelseakr.github.io/swelter/"
     canonical_links = [link for link in parser.links if link.get("rel") == "canonical"]
     assert canonical_links == [{"rel": "canonical", "href": canonical}]
     assert parser.title == pages_seo.SOURCE_SPECS["openaq"].page_title
+    # Build-time source truth wins the initial document metadata. Removing the template's runtime
+    # i18n attributes prevents the default catalog from overwriting it on first paint.
+    assert "<title data-i18n" not in built_html
+    assert 'data-i18n-attr="content:meta-description"' not in built_html
     assert {meta.get("content") for meta in parser.metas if meta.get("name") == "description"} == {
         pages_seo.SOURCE_SPECS["openaq"].page_description
     }
