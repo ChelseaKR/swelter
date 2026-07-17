@@ -156,9 +156,9 @@ html {
 }
 
 body {
-  background:
-    linear-gradient(90deg, transparent 0 calc(100% - 1px), rgb(23 33 31 / 0.025) calc(100% - 1px)) 0 0 / 2rem 2rem,
-    var(--bg);
+  /* Keep the page canvas opaque. Axe 4.8 cannot reliably resolve foreground contrast through a
+     transparent ancestor or background image, and every text color is designed against this token. */
+  background: var(--bg);
   color: var(--fg);
   font-family: var(--font-body);
   font-size: 1rem;
@@ -222,7 +222,7 @@ body > header {
   align-items: center;
   gap: 0.75rem 2rem;
   border-bottom: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--bg) 93%, transparent);
+  background: var(--bg);
   box-shadow: 0 0.35rem 1.5rem rgb(23 33 31 / 0.08);
   backdrop-filter: blur(1rem) saturate(120%);
 }
@@ -437,10 +437,7 @@ main {
   margin: 0 0 clamp(2.5rem, 6vw, 5.5rem);
   overflow: hidden;
   border-block: 1px solid var(--line-strong);
-  background:
-    radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--air) 22%, transparent), transparent 37%),
-    radial-gradient(circle at 83% 82%, color-mix(in srgb, var(--heat) 20%, transparent), transparent 39%),
-    linear-gradient(135deg, var(--paper), var(--mist-deep));
+  background: var(--paper);
 }
 
 .now-stage::before {
@@ -448,6 +445,8 @@ main {
   z-index: -1;
   inset: 0;
   background:
+    radial-gradient(circle at 12% 12%, var(--air-wash), transparent 37%),
+    radial-gradient(circle at 83% 82%, var(--heat-wash), transparent 39%),
     linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 2rem 2rem,
     linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 2rem 2rem;
   content: "";
@@ -569,7 +568,7 @@ main {
   flex-direction: column;
   justify-content: center;
   border-left: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--paper) 66%, transparent);
+  background: var(--paper);
 }
 
 .now-find > label {
@@ -600,7 +599,7 @@ main {
 .now-primary[data-provisional="true"] #now-trust {
   border-style: dashed;
   color: var(--muted);
-  background-image: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, currentColor 14%, transparent) 4px 6px);
+  background: var(--mist-deep);
 }
 
 .now-guidance {
@@ -648,7 +647,7 @@ main {
   border: 1px solid currentColor;
   border-radius: 100vmax;
   color: var(--canopy);
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  background: var(--canopy-wash);
   font-family: var(--font-data);
   font-size: 0.68rem;
   font-weight: 800;
@@ -670,17 +669,19 @@ main {
 .status-chip.provisional {
   border-style: dashed;
   color: var(--muted);
-  background-image: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, currentColor 14%, transparent) 4px 6px);
+  background: var(--mist-deep);
 }
 
 .status-chip[data-state="warning"],
 .status-chip.warning {
   color: var(--heat);
+  background: var(--heat-wash);
 }
 
 .status-chip[data-state="air"],
 .status-chip.air {
   color: var(--air);
+  background: var(--air-wash);
 }
 
 /* Controls -------------------------------------------------------------- */
@@ -724,6 +725,11 @@ main {
   border-radius: var(--radius-xs);
   background: var(--paper);
   color: var(--soot);
+}
+
+input::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 :where(select, input[type="search"], input[type="number"]):hover {
@@ -904,10 +910,25 @@ input[type="range"] {
 }
 
 .exposure-braid {
+  isolation: isolate;
   min-height: 15rem;
+  background: var(--paper);
+}
+
+.exposure-braid::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
   background:
     linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 3rem,
     linear-gradient(90deg, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px) 0 0 / 4.5rem 100%;
+  content: "";
+  pointer-events: none;
+}
+
+.exposure-braid > * {
+  position: relative;
+  z-index: 1;
 }
 
 .exposure-braid :where(svg, canvas),
@@ -1353,7 +1374,7 @@ input[type="range"] {
   border-color: var(--line-strong);
   border-radius: var(--radius-xs);
   color: var(--soot);
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  background: var(--paper);
   box-shadow: var(--shadow-soft);
   font-family: var(--font-data);
 }
@@ -1364,14 +1385,75 @@ input[type="range"] {
 }
 
 .cell {
+  --cell-bg: var(--paper);
+  --cell-pattern: none;
+  --cell-pattern-size: auto;
+
+  isolation: isolate;
+  overflow: hidden;
   min-width: 3.8rem;
   min-height: 2.65rem;
   border: 0.14rem solid var(--soot);
   border-radius: var(--radius-xs);
+  background-color: var(--cell-bg);
+  background-image: none;
+  color: var(--soot);
   box-shadow: 0 0.25rem 0.7rem rgb(23 33 31 / 0.2);
   font-family: var(--font-data);
   font-size: 0.84rem;
   font-variant-numeric: tabular-nums;
+}
+
+.cell::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-image: var(--cell-pattern);
+  background-size: var(--cell-pattern-size);
+  content: "";
+  pointer-events: none;
+}
+
+.cell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cell:is(.aqi-good, .aqi-moderate, .aqi-usg, .aqi-unhealthy, .aqi-veryunhealthy, .aqi-hazardous, .heat-1, .heat-2, .heat-3, .heat-4, .heat-5) {
+  color: #17211f;
+}
+
+.cell.aqi-good { --cell-bg: #d7f0d0; }
+.cell.aqi-moderate { --cell-bg: #f2e9b8; }
+.cell.aqi-usg { --cell-bg: #f6cf9b; }
+.cell.aqi-unhealthy { --cell-bg: #ef9a9a; }
+.cell.aqi-veryunhealthy { --cell-bg: #cf93c8; }
+.cell.aqi-hazardous { --cell-bg: #c79a9a; }
+.cell.heat-1 { --cell-bg: #dbe9f2; }
+.cell.heat-2 { --cell-bg: #e6edcb; }
+.cell.heat-3 { --cell-bg: #f4e3b0; }
+.cell.heat-4 { --cell-bg: #f2c197; }
+.cell.heat-5 { --cell-bg: #e89887; }
+
+.cell:is(.aqi-moderate, .heat-2) {
+  --cell-pattern: radial-gradient(circle, rgb(0 0 0 / 0.32) 1px, transparent 1.2px);
+  --cell-pattern-size: 6px 6px;
+}
+
+.cell:is(.aqi-usg, .heat-3) {
+  --cell-pattern: repeating-linear-gradient(45deg, rgb(0 0 0 / 0.3) 0 2px, transparent 2px 6px);
+}
+
+.cell:is(.aqi-unhealthy, .heat-4) {
+  --cell-pattern: repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.34) 0 2px, transparent 2px 5px);
+}
+
+.cell.aqi-veryunhealthy {
+  --cell-pattern: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.4) 0 2px, transparent 2px 5px);
+}
+
+.cell:is(.aqi-hazardous, .heat-5) {
+  --cell-pattern: repeating-linear-gradient(90deg, rgb(0 0 0 / 0.42) 0 2px, transparent 2px 5px);
 }
 
 .cell .cell-cat {
@@ -1383,8 +1465,9 @@ input[type="range"] {
 
 .cell.provisional {
   border-style: dashed;
-  background: repeating-linear-gradient(135deg, #eef2f0 0 4px, #cad6d2 4px 7px);
-  color: #17211f;
+  background: var(--mist-deep);
+  color: var(--soot);
+  --cell-pattern: repeating-linear-gradient(135deg, transparent 0 4px, var(--grid) 4px 7px);
 }
 
 .cell.selected {
@@ -1880,6 +1963,12 @@ body > footer :where(summary, button) {
   color: var(--footer-fg);
 }
 
+body > footer .shortcuts-list kbd {
+  border-color: var(--footer-fg);
+  background: var(--footer-fg);
+  color: var(--footer-bg);
+}
+
 body > footer :where(.settings, .shortcuts) {
   max-width: 48rem;
   padding-top: 0.65rem;
@@ -1898,6 +1987,10 @@ body > footer .settings-actions button {
   background-image: none;
 }
 
+:root[data-contrast="high"] .cell::before {
+  background-image: none;
+}
+
 :root[data-contrast="high"] :where(.viz-card, .workspace-inspector, .detail, .overview, .alerts, .area-alerts, .cooling) {
   box-shadow: none;
 }
@@ -1905,7 +1998,7 @@ body > footer .settings-actions button {
 :root[data-contrast="high"] .status-chip[data-state="provisional"],
 :root[data-contrast="high"] .status-chip.provisional {
   border-style: dashed;
-  background-image: repeating-linear-gradient(135deg, transparent 0 3px, currentColor 3px 4px);
+  background: var(--mist-deep);
 }
 
 :root[data-contrast="high"] .cell.selected {
