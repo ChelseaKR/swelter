@@ -428,8 +428,8 @@ main {
   color: var(--paper);
 }
 
-/* Resident-first current conditions. Atmospheric fields put heat and air
-   in dialogue while the ruled grid keeps the view analytical, not decorative. */
+/* Resident-first current conditions. Keep the section surface opaque so
+   automated and human contrast checks resolve against the same background. */
 .now-stage {
   position: relative;
   isolation: isolate;
@@ -438,36 +438,6 @@ main {
   overflow: hidden;
   border-block: 1px solid var(--line-strong);
   background: var(--paper);
-}
-
-.now-stage::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  background:
-    radial-gradient(circle at 12% 12%, var(--air-wash), transparent 37%),
-    radial-gradient(circle at 83% 82%, var(--heat-wash), transparent 39%),
-    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 2rem 2rem,
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 2rem 2rem;
-  content: "";
-  opacity: 0.22;
-  pointer-events: none;
-}
-
-.now-stage::after {
-  position: absolute;
-  z-index: -1;
-  top: -7rem;
-  right: -3rem;
-  width: 25rem;
-  height: 25rem;
-  border: 1px solid color-mix(in srgb, var(--heat) 45%, transparent);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 3.5rem color-mix(in srgb, var(--heat) 4%, transparent),
-    0 0 0 7rem color-mix(in srgb, var(--air) 4%, transparent);
-  content: "";
-  pointer-events: none;
 }
 
 .now-intro {
@@ -1382,6 +1352,17 @@ input[type="range"] {
 .map-controls button:hover {
   border-color: var(--soot);
   color: var(--heat);
+}
+
+.map-controls svg {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  margin: auto;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-width: 2.5;
 }
 
 .cell {

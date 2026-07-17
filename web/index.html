@@ -290,8 +290,16 @@
             tabindex="0"
           ></div>
           <div class="map-controls" role="group" data-i18n-attr="aria-label:map-zoom-group" aria-label="Map zoom">
-            <button id="map-zoom-in" type="button" data-i18n-attr="aria-label:map-zoom-in" aria-label="Zoom in">+</button>
-            <button id="map-zoom-out" type="button" data-i18n-attr="aria-label:map-zoom-out" aria-label="Zoom out">−</button>
+            <button id="map-zoom-in" type="button" data-i18n-attr="aria-label:map-zoom-in" aria-label="Zoom in">
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                <path d="M3 8h10M8 3v10"></path>
+              </svg>
+            </button>
+            <button id="map-zoom-out" type="button" data-i18n-attr="aria-label:map-zoom-out" aria-label="Zoom out">
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                <path d="M3 8h10"></path>
+              </svg>
+            </button>
             <button id="map-reset" type="button" data-i18n-attr="aria-label:map-reset-label" data-i18n="map-reset" aria-label="Reset map to fit">Reset</button>
           </div>
         </div>
