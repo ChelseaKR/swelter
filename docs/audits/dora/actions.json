@@ -1,0 +1,22 @@
+{
+  "collection": {
+    "collected_at": "2026-07-17T07:00:00Z",
+    "complete": false,
+    "reason": "The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. Scheduled CI will produce the first complete retained snapshot."
+  },
+  "kind": "github_actions",
+  "query": {
+    "endpoint": "/repos/ChelseaKR/swelter/actions/workflows/pages.yml/runs",
+    "pagination": "gh api --paginate --slurp",
+    "parameters": {
+      "created": "2026-07-03T00:00:00Z..2026-07-17T07:00:00Z",
+      "per_page": 100
+    },
+    "source": "GitHub REST API",
+    "window_end": "2026-07-17T07:00:00Z",
+    "window_start": "2026-07-03T00:00:00Z"
+  },
+  "records": [],
+  "repository": "ChelseaKR/swelter",
+  "schema_version": 1
+}

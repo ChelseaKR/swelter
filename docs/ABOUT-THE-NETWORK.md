@@ -11,8 +11,8 @@ own network. A network operator's setup guide is in
 
 This is a neighborhood-run network of small sensors that measure **heat and air quality across the
 neighborhood**, so we can see which areas get hottest and where the air is worst. It is run by us — the
-people who live here and host the sensors — not by a company. The readings are open data anyone can
-download and check.
+people who live here and host the sensors — not by a company. The readings can be downloaded and
+checked with their source, quality state, and reuse terms attached.
 
 **Coverage.** We currently cover [N] locations across [neighborhood / area], shown on the map. Sensors
 are added as neighbors volunteer to host them, and we aim for overlapping coverage so the map keeps
@@ -39,8 +39,9 @@ category. The combined heat-and-air exposure level stays provisional until *both
 air readings are confirmed — so until the heat sensors are calibrated, exposure shows provisional
 even where the air is confirmed.
 
-**The data is yours.** Every reading is dedicated to the public domain (CC0): you can download it,
-check our work, or take a full copy and run the network somewhere else. There is no company that can
-switch it off or fence the data away from the neighborhood that made it.
+**The data is portable.** Readings produced by this community are [CC0 / insert the collective's
+chosen lawful terms]. Data fetched from another provider keeps that provider's license and
+attribution. You can download the export, check our work, and run the open-source software somewhere
+else; the download states which terms apply to each source.
 
 Questions, corrections, or want to get involved? [contact / meeting details].

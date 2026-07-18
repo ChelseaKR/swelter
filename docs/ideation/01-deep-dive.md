@@ -8,8 +8,9 @@ Date: 2026-07-01. Basis: full read of `src/swelter/`, `web/`, `firmware/src/`, `
 A community-owned heat and air-quality sensing stack: ESP32-class nodes
 (`firmware/src/main.py`, `sampler.py`, a genuinely careful flash-backed store-and-forward buffer in
 `firmware/src/store_and_forward.py`) feed a one-way pipeline — `ingest.py` (validate/explode/
-quarantine) → `store.py` (append-only SQLite keyed `(node_id, timestamp, parameter, calibration)`,
-`INSERT OR IGNORE`) → `calibrate.py` (pure-Python OLS against co-located reference monitors,
+quarantine) → `store.py` (append-only SQLite keyed
+`(node_id, timestamp, parameter, source, calibration)`, `INSERT OR IGNORE`) → `calibrate.py`
+(pure-Python OLS against co-located reference monitors,
 versioned YAML registry, byte-for-byte reproducible at 6 dp) → `qc.py` (range/spike/flatline
 labels, gap detection, node health, coverage-equity) → `aggregate.py` (published-grid hourly
 rollups, calibrated-preferred, provisional-labeled, plus the derived compound `exposure` layer of

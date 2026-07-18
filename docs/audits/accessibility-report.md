@@ -1,6 +1,7 @@
 # Accessibility report
 
-Last verified: 2026-06-16. Recheck cadence: each release, and on any change under `web/`.
+Last verified: 2026-07-17. Final MF2 browser execution: pending in CI.
+Recheck cadence: each release, and on any change under `web/`.
 
 This is the committed accessibility report that audit E in
 [../RESPONSIBLE-TECH-AUDITS.md](../RESPONSIBLE-TECH-AUDITS.md) references. It summarises the
@@ -25,16 +26,18 @@ deterministically. As of the verified date, all twelve checks pass.
 | 4 | Landmarks present (`main`, `header`) | 1.3.1, 2.4.1 Bypass Blocks | PASS |
 | 5 | A skip link targets an in-page id | 2.4.1 Bypass Blocks | PASS |
 | 6 | Every form control is labelled | 1.3.1, 3.3.2, 4.1.2 | PASS |
-| 7 | A data-table equivalent to the map exists | 1.1.1 Non-text Content | PASS |
+| 7 | A semantic data-table shell is present | 1.1.1 Non-text Content | PASS |
 | 8 | Every `<img>` has an `alt` attribute | 1.1.1 Non-text Content | PASS |
 | 9 | No positive `tabindex` | 2.4.3 Focus Order | PASS |
 | 10 | A language switch is present | 3.1.2 Language of Parts (en/es) | PASS |
 | 11 | CSS honours `prefers-reduced-motion` | 2.3.3 Animation from Interactions | PASS |
 | 12 | CSS provides a visible focus indicator | 2.4.7 Focus Visible | PASS |
 
-Check 7 is the load-bearing one: it proves the map is never the only way in. The same aggregated
-surface renders as a sortable table and a plain list, so a screen-reader user gets the full
-dataset without the map. The gate fails the build if the table is removed.
+Check 7 proves only that the static shell retains a semantic table; a parser cannot prove that its
+dynamic rows equal the map. The cross-browser suite supplies that stronger evidence by comparing the
+complete record key, cell id, accessible description, visible List reading, and Table row across all
+three representations on both source routes. The structural gate still fails if the table shell is
+removed.
 
 ## What the structural gate cannot prove
 
@@ -47,29 +50,47 @@ The script is honest about its limits. With no browser and no DOM it cannot judg
 - reading and focus order as actually experienced with a screen reader;
 - reflow and target-size behaviour at real viewport sizes (1.4.10, 2.5.8).
 
-These are covered by the manual review below. The structural gate auto-blocks merge; the manual
-review is review-gated and recorded here.
+Browser assertions now cover computed contrast, keyboard paths, reflow, target size, reduced
+motion, and a 40%-expanded pseudolocale. The structural gate and CI browser engines are configured
+to block regressions; human assistive-technology judgment remains review-gated and is recorded
+separately.
 
 ## Manual review status
 
-- **Reviewer:** Chelsea Kelly-Reif.
-- **Date of last manual pass:** 2026-06-16.
+- **Baseline reviewer:** Chelsea Kelly-Reif.
+- **Date of last full manual pass:** 2026-06-16, before the expanded observatory sequence.
 - **Tools:** NVDA (Firefox), VoiceOver (Safari), keyboard-only traversal.
-- **Scope:** the three equal views (map, table, list); the time slider; the en/es language
-  switch; focus order through the page; AQI severity legibility without colour.
-- **Result:** no AA blocker found. The time slider is keyboard-operable and announces its value
-  via `aria-live`; focus is not trapped; the table and list reproduce the map's data with the same
-  filtering. AQI severity is readable by text and pattern with colour disabled.
-- **Open items:** none blocking AA. A full Section 508 VPAT/ACR is tracked separately at
-  `docs/accessibility/ACR.md` per the README; this report covers the WCAG 2.2 AA floor and the
-  manual confirmation of it.
+- **Baseline scope:** map, table, list, time slider, language switch, focus order, and non-colour
+  severity cues.
+- **Current result:** the baseline found no AA blocker in that original scope. It is not reused as
+  proof for the new history braid, distribution, evidence inspector, or mobile sequence.
+- **Open review gate:** the current NVDA/Windows, VoiceOver/macOS, and VoiceOver/iOS matrix is
+  explicitly **Pending** in
+  [`../accessibility/MANUAL-AT-WALKTHROUGH.md`](../accessibility/MANUAL-AT-WALKTHROUGH.md) and
+  tracked in [#106](https://github.com/ChelseaKR/swelter/issues/106). The current ACR therefore says
+  Partially Supports rather than claiming a completed formal signoff.
+
+## Current automated evidence
+
+- `scripts/a11y_check.py`: 12/12 structural checks passed on 2026-07-17.
+- The Playwright source enumerates visible keyboard targets across Map, List, and Table and samples
+  `elementsFromPoint` to reject full focus obscuration.
+- The RTL assertion uses an actual Arabic fixture and checks direction, mirroring, overflow, and
+  mixed-direction content rather than merely forcing `dir="rtl"` on English text.
+- The target-size assertion enumerates native controls plus focusable/pointer composite surfaces in
+  every Map/List/Table view at desktop and 320 CSS pixels, and allows only the WCAG 2.5.8 inline-text
+  and 24 CSS-pixel-spacing exceptions.
+- Final MF2 JavaScript unit, Playwright, Axe, Pa11y, and Lighthouse execution is pending in a clean
+  Node 22 environment. CI is the authoritative blocking run; this report does not convert an
+  unexecuted local run into passing evidence.
 
 ## Regenerating this report
 
-Run `make a11y`, confirm 12/12, redo the keyboard and screen-reader pass for any changed view,
-and update the two dates and the manual-review result above. A report whose date predates a change
-under `web/` is itself a finding.
+Run `make a11y` and `make verify-web` (which installs all three locked browser engines), then complete the matrix in
+`MANUAL-AT-WALKTHROUGH.md` for a formal release signoff. Update the evidence dates and findings in
+this report and the ACR. A report whose verification date predates a `web/` change is itself a
+finding.
 
 ---
-Reviewed by: Chelsea Kelly-Reif, 2026-06-16. swelter is an independent personal open-source
-project; see NOTICE.
+Test-coverage documentation refreshed by OpenAI Codex, 2026-07-17; baseline human review by Chelsea
+Kelly-Reif, 2026-06-16. swelter is an independent personal open-source project; see NOTICE.

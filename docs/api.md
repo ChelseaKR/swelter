@@ -1,23 +1,26 @@
 # swelter API reference
 
-The swelter HTTP surface is **read-only**. It only ever answers `GET` (and `OPTIONS`); any write
-(`POST`/`PUT`/`PATCH`/`DELETE`) returns `405` with a JSON body. There is no write path to expose, and
-no account or API key. CORS is open (`Access-Control-Allow-Origin: *`) because the data is open.
+The public swelter HTTP surface is **read-only**. It answers `GET` (and `OPTIONS`); any write
+(`POST`/`PUT`/`PATCH`/`DELETE`) returns `405` with a JSON body. Node writes use the separate,
+authenticated `swelter ingest-serve` listener and are never routed through this server. The public
+read surface needs no account or API key. CORS is open (`Access-Control-Allow-Origin: *`) for public
+data.
 
-The observation **data is CC0** (CC0-1.0 Public Domain Dedication; see `DATA-LICENSE`) — for a
-network's own nodes. You can copy, modify, redistribute, and build on it, including commercially,
-without asking. Attribution is not required but appreciated: "Environmental data from the swelter
-community sensing network." The swelter source code is licensed separately under Apache-2.0 (see
-`LICENSE`).
+The software is Apache-2.0. Data terms are source-specific. A network may dedicate observations from
+its own nodes to CC0-1.0 when the publishing collective has authority to do so; project-authored
+synthetic observations are CC0. Fetched observations retain their provider terms and attribution.
+See `DATA-LICENSE` and the source data cards before redistributing an export.
 
-**Mixed stores (native + fetched third-party data).** The store itself is source-agnostic: it has
-no license field, and a store can hold a network's own CC0 observations, readings fetched from a
-third-party source (`swelter fetch`), or both. CC0 is true only for a network's own observations.
+**Mixed stores (native + fetched third-party data).** Every stored and exported observation carries
+an explicit source identity, but not every upstream source has one blanket license: OpenAQ terms can
+vary by provider and validity period. A store can hold a network's own observations, readings fetched
+from a third-party source (`swelter fetch`), or both. CC0 is true only for authorized first-party or
+project-authored synthetic observations.
 A fetched source keeps its own terms. Open-Meteo serves its API data under CC BY 4.0;
 Sensor.Community labels its database contents ODC-DbCL-1.0. OpenAQ is an aggregator, not a blanket
 CC BY dataset: every v3 location includes original-provider license and attribution metadata, and
-OpenAQ's Terms require users to follow those varying provider terms. `export.py` does **not** infer
-or track which rows came from where, so it cannot safely emit a single license for a store that mixes sources. The `--license`
+OpenAQ's Terms require users to follow those varying provider terms. `export.py` retains the explicit
+row source, but it cannot safely infer one blanket license for a store that mixes sources. The `--license`
 (and `--attribution`) flags on `swelter export`, and the matching keyword arguments on
 `export.to_json()` / `to_csv()` / `summarize()`, let the caller state the license explicitly at
 export time; the default remains CC0-1.0 so a network's own store is unchanged. **If you run `swelter
@@ -27,17 +30,20 @@ store's license right — nothing today prevents `swelter export` from mislabeli
 that discipline is on the operator, not (yet) enforced by the store.
 
 **Keep the terms attached downstream.** The `/sensors/` export names Sensor.Community's DbCL v1.0
-contents terms and links to the official license. OpenAQ exports need the license and attribution
-ledger from each returned location; a generic “OpenAQ” credit does not replace the original-source
-requirements. Keep each source's rows distinguishable and review the linked upstream terms before
-redistributing or combining a fetched dataset. The Pages workflow uses separate accumulated stores
-for OpenAQ, CAMS, and Sensor.Community so a fallback cannot silently relabel yesterday's rows.
+contents terms and links to the official license. OpenAQ exports need the generated
+`source-license-ledger.json`; a generic “OpenAQ” credit does not replace original-provider
+requirements. Static publication refuses an absent or invalid ledger. Keep each source's rows
+distinguishable and review linked upstream terms before redistributing or combining a fetched
+dataset. The Pages workflow uses separate source stores so a fallback cannot silently relabel
+another source's rows. Validation captures the exact ledger bytes used by an export or response;
+the file is never reread after validation, closing a time-of-check/time-of-use gap.
 
 The server is the standard library's `http.server`, single-threaded and stateless: it reads the
 store and answers. It is scale-to-zero friendly and runs as well on a Raspberry-Pi-class host with
 no cloud at all. Responses set `Cache-Control: public, max-age=60`.
 
-Author: Chelsea Kelly-Reif. Year: 2026.
+Author: Chelsea Kelly-Reif. Last verified: 2026-07-16. Recheck cadence: every public route, schema,
+export, source, license, or server-boundary change.
 
 ## Endpoints at a glance
 
@@ -61,6 +67,7 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 | `/api/cooling-centers.geojson` | Curated cooling-center overlay (validated FeatureCollection) |
 | `/export.csv` | Flat CSV dump (filterable) |
 | `/export.json` | Flat JSON dump (filterable) |
+| `/source-license-ledger.json` | Validated, immutable per-observation OpenAQ provider terms and attribution |
 | `/LICENSE`, `/DATA-LICENSE`, `/NOTICE` | The repo-root license/notice files, as `text/plain` |
 | `web/` static | The dashboard (default `index.html`) |
 
@@ -81,6 +88,10 @@ the demo network.
 - **Errors are JSON**: `{"error": "...", "status": <code>}` with `Content-Type: application/json`.
   A non-numeric `top`/`skip`/`hours` or a bad timestamp is `400`; an unknown path is `404`; a write
   method is `405`.
+- **Observation-derived responses carry rights links.** `Link: </DATA-LICENSE>; rel="license"`
+  accompanies SensorThings data, surfaces, health, alerts, exports, and their static equivalents.
+  OpenAQ-backed responses also link `</source-license-ledger.json>; rel="describedby"`. JSON and
+  GeoJSON surface/alert/sample documents carry the same information in an additive `rights` object.
 
 ```
 $ curl -X POST http://localhost:8000/v1.1/Observations
@@ -97,8 +108,11 @@ $ curl http://localhost:8000/nope
 
 `GET /LICENSE`, `GET /DATA-LICENSE`, and `GET /NOTICE` serve the repo-root files as
 `text/plain; charset=utf-8`, so the dashboard footer's citation trail resolves under `swelter serve`
-without bundling copies into `web/`. (`LICENSE` is Apache-2.0 for the code; `DATA-LICENSE` is the
-CC0-1.0 dedication for the observations; `NOTICE` is the attribution notice.)
+without bundling copies into `web/`. `LICENSE` is Apache-2.0 for the code; `DATA-LICENSE` defines
+the first-party/synthetic CC0 boundary and preserves third-party terms; `NOTICE` is the attribution
+notice. `GET /source-license-ledger.json` serves the already-validated ledger bytes captured with
+the response state; it is available only when the selected source requires observation-specific
+terms, and the same response is linked with `rel="describedby"` from observation-derived routes.
 
 ## SensorThings 1.1 subset
 
@@ -229,9 +243,11 @@ section of this file.
 
 ### `GET /v1.1/Observations`
 
-Readings as SensorThings `Observations`. Provenance — node, parameter, unit, and calibration version
-— travels in `parameters`; the QC verdict, the 1-sigma `uncertainty`, and an explicit `trustworthy`
-flag travel in `resultQuality`.
+Readings as SensorThings `Observations`. Provenance — node, parameter, unit, explicit source,
+calibration version, license, and attribution — travels in `parameters`; OpenAQ rows use the exact
+provider terms covering that observation timestamp. The QC verdict, the 1-sigma `uncertainty`, and
+an explicit `trustworthy` flag travel in `resultQuality`. The document also carries an additive
+top-level `rights` envelope linking the deploy's data notice and, when present, provider ledger.
 
 Query parameters:
 
@@ -250,17 +266,18 @@ Query parameters:
 the response carries an `@iot.nextLink` whenever more rows remain. The OData-style `$top`/`$skip` and
 the bare `top`/`skip` are both accepted (the OData spelling matches a generic SensorThings client).
 
-**Dedupe.** By default the results are deduped to one row per `(node, timestamp, parameter)`,
-**preferring the calibrated value** over the raw one — so a generic client sees the best available
-reading once. Pass `dedupe=false` to keep both the raw *and* the calibrated rows (this roughly
-doubles `@iot.count` for a node/parameter that is calibrated).
+**Dedupe.** By default the results are deduped to one row per
+`(node, timestamp, parameter, source)`, **preferring the calibrated value** over the raw one — so a
+generic client sees the best available reading once without collapsing source-distinct evidence.
+Pass `dedupe=false` to keep both the raw *and* the calibrated rows (this roughly doubles
+`@iot.count` for a node/parameter/source that is calibrated).
 
 ```json
 {
   "@iot.count": 169,
   "value": [
     {
-      "@iot.id": "node-01|2026-06-01T00:00:00Z|temp_c|temp_c.enclosure-offset.node-01",
+      "@iot.id": "node-01|2026-06-01T00:00:00Z|temp_c|native|temp_c.enclosure-offset.node-01",
       "phenomenonTime": "2026-06-01T00:00:00Z",
       "result": 24.935811,
       "resultQuality": {"qc": "ok", "uncertainty": 0.476025, "trustworthy": true},
@@ -268,6 +285,9 @@ doubles `@iot.count` for a node/parameter that is calibrated).
         "node_id": "node-01",
         "parameter": "temp_c",
         "unit": "degC",
+        "source": "native",
+        "data_license": "CC0-1.0",
+        "data_attribution": "Contributed by the network's participating sensor stewards.",
         "calibration": "temp_c.enclosure-offset.node-01"
       }
     }
@@ -598,7 +618,7 @@ it without a second request.
       "description": "Calibration provenance. Never empty: it is either the RAW sentinel ('raw', an uncorrected reading) or a correction version id of the form '{parameter}.{method}.{node_id}' ..."
     }
   ],
-  "csv_columns": ["node_id", "timestamp", "parameter", "value", "unit", "calibration", "qc", "uncertainty", "trustworthy"],
+  "csv_columns": ["node_id", "timestamp", "parameter", "value", "unit", "source", "calibration", "qc", "uncertainty", "trustworthy", "data_license", "data_attribution"],
   "parameters": [
     {"name": "temp_c", "unit": "degC", "valid_min": -40.0, "valid_max": 60.0}
   ],
@@ -633,7 +653,7 @@ centers, cooled public buildings), as a GeoJSON FeatureCollection with set-level
 attribution, source, `last_verified`, count). It is validated on load — every feature needs a name and
 an in-range Point, and properties are held to a public-field allowlist — and is separately licensed
 civic data, **not** part of the CC0 observation stream. An unconfigured server returns a valid empty
-FeatureCollection. See [ADR 0011](decisions/0011-cooling-center-overlay.md).
+FeatureCollection. See [ADR 0011](adr/0011-cooling-center-overlay.md).
 
 ## Export endpoints
 
@@ -656,9 +676,9 @@ downloader can see what was measured and what was corrected.
 downloaded or filtered subset's source terms attached to every row):
 
 ```
-node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty,trustworthy,data_license,data_attribution
-node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,raw,ok,,False,CC0-1.0,
-node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,temp_c.enclosure-offset.node-01,ok,0.476025,True,CC0-1.0,
+node_id,timestamp,parameter,value,unit,source,calibration,qc,uncertainty,trustworthy,data_license,data_attribution
+node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,native,raw,ok,,False,CC0-1.0,
+node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,native,temp_c.enclosure-offset.node-01,ok,0.476025,True,CC0-1.0,
 ```
 
 `trustworthy` is `True` only for a calibrated, QC-clean reading; a `raw` row leaves `uncertainty`
@@ -845,7 +865,7 @@ direct sun and must not be treated as equivalent to a black-globe instrument rea
 `heat_index_c`, it inherits its inputs' raw bias and is **published raw / provisional** — the demo
 network does not fit a `wbgt_c` correction. This release ships the estimated metric and its caveats
 only; occupational-heat guidance thresholds/bands (e.g. an OSHA/NIOSH-style action-level scale) are
-deferred pending SME sign-off (see `docs/decisions/0019-estimated-wbgt.md`). Valid range −40 to 60
+deferred pending SME sign-off (see `docs/adr/0019-estimated-wbgt.md`). Valid range −40 to 60
 degC.
 
 ---

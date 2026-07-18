@@ -169,15 +169,16 @@ license field varies by source.
 
 ## FIX-06 — Bilingual machine-readable surfaces: the alerts feed speaks Spanish
 
-**Status: done.** Implemented on `roadmap/fix-06-bilingual-machine-readable-surfac`: a server-side
-catalog (`src/swelter/i18n_alerts.py`, `ALERT_STRINGS`, `MACHINE_TRANSLATED = True`) backs
+**Status: done.** A server-side gettext catalog (`src/swelter/locales/alerts.pot`, complete EN/ES
+PO files, compiled MO files, and `MACHINE_TRANSLATED = True` in `src/swelter/i18n_alerts.py`) backs
 `Alert.headline(lang)` / `headline_es`, `alerts.json`'s `headline_es` + `note_es` +
 `"translation": "machine"`, and `AlertFeed.to_atom(lang="es")`. `cli._write_web_alerts` and
 `server.py`'s `/api/alerts.es.xml` route both bake/serve the Spanish Atom feed (`xml:lang="es"`,
 `hreflang` alternate link, a `<generator>` machine-translation note); the dashboard's subscribe UI
 links to it (`web/i18n` `aa-es-feed` / `aa-es-feed-note`, kept at EN/ES parity).
-`scripts/i18n_parity.py` now gates both `web/i18n/*.json` and `ALERT_STRINGS` for key parity and
-non-empty ES values.
+`scripts/gettext_catalog_check.py` re-extracts the Python messages, gates key/placeholder parity and
+non-empty translations, and byte-checks both compiled MO catalogs; dashboard parity remains in
+`scripts/i18n_parity.py`.
 
 **Pitch.** Extend EN/ES parity past the dashboard catalogs into the generated artifacts —
 `alerts.json` headlines, the Atom feed, health/coverage notes — via per-language feed variants.
@@ -189,12 +190,13 @@ i18n gates (G1/G3/G6/G12, `Makefile` target `i18n`) currently guarantee parity o
 this fix covers the *feed and JSON note strings* those items don't touch — the language-justice
 obligation (**[language]**) applies to syndication too.
 
-**Shape of the work.** Move headline/note templates into a small server-side catalog (mirroring
-`web/i18n/` keys; this activates the "Python emits localized strings → gettext/PO gates" clause
-`docs/I18N.md` already anticipates, and aligns with the portfolio-wide dict→gettext Phase 1);
+**Shape of the work.** Headline/note templates live in the canonical server-side gettext catalog
+(this fulfills the "Python emits localized strings → gettext/PO gates" clause and aligns with the
+portfolio-wide dict→gettext Phase 1);
 emit `alerts.es.xml`/`alerts.json` with `headline` + `headline_es` (or `?lang=` on the live
 routes and dual baked files in `cli._write_web_alerts`); `hreflang`-style feed links in the
-dashboard's subscribe UI. Extend `scripts/i18n_parity.py` to the new catalog.
+dashboard's subscribe UI. `scripts/gettext_catalog_check.py` owns extraction and compiled-catalog
+verification.
 
 **Effort.** M. **Risks/dependencies.** Translation quality needs the native-ES reviewer the i18n
 migration memo already flags as an open role — machine-drafted ES goes out only labeled as such,
@@ -217,16 +219,18 @@ body of code; the Python suite (~205 tests) never executes a line of it, and the
 
 **Shape of the work.** (a) Extract-and-test: `app.js`'s pure functions (unit conversion,
 category ordering, trend/contrast lines, `t()` fallback) are already function-scoped — add a
-`web/package.json` + `node --test` (or vitest) run as a new CI job; keep the no-framework runtime
-untouched (dev-only dependency). (b) Author JSON Schemas for `sample-surface.json`,
+`web/package.json` + `node --test` (or vitest) run as a new CI job; keep the no-framework browser
+architecture and vendor the generated MessageFormat runtime so the page makes no package-network
+request. (b) Author JSON Schemas for `sample-surface.json`,
 `sample-health.json`, `alerts.json` and validate them from *both* sides: a Python test validates
 emitter output, a JS test validates fixture parsing — the schema is the contract FIX-04/FIX-02
 changes then evolve deliberately. (c) Promote a minimal Playwright/pa11y smoke (page loads, three
 views render, language switch works) from advisory to blocking with pinned versions.
 
-**Effort.** L. **Risks/dependencies.** Adds a dev-only Node toolchain — keep it out of the runtime
-dependency story (the "one runtime dep" claim is about `pyproject.toml` and stays true). `CLAUDE.md`
-forbids agent modification of `web/` — this lands via the maintainer's own flow.
+**Effort.** L. **Risks/dependencies.** Adds a locked Node test/build toolchain and a pinned
+MessageFormat package whose generated ESM runtime is vendored into the static artifact. The browser
+still makes no package-network request. `CLAUDE.md` historically forbade agent modification of
+`web/`; this work landed through the maintainer-authorized portfolio sweep.
 
 **Excellent looks like.** A deliberate surface-schema change fails two tests (Python emitter + JS
 consumer) until both sides move; dashboard logic coverage is measured; the browser smoke is
@@ -278,7 +282,7 @@ provisional lanes) maintained incrementally at ingest/calibrate time and rebuilt
 `swelter rebuild`; make `aggregate` read rollups with a raw-scan fallback; add
 `Store.read_window()` streaming variants; write the retention ADR (raw is immutable evidence —
 archive by month into sibling `observations-YYYY-MM.db` files that Datasette still opens; never
-delete). Update `docs/decisions/0001-sqlite-and-files-store.md` with a follow-on ADR rather than
+delete). Supersede `docs/adr/0001-sqlite-and-files-store.md` with a follow-on ADR rather than
 editing history.
 
 **Effort.** XL. **Risks/dependencies.** The rollup lane must preserve every trust invariant

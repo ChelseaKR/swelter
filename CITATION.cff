@@ -1,18 +1,16 @@
 cff-version: 1.2.0
-message: "If you use swelter, please cite it using this metadata."
+message: "If you use swelter, please cite it using this metadata. Cite published data separately using the snapshot's DATA-CITATION.cff."
 title: "swelter"
 abstract: >-
-  A community-owned network of low-cost heat and air-quality sensors with the
-  pipeline, calibration, and accessible map that make its readings trustworthy
-  and open. Nodes measure temperature, humidity, PM2.5/PM10, optional NO2, and a
-  derived heat index; a time-series pipeline ingests the readings, QC-flags the
-  bad ones, calibrates each node's drift against reference monitors, and maps
-  urban heat islands and AQI at neighborhood resolution through a framework-free
-  WCAG 2.2 AA dashboard. Observation data is open (CC0-1.0) and exports through
-  open standards (CSV, JSON, the read-only OGC SensorThings subset, and a
-  Datasette-openable store). Privacy invariants are merge-blocking: no field can
-  identify or locate a person, public coordinates snap to a coarse grid, and
-  calibrated and raw readings are never silently mixed.
+  An open-source, community-operated heat and air-quality sensing pipeline and
+  public observatory. swelter validates and quarantines node payloads, keeps raw
+  measurements immutable, applies versioned calibration corrections, and
+  publishes QC, uncertainty, source, freshness, time-window, and calibration
+  provenance through an accessible bilingual interface. Its Now and Explore
+  workspaces link history, distribution, evidence, map, table, list, and export
+  views. The software is Apache-2.0; environmental data retains source-specific
+  terms, with CC0 used only for project-authored synthetic data or authorized
+  first-party observations.
 type: software
 authors:
   - given-names: "Chelsea"
@@ -20,17 +18,11 @@ authors:
     email: "ckellyreif@gmail.com"
     alias: "ChelseaKR"
 version: "0.1.0"
-date-released: "2026-06-16"
-# doi: 10.5281/zenodo.XXXXXXX
-#   No DOI exists yet. Minting one is an owner UI action, not something a PR can do:
-#   enable the Zenodo GitHub webhook for ChelseaKR/swelter at zenodo.org, then publish
-#   a tagged GitHub release. Zenodo archives the release and mints the DOI; put the
-#   concept DOI here (uncomment the line above) in a follow-up commit. The release
-#   metadata Zenodo uses comes from `.zenodo.json` (which mirrors this file and takes
-#   precedence over it when both exist). Steps: docs/citability.md.
+# Add date-released only when the annotated v0.1.0 tag and GitHub Release exist.
+# Add the Zenodo concept DOI after its GitHub integration archives that release.
 license: "Apache-2.0"
 repository-code: "https://github.com/ChelseaKR/swelter"
-url: "https://github.com/ChelseaKR/swelter"
+url: "https://chelseakr.github.io/swelter/"
 keywords:
   - "air-quality"
   - "urban-heat"
@@ -40,3 +32,5 @@ keywords:
   - "sensorthings"
   - "calibration"
   - "civic-tech"
+  - "data-visualization"
+  - "accessibility"

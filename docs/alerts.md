@@ -4,7 +4,7 @@ swelter publishes a feed of areas where heat or air quality has crossed a public
 threshold. There is no account, no subscriber list, and no PII: the alert is a **published artifact**,
 and the "subscription" lives in your own tooling (an RSS/Atom reader, or an automation you run). This
 is the static-Pages-friendly design recorded in
-[ADR 0010](decisions/0010-neighborhood-alerts-feed.md).
+[ADR 0010](adr/0010-neighborhood-alerts-feed.md).
 
 Author: Chelsea Kelly-Reif. Year: 2026.
 
@@ -16,7 +16,7 @@ For the most recent hour, every published grid cell is checked against documente
 | --- | --- | --- |
 | PM2.5 AQI | ≥ 101 ("Unhealthy for Sensitive Groups") | US-EPA AQI 2024 breakpoints |
 | Heat index | ≥ 39.4 °C / 103 °F ("Danger") | US-NWS heat-index bands |
-| Heat + air exposure | ≥ level 3 ("High") | swelter compound surface ([ADR 0009](decisions/0009-compound-heat-air-exposure-surface.md)) |
+| Heat + air exposure | ≥ level 3 ("High") | swelter compound surface ([ADR 0009](adr/0009-compound-heat-air-exposure-surface.md)) |
 
 A cell can raise more than one alert (hot **and** smoky). Provisional (uncalibrated) readings can
 cross a floor; the alert is published but flagged `provisional`. Floors are overridable per network in
@@ -294,7 +294,7 @@ Pin every Action by commit SHA with a `# vN` comment, as above — the swelter r
 
 An alert names a block and a reading, never a person or a device. The schema has no contact field; the
 feed is public; subscribing requires no account. This is the same posture as the rest of swelter — see
-the [hard rules](../README.md) and [ADR 0010](decisions/0010-neighborhood-alerts-feed.md).
+the [hard rules](../README.md) and [ADR 0010](adr/0010-neighborhood-alerts-feed.md).
 
 Last verified: 2026-07-02. Recheck cadence: review when the EPA AQI breakpoints or NWS heat bands in
 `models.py` change, when the alert routes change, or when the collective webhook/SMS recipe's pinned

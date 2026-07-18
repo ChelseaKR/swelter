@@ -1,42 +1,63 @@
-CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
-====================================================
+Data licensing and source terms
+===============================
 
-The environmental observations published by swelter — the contents of the
-SQLite/Parquet store, the CSV and JSON exports, the OGC SensorThings responses,
-and the aggregated heat-island / AQI surfaces — are dedicated to the public
-domain under the Creative Commons CC0 1.0 Universal Public Domain Dedication.
+This repository processes both first-party community observations and data obtained from external
+providers. Running data through swelter does not change who owns it or relicense it.
 
-To the extent possible under law, Chelsea Kelly-Reif and the contributing
-hosting collectives have waived all copyright and related or neighboring rights
-to these observations. You can copy, modify, distribute, and use the data,
-including for commercial purposes, all without asking permission.
+First-party swelter observations — CC0-1.0
+-----------------------------------------
 
-The full legal text of the dedication is available at:
+Environmental observations produced by a community-operated swelter network may be dedicated to
+the public domain under Creative Commons CC0 1.0 Universal when the publishing collective owns the
+relevant rights and chooses that policy. The repository-authored synthetic demonstration
+observations are also CC0-1.0.
 
-    https://creativecommons.org/publicdomain/zero/1.0/legalcode
+For those datasets, the dedication covers the observation store and generated CSV, JSON,
+SensorThings responses, snapshots, and aggregate surfaces. To the extent possible under law,
+Chelsea Kelly-Reif and contributing collectives making that election waive copyright and related
+rights in those observations. Attribution is appreciated but not legally required.
 
-A human-readable summary (not a substitute for the legal text) is at:
+Legal text: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+Summary: https://creativecommons.org/publicdomain/zero/1.0/
 
-    https://creativecommons.org/publicdomain/zero/1.0/
+Third-party inputs — their terms remain binding
+-----------------------------------------------
 
-Scope and intent
+The CC0 dedication above does **not** cover data merely fetched, transformed, cached, aggregated, or
+published by swelter from another source. A generated deployment or export must carry the selected
+source's terms, attribution, and provenance:
+
+* **OpenAQ:** original-provider terms vary by location. A mixed OpenAQ artifact has no honest
+  blanket CC license and must include `source-license-ledger.json` with the provider/license fields
+  OpenAQ supplies and explicit unavailable fields.
+* **Copernicus CAMS via Open-Meteo:** CC BY 4.0 with Copernicus/Open-Meteo attribution.
+* **Sensor.Community:** Open Data Commons Database Contents License 1.0 (ODC-DbCL-1.0) with
+  Sensor.Community attribution.
+* **Boundaries, canopy, AC-access, historical-redlining, cooling-center, and other context
+  layers:** the license and attribution in each layer's metadata govern that layer. Repository
+  fixtures labelled illustrative are not verified facts about the depicted jurisdiction.
+
+The generated artifact's own `DATA-LICENSE`, `demo.json`, source-license ledger, per-record
+provenance, and source card are the authoritative statement for that artifact. The root file is the
+default for first-party data, not a license override for provider data.
+
+What is not data
 ----------------
-* This dedication covers the OBSERVATION DATA only. The swelter source code is
-  licensed separately under the Apache License, Version 2.0 (see LICENSE).
-* The data is published open by default and exported through open standards so
-  that anyone — a resident, a reporter, a researcher — can audit, reuse, or fork
-  it, and so a community can leave with its data and stand the network up
-  elsewhere with no lock-in.
-* The observations are aggregate environmental measurements only. They contain
-  no personal information and no field capable of locating a person. Node
-  locations are published snapped to a coarse grid unless a host opts in to a
-  precise location (see docs/governance.md).
-* Attribution is not legally required, but is appreciated: "Environmental data
-  from the swelter community sensing network."
+
+The swelter source code is licensed separately under Apache-2.0; see `LICENSE` and `NOTICE`.
+Documentation and illustrative layers retain any license stated in their own metadata. Exact node
+coordinates, node HMAC keys, and other operator-local secrets are not intended for publication and
+are not included in an open-data dedication merely because an operator uses swelter.
 
 No warranty
 -----------
-The data is provided "as is", without warranty of any kind. Low-cost sensor
-readings carry uncertainty; each value travels with its calibration state and,
-when calibrated, a published uncertainty. Consult docs/calibration.md before
-relying on a value, and treat readings flagged provisional accordingly.
+
+All data is provided “as is,” without warranty. Low-cost sensor readings can drift; provider data
+has source-specific limitations; model output is not a physical measurement; derived heat index,
+estimated shade WBGT, and exposure scores are not medical advice or individual safety decisions.
+Calibration state, uncertainty, freshness, source, and license must travel with a value.
+
+Source-specific methods and terms: `docs/data-cards/README.md`.
+
+Last verified: 2026-07-16. Recheck cadence: every release and whenever a source, provider term,
+published artifact, or community data policy changes.

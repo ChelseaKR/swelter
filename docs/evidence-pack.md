@@ -1,174 +1,115 @@
-# Evidence pack: what a reviewer can verify, and where
+# swelter evidence pack
 
-This is the verification companion to [`FUNDER-EVIDENCE-PACK.md`](FUNDER-EVIDENCE-PACK.md). That
-document makes the case — the need, the demand, the funding path. This one is the checklist behind
-it: every engineering claim a grant reviewer might want to confirm, stated plainly, with the exact
-place in this repository or its CI where the claim is enforced or disproven. Nothing here is
-aspirational unless it is labeled as such; where a control is advisory, missing, or a known gap,
-the gap is stated in the same sentence as the claim.
+This is the reviewer index for the `0.1.0` release candidate. It links claims to reproducible evidence
+and names limits that remain open. It is not a substitute for the exact merge-commit CI run or the
+tagged release artifacts.
 
-Author: Chelsea Kelly-Reif, 2026. swelter is an independent personal open-source project,
-unaffiliated with any employer or client; see [`../NOTICE`](../NOTICE). The README is the source
-of truth and its hard rules bind everything here.
+Owner: Chelsea Kelly-Reif. Evidence date: 2026-07-16. Recheck cadence: every release, every material
+incident, and whenever workflows, rulesets, sources, trust boundaries, or standards pins change.
 
-Last verified: 2026-07-10, against `origin/main` (commit `ef2dfe6`) and the live GitHub
-repository settings and Actions runs of the same date. Recheck cadence: each release, and
-whenever a CI workflow, Make target, or repository ruleset changes; at minimum quarterly, and
-always before attaching this pack to a proposal.
+## Product claim and scope
 
----
+swelter is an open-source reference implementation for community heat and air-quality measurement,
+calibration provenance, accessible exploration, and portable publication. It does not claim to be a
+regulatory monitor, medical device, individualized safety service, emergency-alert system, validated
+community deployment, or government system.
 
-## What the tool is, and who it is for
+The live reference site publishes fetched provider/model data with visible source and freshness. The
+deterministic local demo is synthetic. Low-cost sensor readings without an applicable reference
+correction remain provisional. Data rights are source-specific; only project-authored or authorized
+first-party observations are covered by the repository's CC0 dedication.
 
-swelter is a community-owned network of low-cost heat and air-quality sensors plus the pipeline
-that makes their readings trustworthy: ingestion with quarantine, QC flagging, per-node
-calibration against reference monitors, gridded aggregation, and a framework-free accessible
-dashboard (map, sortable table, and plain list as three equal views). It is built for frontline
-neighborhoods that live the heat-and-air exposure and rarely hold the data, and for the hosting
-collective that owns siting, location precision, and governance. Observation data is CC0; code is
-Apache-2.0; there is no account, no key, and no hosted dependency required to use or leave it.
+## Evidence index
 
-A reviewer can see it working without hardware two ways:
+| Claim | Primary evidence | Verification path | Known limit |
+|---|---|---|---|
+| Raw observations are immutable and calibrated values remain distinct | `store.py`, `models.py`, `calibrate.py`, ADR 0001/0002 | Store, rebuild, calibration, aggregate, API, and export tests; `swelter verify-archive` | Filesystem owner can replace store and local evidence together |
+| Public location is coarse by default | `config.public_location`, aggregate/API paths, ADR 0003 | Location/config/context/source adapter tests | Sparse cells can still reveal approximate siting; precision opt-in is irreversible for downloaded copies |
+| Node writes are authenticated and separate from public reads | `ingest_server.py`, firmware signing, `server.py` | Ingest-server/firmware/CLI tests plus threat model | Compromised node key can sign plausible false readings |
+| Source and license claims travel with publication | `DATA-LICENSE`, `docs/data-cards/`, source adapters, publisher | Source truth/license/manifest tests; inspect generated data-license and `source-license-ledger.json` | Provider terms/metadata can change; data steward recheck required |
+| Observatory exposes linked analytical views without a map-only path | `web/index.html`, `app.js`, `observatory.css`, ADR 0004 | Web unit/contract tests, browser checks, structural a11y gate | Current NVDA/VoiceOver signoff remains issue #106 |
+| English and Spanish catalogs remain mechanically aligned | `web/i18n/en.json`, `web/i18n/es.json`, `docs/I18N.md` | UTF-8, BCP-47, key-parity, and CLDR-pin gates | Independent Spanish clarity review remains issue #106 |
+| Static publication identifies source/freshness and excludes unsafe fixtures | `swelter publish`, Pages workflow, generated manifest/source truth | Publisher/SEO/source tests and post-deploy smoke | Pages/repository governance exception remains issue #105 |
+| Archive/data releases are citable and verifiable | `snapshot.py`, `integrity.py`, `docs/citability.md` | Snapshot/integrity/version tests; compare hashes and citation metadata | No DOI or public `v0.1.0` release exists until owner publishes them |
+| Quality/security/release work is reproducible | Make targets and workflow files | `make verify`, `make web-test`, CI/security/release jobs on exact ref | GitHub-hosted runner and third-party Actions remain trust roots |
+| Responsible-technology review covers current boundaries | `docs/RESPONSIBLE-TECH-AUDITS.md` and linked artifacts | Review data flow, DPIA, threat/fairness/ethics scans, residual risks | No real partner/user validation; manual signoffs are not inferred |
 
-- **Live demo, real data:** <https://chelseakr.github.io/swelter/> — refreshed daily by the
-  `demo` workflow in `.github/workflows/pages.yml` (cron `30 13 * * *`), serving real
-  Copernicus-CAMS air quality and heat for California cities and, at `/sensors/`, real
-  Sensor.Community low-cost sensors (Stuttgart). Both are labeled with their source and shown
-  provisional where uncalibrated — the honest posture, not a bug.
-- **Local, deterministic:** `uv sync && make demo` replays a recorded synthetic fixture through
-  the identical pipeline and serves the dashboard at `http://127.0.0.1:8000`. The dashboard
-  labels the fixture as synthetic.
+## Reproduce the candidate locally
 
-## The enforced quality gates (actual CI jobs, not policy prose)
+```console
+uv sync --locked
+make verify
+make web-test
+git diff --check
+uv run swelter demo
+uv run swelter verify-archive --store store/demo --write
+```
 
-CI is `.github/workflows/ci.yml` plus three companion workflows. The merge-blocking gate is one
-command, `make verify`, run identically in CI and locally so the two cannot drift.
+Focused artifacts:
 
-| CI job (workflow) | What it runs | Blocking? |
-|---|---|---|
-| `checks` (ci.yml) | `make verify` = fmt-check (ruff format), lint (ruff: E, F, I, UP, B, SIM, C901≤10, bandit S), typecheck (`mypy --strict` over src + tests), a11y (12 structural WCAG checks), i18n (4 gate scripts), hygiene (no bare TODO/FIXME; coded suppressions only), version-check, test (pytest with 90% branch-coverage floor); then a `uv build` packaging sanity check | Yes |
-| `security` (ci.yml) | pip-audit on the locked runtime tree (one documented waiver: PYSEC-2026-597, a dev-only transitive dep, rationale in the workflow comment), gitleaks secret scan, Semgrep SAST (pinned 1.168.0, no suppression), zizmor workflow audit (pinned 1.16.3, `--min-severity=high`) | Yes |
-| `firmware` (ci.yml) | byte-compiles the MicroPython node firmware and runs the hardware-free firmware tests on CPython | Yes |
-| `a11y-advisory` (ci.yml) | pa11y/axe real-browser pass over the built dashboard | **No — advisory** (`continue-on-error: true`); the blocking accessibility gate is the structural one in `checks` |
-| `analyze (python)` and `analyze (actions)` (codeql.yml) | CodeQL on the Python code and on the workflow YAML itself; every push/PR plus a weekly cron | Yes |
-| `trufflehog` (trufflehog.yml) | weekly full-history verified-secret sweep (cron), complementing the per-push gitleaks diff scan | Scheduled; verified finding fails the run |
-| `build` (release.yml) | at every `v*` tag: re-runs `make verify` at the tag, builds sdist + wheel, generates SLSA-style build-provenance attestation, cosign-signs (keyless Sigstore), attaches all of it to the GitHub Release | Yes, at release |
+```console
+uv run swelter publish --store store/demo --web /tmp/swelter-publish
+uv run swelter snapshot --store store/demo --out /tmp/swelter-snapshot
+```
 
-**Branch protection is now enforced.** After the disclosed 2026-07-02 gate-bypass incident
-(ADR 0012), a GitHub ruleset on `main` blocks deletion and non-fast-forward pushes and requires
-six status checks (`checks`, `security`, `firmware`, `a11y-advisory`, `analyze (python)`,
-`analyze (actions)`) before changes land. Verified 2026-07-10 via
-`gh api repos/ChelseaKR/swelter/rules/branches/main`. Two honest limits: the ruleset does not
-yet include a require-pull-request rule, and with a single maintainer there is no second
-reviewer to require — both are recorded in ADR 0012, not glossed.
+Use an explicit temporary directory, inspect `publish-manifest.json`, source truth, data-license text,
+and any required source-license ledger, then remove the temporary artifacts. The synthetic demo does
+not prove live-provider availability or licensing; provider publication has its own adapter and
+workflow tests.
 
-Current measured state (local `make verify` run against this commit, 2026-07-10): all gates
-green; 306 tests passed; branch coverage above the 90% floor (93% measured).
+The authoritative current command/job list is the Makefile and `.github/workflows/`. This evidence
+pack intentionally does not copy test, file, dependency, or Action counts that become stale without
+changing the underlying claim.
 
-## Accessibility posture (the real gate, then the aspiration)
+## Delivery evidence
 
-- **Merge-blocking, today:** `scripts/a11y_check.py` runs 12 structural checks on the dashboard
-  (`html lang`, `<title>`, single `<h1>`, landmarks, skip link, labeled controls, a data-table
-  equivalent to the map, `alt` on every image, no positive tabindex, a language switch,
-  `prefers-reduced-motion`, visible focus indicator). It runs inside `make verify`, so a failure
-  blocks every merge. Run it yourself: `make a11y`.
-- **Structural by design:** map, sortable table, and plain list are three equal views of the same
-  observations, so the map is never the only way in; AQI and heat severity are conveyed by text
-  and pattern, not color alone.
-- **Committed conformance report:** a VPAT 2.5 (Rev 508) ACR at
-  [`accessibility/ACR.md`](accessibility/ACR.md), plus the audit at
-  [`audits/accessibility-report.md`](audits/accessibility-report.md).
-- **Advisory, not yet blocking (the honest line):** the real-browser axe pass (`a11y-advisory`
-  job) is allowed to fail, and Lighthouse CI is not wired. WCAG 2.2 AA as a whole is the target
-  the structural gate under-approximates; the gate proves the 12 structural checks, not full AA.
+[`DORA.md`](DORA.md) is generated from retained Actions and incident-issue JSON with exact query
+metadata and an input digest. The earlier aggregate-only numbers were retired because their row-level
+query output was not retained; the committed snapshot therefore says **unavailable** instead of
+reverse-engineering apparently precise evidence. Scheduled CI now produces a complete rolling
+evidence artifact for maintainer review and later commitment.
 
-## Privacy and data posture
+Release evidence is intentionally pending until an annotated `v0.1.0` tag exists. A complete release
+record must include:
 
-- **No PII by construction:** the observation schema (`src/swelter/models.py`) has no field that
-  can hold a person; the only identifier is a collective-assigned node ID. README hard rule 1
-  makes adding one a review-failing change.
-- **Host locations protected:** published coordinates snap to a ~150 m grid via
-  `config.public_location()` unless a host explicitly opts into `precise` (hard rule 2). The full
-  risk analysis is the DPIA at [`audits/privacy-dpia.md`](audits/privacy-dpia.md).
-- **Read-only serving, no telemetry:** the server (`src/swelter/server.py`) is GET-only (writes
-  get 405); the dashboard has no analytics, no client-side telemetry of any kind (a deliberate
-  choice, recorded in the README's observability row).
-- **Open and portable:** observations are CC0-1.0 (`DATA-LICENSE`), code Apache-2.0 (`LICENSE`);
-  export (CSV, JSON, read-only OGC SensorThings 1.1 subset, Datasette-openable SQLite store) is a
-  first-class command, so a collective can leave with everything.
+- exact tag/commit and dated changelog/CFF version parity;
+- exact-tag verification and package build;
+- checksums, SBOM, one Cosign v3 `*.sigstore.json` verification bundle per asset, and build
+  provenance;
+- consumer installation/CLI verification from the published artifact;
+- GitHub Release URL and static deployment run URL;
+- primary-path smoke result and rollback/recovery evidence.
 
-## Internationalization state
+Do not convert planned workflow behavior into evidence that the release occurred.
 
-English and Spanish ship together. Merge-blocking i18n gates in `make verify` (detail in
-[`I18N.md`](I18N.md)): UTF-8 encoding (G1), BCP-47 tag validity (G3/G4), EN/ES key parity with no
-empty Spanish values (G6), and a CLDR/ICU pin guard (G12, currently pass-by-delegation because
-date formatting uses the browser's `Intl`). Not yet wired, and said so in `I18N.md`: the
-hardcoded-string extraction ratchet (G2) and full plural-category coverage (G5). There is no
-claim of professional translation review; the catalogs are maintainer-written.
+## Standards and review evidence
 
-## Reproducibility and data integrity
+- [Definition of done](../DEFINITION_OF_DONE.md) — AUTO, REVIEW, and RELEASE gates.
+- [Acceptance-test map](ACCEPTANCE-TEST-MAP.md) — executable one-to-one
+  feature/criterion/test-symbol/review/ISO mapping.
+- [Standards pin](STANDARDS-PIN.md) — offline byte integrity plus CI authentication against the
+  canonical v1.0.1 release, tag, commit, and blobs.
+- [Architecture decisions](adr/README.md) — MADR-compatible source of record with legacy links kept.
+- [Source data cards](data-cards/README.md) — purpose, provenance, limitations, rights, and refresh.
+- [Responsible-technology audit](RESPONSIBLE-TECH-AUDITS.md) — current A–F review in the four-question
+  framework.
+- [Accessibility conformance report](accessibility/ACR.md) — automated/manual evidence boundaries.
+- [Operations runbook](runbooks/operations.md) — containment, rollback, and recovery.
 
-- **Calibration replays byte-for-byte:** re-running the fit on the committed co-location data
-  reproduces `data/demo/corrections.yaml` exactly (pure-Python OLS, coefficients rounded to 6 dp;
-  300 corrections across 100 co-located demo nodes at the default demo size). A test in the suite
-  diffs the rebuilt registry against the committed file, so this is merge-gated, not asserted.
-- **Raw is append-only; derived is rebuildable:** the store key
-  `(node_id, timestamp, parameter, calibration)` keeps raw and calibrated rows distinct forever;
-  `swelter rebuild` reconstructs every derived record from raw alone.
-- **Locked environment:** CI installs with `uv sync --locked`, so the audited and tested
-  dependency tree is the shipped one.
+## Open, honestly bounded findings
 
-## Governance and sustainability (stated honestly)
+1. [#105](https://github.com/ChelseaKR/swelter/issues/105): intentionally excluded repository and
+   production-environment governance work. The current controls are documented; no stronger PR,
+   approval, signed-commit, linear-history, strict-check, environment-reviewer, or Pages-cache claim is
+   made here.
+2. [#106](https://github.com/ChelseaKR/swelter/issues/106): current NVDA/VoiceOver and independent
+   Spanish release signoff. Automation and the older baseline are not described as a current human
+   pass.
+3. [#107](https://github.com/ChelseaKR/swelter/issues/107): suppression retirement and code-quality
+   follow-up. Suppressions remain coded and visible while they are retired.
+4. Real partner/community research has not occurred. Synthetic/persona research helps generate
+   hypotheses but does not establish demand, usability, comprehension parity, or equitable outcomes.
+5. Signed/staged firmware OTA and a Parquet/Arrow store are future seams, not shipped capabilities.
 
-- **Community ownership is the design, single maintainership is the present fact.** Governance,
-  siting, and location-precision decisions rest with a hosting collective by design
-  ([`governance.md`](governance.md), README hard rule 5), and nothing in the licenses gives the
-  author control over someone else's network. But today the project has one maintainer
-  (Chelsea Kelly-Reif), no second reviewer, and no organizational home — the right pairing for a
-  grant is a fiscal sponsor or an established community organization as lead applicant, as
-  [`FUNDER-EVIDENCE-PACK.md`](FUNDER-EVIDENCE-PACK.md) says.
-- **Cheap to keep alive:** one runtime dependency (PyYAML), a static dashboard, a scale-to-zero
-  optional server; it runs on a Raspberry-Pi-class host with no cloud.
-- **Open-source hygiene is in place:** LICENSE, DATA-LICENSE, NOTICE (independence statement),
-  CODE_OF_CONDUCT, CONTRIBUTING, SECURITY (private-advisory reporting), CITATION.cff, semver
-  policy ([`VERSIONING.md`](VERSIONING.md)), ADRs in [`decisions/`](decisions/), dated audits in
-  [`audits/`](audits/), Renovate for dependency updates.
-- **Incidents are disclosed, not buried:** the 2026-07-02 direct-to-main gate bypass is written
-  up in ADR 0012 and summarized in the README's standards-conformance section, with the
-  compensating controls and the since-enabled ruleset.
-
-## Known gaps (current, deliberate disclosures)
-
-- Real-user validation is absent: the persona panel in [`USER-RESEARCH.md`](USER-RESEARCH.md) is
-  synthetic, a hypothesis generator, and no real community partner has deployed swelter.
-- No PyPI package or container image is published; distribution is source plus signed release
-  artifacts (README, DOC-14).
-- The axe/pa11y browser accessibility pass and Lighthouse are advisory-only.
-- No mutation testing on `calibrate.py`/`qc.py`; no DORA ledger or per-source data cards yet
-  (README standards table).
-- The branch ruleset lacks a require-pull-request rule, and single-maintainer review cannot meet
-  a two-reviewer bar (ADR 0012).
-- The plain-language neighborhood exposure brief with sourced equity context (redlining and
-  air-conditioning-access layers) is **in review, not merged** — PR #93 — and is not claimed
-  here.
-
-## Verification map: claim → where to check
-
-| Claim | Verify at |
-|---|---|
-| The full merge gate is green on `main` | CI badge / Actions history for `.github/workflows/ci.yml` on `main`; or clone and run `make verify` |
-| Accessibility is merge-gated (12 structural checks) | `scripts/a11y_check.py`; the `a11y` step inside `make verify`; run `make a11y` |
-| WCAG/508 conformance documentation exists | [`accessibility/ACR.md`](accessibility/ACR.md) (VPAT 2.5), [`audits/accessibility-report.md`](audits/accessibility-report.md) |
-| EN/ES parity is enforced, not aspirational | `scripts/i18n_parity.py` + `tests/test_i18n.py`; gate list in [`I18N.md`](I18N.md) |
-| Tests and coverage floor | `Makefile` `test` target (`--cov-fail-under=90`); pytest summary in any `checks` job log |
-| Static analysis and typing | `pyproject.toml` (`[tool.ruff]`, `[tool.mypy] strict = true`); `checks` job |
-| Supply-chain scanning | `security` job in `ci.yml` (pip-audit, gitleaks, Semgrep, zizmor); `codeql.yml`; `trufflehog.yml` |
-| Signed, provenance-attested releases that re-verify at the tag | `.github/workflows/release.yml`; artifacts and attestations on any GitHub Release |
-| Branch protection on `main` | `gh api repos/ChelseaKR/swelter/rules/branches/main`; design in [`decisions/0012-gate-bypass-incident-and-ruleset.md`](decisions/0012-gate-bypass-incident-and-ruleset.md) |
-| Calibration reproducibility | `data/demo/corrections.yaml` + the registry round-trip test in `tests/`; method in [`calibration.md`](calibration.md) |
-| No PII fields; coarse public locations | `src/swelter/models.py`, `config.public_location()` + its tests; [`audits/privacy-dpia.md`](audits/privacy-dpia.md) |
-| Open data, open standards egress | `DATA-LICENSE` (CC0), `src/swelter/api.py` (read-only SensorThings 1.1 subset), `swelter export`; [`interop-crosswalk.md`](interop-crosswalk.md) |
-| Community governance model | [`governance.md`](governance.md); README hard rule 5 |
-| Live demo runs on real, current data | <https://chelseakr.github.io/swelter/> and `.github/workflows/pages.yml` (daily cron) |
-| The need and funding landscape, with sources | [`FUNDER-EVIDENCE-PACK.md`](FUNDER-EVIDENCE-PACK.md) (every external fact footnoted and dated) |
-| Public-entity accessibility/language-access posture | [`AGENCY-COMPLIANCE-PACK.md`](AGENCY-COMPLIANCE-PACK.md) |
+These limits are part of the evidence. Removing them without closing the underlying condition would
+make the pack less conformant, not more complete.

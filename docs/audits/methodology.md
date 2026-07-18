@@ -1,88 +1,84 @@
-# Audit methodology
+# Responsible-technology audit methodology
 
-Last verified: 2026-06-16. Recheck cadence: each release, and whenever an audit's CI gate or
-its underlying module changes.
+swelter treats an audit as versioned evidence tied to an implementation and an accountable owner,
+not as a timeless badge. The current A–F review is in
+[`../RESPONSIBLE-TECH-AUDITS.md`](../RESPONSIBLE-TECH-AUDITS.md).
 
-This document explains how the swelter responsible-tech audits work, what makes them evidence
-rather than marketing, and how each one maps to a gate in CI. The audit set itself is in
-[../RESPONSIBLE-TECH-AUDITS.md](../RESPONSIBLE-TECH-AUDITS.md); the two longer write-ups it
-references are [privacy-dpia.md](privacy-dpia.md) and
-[accessibility-report.md](accessibility-report.md).
+Owner: Chelsea Kelly-Reif. Last verified: 2026-07-16. Recheck cadence: every release, every material
+trust-boundary/source/interaction change, and after incidents.
 
-## What an audit is here
+## Four questions for every topic
 
-An audit in this repo is a committed Markdown document plus the CI checks that keep it true. It
-is not a one-time PDF signed by a consultant and filed away. The point of committing it next to
-the code is that it goes stale visibly: if a claim in an audit no longer matches the code, the
-gate that backs the claim fails, or the audit's "Last verified" line ages past its recheck
-cadence and a reviewer notices in the diff. An audit you cannot regenerate is a claim you cannot
-check, which is the same failure mode swelter rejects in its data — a value you cannot trace
-back to its source.
+Each A–F topic answers the same questions:
 
-Three properties follow from treating audits as committed evidence:
+1. **What can go wrong, for whom, and at what scale?** Name affected people, system boundaries,
+   failure modes, reversibility, and unequal exposure.
+2. **What did the design do about it?** Point to implemented controls, not intentions.
+3. **How is the control tested or reviewed?** Separate deterministic automation from human judgment
+   and release/operational proof.
+4. **What remains?** Record residual risk, owner, cadence, and a tracked issue when the gap stays open.
 
-- **Regenerated, not archived.** The accessibility report summarises the output of
-  `scripts/a11y_check.py`, which runs on every PR. The privacy DPIA's central claim — that the
-  schema has no field that can hold a person — is checked against `src/swelter/models.py`, which
-  the type and test gates exercise on every PR. When the code changes, the audit is re-run, not
-  re-asserted.
-- **Versioned with the thing they describe.** An audit lives in the same commit as the code it
-  audits. `git log` over `docs/audits/` and over the module it covers tells you whether the
-  audit predates a relevant change. There is no separate audit repository to drift out of sync.
-- **Scoped honestly.** Each audit says what its automated gate can and cannot prove. The
-  structural a11y gate cannot judge colour contrast or live screen-reader semantics; it says so,
-  and the manual review covers the rest. An audit that overclaims its own coverage is worse than
-  no audit.
+The six topics are ethics/consequences, bias/fairness, privacy/data protection, transparency/
+explainability, accessibility, and security. AI evaluation is N/A because swelter has no prompt,
+retrieval, trained/foundation model, or model-version surface; deterministic regression and rule-based
+QC are evaluated as calibration/data logic instead.
 
-## The two gate kinds
+## Evidence classes
 
-Every checklist item in the audit set is marked one of two ways. The distinction is the load-
-bearing part of the method, so it is defined once here and referenced everywhere.
+The repository-wide [definition of done](../../DEFINITION_OF_DONE.md) uses three classes:
 
-- **Auto-gated (blocks merge).** A deterministic check runs in `make verify` (the full merge
-  gate: `fmt-check` + `lint` + `typecheck` + `a11y` + `test`) or in a dedicated CI workflow. If
-  it fails, the merge is blocked. No human signature is needed because the machine re-proves the
-  claim on every PR. Example: "a data-table equivalent to the map exists" is one of the twelve
-  structural checks in `scripts/a11y_check.py`; if someone deletes the table, `make a11y` exits
-  non-zero and the build is red.
-- **Review-gated (needs a signed artifact).** The claim cannot be reduced to a deterministic
-  check — it needs human judgement (a screen-reader pass, a threat-model review of a new field,
-  a coverage-equity reading of a neighborhood map). The gate is satisfied by a dated, attributed
-  artifact committed to the repo: a manual review note, an ADR in `docs/decisions/`, or an
-  updated section in one of these audit docs, signed by the reviewer with a date. The artifact
-  is the evidence; the audit checklist points at it.
+- **AUTO:** reproducible checks that can fail deterministically, such as schema, location, QC,
+  calibration, source/license, i18n, browser, security, and integrity tests.
+- **REVIEW:** dated, attributed human judgment, such as threat/DPIA review, source-terms approval,
+  fairness reading, keyboard/screen-reader task completion, or independent Spanish review.
+- **RELEASE:** evidence that exists only for the actual artifact/environment, such as exact-tag build,
+  SBOM/signature/provenance, deployment smoke, rollback readiness, and current source freshness.
 
-A review-gated item is not a weaker item. It is an item where the honest answer is "a person
-looked, here is who and when," recorded so the next person can see it was done and when it last
-happened.
+Passing one class does not satisfy another. In particular, axe/pa11y does not prove a current NVDA or
+VoiceOver pass; catalog parity does not prove Spanish clarity; a planned release workflow does not
+prove a release or rollback occurred.
 
-## How each audit maps to a CI gate
+## Evidence chain
 
-| Audit | Primary CI gate | Kind | What the gate proves |
-|-------|-----------------|------|----------------------|
-| A. Ethics and responsibility | `make test` (calibrated-vs-raw and provisional-labelling tests); `make verify` | auto + review | Uncalibrated values are labelled provisional through the pipeline; the non-goals (no surveillance, no individual safety claim) are review-gated against new code. |
-| B. Bias and fairness | `make test` (aggregate provisional-cell tests); coverage-equity review | auto + review | A cell with no calibrated, QC-clean value is marked provisional, not dropped; per-neighborhood coverage is read by a human each release. |
-| C. Privacy and data protection | `make test` + `make typecheck` (schema has no PII field; `snap_to_grid` / `public_location` tests); DPIA review | auto + review | The `Observation` schema cannot hold a person; published coordinates are grid-snapped unless a host opts in. |
-| D. Transparency and explainability | `make test` (every calibrated value carries a version id and uncertainty); data-card review | auto + review | Calibration state and uncertainty travel with every value to the API and export; the data card is current. |
-| E. Accessibility | `make a11y` (12 structural WCAG 2.2 AA checks); manual NVDA/VoiceOver review | auto + review | The structural floor holds on every PR; the manual review covers what the script cannot. |
-| F. Security | `pip-audit`, `gitleaks`, CodeQL workflows; `make test` (read-only server returns 405 on writes); STRIDE review | auto + review | Dependencies, secrets, and code are scanned; the public surface rejects writes; new trust boundaries get a threat-model read. |
+| Topic | Primary artifacts | AUTO evidence | REVIEW/RELEASE evidence |
+|---|---|---|---|
+| A. Ethics and consequences | `ethics-consequence-scan.md`, source cards, product rules | provisional/caveat/source/publication tests | harms/benefits review; source/publication signoff |
+| B. Bias and fairness | `fairness-review.md`, fixture coverage summaries | coverage/provisional/context tests | geographic/calibration/access/language review; partner validation when available |
+| C. Privacy and data protection | `privacy-dpia.md`, `data-flow.md`, ADR 0003 | schema, public-location, log-safety, browser-state tests | DPIA/consent/retention review; precise-location incident exercise |
+| D. Transparency and explainability | source cards, API/dictionary, provenance UI | calibration/QC/uncertainty/license/freshness propagation tests | data-card and caveat comprehension review |
+| E. Accessibility | ACR, accessibility report, acceptance-test map | structural and real-browser accessibility/interaction gates | named keyboard/reflow/NVDA/VoiceOver review; issue #106 tracks currency |
+| F. Security | threat model, SECURITY, runbook | authenticated-ingest, read-only, dependency/secret/static/workflow/log gates | threat review, incident response, exact-release supply-chain evidence |
 
-"CodeQL", "pip-audit", and the signed-release step run as GitHub Actions workflows alongside the
-`make verify` gate that runs locally and in CI. `gitleaks` also runs as a local pre-commit hook
-(`.pre-commit-config.yaml`), so a secret is caught before it reaches a branch as well as in CI.
+## Regeneration procedure
 
-## Regeneration
+1. Resolve the exact code/artifact/environment being audited and inspect changes since the previous
+   artifact.
+2. Refresh [`data-flow.md`](data-flow.md) for stores, browser state, sources, caches, logs, CI,
+   publication, and external recipients.
+3. Re-run the complete automated gate plus focused tests for changed boundaries. Record command and
+   ref, but avoid volatile counts unless generated from a source of truth.
+4. Review each A–F section using the four questions. Update the DPIA, threat model, fairness scan,
+   ethics scan, source cards, ACR, and residual-risk register where the change reaches them.
+5. Obtain applicable named human attestations. If one is missing, leave it open; do not infer it.
+6. For a release, attach exact-tag/artifact/deployment/rollback evidence and refresh DORA/incident
+   data after the observation window.
+7. Update owner, `Last verified`, and recheck trigger in the same change.
 
-- Accessibility report: re-run `make a11y` and update the date and the manual-review line in
-  [accessibility-report.md](accessibility-report.md).
-- Privacy DPIA: re-read the data inventory and the node-location threat model against
-  `src/swelter/models.py` and `src/swelter/config.py`; update [privacy-dpia.md](privacy-dpia.md).
-- Bias, ethics, transparency, security: re-read the relevant checklist in
-  [../RESPONSIBLE-TECH-AUDITS.md](../RESPONSIBLE-TECH-AUDITS.md) against the named modules and
-  the live demo network, and update the "Last verified" line.
+## Staleness and acceptance
 
-The cadence is each release. An audit whose "Last verified" line is older than its last relevant
-code change is a finding in its own right.
+An audit is stale when its verified date predates a relevant implementation change, an external
+source/standard has crossed its recheck trigger, or an artifact claims a human/release action that
+cannot be produced. Staleness is a finding, not a reason to silently advance the date.
 
----
-Author: Chelsea Kelly-Reif. swelter is an independent personal open-source project; see NOTICE.
+Accepted architecture rationale lives in [`../adr/`](../adr/README.md). The old
+`docs/decisions/` directory is retained only for historical links. A material reversal gets a new ADR
+and an updated risk decision; accepted history is not rewritten to make the present look inevitable.
+
+Open exceptions remain explicit:
+
+- [#105](https://github.com/ChelseaKR/swelter/issues/105) — intentionally excluded live repository/
+  Pages governance;
+- [#106](https://github.com/ChelseaKR/swelter/issues/106) — current assistive-technology and independent
+  Spanish review;
+- [#107](https://github.com/ChelseaKR/swelter/issues/107) — suppression retirement/code-quality follow-
+  up.

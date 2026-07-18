@@ -1,6 +1,8 @@
 # Accessibility
 
-Last verified: 2026-06-16. Recheck cadence: each release, and at least every 6 months otherwise.
+Implementation/test-coverage review: 2026-07-17. Final MF2 browser execution: pending in CI. Last
+full manual screen-reader baseline: 2026-06-16. Recheck cadence: each release, and at least every 6
+months otherwise.
 
 swelter targets **WCAG 2.2 Level AA** for the `web/` dashboard and documents conformance with the
 **Revised Section 508 Standards** (36 CFR Part 1194). A community-run dashboard is not federal
@@ -15,6 +17,12 @@ that is not itself accessible fails the people it is for.
   success-criteria tables, the Revised 508 Chapter 5 (Software) and Chapter 6 (Support
   Documentation) tables, and the Chapter 3 Functional Performance Criteria. Conformance terms are
   Supports / Partially Supports / Does Not Support / Not Applicable, with specific remarks.
+- **[`STATEMENT.md`](STATEMENT.md)** — the short public accessibility statement, current limitation,
+  alternatives, and contact path.
+- **[`APG-BRAID.md`](APG-BRAID.md)** and **[`APG-MAP.md`](APG-MAP.md)** — keyboard contracts and
+  documented deviations for the two custom visualizations, for which APG defines no chart/map role.
+- **[`MANUAL-AT-WALKTHROUGH.md`](MANUAL-AT-WALKTHROUGH.md)** — the required NVDA/VoiceOver/iOS task
+  matrix and evidence fields. Its current Pending status is deliberate and must not be read as a pass.
 - **[`../AGENCY-COMPLIANCE-PACK.md`](../AGENCY-COMPLIANCE-PACK.md)** — the agency-partner
   packaging of this ACR: a one-page brief framing WCAG 2.2 AA + en/es parity as a DOJ ADA Title II
   compliance asset for a public-entity partner's procurement or ADA-coordinator review.
@@ -27,23 +35,32 @@ Three layers, from cheapest to most thorough:
    `make verify`). It is pure Python, needs no browser, and is deterministic. Twelve checks hold
    the structural floor the dashboard promises: `<html lang>`, a non-empty `<title>`, exactly one
    `<h1>`, the `main`/`header` landmarks, a skip link that targets a real in-page id, every form
-   control labelled, a real data-table equivalent to the map, every `<img>` carrying `alt`, no
+   control labelled, a semantic data-table shell, every `<img>` carrying `alt`, no
    positive `tabindex`, a language switch, a `prefers-reduced-motion` CSS rule, and a visible
    focus indicator. A regression on any of the twelve fails the build. They all currently pass.
    The gate cannot judge computed color contrast or live ARIA semantics — that is what the next
    two layers are for.
-2. **Automated audit — advisory.** `axe-core` and `pa11y` run against the served page and catch
-   what the structural gate cannot, including contrast. Advisory, not merge-blocking, because they
-   neither prove nor disprove the criteria that require human judgement.
-3. **Manual screen-reader review.** NVDA (Firefox and Chrome on Windows) and VoiceOver (Safari on
-   macOS), plus keyboard-only operation, 200% zoom and reflow, and the reduced-motion preference.
-   Run before each release and whenever the dashboard's markup or interaction model changes
-   (a new view, a new control, a change to the table, tablist, or slider). Findings are folded
-   back into the ACR.
+2. **Browser and localization gates — merge-blocking in CI.** `npm --prefix web run verify` is
+   configured to run the MF2/unit contract, Playwright plus Axe, Pa11y, and Lighthouse. Assertions
+   cover both published routes with distinct source/data fixtures; Chromium, Firefox, and WebKit;
+   light and dark schemes; Axe scans of every Map/List/Table view in English and Spanish; primary
+   keyboard tasks; `elementsFromPoint` focus non-obscuration; all-view 320 CSS-pixel reflow; reduced
+   motion; pseudolocale expansion; an actual Arabic RTL fixture; and performance/DOM/asset budgets.
+   Target geometry includes native controls and focusable/pointer composite surfaces in every view at
+   desktop and 320 CSS pixels, with only the WCAG 2.5.8 inline-text and 24px-spacing exceptions. The
+   unit contract blocks EN/ES key or placeholder drift,
+   invalid MF2/count selection, unmarked public HTML copy, natural-language JavaScript UI sinks,
+   physical CSS direction, duplicate semantic tokens, and static-asset budget regressions. The final
+   MF2 unit/browser suite remains pending in a clean Node 22 environment; CI is authoritative.
+3. **Manual assistive-technology, zoom, and reflow review.** Automation does not prove usability.
+   The 2026-06-16 NVDA/VoiceOver and 200% zoom baseline predates the expanded linked visualization
+   sequence. A new dated walkthrough on NVDA/Windows, VoiceOver/macOS, VoiceOver/iOS, 200% zoom, and
+   reflow remains required before formal signoff; this is stated in the ACR and public statement
+   rather than inferred from automation.
 
 ## Maintenance
 
 The ACR is **regenerated and re-committed on each release**, the same audit-as-artifact discipline
 as the calibration record: the report is a checked-in file that travels with the code it
 describes, not a claim made once and left to rot. When a release changes the dashboard's
-accessibility surface, update the ACR remarks and the "Last verified" date in the same change.
+accessibility surface, update the ACR remarks and its evidence dates in the same change.

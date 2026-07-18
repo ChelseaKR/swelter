@@ -31,7 +31,8 @@ swelter is built "for frontline neighborhoods that live the exposure and rarely
 hold the data" (README). That mission spans far more roles than the resident who
 opens the map: the host whose porch holds a node, the steward who runs ingest at
 2 a.m., the health official who needs a citable number, the researcher who reuses
-the CC0 archive, the auditor who checks the privacy grid, the funder who decides
+an authorized first-party CC0 archive or source-aware provider export, the auditor who checks the
+privacy grid, the funder who decides
 whether it lives. Role-playing the full cast around the real product surfaces gaps
 a single author misses and forces the question *"who is each feature for?"* — the
 same discipline the project applies to its calibration and accessibility work.
@@ -132,7 +133,7 @@ exist in the repo as of this date.
 | **D1** | **Grace, 37** | Assure & Audit · accessibility auditor, screen-reader user | Confirm the WCAG 2.2 AA claim is lived, not asserted | Structural gate is real; she wants the manual SR/contrast pass surfaced as an artifact |
 | **D2** | **Alex, 51** | Assure & Audit · ex-regulatory scientist, sensor skeptic | Catch any place the map overstates certainty | Hourly AQI from EPA 24-h breakpoints — wants the window disclosure everywhere it's shown |
 | **D3** | **Imani, 40** | Assure & Audit · responsible-tech / privacy auditor | Verify "no PII, coarse by default" by construction | Verifiable in code and the DPIA; wants the precise-opt-in consent trail easier to inspect |
-| **D4** | **Stefan, 46** | Assure & Audit · open-data / standards steward (Sensor.Community + OpenAQ) | Confirm swelter interoperates and won't fork the commons | SensorThings subset + CC0 are right; wants round-trip *into* OpenAQ/Sensor.Community proven |
+| **D4** | **Stefan, 46** | Assure & Audit · open-data / standards steward (Sensor.Community + OpenAQ) | Confirm swelter interoperates and won't fork the commons | SensorThings subset + source-aware exports are right; wants round-trip *into* OpenAQ/Sensor.Community proven |
 | **E1** | **Dr. Chen, 50** | Reuse & Research · atmospheric / public-health researcher (CBPR) | Reuse the archive with machine-readable provenance | Reproducible to the byte; wants a citable, versioned snapshot + DOI to publish against |
 | **E2** | **Priya, 36** | Reuse & Research · data journalist on a heat story | Cite block-level heat/air without overclaiming | Caveats live on screen but don't survive a screenshot; heat is provisional in the demo |
 | **E3** | **Wei, 31** | Reuse & Research · civic-tech developer / API integrator | Build a neighborhood app on the API | Read-only API is clean; wants stable schema versioning and a machine-readable data dictionary |
@@ -313,7 +314,7 @@ exist in the repo as of this date.
 - **Goal:** site cooling resources and name the worst blocks at a podium.
 - **Values today:** **continuous, standing** infrastructure — unlike the one-day-a-
   year volunteer heat traverse that is the funded incumbent[^capa] — owned by the
-  community, with a public, **CC0** surface he can cite, a **"worst right now"**
+  community, with a public, **source-attributed** surface he can cite, a **"worst right now"**
   readable map/table, and a cooling-center overlay.
 - **Gets stuck:** in the demo, **heat index is published raw/provisional** (only
   temp and PM are co-located — `api.md`), so the single fact he most needs to state
@@ -327,7 +328,7 @@ exist in the repo as of this date.
 
 ### C3 — Renata, 44 (CBO / tenants'-association EJ organiser)
 - **Goal:** turn readings into an advocacy ask a landlord or agency can't dodge.
-- **Values today:** the data is **CC0, exportable with no account**, the network is
+- **Values today:** the data is **exportable with no account and its actual source terms**, the network is
   **community-owned with a right to leave**, and the **alerts feed** documents
   danger days — all the ingredients of an accountability story, and the kind of
   block-scale evidence newsrooms have had to build themselves because official data
@@ -363,7 +364,7 @@ exist in the repo as of this date.
 ### D2 — Alex, 51 (ex-regulatory atmospheric scientist, sensor skeptic)
 - **Goal:** catch any place the presentation overstates the science.
 - **Values today:** the engine holds up — **calibrated vs raw never silently
-  mixed**, per-value **1-σ uncertainty** through API and export, **reproducible
+  mixed**, **1-σ uncertainty for calibrated values** through API and export, **reproducible
   registry**, and `pm25_aqi()` on **EPA 2024 breakpoints**.[^naaqs] The
   uncertainty-as-trust posture is exactly what EPA-convened experts recommend as the
   antidote to public distrust.[^trust]
@@ -396,7 +397,7 @@ exist in the repo as of this date.
 - **Goal:** confirm swelter strengthens the open-AQ commons instead of forking it.
 - **Values today:** a **read-only OGC SensorThings 1.1 subset** (Things, Locations,
   Datastreams, ObservedProperties, Observations) with true `@iot.count` +
-  `nextLink`, **CC0** observations, CSV/JSON, and a **Datasette-openable** store —
+  `nextLink`, source-aware CSV/JSON, and a **Datasette-openable** store —
   and swelter already **ingests real Sensor.Community (Stuttgart) and OpenAQ
   (California) data** through the same pipeline, dropping the SDS011 999.9 µg/m³
   over-range sentinel honestly. This is the FAIR, harmonised posture OpenAQ
@@ -419,7 +420,7 @@ exist in the repo as of this date.
 - **Values today:** the field holds low-cost data back for missing calibration, QA,
   and traceability;[^research-qa] swelter answers that directly — an **append-only
   raw log**, **rebuildable calibrated records**, **versioned correction ids**, a
-  **1-σ uncertainty per value**, and a **byte-for-byte reproducible** calibration she
+  **1-σ uncertainty per calibrated value**, and a **byte-for-byte reproducible** calibration she
   can re-run. That's the "check rather than trust" promise delivered.
 - **Gets stuck:** to publish *against* a dataset she needs a **citable, frozen,
   versioned snapshot** with a stable identifier — the store is a live folder, not a
@@ -432,7 +433,7 @@ exist in the repo as of this date.
 
 ### E2 — Priya, 36 (data journalist on a heat story)
 - **Goal:** cite block-level heat and air without overstating it.
-- **Values today:** **CC0 with a ready attribution line, no key**, filterable
+- **Values today:** **no-account export with source-specific terms and attribution**, filterable
   CSV/JSON carrying **calibration version, QC verdict, uncertainty, and an explicit
   `trustworthy` flag**, and a network whose **provisional vs confirmed** line is
   explicit — the reuse-ready, auditable surface newsrooms otherwise build
@@ -469,10 +470,10 @@ exist in the repo as of this date.
 - **Goal:** decide whether this survives past a grant term.
 - **Values today:** the project already reasons like a fundable one
   (`POSITIONING.md`): **community ownership** as the documented survival
-  factor,[^imperial] a **scale-to-zero, single-dependency, no-hosted-lock-in**
+  factor,[^imperial] a **scale-to-zero, two-dependency Python runtime with no hosted lock-in**
   design that survives lean years, a **register-your-own-network** path
-  (`ADD-YOUR-NEIGHBORHOOD.md`), and **WCAG 2.2 AA + bilingual** as a compliance
-  asset given the DOJ ADA Title II rule.[^ada] It avoids the vendor-run wind-down
+  (`ADD-YOUR-NEIGHBORHOOD.md`), and a **WCAG 2.2 AA target + bilingual evidence posture** as
+  procurement input given the DOJ ADA Title II rule.[^ada] It avoids the vendor-run wind-down
   that ended Array of Things.[^aot]
 - **Gets stuck:** she needs the *evidence* assembled — replicability, sustainability,
   and **coverage equity** (is the frontline getting the calibrated tier?[^monitor-equity])
@@ -504,7 +505,7 @@ exist in the repo as of this date.
 ## Cross-cutting themes (what the cast agrees on)
 
 1. **The honesty engine is the moat — and it now reaches the UI.** Calibrated-vs-raw
-   separation, per-value 1-σ uncertainty (on screen as well as in the API/export),
+   separation, calibrated-value 1-σ uncertainty (on screen as well as in the API/export),
    reproducible registry, and "we don't tell you you're safe" earn trust across
    experts (D2, E1, E2) and even anxious residents (A2). This is rarer than almost
    any comparable network[^openaq][^imperial] and aligns with what EPA-convened
