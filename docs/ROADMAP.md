@@ -61,6 +61,7 @@ both tables and with its referenced tests in the same change.
 | F-19 | Context and equity brief |
 | F-20 | Archive verification |
 | F-21 | Release |
+| F-22 | Event chronicle generator |
 
 ## Delivery history
 
