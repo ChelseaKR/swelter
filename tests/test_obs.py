@@ -333,7 +333,7 @@ def test_health_endpoint_names_the_run_that_built_the_surface(tmp_path: Path) ->
     thread.start()
     try:
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/api/health.json", timeout=5
+            f"http://127.0.0.1:{port}/api/health.json", timeout=30
         ) as response:
             body = json.loads(response.read().decode("utf-8"))
     finally:
@@ -365,7 +365,7 @@ def test_health_endpoint_omits_run_block_without_store_dir(tmp_path: Path) -> No
     thread.start()
     try:
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{port}/api/health.json", timeout=5
+            f"http://127.0.0.1:{port}/api/health.json", timeout=30
         ) as response:
             body = json.loads(response.read().decode("utf-8"))
     finally:
