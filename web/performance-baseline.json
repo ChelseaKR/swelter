@@ -1,0 +1,9 @@
+{
+  "evidence_date": null,
+  "max_regression_fraction": 0.1,
+  "method": "Pending first hosted Lighthouse run for the overhauled observatory; release and merge remain blocked until this is replaced by a measured candidate.",
+  "routes": {},
+  "schema_version": 1,
+  "source_commit": null,
+  "state": "pending_hosted_measurement"
+}

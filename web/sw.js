@@ -10,13 +10,14 @@
 const CACHE_SCOPE = encodeURIComponent(new URL(self.registration.scope).pathname);
 // The terminator is part of the ownership boundary and keeps release names out of the scope key.
 const CACHE_PREFIX = `swelter-shell-${CACHE_SCOPE}::`;
-const CACHE_RELEASE = "v5";
+const CACHE_RELEASE = "v6";
 const CACHE = `${CACHE_PREFIX}${CACHE_RELEASE}`;
 const SHELL = [
   ".",
   "index.html",
   "styles.css",
   "observatory.css",
+  "i18n-runtime.mjs",
   "app.js",
   "manifest.webmanifest",
   "icon-512.png",
@@ -25,6 +26,7 @@ const SHELL = [
   "i18n/es.json",
   "sample-surface.json",
 ];
+const RUNTIME_MANIFEST = "vendor/messageformat/asset-manifest.json";
 // Static Pages builds add demo.json; live/local deployments may omit it. Cache
 // the truth contract when present without letting a 404 abort installation of
 // the core offline shell.
@@ -33,7 +35,13 @@ const OPTIONAL_SHELL = ["demo.json"];
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE).then(async (cache) => {
-      await cache.addAll(SHELL);
+      const response = await fetch(RUNTIME_MANIFEST);
+      if (!response.ok) throw new Error(`MessageFormat runtime manifest: HTTP ${response.status}`);
+      const runtimeAssets = await response.json();
+      if (!Array.isArray(runtimeAssets) || runtimeAssets.some((asset) => typeof asset !== "string")) {
+        throw new TypeError("MessageFormat runtime manifest must be a string array");
+      }
+      await cache.addAll([...SHELL, RUNTIME_MANIFEST, ...runtimeAssets]);
       await Promise.allSettled(OPTIONAL_SHELL.map((asset) => cache.add(asset)));
     }),
   );

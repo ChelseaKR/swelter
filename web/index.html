@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -12,6 +12,7 @@
     />
     <!-- pages-seo:start -->
     <!-- The Pages build replaces this block once it knows which live-data fallback succeeded. -->
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <!-- pages-seo:end -->
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
@@ -79,7 +80,7 @@
             <p id="now-mode" class="section-kicker" data-i18n="now-network-focus">
               Network high point
             </p>
-            <h3 id="now-place">—</h3>
+            <h3 id="now-place" dir="auto">—</h3>
             <p id="now-reading" class="now-reading">—</p>
             <p id="now-context" class="now-context"></p>
             <div
@@ -116,7 +117,7 @@
               <a id="switch-cams" href="./" data-i18n="source-primary">Primary data view</a>
               <a id="switch-sensors" href="sensors/" data-i18n="source-community">Community sensor view</a>
             </nav>
-            <p id="data-source" class="data-source"></p>
+            <p id="data-source" class="data-source" dir="auto"></p>
           </div>
         </div>
       </section>
@@ -334,7 +335,7 @@
             </p>
       <section id="detail" class="detail" aria-labelledby="detail-heading" hidden>
         <h4 id="detail-heading" data-i18n="detail-title">Selected location</h4>
-        <p id="detail-body" aria-live="polite"></p>
+        <p id="detail-body" dir="auto" aria-live="polite"></p>
         <span id="detail-spark" class="spark"></span>
         <p id="detail-context" class="context"></p>
         <p id="detail-trend" class="trend"></p>
@@ -357,7 +358,7 @@
         <div id="compare" class="compare">
           <label for="compare-select" data-i18n="compare-label">Compare with another location</label>
           <select id="compare-select"></select>
-          <div id="compare-result" class="compare-result" aria-live="polite"></div>
+        <div id="compare-result" class="compare-result" dir="auto" aria-live="polite"></div>
         </div>
         <div id="watch" class="watch">
           <h5 class="watch-heading" data-i18n="watch-heading">Alert me about this location</h5>
@@ -408,8 +409,9 @@
           </p>
         </div>
 
-        <section id="alerts" class="alerts" aria-labelledby="alerts-heading" role="status" aria-live="polite" hidden>
+        <section id="alerts" class="alerts" aria-labelledby="alerts-heading" hidden>
           <h3 id="alerts-heading" data-i18n="alerts-heading">Your alerts</h3>
+          <p id="alerts-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
           <ul id="alerts-list" class="alerts-list"></ul>
           <p class="alerts-note" data-i18n="alerts-note">
             Alerts evaluate only the newest published observation and update only while this page is
@@ -603,7 +605,11 @@
       </p>
       <p class="footer-links">
         <span id="footer-license-links"><a href="DATA-LICENSE" data-i18n="footer-license-link">Read source license information</a> · </span>
-        <a href="export.csv" data-i18n="footer-download">Download CSV</a>
+        <a href="export.csv" data-i18n="footer-download">Download CSV</a> ·
+        <a
+          href="https://github.com/ChelseaKR/swelter/blob/main/docs/accessibility/STATEMENT.md"
+          data-i18n="footer-accessibility-link"
+        >Read accessibility statement</a>
       </p>
       <p data-i18n="footer-note">
         Each reading carries its calibration state and, when calibrated, a published uncertainty.
@@ -636,6 +642,7 @@
       </details>
     </footer>
 
+    <script src="i18n-runtime.mjs" type="module"></script>
     <script src="app.js" type="module"></script>
   </body>
 </html>

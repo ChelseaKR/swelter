@@ -4,6 +4,7 @@
   <id>/api/alerts.xml</id>
   <link rel="self" href="/api/alerts.xml"/>
   <link rel="alternate" hreflang="es" href="/api/alerts.es.xml"/>
+  <link rel="license" href="DATA-LICENSE"/>
   <updated>2026-06-08T00:00:00Z</updated>
   <subtitle>Areas where heat or air quality has crossed a public-health danger threshold. Aggregate environmental data, no PII.</subtitle>
 </feed>

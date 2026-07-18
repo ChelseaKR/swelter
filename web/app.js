@@ -1,4 +1,4 @@
-// swelter dashboard logic — framework-free, no dependencies.
+// swelter dashboard logic — framework-free, with one pinned MessageFormat runtime dependency.
 //
 // One data source (the aggregated surface) drives three equal views: a plain List (default), a
 // sortable Table, and a schematic Map. The map is never the only way in. Readings lead with the
@@ -213,8 +213,71 @@ const I18N_DEFAULTS = new Map(
   ]),
 );
 
-function t(key) {
-  return state.strings[key] ?? I18N_DEFAULTS.get(key) ?? key;
+function activeLocale() {
+  const locale = document.documentElement.lang;
+  return typeof locale === "string" && locale ? locale : "en";
+}
+
+const messageFormatCache = new Map();
+
+function messageFormatConstructor() {
+  const MessageFormat = globalThis.SwelterMessageFormat;
+  if (typeof MessageFormat !== "function") {
+    throw new Error("MessageFormat 2 runtime is unavailable; run `npm run build:i18n`");
+  }
+  return MessageFormat;
+}
+
+function formatterFor(locale, source) {
+  const cacheKey = `${locale}\u0000${source}`;
+  if (!messageFormatCache.has(cacheKey)) {
+    const MessageFormat = messageFormatConstructor();
+    messageFormatCache.set(
+      cacheKey,
+      new MessageFormat(locale, source, { bidiIsolation: "default" }),
+    );
+  }
+  return messageFormatCache.get(cacheKey);
+}
+
+function formatMessageSource(source, values = {}) {
+  return String(formatterFor(activeLocale(), source).format(values));
+}
+
+function t(key, values = {}) {
+  const source = state.strings[key] ?? I18N_DEFAULTS.get(key) ?? key;
+  return formatMessageSource(source, values);
+}
+
+function validateMessageCatalog(locale, strings) {
+  if (!strings || typeof strings !== "object" || Array.isArray(strings)) {
+    throw new TypeError("message catalog must be an object");
+  }
+  for (const [key, source] of Object.entries(strings)) {
+    if (typeof source !== "string" || !source.trim()) {
+      throw new TypeError(`message ${key} must be a non-empty string`);
+    }
+    formatterFor(locale, source);
+  }
+}
+
+function formatNumber(value, options = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return String(value);
+  try {
+    return new Intl.NumberFormat(activeLocale(), options).format(numeric);
+  } catch {
+    return String(numeric);
+  }
+}
+
+const RTL_LANGUAGES = new Set(["ar", "fa", "he", "ps", "ur"]);
+function localeDirection(tag) {
+  try {
+    return RTL_LANGUAGES.has(new Intl.Locale(tag).language) ? "rtl" : "ltr";
+  } catch {
+    return "ltr";
+  }
 }
 
 let stringRequestId = 0;
@@ -226,6 +289,7 @@ async function loadStrings(lang) {
     const res = await fetch(`i18n/${lang}.json`);
     if (!res.ok) throw new Error("missing");
     strings = await res.json();
+    validateMessageCatalog(lang, strings);
   } catch {
     // Keep the last complete catalogue and its matching document language. A failed language swap
     // must never produce English fallback text inside a document still claiming Spanish (or vice versa).
@@ -234,13 +298,14 @@ async function loadStrings(lang) {
   if (requestId !== stringRequestId) return false; // a newer selection already won the race
   state.strings = strings;
   document.documentElement.lang = lang;
+  document.documentElement.dir = localeDirection(lang);
   for (const el of document.querySelectorAll("[data-i18n]")) {
     const key = el.getAttribute("data-i18n");
-    el.textContent = state.strings[key] ?? I18N_DEFAULTS.get(key) ?? el.textContent;
+    el.textContent = t(key);
   }
   for (const el of document.querySelectorAll("[data-i18n-attr]")) {
     const [attr, key] = el.getAttribute("data-i18n-attr").split(":");
-    if (state.strings[key]) el.setAttribute(attr, state.strings[key]);
+    if (state.strings[key]) el.setAttribute(attr, t(key));
   }
   return true;
 }
@@ -251,11 +316,8 @@ async function loadStrings(lang) {
 // description along with the rest of the document.
 function localizedMetadataValue(key) {
   const sourceId = state.demo?.source?.id;
-  return (
-    (sourceId ? state.strings[`${key}-${sourceId}`] : null) ??
-    state.strings[key] ??
-    null
-  );
+  const resolvedKey = sourceId && state.strings[`${key}-${sourceId}`] ? `${key}-${sourceId}` : key;
+  return state.strings[resolvedKey] ? t(resolvedKey) : null;
 }
 
 function localizeDocumentMetadata() {
@@ -402,8 +464,9 @@ function contractText(value) {
   return value[lang] || value.en || "";
 }
 
-function sourceTerm(key, fallbackKey) {
-  return contractText(state.demo?.source?.terminology?.[key]) || t(fallbackKey);
+function sourceTerm(key, fallbackKey, values = {}) {
+  const source = contractText(state.demo?.source?.terminology?.[key]);
+  return source ? formatMessageSource(source, values) : t(fallbackKey, values);
 }
 
 function appendContractLinks(el, links, { trailingSeparator = false } = {}) {
@@ -428,9 +491,7 @@ function renderDemoContract() {
     ? contractText(source.attribution)
     : state.attribution || contract?.attribution || "";
   const dataSource = $("#data-source");
-  dataSource.textContent = attribution
-    ? fillIn(t("data-attribution"), "{attribution}", attribution)
-    : "";
+  dataSource.textContent = attribution ? t("data-attribution", { attribution }) : "";
   if (!source) return;
 
   const truth = $("#dataset-truth");
@@ -508,16 +569,6 @@ function indexCells() {
 
 // -- formatting --------------------------------------------------------------
 
-// String.prototype.replace() treats a *string* replacement's "$" sequences ($$, $&, $`, $',
-// $<name>) as special patterns even when the search value is a plain "{token}" string, not a
-// regex — so a host-supplied label, node id, or attribution string containing "$" would silently
-// corrupt the surrounding sentence. Use this instead of `.replace(token, value)` wherever `value`
-// is free text the network host controls (a place name, node id, calibration reference, etc.); a
-// function replacer is never scanned for "$" patterns.
-function fillIn(str, token, value) {
-  return str.replace(token, () => String(value));
-}
-
 function placeName(row) {
   return row.label || `${t("cell-word")} ${state.cellIndex.get(row.cell_id)}`;
 }
@@ -558,16 +609,16 @@ function round1(x) {
 }
 
 function fmtValue(mean) {
-  const value = `${round1(convert(mean))} ${unitLabel()}`;
+  const value = `${formatNumber(round1(convert(mean)), { maximumFractionDigits: 1 })} ${unitLabel()}`;
   // The "estimated" caveat is glued to the value itself, not left to the label or the legend
   // (R5) — it survives copy-paste into a brief, an alert line, or a table cell.
-  return ESTIMATED_PARAMS.has(state.parameter) ? t("estimated-value").replace("{value}", value) : value;
+  return ESTIMATED_PARAMS.has(state.parameter) ? t("estimated-value", { value }) : value;
 }
 
 function fmtUncertainty(u) {
   if (u == null) return "";
   const scaled = PARAM_BASE_UNIT[state.parameter] === "C" && state.unit === "F" ? (u * 9) / 5 : u;
-  return ` ± ${round1(scaled)}`;
+  return ` ± ${formatNumber(round1(scaled), { maximumFractionDigits: 1 })}`;
 }
 
 function fmtBucket(bucket) {
@@ -601,10 +652,11 @@ function describe(row) {
     return `${place}: ${exposureReading(row)}${comp}${detail}${prov}`;
   }
   if (state.parameter === "pm25_ugm3") {
-    const aqi = row.provisional ? `~AQI ${row.aqi}` : `AQI ${row.aqi}`;
+    const aqiNumber = formatNumber(row.aqi, { maximumFractionDigits: 0 });
+    const aqi = row.provisional ? `~AQI ${aqiNumber}` : `AQI ${aqiNumber}`;
     // Provisional cells never assert a named category as fact (F4).
     const cat = row.provisional ? ` (${t("state-provisional")})` : `, ${localCategory(row.category)}`;
-    return `${place}: ${aqi}${cat}, ${Math.round(row.mean)} µg/m³`;
+    return `${place}: ${aqi}${cat}, ${formatNumber(Math.round(row.mean))} µg/m³`;
   }
   const prov = row.provisional ? ` (${t("state-provisional")})` : "";
   return `${place}: ${fmtValue(row.mean)}${fmtUncertainty(row.uncertainty)}${prov}`;
@@ -618,6 +670,18 @@ function readingText(row) {
   const prefix = `${placeName(row)}: `;
   const full = describe(row);
   return full.startsWith(prefix) ? full.slice(prefix.length) : full;
+}
+
+// Stable, locale-aware evidence that Map/List/Table were rendered from the same complete record.
+// Browser conformance tests compare this key across representations and separately compare visible
+// labels/readings. Keeping the raw fields here catches a view that silently drops uncertainty,
+// provisional state, time, or category even when its human-readable layout is intentionally different.
+function representationKey(row) {
+  return JSON.stringify({
+    ...row,
+    label: placeName(row),
+    description: describe(row),
+  });
 }
 
 function guidanceFor(category) {
@@ -639,16 +703,17 @@ function provenanceText(row) {
         PARAM_BASE_UNIT[state.parameter] === "C" && state.unit === "F"
           ? (row.uncertainty * 9) / 5
           : row.uncertainty;
-      parts.push(t("prov-uncertainty").replace("{u}", round1(u)).replace("{unit}", unitLabel()));
+      parts.push(t("prov-uncertainty", {
+        u: formatNumber(round1(u), { maximumFractionDigits: 1 }),
+        unit: unitLabel(),
+      }));
     }
     if (row.method && row.reference) {
-      parts.push(
-        fillIn(fillIn(t("prov-method"), "{method}", row.method), "{reference}", row.reference)
-      );
+      parts.push(t("prov-method", { method: row.method, reference: row.reference }));
     }
   }
   if (isExposure()) parts.push(t("prov-derived"));
-  parts.push(t("prov-readings").replace("{n}", row.n));
+  parts.push(t("prov-readings", { n: row.n }));
   return parts.join(" ");
 }
 
@@ -683,7 +748,10 @@ function renderProvenance(row) {
           : row.uncertainty;
       addRow(
         "prov-uncertainty-label",
-        t("prov-uncertainty").replace("{u}", round1(u)).replace("{unit}", unitLabel())
+        t("prov-uncertainty", {
+          u: formatNumber(round1(u), { maximumFractionDigits: 1 }),
+          unit: unitLabel(),
+        }),
       );
     }
     if (row.method && row.reference) {
@@ -697,7 +765,7 @@ function renderProvenance(row) {
       addRow("prov-uncertainty-label", row.uncertainty_note, "en");
     }
   }
-  addRow("prov-readings-label", String(row.n));
+  addRow("prov-readings-label", formatNumber(row.n));
 }
 
 // A ready-to-paste, plain-language summary of this location: the reading, how it compares, the
@@ -706,11 +774,7 @@ function renderProvenance(row) {
 function briefSourceText() {
   const source = state.demo?.source;
   if (!source) return t("brief-source");
-  const attribution = fillIn(
-    t("data-attribution"),
-    "{attribution}",
-    contractText(source.attribution),
-  );
+  const attribution = t("data-attribution", { attribution: contractText(source.attribution) });
   return `${attribution} ${contractText(source.license?.summary)}`;
 }
 
@@ -735,7 +799,7 @@ function briefText(row) {
 function networkBriefText() {
   const param = t(PARAM_I18N[state.parameter] || "parameter");
   const lines = [
-    t("brief-network-title").replace("{param}", param).replace("{time}", fmtBucket(currentBucket())),
+    t("brief-network-title", { param, time: fmtBucket(currentBucket()) }),
     $("#overview-counts").textContent,
     $("#overview-coverage").textContent,
     $("#overview-health").textContent,
@@ -1007,10 +1071,10 @@ function isFreshObservation(bucket = currentBucket()) {
 function temporalContextText(bucket = currentBucket()) {
   if (!bucket) return "";
   if (!isLatestBucket(bucket)) {
-    return t("observation-historical").replace("{time}", fmtBucket(bucket));
+    return t("observation-historical", { time: fmtBucket(bucket) });
   }
   if (!isFreshObservation(bucket)) {
-    return t("observation-stale").replace("{time}", fmtBucket(bucket));
+    return t("observation-stale", { time: fmtBucket(bucket) });
   }
   return "";
 }
@@ -1066,9 +1130,10 @@ function contrastLine(row) {
   if (higher === 0) {
     text = t(heatLike ? "context-top-hot" : "context-top-bad");
   } else {
-    text = t(heatLike ? "context-rank-hot" : "context-rank-bad")
-      .replace("{n}", higher)
-      .replace("{total}", peers.length);
+    text = t(heatLike ? "context-rank-hot" : "context-rank-bad", {
+      n: formatNumber(higher),
+      total: formatNumber(peers.length),
+    });
   }
   if (!isExposure()) {
     const sorted = [...vals].sort((a, b) => a - b);
@@ -1078,10 +1143,11 @@ function contrastLine(row) {
     if (Math.abs(d) >= 0.1) {
       text +=
         " " +
-        t("context-median")
-          .replace("{delta}", formatDifference(d))
-          .replace("{unit}", "")
-          .replace("{dir}", d > 0 ? t("context-above") : t("context-below"));
+        t("context-median", {
+          delta: formatDifference(d),
+          unit: "",
+          dir: d > 0 ? t("context-above") : t("context-below"),
+        });
     }
   }
   return row.provisional ? `${text} ${t("compare-provisional")}` : text;
@@ -1120,9 +1186,10 @@ function dayChangeLine(row) {
     line =
       Math.abs(d) < 0.1
         ? t("yesterday-same")
-        : t(d > 0 ? "yesterday-higher" : "yesterday-lower")
-            .replace("{d}", formatDifference(d))
-            .replace("{unit}", "");
+        : t(d > 0 ? "yesterday-higher" : "yesterday-lower", {
+            d: formatDifference(d),
+            unit: "",
+          });
   }
   return row.provisional ? `${line} ${t("compare-provisional")}` : line;
 }
@@ -1163,7 +1230,7 @@ function trendLine(row) {
     rowTime != null && previousTime != null
       ? Math.max(1, Math.round(Math.abs(rowTime - previousTime) / INTERVAL_MS.hour))
       : back;
-  const line = `${arrow} ${t(key).replace("{h}", elapsedHours)}`;
+  const line = `${arrow} ${t(key, { h: formatNumber(elapsedHours) })}`;
   return row.provisional ? `${line} ${t("compare-provisional")}` : line;
 }
 
@@ -1218,10 +1285,12 @@ function renderHeadline() {
     return;
   }
   const worst = confirmed.reduce((a, b) => (b.aqi > a.aqi ? b : a));
-  let lead = sourceTerm("headline_worst", "headline-worst");
-  lead = fillIn(lead, "{place}", placeName(worst));
-  lead = fillIn(lead, "{aqi}", String(worst.aqi));
-  lead = fillIn(lead, "{category}", localCategory(worst.category));
+  const lead = sourceTerm("headline_worst", "headline-worst", {
+    place: placeName(worst),
+    aqi: formatNumber(worst.aqi, { maximumFractionDigits: 0 }),
+    category: localCategory(worst.category),
+    level: localCategory(worst.category),
+  });
   el.textContent = [
     temporalContext,
     lead,
@@ -1271,7 +1340,7 @@ function formatMagnitude(value) {
   }
   const formatted = `${round1(value)} ${unitLabel()}`;
   return ESTIMATED_PARAMS.has(state.parameter)
-    ? t("estimated-value").replace("{value}", formatted)
+    ? t("estimated-value", { value: formatted })
     : formatted;
 }
 
@@ -1301,7 +1370,7 @@ function referenceRowFor(cellId) {
 }
 
 function selectedGapText(row) {
-  const reading = t("now-no-reading").replace("{time}", fmtBucket(currentBucket()));
+  const reading = t("now-no-reading", { time: fmtBucket(currentBucket()) });
   return row ? `${placeName(row)} — ${reading} ${t("now-gap")}` : `${reading} ${t("now-gap")}`;
 }
 
@@ -1349,10 +1418,7 @@ function renderNow(rows) {
   if (missingSelected) {
     $("#now-mode").textContent = t("now-selected-focus");
     $("#now-place").textContent = placeName(missingSelected);
-    $("#now-reading").textContent = t("now-no-reading").replace(
-      "{time}",
-      fmtBucket(currentBucket()),
-    );
+    $("#now-reading").textContent = t("now-no-reading", { time: fmtBucket(currentBucket()) });
     $("#now-context").textContent = t("now-gap");
     $("#now-trust").textContent = t("now-no-current");
     $("#now-freshness").textContent = fmtBucket(currentBucket());
@@ -1482,9 +1548,7 @@ function renderRangeControls() {
   const endText = fmtBucket(state.buckets[state.rangeEnd]);
   start.setAttribute("aria-valuetext", startText);
   end.setAttribute("aria-valuetext", endText);
-  readout.textContent = t("range-readout")
-    .replace("{start}", startText)
-    .replace("{end}", endText);
+  readout.textContent = t("range-readout", { start: startText, end: endText });
 }
 
 function pointTimestamp(point) {
@@ -1592,9 +1656,7 @@ function selectedExposureNote(points) {
 function braidEvidenceNote(row, points) {
   if (state.parameter === "exposure") {
     const note = selectedExposureNote(points);
-    return note
-      ? fillIn(t("braid-exposure-note"), "{note}", note)
-      : t("braid-no-band");
+    return note ? t("braid-exposure-note", { note }) : t("braid-no-band");
   }
   return points.some((point) => point.uncertainty != null)
     ? t("braid-se-note")
@@ -1603,42 +1665,30 @@ function braidEvidenceNote(row, points) {
 
 function renderBraidEvidenceNote(element, row, points) {
   if (!element) return;
-  const note = state.parameter === "exposure" ? selectedExposureNote(points) : "";
-  const template = note ? t("braid-exposure-note") : "";
-  const markerIndex = template.indexOf("{note}");
-  if (note && markerIndex >= 0) {
-    const sourceNote = document.createElement("span");
-    sourceNote.lang = "en";
-    sourceNote.textContent = note;
-    element.replaceChildren(
-      document.createTextNode(template.slice(0, markerIndex)),
-      sourceNote,
-      document.createTextNode(template.slice(markerIndex + "{note}".length)),
-    );
-    return;
-  }
   element.textContent = braidEvidenceNote(row, points);
 }
 
 function braidSelectionText() {
   const row = focusRow(current());
   if (row) {
-    return fillIn(t("braid-selected-status"), "{place}", placeName(row))
-      .replace("{time}", fmtBucket(row.bucket))
-      .replace("{reading}", readingText(row));
+    return t("braid-selected-status", {
+      place: placeName(row),
+      time: fmtBucket(row.bucket),
+      reading: readingText(row),
+    });
   }
   if (state.selected) {
     const reference =
       referenceRowFor(state.selected) ||
       state.cells.find((cell) => cell.cell_id === state.selected);
     if (reference) {
-      return fillIn(t("braid-selected-gap"), "{place}", placeName(reference)).replace(
-        "{time}",
-        fmtBucket(currentBucket()),
-      );
+      return t("braid-selected-gap", {
+        place: placeName(reference),
+        time: fmtBucket(currentBucket()),
+      });
     }
   }
-  return t("braid-selected-empty").replace("{time}", fmtBucket(currentBucket()));
+  return t("braid-selected-empty", { time: fmtBucket(currentBucket()) });
 }
 
 function announceBraidSelection() {
@@ -1857,21 +1907,21 @@ function renderExposureBraid(row) {
   svg.appendChild(endLabel);
   host.appendChild(svg);
 
-  let summary = t("braid-summary");
-  summary = fillIn(summary, "{place}", placeName(row));
-  summary = summary
-    .replace("{n}", String(stats.count))
-    .replace("{start}", fmtBucket(state.buckets[state.rangeStart]))
-    .replace("{end}", fmtBucket(state.buckets[state.rangeEnd]))
-    .replace("{min}", formatMagnitude(stats.min))
-    .replace("{median}", formatMagnitude(stats.median))
-    .replace("{max}", formatMagnitude(stats.max))
-    .replace("{provisional}", String(stats.provisional))
-    .replace("{gaps}", String(stats.gaps));
+  let summary = t("braid-summary", {
+    place: placeName(row),
+    n: formatNumber(stats.count),
+    start: fmtBucket(state.buckets[state.rangeStart]),
+    end: fmtBucket(state.buckets[state.rangeEnd]),
+    min: formatMagnitude(stats.min),
+    median: formatMagnitude(stats.median),
+    max: formatMagnitude(stats.max),
+    provisional: formatNumber(stats.provisional),
+    gaps: formatNumber(stats.gaps),
+  });
   if (allProvisional) {
     summary += ` ${t("braid-all-provisional")}`;
   } else if (excludedProvisional) {
-    summary += ` ${t("braid-provisional-excluded").replace("{n}", excludedProvisional)}`;
+    summary += ` ${t("braid-provisional-excluded", { n: excludedProvisional })}`;
   }
   summaryEl.textContent = summary;
   renderBraidEvidenceNote(methodNote, row, publishedPoints);
@@ -1991,11 +2041,9 @@ function renderDistribution(rows) {
     button.className = "distribution-row";
     button.dataset.cell = row.cell_id;
     button.setAttribute("aria-pressed", String(row.cell_id === state.selected));
-    button.setAttribute("aria-label", `#${rank} · ${describe(row)}`);
     const rankLabel = document.createElement("span");
     rankLabel.className = "distribution-rank";
-    rankLabel.textContent = `#${rank}`;
-    rankLabel.setAttribute("aria-hidden", "true");
+    rankLabel.textContent = `#${formatNumber(rank)}`;
     const label = document.createElement("span");
     label.className = "distribution-label";
     label.textContent = placeName(row);
@@ -2034,11 +2082,12 @@ function healthLine() {
   const s = state.health && state.health.summary;
   if (!s || !s.total) return "";
   const observedAt = state.health.latest || latestBucket();
-  let line = t("health-status")
-    .replace("{ok}", s.ok || 0)
-    .replace("{degraded}", s.degraded || 0)
-    .replace("{offline}", s.offline || 0)
-    .replace("{time}", fmtBucket(observedAt));
+  let line = t("health-status", {
+    ok: formatNumber(s.ok || 0),
+    degraded: formatNumber(s.degraded || 0),
+    offline: formatNumber(s.offline || 0),
+    time: fmtBucket(observedAt),
+  });
   if (observationAgeMinutes(observedAt) > CURRENT_OBSERVATION_MAX_AGE_MINUTES) {
     line += ` ${t("health-stale")}`;
   }
@@ -2091,7 +2140,7 @@ function coverageLine() {
     }
   }
   if (!known.size) return "";
-  return t("coverage").replace("{now}", now.size).replace("{total}", known.size);
+  return t("coverage", { now: formatNumber(now.size), total: formatNumber(known.size) });
 }
 
 // How current the data actually is — the newest hour in the network and its age, with an honest
@@ -2102,10 +2151,11 @@ function freshnessLine() {
   const latest = state.buckets[state.buckets.length - 1];
   const ageMin = Math.max(0, Math.round((Date.now() - new Date(latest).getTime()) / 60000));
   let age;
-  if (ageMin < 60) age = t("fresh-min").replace("{m}", ageMin);
-  else if (ageMin < 2880) age = t("fresh-hr").replace("{h}", Math.round(ageMin / 60));
-  else age = t("fresh-day").replace("{d}", Math.round(ageMin / 1440));
-  let line = t("fresh-latest").replace("{time}", fmtBucket(latest)).replace("{age}", age);
+  if (ageMin < 60) age = t("fresh-min", { m: formatNumber(ageMin) });
+  else if (ageMin < 2880)
+    age = t("fresh-hr", { h: formatNumber(Math.round(ageMin / 60)) });
+  else age = t("fresh-day", { d: formatNumber(Math.round(ageMin / 1440)) });
+  let line = t("fresh-latest", { time: fmtBucket(latest), age });
   if (ageMin > 180) line += " " + t("fresh-stale");
   return line;
 }
@@ -2113,9 +2163,9 @@ function freshnessLine() {
 // A reading's age in plain words from an ISO timestamp — minutes, hours, or days ago.
 function ageText(iso) {
   const ageMin = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (ageMin < 60) return t("fresh-min").replace("{m}", ageMin);
-  if (ageMin < 2880) return t("fresh-hr").replace("{h}", Math.round(ageMin / 60));
-  return t("fresh-day").replace("{d}", Math.round(ageMin / 1440));
+  if (ageMin < 60) return t("fresh-min", { m: formatNumber(ageMin) });
+  if (ageMin < 2880) return t("fresh-hr", { h: formatNumber(Math.round(ageMin / 60)) });
+  return t("fresh-day", { d: formatNumber(Math.round(ageMin / 1440)) });
 }
 
 // Per-node health for the host: the overview line gives the ok/degraded/offline counts; this names
@@ -2139,16 +2189,18 @@ function renderHealthDetail() {
     .sort((a, b) => (rank[a.status] - rank[b.status]) || a.completeness - b.completeness);
   if (!attention.length) {
     const li = document.createElement("li");
-    li.textContent = t("health-all-ok").replace("{n}", String(nodes.length));
+    li.textContent = t("health-all-ok", { n: formatNumber(nodes.length) });
     list.appendChild(li);
     return;
   }
   for (const n of attention) {
     const li = document.createElement("li");
-    li.textContent = fillIn(t("health-node"), "{node}", n.node_id)
-      .replace("{status}", t(n.status === "offline" ? "health-stat-offline" : "health-stat-degraded"))
-      .replace("{pct}", String(Math.round((n.completeness || 0) * 100)))
-      .replace("{age}", n.last_seen ? ageText(n.last_seen) : "—");
+    li.textContent = t("health-node", {
+      node: n.node_id,
+      status: t(n.status === "offline" ? "health-stat-offline" : "health-stat-degraded"),
+      pct: formatNumber(Math.round((n.completeness || 0) * 100)),
+      age: n.last_seen ? ageText(n.last_seen) : "—",
+    });
     list.appendChild(li);
   }
 }
@@ -2181,15 +2233,17 @@ function renderOverview() {
     return;
   }
   panel.hidden = false;
-  $("#overview-heading").textContent = t("overview-heading-at").replace(
-    "{time}",
-    fmtBucket(currentBucket()),
-  );
+  $("#overview-heading").textContent = t("overview-heading-at", {
+    time: fmtBucket(currentBucket()),
+  });
   const confirmed = rows.filter((r) => !r.provisional);
-  $("#overview-counts").textContent = sourceTerm("overview_counts", "overview-counts")
-    .replace("{n}", rows.length)
-    .replace("{confirmed}", confirmed.length)
-    .replace("{provisional}", rows.length - confirmed.length);
+  $("#overview-counts").textContent = sourceTerm("overview_counts", "overview-counts", {
+    n: formatNumber(rows.length),
+    confirmed: formatNumber(confirmed.length),
+    yes: formatNumber(confirmed.length),
+    provisional: formatNumber(rows.length - confirmed.length),
+    rough: formatNumber(rows.length - confirmed.length),
+  });
 
   $("#overview-coverage").textContent = coverageLine();
   $("#overview-health").textContent = healthLine();
@@ -2227,22 +2281,22 @@ function renderOverview() {
     const vals = statisticRows.map((r) => r.mean).sort((a, b) => a - b);
     const n = vals.length;
     const median = n % 2 ? vals[(n - 1) / 2] : (vals[n / 2 - 1] + vals[n / 2]) / 2;
-    const spreadText = t("overview-spread")
-      .replace("{min}", round1(convert(vals[0])))
-      .replace("{median}", round1(convert(median)))
-      .replace("{max}", round1(convert(vals[n - 1])))
-      .replace("{unit}", unitLabel());
+    const spreadText = t("overview-spread", {
+      min: formatNumber(round1(convert(vals[0])), { maximumFractionDigits: 1 }),
+      median: formatNumber(round1(convert(median)), { maximumFractionDigits: 1 }),
+      max: formatNumber(round1(convert(vals[n - 1])), { maximumFractionDigits: 1 }),
+      unit: unitLabel(),
+    });
     // The composite min/median/max line has no single "value" to glue the caveat to — attach it
     // once, to the whole line, so the estimate is never read as a direct measurement (R5).
     let numericSpread = ESTIMATED_PARAMS.has(state.parameter)
-      ? t("estimated-value").replace("{value}", spreadText)
+      ? t("estimated-value", { value: spreadText })
       : spreadText;
     if (!confirmed.length) numericSpread += ` ${t("overview-all-provisional-stats")}`;
     else if (confirmed.length < rows.length) {
-      numericSpread += ` ${t("overview-provisional-excluded").replace(
-        "{n}",
-        rows.length - confirmed.length,
-      )}`;
+      numericSpread += ` ${t("overview-provisional-excluded", {
+        n: rows.length - confirmed.length,
+      })}`;
     }
     spread.textContent = numericSpread;
     const worst = statisticRows.reduce((a, b) => (b.mean > a.mean ? b : a));
@@ -2268,6 +2322,7 @@ function renderList(rows) {
   for (const row of rows) {
     const li = document.createElement("li");
     li.dataset.cell = row.cell_id;
+    li.dataset.recordKey = representationKey(row);
     if (row.cell_id === state.selected) li.classList.add("selected");
     const place = document.createElement("button");
     place.type = "button";
@@ -2294,6 +2349,7 @@ function renderTable(rows) {
   for (const row of rows) {
     const tr = document.createElement("tr");
     tr.dataset.cell = row.cell_id;
+    tr.dataset.recordKey = representationKey(row);
     if (row.cell_id === state.selected) tr.classList.add("selected");
 
     const place = document.createElement("th");
@@ -2476,6 +2532,7 @@ function renderMap(rows) {
     btn.type = "button";
     btn.className = "cell";
     btn.dataset.cell = row.cell_id;
+    btn.dataset.recordKey = representationKey(row);
     btn.setAttribute("aria-pressed", String(row.cell_id === state.selected));
     // Provisional cells stay neutral — they never wear a confirmed AQI color (F4).
     if (!row.provisional && state.parameter === "pm25_ugm3" && AQI_CLASS[row.category]) {
@@ -2495,6 +2552,7 @@ function renderMap(rows) {
     btn.style.bottom = `${pos.bottom * 100}%`;
     btn.setAttribute("aria-label", describe(row));
     const value = document.createElement("span");
+    value.classList.add("cell-reading");
     value.textContent =
       state.parameter === "pm25_ugm3"
         ? `${row.aqi}`
@@ -2502,8 +2560,8 @@ function renderMap(rows) {
           ? formatMagnitude(magnitudeFor(row))
           : ESTIMATED_PARAMS.has(state.parameter)
             ? formatMagnitude(magnitudeFor(row))
-            : `${Math.round(convert(row.mean))}`;
-    if (ESTIMATED_PARAMS.has(state.parameter)) value.className = "map-estimated";
+            : formatNumber(Math.round(convert(row.mean)));
+    if (ESTIMATED_PARAMS.has(state.parameter)) value.classList.add("map-estimated");
     btn.appendChild(value);
     const cat = document.createElement("span");
     cat.className = "cell-cat";
@@ -2892,18 +2950,18 @@ function renderSpark(row) {
   }
   el.appendChild(svg);
   el.setAttribute("role", "img");
-  let label =
-    t("spark-label")
-      .replace("{n}", series.length)
-      .replace("{start}", fmtBucket(series[0].bucket))
-      .replace("{end}", fmtBucket(series[series.length - 1].bucket))
-      .replace("{low}", formatMagnitude(min))
-      .replace("{high}", formatMagnitude(max))
-      .replace("{unit}", "");
+  let label = t("spark-label", {
+    n: formatNumber(series.length),
+    start: fmtBucket(series[0].bucket),
+    end: fmtBucket(series[series.length - 1].bucket),
+    low: formatMagnitude(min),
+    high: formatMagnitude(max),
+    unit: "",
+  });
   if (allProvisional) {
     label += ` ${t("spark-all-provisional")}`;
   } else if (excludedProvisional) {
-    label += ` ${t("spark-provisional-excluded").replace("{n}", excludedProvisional)}`;
+    label += ` ${t("spark-provisional-excluded", { n: excludedProvisional })}`;
   }
   el.setAttribute("aria-label", label);
 }
@@ -2920,19 +2978,15 @@ function compareDiff(a, b) {
     const order = isExposure() ? EXP_ORDER : AQI_ORDER;
     const cmp = order.indexOf(a.category) - order.indexOf(b.category);
     const key = cmp > 0 ? "compare-worse" : cmp < 0 ? "compare-better" : "compare-same";
-    line = t(key).replace("{a}", an).replace("{b}", bn);
+    line = t(key, { a: an, b: bn });
   } else {
     const heatLike = state.parameter === "temp_c" || state.parameter === "heat_index_c";
     const d = round1(convert(a.mean) - convert(b.mean));
     if (Math.abs(d) < 0.1) {
-      line = t("compare-same").replace("{a}", an).replace("{b}", bn);
+      line = t("compare-same", { a: an, b: bn });
     } else {
       const key = d > 0 ? (heatLike ? "compare-hotter" : "compare-higher") : heatLike ? "compare-cooler" : "compare-lower";
-      line = t(key)
-        .replace("{a}", an)
-        .replace("{b}", bn)
-        .replace("{d}", formatDifference(d))
-        .replace("{unit}", "");
+      line = t(key, { a: an, b: bn, d: formatDifference(d), unit: "" });
     }
   }
   if (a.provisional || b.provisional) line += " " + t("compare-provisional");
@@ -3039,11 +3093,13 @@ function watchReadingText(row) {
 // crossing is never asserted as a confirmed category (R: no false safety; calibrated/raw not mixed).
 function alertText(row, watch) {
   const param = t(PARAM_I18N[row.parameter] || "parameter");
-  let line = fillIn(t("alert-line"), "{place}", placeName(row))
-    .replace("{param}", param)
-    .replace("{reading}", watchReadingText(row))
-    .replace("{threshold}", watchThresholdText(row.parameter, watch))
-    .replace("{time}", fmtBucket(row.bucket));
+  let line = t("alert-line", {
+    place: placeName(row),
+    param,
+    reading: watchReadingText(row),
+    threshold: watchThresholdText(row.parameter, watch),
+    time: fmtBucket(row.bucket),
+  });
   if (row.provisional) line += " " + t("alert-provisional");
   if (!isFreshObservation(row.bucket)) line += " " + t("alert-stale");
   return line;
@@ -3083,7 +3139,7 @@ function showAlertObservation(cellId, parameter, bucket) {
   if (!exact) {
     const status = $("#area-alerts-status") || $("#status");
     if (status) {
-      status.textContent = t("alert-observation-unavailable").replace("{time}", fmtBucket(bucket));
+      status.textContent = t("alert-observation-unavailable", { time: fmtBucket(bucket) });
     }
     return false;
   }
@@ -3111,21 +3167,26 @@ function showAlertObservation(cellId, parameter, bucket) {
 function renderAlerts() {
   const section = $("#alerts");
   const list = $("#alerts-list");
+  const status = $("#alerts-status");
   if (!section || !list) return;
   const focusedKey = document.activeElement?.closest?.("#alerts-list button")?.dataset?.alertKey;
   const alerts = activeAlerts();
   list.textContent = "";
   if (!alerts.length) {
     section.hidden = true;
+    if (status?.textContent) status.textContent = "";
     return;
   }
   section.hidden = false;
   let restoreFocus = null;
+  const announcement = [];
   for (const { key, row, watch } of alerts) {
     const li = document.createElement("li");
     const text = document.createElement("span");
     text.className = "alert-text";
-    text.textContent = alertText(row, watch);
+    const line = alertText(row, watch);
+    text.textContent = line;
+    announcement.push(line);
     const go = document.createElement("button");
     go.type = "button";
     go.className = "linklike";
@@ -3136,6 +3197,8 @@ function renderAlerts() {
     li.append(text, document.createTextNode(" "), go);
     list.appendChild(li);
   }
+  const nextAnnouncement = announcement.join(" ");
+  if (status && status.textContent !== nextAnnouncement) status.textContent = nextAnnouncement;
   restoreFocus?.focus({ preventScroll: true });
 }
 
@@ -3158,10 +3221,11 @@ function syncNotifications(alerts) {
     if (!canNotify) continue;
     firing.add(key);
     try {
-      const body = t("notify-body")
-        .replace("{reading}", watchReadingText(row))
-        .replace("{threshold}", watchThresholdText(row.parameter, watch))
-        .replace("{time}", fmtBucket(row.bucket));
+      const body = t("notify-body", {
+        reading: watchReadingText(row),
+        threshold: watchThresholdText(row.parameter, watch),
+        time: fmtBucket(row.bucket),
+      });
       new Notification(`swelter — ${placeName(row)}`, { body, tag: key, lang: document.documentElement.lang || "en" });
     } catch {
       /* Notifications API unavailable or blocked — the in-page banner still shows the alert */
@@ -3210,19 +3274,17 @@ function alertSeverityText(alert) {
 function alertSentence(alert) {
   const sev = alertSeverityText(alert);
   if (alert.parameter === "pm25_ugm3") {
-    return fillIn(t("aa-air"), "{area}", alert.area)
-      .replace("{sev}", sev)
-      .replace("{aqi}", alert.aqi)
-      .replace("{time}", fmtBucket(alert.bucket));
+    return t("aa-air", {
+      area: alert.area,
+      sev,
+      aqi: formatNumber(alert.aqi, { maximumFractionDigits: 0 }),
+      time: fmtBucket(alert.bucket),
+    });
   }
   if (alert.parameter === "heat_index_c") {
-    return fillIn(t("aa-heat"), "{area}", alert.area)
-      .replace("{sev}", sev)
-      .replace("{time}", fmtBucket(alert.bucket));
+    return t("aa-heat", { area: alert.area, sev, time: fmtBucket(alert.bucket) });
   }
-  return fillIn(t("aa-exposure"), "{area}", alert.area)
-    .replace("{sev}", sev)
-    .replace("{time}", fmtBucket(alert.bucket));
+  return t("aa-exposure", { area: alert.area, sev, time: fmtBucket(alert.bucket) });
 }
 
 // Build the area <select> from every published cell (so a resident can pick their block and copy its
@@ -3257,10 +3319,9 @@ function buildAreaSelect() {
 function areaAlertStatus(feed, scoped) {
   const publishedAt = feed.generated || scoped[0]?.bucket || "";
   const stale = observationAgeMinutes(publishedAt) > CURRENT_OBSERVATION_MAX_AGE_MINUTES;
-  const line = (scoped.length
-    ? t("aa-count").replace("{n}", scoped.length)
-    : t("aa-none"))
-    .replace("{time}", fmtBucket(publishedAt));
+  const line = scoped.length
+    ? t("aa-count", { n: scoped.length, time: fmtBucket(publishedAt) })
+    : t("aa-none", { time: fmtBucket(publishedAt) });
   return stale ? `${line} ${t("aa-stale")}` : line;
 }
 
@@ -3374,10 +3435,15 @@ function renderCoolingCenters() {
     meta.className = "cool-meta";
     const bits = [coolingTypeLabel(c.type || "public")];
     if (c.address) bits.push(c.address);
-    if (c.hours) bits.push(t("cool-hours").replace("{hours}", c.hours));
+    if (c.hours) bits.push(t("cool-hours", { hours: c.hours }));
     bits.push(c.air_conditioned === false ? t("cool-no-ac") : t("cool-ac"));
     bits.push(c.accessible === false ? t("cool-not-accessible") : t("cool-accessible"));
-    if (km != null) bits.push(t("cool-distance").replace("{km}", km.toFixed(1)));
+    if (km != null)
+      bits.push(
+        t("cool-distance", {
+          km: formatNumber(km, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        }),
+      );
     meta.textContent = ` — ${bits.join(" · ")}`;
     li.appendChild(meta);
     if (c.notes) {
@@ -3389,11 +3455,10 @@ function renderCoolingCenters() {
     list.appendChild(li);
   }
   const meta = state.coolingMeta || {};
-  $("#cooling-source").textContent = fillIn(
-    t("cooling-source"),
-    "{attribution}",
-    meta.attribution || meta.source || ""
-  ).replace("{date}", meta.last_verified || "—");
+  $("#cooling-source").textContent = t("cooling-source", {
+    attribution: meta.attribution || meta.source || "",
+    date: meta.last_verified || "—",
+  });
 }
 
 function toggleCooling() {
@@ -3436,7 +3501,7 @@ function renderWatch(row) {
     order.forEach((name, i) => {
       const opt = document.createElement("option");
       opt.value = String(i);
-      opt.textContent = t("watch-at-or-worse").replace("{level}", localize(name));
+      opt.textContent = t("watch-at-or-worse", { level: localize(name) });
       if (saved && saved.kind === "cat" && saved.idx === i) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -3602,23 +3667,19 @@ function renderHistory(row) {
     const summaryCats = useProvisional ? day.provisionalCats : day.cats;
     if (categorical && summaryCats.length) {
       const worst = summaryCats.reduce((a, b) => (order.indexOf(b) > order.indexOf(a) ? b : a));
-      li.textContent = t("history-worst").replace("{day}", day.label).replace("{cat}", localize(worst));
+      li.textContent = t("history-worst", { day: day.label, cat: localize(worst) });
     } else if (summaryVals.length) {
       const hi = formatMagnitude(convert(Math.max(...summaryVals)));
       const lo = formatMagnitude(convert(Math.min(...summaryVals)));
-      li.textContent = t("history-highlow")
-        .replace("{day}", day.label)
-        .replace("{high}", hi)
-        .replace("{low}", lo)
-        .replace("{unit}", "");
+      li.textContent = t("history-highlow", { day: day.label, high: hi, low: lo, unit: "" });
     } else {
       continue;
     }
     const provisionalCount = day.provisionalCount;
     if (useProvisional) {
-      li.textContent += ` ${t("history-all-provisional").replace("{n}", provisionalCount)}`;
+      li.textContent += ` ${t("history-all-provisional", { n: provisionalCount })}`;
     } else if (provisionalCount) {
-      li.textContent += ` ${t("history-provisional-excluded").replace("{n}", provisionalCount)}`;
+      li.textContent += ` ${t("history-provisional-excluded", { n: provisionalCount })}`;
     }
     list.appendChild(li);
   }
@@ -3720,29 +3781,63 @@ function togglePlay() {
   else startPlay();
 }
 
+let renderRevision = 0;
 function render() {
+  const revision = ++renderRevision;
   const bucket = currentBucket();
   $("#time-readout").textContent = fmtBucket(bucket);
   const slider = $("#time-slider");
   if (slider) slider.setAttribute("aria-valuetext", fmtBucket(bucket));
   const rows = current();
-  $("#status").textContent = t("status").replace("{n}", rows.length);
+  $("#status").textContent = t("status", { n: formatNumber(rows.length) });
   renderHeadline();
   updateLegend();
-  updateAlerts();
-  renderAreaAlerts();
-  renderCoolingCenters();
-  renderSettingsState();
-  renderOverview();
-  renderList(rows);
-  renderTable(rows);
-  renderObservatory(rows);
-  // The map (337 markers + a 2.6k-point SVG path) is the heaviest view; only rebuild it when it is
-  // actually visible, otherwise mark it dirty and build lazily when the user opens the Map tab.
-  if (mapVisible) renderMap(rows);
-  else mapDirty = true;
-  renderDetail();
-  syncPlay();
+  $("#main")?.setAttribute("aria-busy", "true");
+  document.documentElement.removeAttribute("data-render-ready");
+
+  // Let the resident-facing answer above the fold paint before mounting the dense linked evidence
+  // workspace. A second animation frame guarantees one paint opportunity without an arbitrary timer.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      if (revision !== renderRevision) return;
+      updateAlerts();
+      renderAreaAlerts();
+      renderCoolingCenters();
+      renderSettingsState();
+      renderOverview();
+      renderObservatory(rows);
+      renderActiveRepresentation(rows);
+      renderDetail();
+      syncPlay();
+      $("#main")?.setAttribute("aria-busy", "false");
+      document.documentElement.setAttribute("data-render-ready", "true");
+    }),
+  );
+}
+
+// Map, List, and Table are equivalent routes through the same readings, not three surfaces a reader
+// needs at once. Keep only the active representation in the DOM. This cuts the initial node count by
+// well over half on a 150-location network while preserving every row when its tab is selected.
+function renderActiveRepresentation(rows) {
+  const active = document.querySelector('[role="tab"][aria-selected="true"]')?.id || "tab-map";
+  const list = $("#data-list");
+  const table = $("#data-table-body");
+  const map = $("#map");
+
+  if (active === "tab-list") renderList(rows);
+  else list?.replaceChildren();
+
+  if (active === "tab-table") renderTable(rows);
+  else table?.replaceChildren();
+
+  mapVisible = active === "tab-map";
+  if (mapVisible) {
+    renderMap(rows);
+    mapDirty = false;
+  } else {
+    map?.replaceChildren();
+    mapDirty = true;
+  }
 }
 
 // focusMap=true centers the map on the pick (a map marker tap, geolocation, or a search hit). A
@@ -3865,7 +3960,7 @@ function renderSettingsState() {
   const n = Object.keys(prefs.watches || {}).length;
   const has = Object.keys(prefs).some((k) => (k === "watches" ? n > 0 : prefs[k] != null));
   el.textContent = has
-    ? t("settings-has").replace("{n}", String(n))
+    ? t("settings-has", { n })
     : t("settings-empty");
 }
 
@@ -3905,7 +4000,10 @@ function setView(tabId) {
     panel.hidden = !selected;
   }
   mapVisible = tabId === "tab-map";
+  if (!mapVisible) renderActiveRepresentation(current());
   if (mapVisible) {
+    $("#data-list")?.replaceChildren();
+    $("#data-table-body")?.replaceChildren();
     // The map is now measurable: build it if it went stale while hidden, then apply the current
     // view (or honor a focus chosen while it was hidden).
     requestAnimationFrame(() => {
@@ -3943,6 +4041,15 @@ function wireTabs() {
   });
 }
 
+function wirePrintTable() {
+  window.addEventListener("beforeprint", () => renderTable(current()));
+  window.addEventListener("afterprint", () => {
+    if (document.querySelector('[role="tab"][aria-selected="true"]')?.id !== "tab-table") {
+      $("#data-table-body")?.replaceChildren();
+    }
+  });
+}
+
 function scrollToSection(sectionId, { focus = false } = {}) {
   const section = document.getElementById(sectionId);
   section?.scrollIntoView({ block: "start" });
@@ -3976,9 +4083,10 @@ function wireSort() {
       const dir = state.sortDir === 1 ? "ascending" : "descending";
       button.closest("th").setAttribute("aria-sort", dir);
       render();
-      $("#status").textContent = t("sort-announce")
-        .replace("{col}", button.textContent)
-        .replace("{dir}", t(`dir-${dir}`));
+      $("#status").textContent = t("sort-announce", {
+        col: button.textContent,
+        dir: t(`dir-${dir}`),
+      });
     });
   }
 }
@@ -4008,9 +4116,10 @@ function applyTextScale(step) {
   if (bigger) bigger.disabled = i === TEXT_STEPS.length - 1;
   const status = $("#display-status");
   if (status) {
-    status.textContent = t("text-size-set")
-      .replace("{n}", String(i + 1))
-      .replace("{max}", String(TEXT_STEPS.length));
+    status.textContent = t("text-size-set", {
+      n: formatNumber(i + 1),
+      max: formatNumber(TEXT_STEPS.length),
+    });
   }
 }
 
@@ -4051,7 +4160,7 @@ function locate() {
         state.search = "";
         $("#place-search").value = "";
         select(best.cell_id, true); // geolocation → center the map on the nearest location
-        $("#status").textContent = fillIn(t("locate-found"), "{place}", placeName(best));
+        $("#status").textContent = t("locate-found", { place: placeName(best) });
       }
     },
     () => {
@@ -4341,6 +4450,7 @@ async function init() {
   setContrast(prefs.contrast === true);
   await loadBasemap();
   wireTabs();
+  wirePrintTable();
   wireSectionNavigation();
   wireSort();
   wireObservatory();

@@ -101,6 +101,7 @@ function makeFetchStub() {
 async function loadApp(options = {}) {
   ensureRejectionGuardInstalled();
   const source = fs.readFileSync(APP_JS_PATH, "utf8");
+  const { MessageFormat } = await import("messageformat");
 
   const sandbox = {
     document: makeDocumentStub(),
@@ -126,6 +127,7 @@ async function loadApp(options = {}) {
     cancelAnimationFrame: (id) => clearTimeout(id),
     URL,
     URLSearchParams,
+    SwelterMessageFormat: MessageFormat,
   };
   sandbox.window = {
     matchMedia: () => ({

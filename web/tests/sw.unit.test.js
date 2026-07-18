@@ -25,10 +25,13 @@ function loadWorker({
   const listeners = new Map();
   const opened = [];
   const puts = [];
+  const added = [];
   let stored = cached;
   const cache = {
     async add() {},
-    async addAll() {},
+    async addAll(assets) {
+      added.push(...assets);
+    },
     async match() {
       return stored;
     },
@@ -82,8 +85,38 @@ function loadWorker({
     return { request, response, waits };
   }
 
-  return { dispatchFetch, opened, puts };
+  function dispatchInstall() {
+    const waits = [];
+    listeners.get("install")({
+      waitUntil(value) {
+        waits.push(Promise.resolve(value));
+      },
+    });
+    return waits;
+  }
+
+  return { added, dispatchFetch, dispatchInstall, opened, puts };
 }
+
+test("install precaches the MF2 loader and every generated runtime module", async () => {
+  const runtimeAssets = [
+    "vendor/messageformat/index.js",
+    "vendor/messageformat/messageformat.js",
+  ];
+  const worker = loadWorker({
+    fetchImpl: async (request) => {
+      assert.equal(request, "vendor/messageformat/asset-manifest.json");
+      return Response.json(runtimeAssets);
+    },
+  });
+  await Promise.all(worker.dispatchInstall());
+  assert.ok(worker.added.includes("i18n-runtime.mjs"));
+  assert.ok(worker.added.includes("vendor/messageformat/asset-manifest.json"));
+  assert.deepEqual(
+    worker.added.filter((asset) => runtimeAssets.includes(asset)),
+    runtimeAssets,
+  );
+});
 
 test("cache owner encodes the complete registration pathname", async () => {
   const originRoot = loadWorker({
@@ -105,8 +138,8 @@ test("cache owner encodes the complete registration pathname", async () => {
   const second = literalRoot.dispatchFetch();
   await Promise.all([first.response, second.response, ...first.waits, ...second.waits]);
 
-  assert.equal(originRoot.opened[0], "swelter-shell-%2F::v5");
-  assert.equal(literalRoot.opened[0], "swelter-shell-%2Froot%2F::v5");
+  assert.equal(originRoot.opened[0], "swelter-shell-%2F::v6");
+  assert.equal(literalRoot.opened[0], "swelter-shell-%2Froot%2F::v6");
   assert.notEqual(originRoot.opened[0], literalRoot.opened[0]);
 });
 

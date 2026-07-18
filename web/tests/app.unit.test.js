@@ -104,6 +104,39 @@ test("t() — prefers a loaded string over the raw-key fallback", async () => {
   assert.equal(app.t("cat-good"), "Good (es)");
 });
 
+test("t() — MessageFormat 2 selects plural forms and localizes the count", async () => {
+  const app = await freshApp();
+  app.document.documentElement.lang = "en";
+  app.state.strings = {
+    items: ".input {$n :number}\n.match $n\none {{{$n} reading}}\n* {{{$n} readings}}",
+  };
+  assert.equal(app.t("items", { n: 1 }), "1 reading");
+  assert.equal(app.t("items", { n: 2 }), "2 readings");
+
+  app.document.documentElement.lang = "es";
+  app.state.strings = {
+    items: ".input {$n :number}\n.match $n\none {{{$n} lectura}}\n* {{{$n} lecturas}}",
+  };
+  assert.equal(app.t("items", { n: 1 }), "1 lectura");
+  assert.equal(app.t("items", { n: 2 }), "2 lecturas");
+});
+
+test("formatNumber — uses the document locale for grouping and decimal separators", async () => {
+  const app = await freshApp();
+  app.document.documentElement.lang = "en";
+  assert.equal(app.formatNumber(12345.6, { maximumFractionDigits: 1 }), "12,345.6");
+  app.document.documentElement.lang = "es";
+  assert.equal(app.formatNumber(12345.6, { maximumFractionDigits: 1 }), "12.345,6");
+});
+
+test("localeDirection — recognizes RTL language tags while keeping shipped locales LTR", async () => {
+  const app = await freshApp();
+  assert.equal(app.localeDirection("en-US"), "ltr");
+  assert.equal(app.localeDirection("es-MX"), "ltr");
+  assert.equal(app.localeDirection("ar"), "rtl");
+  assert.equal(app.localeDirection("he-IL"), "rtl");
+});
+
 test("localizeDocumentMetadata — preserves Pages metadata on catalogue failure", async () => {
   const app = await freshApp();
   app.document.title = "Source-aware Pages title";
@@ -138,6 +171,7 @@ test("loadStrings — the latest language request wins an out-of-order race", as
   assert.equal(await spanish, false);
   assert.equal(app.state.strings.language, "English");
   assert.equal(app.document.documentElement.lang, "en");
+  assert.equal(app.document.documentElement.dir, "ltr");
 });
 
 test("loadStrings — a failed swap retains the prior catalogue and document language", async () => {
@@ -191,14 +225,17 @@ test("describe — plain-language reading line, confirmed vs provisional framing
   assert.match(app.describe(provisional), /^cell-word 1: ~AQI 45 \(state-provisional\)/);
 });
 
-test("fillIn — substitutes a host-supplied value literally, not as a replace() pattern", async () => {
+test("MessageFormat 2 substitutes values literally and isolates mixed-direction text", async () => {
   const app = await freshApp();
-  // String.prototype.replace() treats a *string* replacement's "$" sequences ($&, $`, $$) as
-  // special patterns even when the search value is a plain string, not a regex — a naive
-  // `.replace("{place}", value)` would corrupt the surrounding sentence for any of these.
-  assert.equal(app.fillIn("hi {place}!", "{place}", "Cedar & 4th$&Ave"), "hi Cedar & 4th$&Ave!");
-  assert.equal(app.fillIn("hi {place}!", "{place}", "weird$`prefix"), "hi weird$`prefix!");
-  assert.equal(app.fillIn("hi {place}!", "{place}", "trail$$ing"), "hi trail$$ing!");
+  app.state.strings = { greeting: "hi {$place}!" };
+  assert.equal(app.t("greeting", { place: "Cedar & 4th$&Ave" }), "hi ⁨Cedar & 4th$&Ave⁩!");
+  assert.equal(app.t("greeting", { place: "weird$`prefix" }), "hi ⁨weird$`prefix⁩!");
+  assert.equal(app.t("greeting", { place: "trail$$ing" }), "hi ⁨trail$$ing⁩!");
+
+  app.document.documentElement.lang = "ar";
+  app.document.documentElement.dir = "rtl";
+  app.state.strings = { greeting: "الموقع: {$place}." };
+  assert.equal(app.t("greeting", { place: "Oak & 4th — محطة" }), "الموقع: ⁨Oak & 4th — محطة⁩.");
 });
 
 test("readingText — strips only the place-name prefix, even when the label itself contains ': '", async () => {
@@ -306,8 +343,8 @@ test("temporalContextText — historical and stale observations are explicitly n
   const staleLatest = "2025-01-02T00:00:00Z";
   app.state.buckets = [historical, staleLatest];
   app.state.strings = {
-    "observation-historical": "Historical {time} — not current.",
-    "observation-stale": "Stale {time} — not current.",
+    "observation-historical": "Historical {$time} — not current.",
+    "observation-stale": "Stale {$time} — not current.",
   };
   app.state.bucketIdx = 0;
   assert.match(app.temporalContextText(), /^Historical .*not current\.$/);
@@ -387,7 +424,7 @@ test("trendLine — names elapsed clock hours when published observations are sp
   const app = await freshApp();
   app.state.historyLoaded = true;
   app.state.parameter = "pm25_ugm3";
-  app.state.strings = { "trend-rising": "Rising over {h} h" };
+  app.state.strings = { "trend-rising": "Rising over {$h} h" };
   app.state.buckets = [
     "2026-06-01T00:00:00Z",
     "2026-06-01T02:00:00Z",
@@ -410,7 +447,7 @@ test("trendLine — names elapsed clock hours when published observations are sp
       bucket: "2026-06-01T06:00:00Z",
       mean: 20,
     }),
-    "↑ Rising over 6 h",
+    "↑ Rising over ⁨6⁩ h",
   );
 });
 
@@ -700,7 +737,7 @@ test("dailyHistory — mixed days keep provisional evidence out of confirmed sum
 test("area alert copy — zero-alert stale feeds name their publication time and staleness", async () => {
   const app = await freshApp();
   app.state.strings = {
-    "aa-none": "No published alerts as of {time}.",
+    "aa-none": "No published alerts as of {$time}.",
     "aa-stale": "Feed is stale.",
   };
   const line = app.areaAlertStatus({ generated: "2025-01-01T00:00:00Z" }, []);
@@ -720,7 +757,7 @@ test("showAlertObservation — an absent feed bucket never opens an unrelated ob
   app.state.parameter = "temp_c";
   app.state.selected = null;
   app.state.strings = {
-    "alert-observation-unavailable": "Observation {time} is unavailable.",
+    "alert-observation-unavailable": "Observation {$time} is unavailable.",
   };
   assert.equal(app.showAlertObservation("c1", "temp_c", missing), false);
   assert.equal(app.currentBucket(), loaded);
@@ -796,7 +833,7 @@ test("renderDetail — a selected place with no current observation is an explic
   app.state.selected = "chosen";
   app.state.strings = {
     "inspector-empty": "Select a place.",
-    "now-no-reading": "No reading at {time}.",
+    "now-no-reading": "No reading at {$time}.",
     "now-gap": "The gap is preserved.",
   };
   assert.equal(app.focusRow(app.current()), null);
@@ -822,7 +859,7 @@ test("renderNow — keeps a selected place's identity when it never reports the 
   app.state.selected = "chosen";
   app.state.strings = {
     "now-selected-focus": "Selected location",
-    "now-no-reading": "No reading at {time}.",
+    "now-no-reading": "No reading at {$time}.",
     "now-gap": "The gap is preserved.",
     "now-no-current": "No current observation",
   };
@@ -870,7 +907,7 @@ test("guidanceForRow — compound exposure carries both hazard guidance and sour
 test("braidEvidenceNote — exposure caveats and numeric uncertainty use separate method notes", async () => {
   const app = await freshApp();
   app.state.strings = {
-    "braid-exposure-note": "Exposure method: {note}",
+    "braid-exposure-note": "Exposure method: {$note}",
     "braid-se-note": "Band is published one-standard-error uncertainty.",
     "braid-no-band": "No uncertainty band is available.",
   };
@@ -881,7 +918,7 @@ test("braidEvidenceNote — exposure caveats and numeric uncertainty use separat
       { index: 1, row: { uncertainty_note: "An older note." } },
       { index: 2, row: { uncertainty_note: "Ordinal joint hazard." } },
     ]),
-    "Exposure method: Ordinal joint hazard.",
+    "Exposure method: ⁨Ordinal joint hazard.⁩",
   );
   app.state.bucketIdx = 3;
   assert.equal(
@@ -1207,7 +1244,7 @@ test("semantic chart formatting — exposure ordinals become categories and WBGT
   const app = await freshApp();
   app.state.strings = {
     "exp-elevated": "Elevated",
-    "estimated-value": "{value} (estimated)",
+    "estimated-value": "{$value} (estimated)",
     "estimated-short": "estimated",
   };
 
@@ -1216,8 +1253,8 @@ test("semantic chart formatting — exposure ordinals become categories and WBGT
 
   app.state.parameter = "wbgt_c";
   app.state.unit = "C";
-  assert.equal(app.formatMagnitude(28.25), "28.3 °C (estimated)");
-  assert.equal(app.formatDifference(-2.25), "2.3 °C (estimated)");
+  assert.equal(app.formatMagnitude(28.25), "⁨28.3 °C⁩ (estimated)");
+  assert.equal(app.formatDifference(-2.25), "⁨2.3 °C⁩ (estimated)");
   assert.equal(app.unitContextLabel(), "°C · estimated");
 });
 
@@ -1248,7 +1285,7 @@ test("braidSelectionText — an unknown saved location degrades to an empty obse
   const app = await freshApp();
   const bucket = "2026-06-01T00:00:00Z";
   app.state.strings = {
-    "braid-selected-empty": "{time}. No location reports this measurement.",
+    "braid-selected-empty": "{$time}. No location reports this measurement.",
   };
   app.setData({ buckets: [bucket], cells: [] });
   app.state.selected = "missing-location";

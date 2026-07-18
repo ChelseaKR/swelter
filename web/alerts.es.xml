@@ -4,6 +4,7 @@
   <id>/api/alerts.es.xml</id>
   <link rel="self" href="/api/alerts.es.xml"/>
   <link rel="alternate" hreflang="en" href="/api/alerts.xml"/>
+  <link rel="license" href="DATA-LICENSE"/>
   <updated>2026-06-08T00:00:00Z</updated>
   <subtitle>Zonas donde el calor o la calidad del aire superó un umbral de peligro de salud pública. Datos ambientales agregados, sin datos personales.</subtitle>
   <generator>swelter i18n_alerts (machine-translated, not human-reviewed)</generator>

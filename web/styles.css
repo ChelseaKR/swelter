@@ -4,69 +4,8 @@
    never the only signal. Provisional (uncalibrated) locations are rendered neutrally so an
    unconfirmed reading never "wears" a confirmed air-quality category. */
 
-:root {
-  --bg: #fbf7f2;
-  --fg: #1c1714;
-  --muted: #5a4f48;
-  --surface: #ffffff;
-  --border: #c9bcb0;
-  --accent: #7b2d26;
-  --accent-fg: #ffffff;
-  --focus: #11489c;
-  --provisional: #6b5b4d;
-  --map-land: #ece3d6;
-  --map-line: #b3a294;
-  --max-width: 70rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14110f;
-    --fg: #f2ece6;
-    --muted: #c2b6ac;
-    --surface: #221d19;
-    --border: #4a4039;
-    --accent: #e2786b;
-    --accent-fg: #14110f;
-    --focus: #9ec1ff;
-    --provisional: #b8a695;
-    --map-land: #241d18;
-    --map-line: #5c4f44;
-  }
-}
-
-/* High-contrast theme (R6), opt-in via the Display control. Pushes text/UI to maximum contrast on a
-   pure background and darkens borders/focus; it works in both light and dark schemes. Severity is
-   carried by text and pattern (not these tokens), so the map's category cues stay legible. */
-:root[data-contrast="high"] {
-  --bg: #ffffff;
-  --fg: #000000;
-  --muted: #1c1c1c;
-  --surface: #ffffff;
-  --border: #000000;
-  --accent: #6a1410;
-  --accent-fg: #ffffff;
-  --focus: #0a33cc;
-  --provisional: #1c1c1c;
-  --map-land: #f2f2f2;
-  --map-line: #000000;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root[data-contrast="high"] {
-    --bg: #000000;
-    --fg: #ffffff;
-    --muted: #ededed;
-    --surface: #000000;
-    --border: #ffffff;
-    --accent: #ffc4ba;
-    --accent-fg: #000000;
-    --focus: #a9c4ff;
-    --provisional: #ededed;
-    --map-land: #0a0a0a;
-    --map-line: #ffffff;
-  }
-}
+/* All visual tokens live in observatory.css. Keeping this foundational layout sheet token-free
+   prevents a second, load-order-dependent theme from drifting away from the shipped design. */
 
 * {
   box-sizing: border-box;
@@ -100,7 +39,7 @@ body {
 
 .skip-link {
   position: absolute;
-  left: 0.5rem;
+  inset-inline-start: 0.5rem;
   top: -3rem;
   background: var(--accent);
   color: var(--accent-fg);
@@ -290,7 +229,7 @@ h1 {
   padding: 0.85rem 1rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 0.4rem solid var(--accent);
+  border-inline-start: 0.4rem solid var(--accent);
   border-radius: 0.5rem;
   font-size: 1.05rem;
   font-weight: 600;
@@ -361,6 +300,17 @@ input[type="search"] {
 input[type="range"] {
   padding: 0;
   width: 100%;
+  min-height: 1.5rem;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 input[type="range"][aria-disabled="true"] {
@@ -460,7 +410,7 @@ input[type="range"][aria-disabled="true"] {
 .map-controls {
   position: absolute;
   top: 0.5rem;
-  right: 0.5rem;
+  inset-inline-end: 0.5rem;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -514,7 +464,7 @@ input[type="range"][aria-disabled="true"] {
   padding: 0.3rem 0.45rem;
   font: 700 0.9rem/1.15 system-ui, sans-serif;
   text-align: center;
-  color: #14110f;
+  color: var(--marker-ink);
   background: var(--surface);
   border: 2px solid var(--fg);
   border-radius: 0.35rem;
@@ -530,8 +480,12 @@ input[type="range"][aria-disabled="true"] {
 /* Provisional locations read NEUTRAL — never wearing a confirmed category color. */
 .cell.provisional {
   border-style: dashed;
-  background: repeating-linear-gradient(45deg, #e7ddd2 0 4px, #d9cdbf 4px 8px);
-  color: #2a221c;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--provisional-marker-a) 0 4px,
+    var(--provisional-marker-b) 4px 8px
+  );
+  color: var(--provisional-marker-ink);
 }
 
 .cell.selected {
@@ -541,8 +495,8 @@ input[type="range"][aria-disabled="true"] {
 
 /* On a dense network, shrink markers to small dots so the coverage reads as a map, not a pile. */
 .map.dense .cell {
-  min-width: 1.7rem;
-  min-height: 1.3rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
   padding: 0.1rem 0.15rem;
   font-size: 0.62rem;
 }
@@ -552,47 +506,47 @@ input[type="range"][aria-disabled="true"] {
 }
 
 /* AQI severity: color AND a distinct background pattern AND text — never color alone. */
-.aqi-good { background-color: #d7f0d0; background-image: none; }
+.aqi-good { background-color: var(--aqi-good-bg); background-image: none; }
 .aqi-moderate {
-  background-color: #f2e9b8;
+  background-color: var(--aqi-moderate-bg);
   background-image: radial-gradient(circle, rgba(0,0,0,0.35) 1px, transparent 1.2px);
   background-size: 6px 6px;
 }
 .aqi-usg {
-  background-color: #f6cf9b;
+  background-color: var(--aqi-usg-bg);
   background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.3) 0 2px, transparent 2px 6px);
 }
 .aqi-unhealthy {
-  background-color: #ef9a9a;
+  background-color: var(--aqi-unhealthy-bg);
   background-image: repeating-linear-gradient(-45deg, rgba(0,0,0,0.35) 0 2px, transparent 2px 5px);
 }
 .aqi-veryunhealthy {
-  background-color: #cf93c8;
+  background-color: var(--aqi-very-unhealthy-bg);
   background-image: repeating-linear-gradient(0deg, rgba(0,0,0,0.4) 0 2px, transparent 2px 5px);
 }
 .aqi-hazardous {
-  background-color: #c79a9a;
+  background-color: var(--aqi-hazardous-bg);
   background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.5) 0 2px, transparent 2px 4px);
 }
 
 /* Heat map scale (cool → hot). The marker's number is the primary signal; colour + pattern are a
    redundant cue so the heat island is legible without relying on colour alone. */
-.heat-1 { background-color: #dbe9f2; background-image: none; }
+.heat-1 { background-color: var(--heat-1-bg); background-image: none; }
 .heat-2 {
-  background-color: #e6edcb;
+  background-color: var(--heat-2-bg);
   background-image: radial-gradient(circle, rgba(0,0,0,0.3) 1px, transparent 1.2px);
   background-size: 6px 6px;
 }
 .heat-3 {
-  background-color: #f4e3b0;
+  background-color: var(--heat-3-bg);
   background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.28) 0 2px, transparent 2px 6px);
 }
 .heat-4 {
-  background-color: #f2c197;
+  background-color: var(--heat-4-bg);
   background-image: repeating-linear-gradient(-45deg, rgba(0,0,0,0.32) 0 2px, transparent 2px 5px);
 }
 .heat-5 {
-  background-color: #e89887;
+  background-color: var(--heat-5-bg);
   background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.4) 0 2px, transparent 2px 5px);
 }
 
@@ -600,7 +554,7 @@ input[type="range"][aria-disabled="true"] {
   display: inline-block;
   width: 1.4rem;
   height: 1.4rem;
-  margin-right: 0.5rem;
+  margin-inline-end: 0.5rem;
   vertical-align: middle;
   border: 1px solid var(--fg);
   border-radius: 0.2rem;
@@ -613,14 +567,14 @@ table {
 }
 
 caption {
-  text-align: left;
+  text-align: start;
   font-weight: 600;
   margin-bottom: 0.5rem;
 }
 
 th,
 td {
-  text-align: left;
+  text-align: start;
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--border);
 }
@@ -713,7 +667,7 @@ td .tag {
   padding: 0.5rem 0.8rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border-inline-start: 4px solid var(--accent);
   border-radius: 0.4rem;
   font-size: 0.9rem;
 }
@@ -730,7 +684,7 @@ td .tag {
 
 .health-list {
   margin: 0.3rem 0 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
 }
 
 .health-list li {
@@ -744,7 +698,7 @@ td .tag {
   padding: 0.6rem 0.9rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border-inline-start: 4px solid var(--accent);
   border-radius: 0.6rem;
 }
 
@@ -755,7 +709,7 @@ td .tag {
 
 .alerts-list {
   margin: 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
 }
 
 .alerts-list li {
@@ -778,7 +732,7 @@ td .tag {
   padding: 0.6rem 0.9rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border-inline-start: 4px solid var(--accent);
   border-radius: 0.6rem;
 }
 
@@ -800,7 +754,7 @@ td .tag {
 
 .aa-list {
   margin: 0.4rem 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
 }
 
 .aa-item {
@@ -822,7 +776,7 @@ td .tag {
 }
 
 .aa-go {
-  margin-left: 0.4rem;
+  margin-inline-start: 0.4rem;
 }
 
 .aa-copy-status {
@@ -853,7 +807,7 @@ td .tag {
 
 .cooling-list {
   margin: 0.4rem 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
 }
 
 .cool-item {
@@ -1032,7 +986,7 @@ button.linklike {
   margin: 0.7rem 0;
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border-inline-start: 4px solid var(--accent);
   border-radius: 0.4rem;
   background: var(--surface);
 }
@@ -1044,7 +998,7 @@ button.linklike {
 
 .action-list {
   margin: 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
 }
 
 .action-list li {
@@ -1073,7 +1027,7 @@ button.linklike {
 
 .history-list {
   margin: 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
   font-size: 0.95rem;
 }
 
@@ -1189,7 +1143,7 @@ button.linklike {
 
 .method-list {
   margin: 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
 }
 
 .method-list li {
@@ -1290,7 +1244,7 @@ footer code {
 
 .shortcuts-list {
   margin: 0.3rem 0 0;
-  padding-left: 1.2rem;
+  padding-inline-start: 1.2rem;
 }
 
 .shortcuts-list li {
@@ -1365,7 +1319,7 @@ footer code {
     display: none !important;
   }
 
-  /* The data table prints even if its tab wasn't the active view (it is always populated). */
+  /* `beforeprint` mounts the data table even when another equivalent view was active. */
   #panel-table {
     display: block !important;
   }
