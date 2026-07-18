@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from swelter import aggregate, snapshot
+from swelter.calibrate import Correction, CorrectionRegistry
 from swelter.cli import _merge_network_doc, _write_web_sample, main
 from swelter.config import load_config
 from swelter.models import (
@@ -80,16 +81,52 @@ def test_qc_text_reports_health_and_coverage(
     assert "nodes" in err
     # The coverage-equity line surfaces calibrated-vs-raw counts (audit B3), not a ranking.
     assert "calibrated" in err and "confirmed" in err
+    # The demo store has a registry, so the correction-drift summary line rides along.
+    assert "calibration" in err
 
 
 def test_qc_json_is_machine_readable(demo_store: Path, capsys: pytest.CaptureFixture[str]) -> None:
     rc = main(["qc", "--store", str(demo_store), "--config", NETWORK, "--json"])
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
-    assert {"nodes", "gaps", "coverage_equity"} <= payload.keys()
+    assert {"nodes", "gaps", "coverage_equity", "calibration"} <= payload.keys()
     assert payload["nodes"], "demo network has nodes"
     summary = payload["coverage_equity"]["summary"]
     assert summary["calibrated_nodes"] <= summary["nodes"]
+    # The calibration drift block is present (registry on disk) and describes real corrections.
+    assert payload["calibration"]["summary"]["corrections"] > 0
+
+
+def test_qc_flags_aging_correction(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """A correction whose co-location window closed long before the latest reading is flagged
+    aging in `swelter qc` — descriptive drift surveillance that changes no value (hard rule #3)."""
+    store_dir = tmp_path / "store"
+    with open_store(store_dir) as store:
+        store.write([make_obs(node_id="node-01", timestamp="2026-06-08T00:00:00Z")])
+    registry = CorrectionRegistry()
+    registry.add(
+        Correction(
+            version="temp_c.enclosure-offset.node-01",
+            node_id="node-01",
+            parameter="temp_c",
+            method="enclosure-offset",
+            predictors=("raw",),
+            coefficients=(1.0,),
+            intercept=0.0,
+            residual_std=0.5,
+            r2=0.99,
+            n=48,
+            reference="reference-monitor",
+            window_start="2024-01-01T00:00:00Z",
+            window_end="2024-01-03T00:00:00Z",  # over two years before the reading
+        )
+    )
+    registry.to_yaml(store_paths(store_dir)["registry"])
+    rc = main(["qc", "--store", str(store_dir), "--config", NETWORK])
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "aging correction" in err
+    assert "temp_c.enclosure-offset.node-01" in err
 
 
 def test_qc_on_empty_store_says_so(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

@@ -15,6 +15,18 @@ All notable changes to swelter are recorded here. The format follows
   provisional coverage share carried in the headline, and an always-present "what the network could
   not see" section. Descriptive counts only — no health-outcome attribution and no neighborhood
   ranking ([ADR 0027](docs/adr/0027-event-chronicle.md)).
+- **Calibration-drift surveillance in the health report (FIX-03, safe subset).** `qc.health_report`
+  gains an optional `calibration` block — present only when a correction registry is supplied —
+  driven by a new pure helper `qc.correction_ages`. For each fitted correction it reports the
+  version, its co-location `window_end`, the age in days against the latest observation, and an
+  `aging` flag once the age passes a documented drift horizon (default 365 days, cited to the
+  `docs/RESEARCH-ROADMAP.md` **[drift]** literature). Surfaced on `/api/health.json`, in `swelter qc`
+  (JSON plus a summary line), and threaded through `swelter status`; documented in the Python↔JS
+  health schema. Descriptive and read-only: it finally consults `window_end` (stored since Phase 2,
+  never read until now) but changes no calibrated value, demotes nothing to provisional, and is never
+  a ranking of neighborhoods (hard rule #3). `calibrate.apply()` and `data/demo/corrections.yaml` are
+  untouched, so the byte-for-byte calibration replay is unaffected
+  ([ADR 0028](docs/adr/0028-calibration-drift-surveillance.md)).
 
 ### Fixed
 

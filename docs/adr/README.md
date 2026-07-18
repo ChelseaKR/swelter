@@ -47,3 +47,4 @@ evidence of the collision.
 - [ADR 0025: Add pinned structured logging without changing the stdlib server architecture](0025-pinned-structured-logging.md)
 - [ADR 0026: Compile and vendor MessageFormat without adopting a frontend framework](0026-vendored-messageformat-runtime.md)
 - [ADR 0027: Generate a citable post-event chronicle, descriptive counts only](0027-event-chronicle.md)
+- [ADR 0028: Surface correction-drift age in the health report, without changing any calibrated value](0028-calibration-drift-surveillance.md)

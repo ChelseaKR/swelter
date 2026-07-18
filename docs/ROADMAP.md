@@ -62,6 +62,7 @@ both tables and with its referenced tests in the same change.
 | F-20 | Archive verification |
 | F-21 | Release |
 | F-22 | Event chronicle generator |
+| F-23 | Calibration-drift surveillance in the health report |
 
 ## Delivery history
 
