@@ -52,7 +52,10 @@ async function assertNoBlockingAxe(page, label) {
           (check) =>
             check.id === "error-occurred" &&
             check.data?.ruleId === "target-size" &&
-            check.data?.message?.includes("Reduce of empty array"),
+            // axe emits this message with varying capitalisation across engine versions
+            // ("Reduce"/"reduce of empty array"); match case-insensitively so the known
+            // target-size engine error on provisional cells stays allowlisted.
+            check.data?.message?.toLowerCase().includes("reduce of empty array"),
         );
       return knownPatternedText || knownTargetEngineError
         ? []
