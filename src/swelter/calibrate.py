@@ -127,6 +127,12 @@ class TrainingPair:
     raw: float
     reference: float
     humidity: float | None = None
+    #: Public id of the reference monitor this pair was measured against, e.g. an AQS site id
+    #: ("060670010"). Empty for a hand-built co-location file with no named monitor, in which case
+    #: the fit records the generic "reference-monitor". When present it flows into
+    #: ``Correction.reference`` as the provenance of the fit — the reference the correction trusts.
+    #: See ``swelter.colocate`` and ADR 0032.
+    monitor: str = ""
 
 
 @dataclass(frozen=True)
@@ -381,7 +387,13 @@ def fit(pairs: Iterable[TrainingPair], models: dict[str, str] | None = None) -> 
     grouped: dict[tuple[str, str], list[TrainingPair]] = defaultdict(list)
     references: dict[tuple[str, str], str] = {}
     for pair in pairs:
-        grouped[(pair.node_id, pair.parameter)].append(pair)
+        key = (pair.node_id, pair.parameter)
+        grouped[key].append(pair)
+        # A colocate run tags every pair with the same reference monitor id; the first non-empty one
+        # names the reference this correction is fit against, flowing into `Correction.reference`. A
+        # hand-built file with no monitor leaves this unset and the fit records the generic default.
+        if pair.monitor and key not in references:
+            references[key] = pair.monitor
     registry = CorrectionRegistry()
     for (node_id, parameter), group in sorted(grouped.items()):
         reference = references.get((node_id, parameter), "reference-monitor")
@@ -399,13 +411,16 @@ def fit(pairs: Iterable[TrainingPair], models: dict[str, str] | None = None) -> 
 def read_colocation(path: str | Path) -> list[TrainingPair]:
     """Load co-location training pairs from a JSONL file.
 
-    Each line is ``{"node_id", "parameter", "timestamp", "raw", "reference"[, "humidity"]}``.
-    This is the recorded evidence a calibration is fit from; committing it is what makes the
-    fit reproducible and auditable by anyone.
+    Each line is ``{"node_id", "parameter", "timestamp", "raw", "reference"[, "humidity"][,
+    "monitor"]}``. The optional ``monitor`` is the reference monitor's public id (e.g. an AQS site
+    id) that ``swelter colocate`` records; when present it flows into ``Correction.reference``.
+    This is the recorded evidence a calibration is fit from; committing it is what makes the fit
+    reproducible and auditable by anyone.
     """
     pairs: list[TrainingPair] = []
     for row in _read_jsonl(path):
         humidity = row.get("humidity")
+        monitor = row.get("monitor")
         pairs.append(
             TrainingPair(
                 node_id=str(row["node_id"]),
@@ -414,6 +429,7 @@ def read_colocation(path: str | Path) -> list[TrainingPair]:
                 raw=float(row["raw"]),
                 reference=float(row["reference"]),
                 humidity=None if humidity is None else float(humidity),
+                monitor="" if monitor is None else str(monitor),
             )
         )
     return pairs

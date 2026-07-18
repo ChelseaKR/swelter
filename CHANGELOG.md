@@ -63,6 +63,15 @@ All notable changes to swelter are recorded here. The format follows
   alerts feed in English and machine-drafted Spanish. Enabling cold is config alone; every pack
   floor carries a public-source citation, and `swelter doctor` validates the pack id and its
   override keys. See [ADR 0031](docs/adr/0031-multi-hazard-packs.md) and F-26.
+- **Reference-monitor co-location (EXP-02).** `swelter colocate --node … --monitor … --window …`
+  assembles calibration training pairs automatically from stored raw node data and a regulatory
+  reference series, matching each hourly reference reading to the nearest node sample within a
+  documented tolerance (the pairing/resampling logic is a pure, offline function). A new
+  `sources/airnow.py` adapter pulls US EPA AirNow / AQS reference PM2.5 — its own public-domain-plus-
+  attribution terms retained, never relabelled, and its runtime API key redacted from any failure
+  message — and the monitor's AQS site id flows into `Correction.reference`. See
+  [`docs/adr/0032-reference-monitor-adapter.md`](docs/adr/0032-reference-monitor-adapter.md) and the
+  [AirNow data card](docs/data-cards/airnow.md).
 
 ### Fixed
 

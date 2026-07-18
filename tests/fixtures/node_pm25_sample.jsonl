@@ -1,0 +1,13 @@
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:00:00Z", "raw": 22.0}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:05:00Z", "raw": 22.4}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:10:00Z", "raw": 22.9}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:15:00Z", "raw": 23.3}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:20:00Z", "raw": 23.8}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:25:00Z", "raw": 24.2}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:30:00Z", "raw": 24.7}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:35:00Z", "raw": 25.1}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:40:00Z", "raw": 25.6}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:45:00Z", "raw": 26.0}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:50:00Z", "raw": 26.5}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T00:55:00Z", "raw": 26.9}
+{"node_id": "node-01", "parameter": "pm25_ugm3", "timestamp": "2026-06-01T01:00:00Z", "raw": 30.0}

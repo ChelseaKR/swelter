@@ -1,0 +1,60 @@
+[
+  {
+    "Latitude": 38.6135,
+    "Longitude": -121.3684,
+    "UTC": "2026-06-01T00",
+    "Parameter": "PM2.5",
+    "Unit": "UG/M3",
+    "Value": 14.0,
+    "RawConcentration": 14.2,
+    "AQI": 55,
+    "Category": 2,
+    "SiteName": "Del Paso Manor",
+    "AgencyName": "Sacramento Metro AQMD",
+    "FullAQSCode": "060670010",
+    "IntlAQSCode": "840060670010"
+  },
+  {
+    "Latitude": 38.6135,
+    "Longitude": -121.3684,
+    "UTC": "2026-06-01T01",
+    "Parameter": "PM2.5",
+    "Unit": "UG/M3",
+    "Value": 18.0,
+    "RawConcentration": 18.3,
+    "AQI": 64,
+    "Category": 2,
+    "SiteName": "Del Paso Manor",
+    "AgencyName": "Sacramento Metro AQMD",
+    "FullAQSCode": "060670010",
+    "IntlAQSCode": "840060670010"
+  },
+  {
+    "Latitude": 38.6135,
+    "Longitude": -121.3684,
+    "UTC": "2026-06-01T00",
+    "Parameter": "OZONE",
+    "Unit": "PPB",
+    "Value": 41.0,
+    "AQI": 38,
+    "Category": 1,
+    "SiteName": "Del Paso Manor",
+    "AgencyName": "Sacramento Metro AQMD",
+    "FullAQSCode": "060670010",
+    "IntlAQSCode": "840060670010"
+  },
+  {
+    "Latitude": 38.6135,
+    "Longitude": -121.3684,
+    "UTC": "2026-06-01T02",
+    "Parameter": "PM2.5",
+    "Unit": "UG/M3",
+    "Value": -999.0,
+    "AQI": -999,
+    "Category": 0,
+    "SiteName": "Del Paso Manor",
+    "AgencyName": "Sacramento Metro AQMD",
+    "FullAQSCode": "060670010",
+    "IntlAQSCode": "840060670010"
+  }
+]

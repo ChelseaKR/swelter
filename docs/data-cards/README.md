@@ -11,11 +11,12 @@ method, license, refresh, limitations, and steward.
 | OpenAQ v3 | [`openaq.md`](openaq.md) | California physical-sensor snapshot; upstream provider terms vary per location |
 | Copernicus CAMS via Open-Meteo | [`openmeteo-cams.md`](openmeteo-cams.md) | California atmospheric model/weather series; CC BY 4.0 with attribution |
 | Sensor.Community | [`sensor-community.md`](sensor-community.md) | Stuttgart-area community low-cost sensor snapshot; ODC-DbCL-1.0 |
+| US EPA AirNow / AQS | [`airnow.md`](airnow.md) | Regulatory PM2.5 reference used only as co-location truth to fit corrections; public-domain data with AirNow attribution terms retained |
 | Boundaries and equity/context layers | [`context-and-reference-layers.md`](context-and-reference-layers.md) | Cartography and optional descriptive context; each layer retains its own terms |
 
 The root [`DATA-LICENSE`](../../DATA-LICENSE) defines the boundary between first-party CC0 data and
 generated artifacts derived from third-party sources. A generated artifact's own `DATA-LICENSE`,
 truth contract, source ledger, and per-record provenance take precedence over the repository default.
 
-Owner: data steward. Last verified: 2026-07-16. Recheck cadence: each release, every provider-terms
+Owner: data steward. Last verified: 2026-07-18. Recheck cadence: each release, every provider-terms
 change, and whenever an adapter or published schema changes.
