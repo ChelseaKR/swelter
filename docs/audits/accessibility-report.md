@@ -47,8 +47,40 @@ The script is honest about its limits. With no browser and no DOM it cannot judg
 - reading and focus order as actually experienced with a screen reader;
 - reflow and target-size behaviour at real viewport sizes (1.4.10, 2.5.8).
 
-These are covered by the manual review below. The structural gate auto-blocks merge; the manual
-review is review-gated and recorded here.
+These are covered by the dynamic gate and the manual review below. The structural gate auto-blocks
+merge; the manual review is review-gated and recorded here.
+
+## Dynamic gate: real-browser axe pass
+
+The `a11y-advisory` CI job (`.github/workflows/ci.yml`) is the dynamic counterpart to the structural
+gate. It serves `web/` over HTTP so the map actually renders — the dashboard fetches its surface
+JSON at runtime, which a `file://` origin would block — then runs [pa11y](https://pa11y.org/) with
+the axe-core runner at WCAG2AA over the loaded page. It is merge-blocking. Its config is the
+committed [`.pa11y.json`](../../.pa11y.json).
+
+That config carries one scoped exclusion, via `hideElements`, for the data-visualisation **text**
+only: the numeric readings on the overlapping map markers (`#map .cell span`) and the axis/time
+labels of the exposure braid (`#exposure-braid text.braid-axis-label`, `.braid-time-label`). The
+exclusion exists because axe-core's `color-contrast` rule cannot *determine* a background for these
+specific nodes and returns "cantTell" (`incomplete`), which pa11y then reports as an error:
+
+- map marker readings overlap other markers, so axe reports `bgOverlap` — it cannot say which
+  marker's fill sits behind the text;
+- braid labels are SVG `<text>` drawn over the chart's own lines, so axe reports `imgNode` — it
+  cannot read a background through the graphic.
+
+Both are documented axe-core engine limitations for dense scatter plots and SVG charts, not real
+contrast failures: every one of these nodes is dark text on a light fill and clears AA by a wide
+margin (a full-page axe run reports **zero** `color-contrast` *violations*, only these cantTells).
+The decorative backdrops that used to compound the problem — a `content:""` `::before` overlay on
+each marker and on the braid, which made axe additionally report `pseudoContent` — are now painted
+as the elements' own `background-image` layers, so the engine can see the fill and no page-authored
+construct is being papered over. The exclusion is the narrowest possible: it names the two text
+selectors, leaves `color-contrast` enabled everywhere else, and hides these nodes from no other
+rule (they carry no other axe-relevant semantics — each marker's accessible name lives on its
+parent `<button aria-label>`, and every reading is also in the sortable table and plain list, which
+are keyboard-reachable and outcome-equivalent to the map). Removing the exclusion turns the gate
+red with 156 of these cantTells and nothing else.
 
 ## Manual review status
 

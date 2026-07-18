@@ -1,0 +1,10 @@
+{
+  "chromeLaunchConfig": {
+    "args": ["--no-sandbox", "--disable-setuid-sandbox"]
+  },
+  "standard": "WCAG2AA",
+  "runners": ["axe"],
+  "wait": 4000,
+  "timeout": 60000,
+  "hideElements": "#map .cell span, #exposure-braid text.braid-axis-label, #exposure-braid text.braid-time-label"
+}

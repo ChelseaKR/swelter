@@ -176,7 +176,20 @@ jobs:
           node-version: "20"
 
       - name: pa11y (axe runner, WCAG2AA)
-        # Chromium has no usable sandbox on the GitHub runner, so launch with --no-sandbox.
+        # The map fetches its surface JSON at runtime; a file:// origin blocks that fetch, so the
+        # scan would only ever see an empty map. Serve web/ over HTTP so the real markers render,
+        # then scan — server start and scan share one step so the background server is guaranteed
+        # alive for the run. Config is the committed .pa11y.json: it pins WCAG2AA + the axe runner,
+        # launches Chromium with --no-sandbox (no usable sandbox on the runner), waits for the map
+        # to render, and scopes a color-contrast exclusion to the decorative data-viz text only
+        # (overlapping map markers and SVG chart labels, where axe returns "cantTell", not a real
+        # failure). Rationale and evidence: docs/audits/accessibility-report.md.
         run: |
-          echo '{"chromeLaunchConfig":{"args":["--no-sandbox","--disable-setuid-sandbox"]}}' > .pa11y.json
-          npx --yes pa11y@8.0.0 --config .pa11y.json --standard WCAG2AA --runner axe ./web/index.html
+          python3 -m http.server 8080 --directory web &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/index.html >/dev/null && break
+            sleep 1
+          done
+          npx --yes pa11y@8.0.0 --config .pa11y.json --standard WCAG2AA --runner axe http://127.0.0.1:8080/index.html

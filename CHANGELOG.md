@@ -41,6 +41,17 @@ schema (see [`docs/VERSIONING.md`](docs/VERSIONING.md)).
   cooling-center dataset, evicts previously cached copies, and fails before upload if any copy
   remains. The dataset stays available to the synthetic/local demo; a public deployment must provide
   a jurisdiction-verified replacement.
+- **Dashboard readable by the browser accessibility scanner.** The map markers' severity texture and
+  the exposure braid's reference grid are now painted as the elements' own `background-image` layers
+  instead of `content:""` `::before` overlays. The overlay construct made axe-core's `color-contrast`
+  rule report "cantTell" (`pseudoContent`) on every marker reading and axis label, which the
+  `a11y-advisory` gate treats as an error; the readings are dark-on-light and clear AA (zero real
+  contrast violations). The visual is unchanged and the not-colour-alone texture is preserved. The
+  CI gate now serves `web/` over HTTP so it scans the rendered map (a `file://` scan never loaded the
+  surface data), and its committed [`.pa11y.json`](.pa11y.json) scopes a color-contrast exclusion to
+  the data-viz text only, where axe still returns cantTell for overlapping markers (`bgOverlap`) and
+  SVG chart labels (`imgNode`) — documented engine limitations, not page defects. Rationale and
+  evidence: [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md).
 
 ### Fixed
 

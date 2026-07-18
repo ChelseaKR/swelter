@@ -882,18 +882,19 @@ input[type="range"] {
 .exposure-braid {
   isolation: isolate;
   min-height: 15rem;
-  background: var(--paper);
-}
-
-.exposure-braid::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  background:
-    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 3rem,
-    linear-gradient(90deg, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px) 0 0 / 4.5rem 100%;
-  content: "";
-  pointer-events: none;
+  /* The reference grid is a background layer on the braid itself, not a content-bearing ::before
+     overlay. A pseudo-element painted behind the SVG makes axe-core report color-contrast
+     "cantTell" (pseudoContent) on the axis/time labels; a real background layer keeps the paper
+     fill visible to the engine. */
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px);
+  background-size:
+    100% 3rem,
+    4.5rem 100%;
+  background-position: 0 0;
+  background-repeat: repeat;
 }
 
 .exposure-braid > * {
@@ -1376,23 +1377,19 @@ input[type="range"] {
   min-height: 2.65rem;
   border: 0.14rem solid var(--soot);
   border-radius: var(--radius-xs);
+  /* The severity texture is a background layer on the cell itself (over --cell-bg), not a
+     content-bearing ::before overlay. A pseudo-element painted between the fill and the reading
+     text makes axe-core report color-contrast "cantTell" (pseudoContent) even though the dark
+     reading on the light fill clears AA; keeping it a real background layer lets the engine see
+     the fill. The texture still carries severity non-visually alongside colour (hard rule 5). */
   background-color: var(--cell-bg);
-  background-image: none;
+  background-image: var(--cell-pattern);
+  background-size: var(--cell-pattern-size);
   color: var(--soot);
   box-shadow: 0 0.25rem 0.7rem rgb(23 33 31 / 0.2);
   font-family: var(--font-data);
   font-size: 0.84rem;
   font-variant-numeric: tabular-nums;
-}
-
-.cell::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  background-image: var(--cell-pattern);
-  background-size: var(--cell-pattern-size);
-  content: "";
-  pointer-events: none;
 }
 
 .cell > * {
@@ -1446,7 +1443,9 @@ input[type="range"] {
 
 .cell.provisional {
   border-style: dashed;
-  background: var(--mist-deep);
+  /* background-color, not the background shorthand: the shorthand would reset the --cell-pattern
+     background-image set on .cell and drop the provisional hatching. */
+  background-color: var(--mist-deep);
   color: var(--soot);
   --cell-pattern: repeating-linear-gradient(135deg, transparent 0 4px, var(--grid) 4px 7px);
 }
@@ -1968,7 +1967,7 @@ body > footer .settings-actions button {
   background-image: none;
 }
 
-:root[data-contrast="high"] .cell::before {
+:root[data-contrast="high"] .cell {
   background-image: none;
 }
 
