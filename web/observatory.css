@@ -1399,22 +1399,18 @@ input[type="range"] {
   border: 0.14rem solid var(--soot);
   border-radius: var(--radius-xs);
   background-color: var(--cell-bg);
-  background-image: none;
+  /* The severity texture is a background layer on the cell itself, not a content-bearing ::before
+     overlay. A pseudo-element painted between the fill and the reading text makes axe-core throw a
+     color-contrast TypeError (pseudoContent) on the map tab, even though the dark reading on the
+     light fill clears AA. Keeping it a real background layer lets the engine read the fill; the
+     texture still carries severity non-visually alongside colour (hard rule 5). */
+  background-image: var(--cell-pattern);
+  background-size: var(--cell-pattern-size);
   color: var(--soot);
   box-shadow: 0 0.25rem 0.7rem rgb(23 33 31 / 0.2);
   font-family: var(--font-data);
   font-size: 0.84rem;
   font-variant-numeric: tabular-nums;
-}
-
-.cell::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  background-image: var(--cell-pattern);
-  background-size: var(--cell-pattern-size);
-  content: "";
-  pointer-events: none;
 }
 
 .cell > * {
@@ -1479,7 +1475,9 @@ input[type="range"] {
 
 .cell.provisional {
   border-style: dashed;
-  background: var(--mist-deep);
+  /* background-color, not the shorthand: the shorthand would reset the --cell-pattern
+     background-image now set on .cell and drop the provisional hatching. */
+  background-color: var(--mist-deep);
   color: var(--soot);
   --cell-pattern: repeating-linear-gradient(135deg, transparent 0 4px, var(--grid) 4px 7px);
 }
@@ -2001,7 +1999,7 @@ body > footer .settings-actions button {
   background-image: none;
 }
 
-:root[data-contrast="high"] .cell::before {
+:root[data-contrast="high"] .cell {
   background-image: none;
 }
 
