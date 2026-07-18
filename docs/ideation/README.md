@@ -29,6 +29,7 @@ on ROADMAP Phase 5.2 or research-roadmap E4), it cites that item by ID and state
 | [`02-large-scale-fixes.md`](02-large-scale-fixes.md) | FIX-01…FIX-13 — deep structural fixes (correctness, licensing, equity of machine-readable surfaces, calibration lifecycle, scale, operability) |
 | [`03-expansions.md`](03-expansions.md) | EXP-01…EXP-15 — expansions in three horizons (deepen the core / adjacent capabilities / transformative bets) |
 | [`04-impact-and-sequencing.md`](04-impact-and-sequencing.md) | Impact×effort matrix over all IDs, dependencies, a Now/Next/Later sequence beyond the existing roadmaps, and the human/legal/SME/real-data gate list |
+| [`05-national-federation.md`](05-national-federation.md) | Does national expansion make sense (federation, not centralization), and a staged NF-01…NF-12 task backlog a lower-capability model can execute, with the human-only funding/legal/field milestones |
 
 ## How to read this honestly
 
