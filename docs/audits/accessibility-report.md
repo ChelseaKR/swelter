@@ -145,7 +145,14 @@ the deferred workspace pass; the boot fetches (catalogue, demo contract, basemap
 run in parallel to shorten the path to that paint. Measured CLS drops to <0.06 on `/sensors/` and stays
 <0.02 on `/`, both inside the 0.1 budget, and the observed largest-contentful paint (the Now answer)
 lands well within the 2.5s budget under a 4× CPU throttle. Lighthouse's Lantern LCP *simulation* is
-sensitive to the CPU load on the measuring host and should be read from an unloaded runner.
+sensitive to the CPU load on the measuring host and should be read from an unloaded runner. The `/`
+route's Lantern LCP nonetheless stays over the 2.5s lab budget (its LCP element is JS-rendered); per
+a maintainer decision the strict budget is kept rather than relaxed, so the `a11y-advisory`
+Lighthouse step remains red on `/` until the above-the-fold render is optimised without abandoning
+the single-file architecture (ADR 0004) — tracked in
+[#117](https://github.com/ChelseaKR/swelter/issues/117). Every accessibility check (axe, pa11y,
+WCAG 2.5.8 target-size, contrast) passes on both routes; this residual is a lab-performance item,
+not an accessibility defect.
 
 ## Regenerating this report
 
