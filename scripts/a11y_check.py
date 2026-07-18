@@ -7,7 +7,7 @@ pass and the manual NVDA/VoiceOver review documented in docs/accessibility/ACR.m
 *can* do, deterministically and with no browser, is hold the structural floor the README
 promises: a language, a single heading, a skip link, labelled controls, landmarks, no
 keyboard traps from positive tabindex, image text alternatives, and — the load-bearing one —
-a real data-table equivalent so the map is never the only way in.
+a semantic data-table shell that the browser suite checks for record equivalence with the map.
 
 Exit status is 0 when every check passes and 1 otherwise, with a per-check report.
 """
@@ -126,7 +126,7 @@ def _checks(page: Page, css: str) -> list[tuple[bool, str]]:
             f"a skip link targets an in-page id ({sorted(page.skip_link_targets)})",
         ),
         (unlabelled <= 0, f"every form control is labelled ({unlabelled} unlabelled)"),
-        (page.has_table, "a data-table equivalent to the map exists"),
+        (page.has_table, "a semantic data-table shell is present"),
         (
             page.imgs_with_alt == page.imgs_total,
             f"every <img> has alt ({page.imgs_with_alt}/{page.imgs_total})",

@@ -17,6 +17,7 @@ Exit status is 0 when every text file is UTF-8/ASCII and 1 otherwise.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -32,20 +33,28 @@ BINARY = "binary"
 def _tracked_files() -> list[str]:
     """Return every path tracked by git, NUL-delimited so filenames with spaces survive."""
     # Fixed argv, no shell, no user input -- a dev-time/CI gate script, not a network-facing path.
-    out = subprocess.run(  # noqa: S603
-        ["git", "-C", str(ROOT), "ls-files", "-z"],  # noqa: S607
+    git = shutil.which("git")
+    if git is None:
+        raise RuntimeError("i18n encoding gate requires git on PATH")
+    out = subprocess.run(  # noqa: S603 (#107)
+        [git, "-C", str(ROOT), "ls-files", "-z"],
         capture_output=True,
         check=True,
         text=True,
     ).stdout
-    return [p for p in out.split("\0") if p]
+    # A pre-commit working tree can contain tracked deletions. They are absent from the candidate
+    # artifact and `file` would otherwise report a misleading "cannot open" encoding failure.
+    return [p for p in out.split("\0") if p and (ROOT / p).is_file()]
 
 
 def _encodings(paths: list[str]) -> list[str]:
     """Return the mime-encoding of each path, one per input, in order (brief mode, no filename)."""
     # `paths` are git-tracked repo paths from `_tracked_files()`, not external input.
-    out = subprocess.run(  # noqa: S603
-        ["file", "-b", "--mime-encoding", "--", *paths],  # noqa: S607
+    file_command = shutil.which("file")
+    if file_command is None:
+        raise RuntimeError("i18n encoding gate requires file on PATH")
+    out = subprocess.run(  # noqa: S603 (#107)
+        [file_command, "-b", "--mime-encoding", "--", *paths],
         cwd=ROOT,
         capture_output=True,
         check=True,

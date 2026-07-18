@@ -20,6 +20,7 @@ htmlcov/
 *.egg-info/
 dist/
 build/
+mutants/
 
 # firmware build artifacts
 firmware/build/

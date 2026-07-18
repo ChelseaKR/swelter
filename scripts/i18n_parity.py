@@ -7,12 +7,9 @@ Spanish value left empty, is a hole a Spanish-speaking reader falls through at r
 check holds the floor the a11y gate assumes — that the two catalogs describe the *same* set of
 strings — so it cannot regress in a quiet PR.
 
-The neighborhood-alerts feed has its own, server-side catalog — ``swelter.i18n_alerts
-.ALERT_STRINGS`` — that bakes Spanish headlines and the JSON feed's ``note`` straight into
-``alerts.json`` / ``alerts.es.xml`` with no client-side rendering step. It is a hole exactly the
-same shape as the dashboard's: an EN key with no ES counterpart, or a blank ES value, ships as
-silent English (or nothing) to a Spanish-speaking subscriber. This gate checks both catalogs, so
-either one failing parity fails CI the same way.
+The neighborhood-alerts feed uses compiled gettext catalogs. Its extraction, key/placeholder
+parity, translation completeness, PO validation, and MO freshness are enforced separately by
+``scripts/gettext_catalog_check.py``; this script owns the dashboard MF2 resource parity.
 
 It is pure standard library, offline, and deterministic: it loads each catalog pair, flattens them
 to dotted leaf keys (so nested groups are compared recursively, not by top-level object), and
@@ -33,8 +30,6 @@ ROOT = Path(__file__).resolve().parent.parent
 I18N = ROOT / "web" / "i18n"
 EN = I18N / "en.json"
 ES = I18N / "es.json"
-
-sys.path.insert(0, str(ROOT / "src"))
 
 
 def _flatten(obj: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -103,20 +98,12 @@ def main() -> int:
             print(f"i18n: {path} not found", file=sys.stderr)
             return 1
 
-    from swelter.i18n_alerts import ALERT_STRINGS  # noqa: PLC0415 — needs sys.path set up first
-
-    failed = 0
-    failed += _check_catalog("web/i18n (dashboard)", _load(EN), _load(ES))
-    failed += _check_catalog(
-        "swelter.i18n_alerts (alerts feed)",
-        _flatten(ALERT_STRINGS["en"]),
-        _flatten(ALERT_STRINGS["es"]),
-    )
+    failed = _check_catalog("web/i18n (dashboard)", _load(EN), _load(ES))
 
     if failed:
         print(f"i18n: {failed} parity check(s) failed", file=sys.stderr)
         return 1
-    print("i18n: all catalogs at EN/ES key parity")
+    print("i18n: dashboard catalogs at EN/ES key parity")
     return 0
 
 

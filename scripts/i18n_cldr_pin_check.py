@@ -5,16 +5,15 @@ If a repo *bundles* CLDR/ICU locale data — via ``babel``/``pyicu`` on the Pyth
 CLDR-bearing package on the JS side — that data must be pinned to a fresh floor (``babel>=2.16``,
 CLDR/ICU ``>= 48.2``) so residents never read stale place, number, or date formatting.
 
-swelter today bundles no such dependency: its one runtime dependency is ``pyyaml``, its Python
-date output is fixed-format UTC ``strftime`` (not locale-aware), and the dashboard formats dates
-with the browser's built-in ``Intl.DateTimeFormat`` — whose CLDR/ICU is the browser's, kept fresh
-by the vendor and not pinnable here. So there is no in-repo version to assert and the gate passes
-by delegation: **G12 is N/A-until a bundled ICU/CLDR dependency exists** (see docs/I18N.md).
+swelter pins Babel for gettext catalog construction, so the Python-side floor is enforced here.
+The browser's MessageFormat 2 runtime delegates plural, number, and date locale behavior to native
+``Intl``; it does not bundle a CLDR data snapshot. The browser's CLDR/ICU is kept fresh by the
+vendor and is not pinnable in this repository.
 
 This script is the guard that makes that state durable rather than assumed: it scans
-``pyproject.toml`` (and ``web/package.json`` if one is ever added) for a CLDR/ICU-bearing
+``pyproject.toml`` and ``web/package.json`` for a CLDR/ICU-bearing
 dependency and, the moment one appears, enforces the version floor. Pure standard library
-(``tomllib``); exit status 0 when the pin invariant holds and 1 otherwise.
+(``tomllib``); exit status 0 when every bundled-data pin invariant holds and 1 otherwise.
 """
 
 from __future__ import annotations
