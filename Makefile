@@ -173,7 +173,7 @@ security-secrets:  ## Scan complete Git history with the pinned gitleaks CLI
 
 security-semgrep:  ## Run blocking Semgrep SAST and retain SARIF for Code Scanning
 	mkdir -p $(SECURITY_REPORT_DIR)
-	uv run --with semgrep==$(SEMGREP_VERSION) semgrep ci --config=p/default --config=p/python \
+	uv run --with semgrep==$(SEMGREP_VERSION) semgrep scan --error --config=p/default --config=p/python \
 		--severity=ERROR --severity=WARNING --sarif --output=$(SECURITY_REPORT_DIR)/semgrep.sarif
 
 security-workflows: workflow-policy  ## Run workflow SAST at HIGH severity
