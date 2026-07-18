@@ -43,6 +43,56 @@ def test_unplaced_node_is_excluded() -> None:
     assert surface.cells == ()
 
 
+def test_suspicious_only_cell_is_visible_provisional_and_flagged() -> None:
+    # A spike-flagged reading is the only evidence for the cell: it must still appear (not blank),
+    # provisional and carrying its QC verdict, so a smoke front is never dropped (ADR 0029).
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=420.0, qc="spike")], _CONFIG
+    )
+    assert len(surface.cells) == 1
+    cell = surface.cells[0]
+    assert cell.provisional is True
+    assert cell.qc_flags == ("spike",)
+    assert cell.mean == 420.0  # the flagged value is shown, not silently dropped
+
+
+def test_unmappable_reading_is_never_placed() -> None:
+    # Out-of-range (physically impossible) stays unmapped — not even provisional (ADR 0029).
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0, qc="range")], _CONFIG
+    )
+    assert surface.cells == ()
+
+
+def test_suspicious_reading_never_pulls_a_clean_mean() -> None:
+    # A clean provisional reading and a spike in the same cell/hour: the clean value wins the mean
+    # and the cell carries no QC flag; the spike is excluded, not averaged in (ADR 0029).
+    surface = aggregate.aggregate(
+        [
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=10.0,
+                qc="ok",
+                timestamp="2026-06-01T00:00:00Z",
+            ),
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=420.0,
+                qc="spike",
+                timestamp="2026-06-01T00:05:00Z",
+            ),
+        ],
+        _CONFIG,
+    )
+    assert len(surface.cells) == 1
+    cell = surface.cells[0]
+    assert cell.provisional is True
+    assert cell.qc_flags == ()
+    assert cell.mean == 10.0
+
+
 def _exposure(surface: aggregate.Surface) -> list[aggregate.CellReading]:
     return [c for c in surface.cells if c.parameter == aggregate.EXPOSURE]
 

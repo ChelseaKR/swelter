@@ -40,7 +40,8 @@ from typing import NamedTuple
 
 from .config import NetworkConfig
 from .models import (
-    QC_REJECTED,
+    QC_SUSPICIOUS,
+    QC_UNMAPPABLE,
     Observation,
     exposure_bounding_component,
     exposure_level,
@@ -101,6 +102,9 @@ class CellReading:
     uncertainty_note: str | None = None
     method: str | None = None  # calibration method(s) behind a confirmed value
     reference: str | None = None  # reference monitor(s) the value was calibrated against
+    # QC verdicts carried when a cell is built from suspicious (spike/flatline) readings because no
+    # cleaner value existed — empty for a trusted or clean-provisional cell (ADR 0029).
+    qc_flags: tuple[str, ...] = ()
     nodes: tuple[str, ...] = ()  # the node id(s) published into this cell (for the data download)
 
     def as_record(self) -> dict[str, object]:
@@ -254,6 +258,11 @@ class _Buckets(NamedTuple):
     provisional_vals: dict[tuple[str, str, str], list[float]]
     coords: dict[str, tuple[float, float]]
     cell_nodes: dict[str, set[str]]
+    # Suspicious (spike/flatline) readings and the verdict(s) that flagged them. Kept in their own
+    # lane so a spike never pulls a clean mean; surfaced only when they are the sole evidence for a
+    # cell/hour, provisional and flagged (ADR 0029).
+    suspicious_vals: dict[tuple[str, str, str], list[float]]
+    suspicious_flags: dict[tuple[str, str, str], set[str]]
 
 
 def _bucket_observations(
@@ -272,6 +281,8 @@ def _bucket_observations(
         defaultdict(list),
         {},
         defaultdict(set),
+        defaultdict(list),
+        defaultdict(set),
     )
     for obs in observations:
         if obs.parameter not in wanted:
@@ -279,8 +290,8 @@ def _bucket_observations(
         loc = locations.get(obs.node_id)
         if loc is None:
             continue
-        if obs.qc in QC_REJECTED:
-            continue  # never place a QC-rejected value on the map, even as provisional
+        if obs.qc in QC_UNMAPPABLE:
+            continue  # impossible or absent value — never placed, even provisionally (ADR 0029)
         lat, lon = loc
         cell_id = f"{lat:.6f},{lon:.6f}"
         b.coords[cell_id] = (lat, lon)
@@ -295,6 +306,11 @@ def _bucket_observations(
             ref = ref_by_node_param.get((obs.node_id, obs.parameter))
             if ref:
                 b.trusted_refs[key].add(monitor_label.get(ref, ref))
+        elif obs.qc in QC_SUSPICIOUS:
+            # Own lane so a spike never pulls a clean mean; surfaced only when it is the sole
+            # evidence for the cell/hour (ADR 0029).
+            b.suspicious_vals[key].append(obs.value)
+            b.suspicious_flags[key].add(obs.qc)
         else:
             b.provisional_vals[key].append(obs.value)
     return b
@@ -303,12 +319,14 @@ def _bucket_observations(
 def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
     """Reduce the bucketed accumulators to one :class:`CellReading` per (cell, hour, parameter)."""
     cells: list[CellReading] = []
-    for key in sorted(set(b.trusted_vals) | set(b.provisional_vals)):
+    for key in sorted(set(b.trusted_vals) | set(b.provisional_vals) | set(b.suspicious_vals)):
         cell_id, bucket, parameter = key
         lat, lon = b.coords[cell_id]
         trustworthy = b.trusted_vals.get(key, [])
+        clean_provisional = b.provisional_vals.get(key, [])
         method: str | None = None
         reference: str | None = None
+        qc_flags: tuple[str, ...] = ()
         if trustworthy:
             values = trustworthy
             provisional = False
@@ -325,11 +343,20 @@ def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
             )
             method = " / ".join(sorted(b.trusted_methods[key])) or None
             reference = " / ".join(sorted(b.trusted_refs[key])) or None
-        else:
-            values = b.provisional_vals[key]
+        elif clean_provisional:
+            # Uncalibrated but not flagged: provisional, no numeric uncertainty, no QC flag.
+            values = clean_provisional
             provisional = True
             uncertainty = None
             mean_member_sigma = None
+        else:
+            # Only suspicious readings remain: show them so the cell is not blank during an event,
+            # provisional and carrying the QC verdict(s) that flagged them (ADR 0029).
+            values = b.suspicious_vals[key]
+            provisional = True
+            uncertainty = None
+            mean_member_sigma = None
+            qc_flags = tuple(sorted(b.suspicious_flags.get(key, set())))
         mean = sum(values) / len(values)
         aqi: int | None = None
         category: str | None = None
@@ -355,6 +382,7 @@ def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
                 aqi_window=aqi_window,
                 method=method,
                 reference=reference,
+                qc_flags=qc_flags,
                 nodes=tuple(sorted(b.cell_nodes[cell_id])),
             )
         )
