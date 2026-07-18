@@ -1,6 +1,6 @@
 # Accessibility report
 
-Last verified: 2026-07-17. Final MF2 browser execution: pending in CI.
+Last verified: 2026-07-18. Final MF2 browser execution: pending in CI.
 Recheck cadence: each release, and on any change under `web/`.
 
 This is the committed accessibility report that audit E in
@@ -72,7 +72,7 @@ separately.
 
 ## Current automated evidence
 
-- `scripts/a11y_check.py`: 12/12 structural checks passed on 2026-07-17.
+- `scripts/a11y_check.py`: 12/12 structural checks passed on 2026-07-18.
 - The Playwright source enumerates visible keyboard targets across Map, List, and Table and samples
   `elementsFromPoint` to reject full focus obscuration.
 - The RTL assertion uses an actual Arabic fixture and checks direction, mirroring, overflow, and
@@ -108,16 +108,44 @@ Two supporting fixes make that allowlist honest rather than a silencer:
 
 The `target-size` engine error that axe throws on overlapping grid cells ("Reduce of empty array") is
 allowlisted as an engine error on any `.cell` (not only provisional cells); WCAG 2.5.8 geometry is
-proven directly by the dedicated 2.5.8 test.
+proven directly by the dedicated 2.5.8 test. With markers now declustered (below) the allowlist is a
+defensive safety net rather than a mask over crowding.
 
-**Known limitation — dense marker target size.** On the `/sensors/` route fixture (a Stuttgart-shaped
-cluster of ~150 provisional locations reprojected into a small extent) the map markers overlap below
-the 24px target-size floor, so axe reports `target-size`/`target-offset` on that route's Map view. The
-California route masks the same crowding by stacking every marker in one corner of the state outline
-(axe skips fully obscured targets). Because Map, List, and Table must expose the same record set,
-resolving it requires a product-level change — marker declustering, a wider map column, or render-shift
-stabilisation (the route also shows a measurable Lighthouse CLS) — rather than allowlisting a real
-target-size violation. This is tracked as remaining work, not remediated.
+## Dense marker target size — resolved
+
+On the `/sensors/` route fixture (a Stuttgart-shaped cluster of ~150 provisional locations reprojected
+into a small extent) the map markers previously reprojected on top of one another, so many
+`#map .cell` buttons fell below the WCAG 2.5.8 24px target-size/offset floor and axe reported serious
+`target-size`/`target-offset` on that route's Map view. The `/` route masked the same crowding by
+stacking every marker in one corner of the state outline (axe skips fully obscured targets), so both
+routes carried the defect.
+
+`renderMap` now runs a deterministic collision relaxation (`declutterPositions`) over the projected
+marker positions. It separates overlapping markers on their axis of least overlap until every 28px
+marker box clears its neighbours by at least 2px — each becomes an unobscured ≥24px WCAG 2.5.8 target —
+while keeping every marker near its true cell and treating the overlaid zoom/reset controls as a no-go
+rectangle so a marker is never obscured by them. No reading is dropped, merged, or hidden: `#map .cell`
+still enumerates the complete record set on both routes, and the equivalence-locked List and Table keep
+the exact coordinates (hard rule 5). Because the fix is geometric it holds in both colour schemes and at
+both viewport widths.
+
+- **Evidence.** The `axe across views` gate clears `target-size`/`target-offset` on both routes' Map
+  view in light and dark. The dedicated `all rendered views meet WCAG 2.5.8 geometry at desktop and
+  320px` test passes. The `Map, List, and Table expose the same complete record set on both routes`
+  test still matches every published cell per route, so declustering did not thin the map. Verified on
+  Node 22.12 across Chromium and Firefox.
+
+## Render-shift and load — /sensors/ CLS resolved
+
+The `/sensors/` route also showed a Lighthouse cumulative-layout-shift of 0.133 (over the 0.1 budget).
+The cause was the resident-facing **Now** card filling from its short HTML placeholders a frame later
+and shoving the blocks below it. The card's answer, temporal line, guidance, and status now reserve
+their rendered heights, and the Now card is painted in the first synchronous render pass rather than in
+the deferred workspace pass; the boot fetches (catalogue, demo contract, basemap, first snapshot) also
+run in parallel to shorten the path to that paint. Measured CLS drops to <0.06 on `/sensors/` and stays
+<0.02 on `/`, both inside the 0.1 budget, and the observed largest-contentful paint (the Now answer)
+lands well within the 2.5s budget under a 4× CPU throttle. Lighthouse's Lantern LCP *simulation* is
+sensitive to the CPU load on the measuring host and should be read from an unloaded runner.
 
 ## Regenerating this report
 

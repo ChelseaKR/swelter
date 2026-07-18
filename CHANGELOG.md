@@ -9,6 +9,20 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **Dense map markers are accessible targets (WCAG 2.5.8).** On a dense network the map previously
+  reprojected up to ~150 readings on top of one another, so many markers fell below the 24px
+  target-size/offset floor — a serious axe violation exposed on the `/sensors/` route and latent on
+  `/`. `renderMap` now runs a deterministic collision relaxation that separates overlapping markers on
+  their axis of least overlap until every 28px marker box clears its neighbours, keeps each marker near
+  its true cell, and routes them clear of the overlaid zoom/reset controls. No reading is dropped,
+  merged, or hidden: the map still exposes the complete record set and the equivalence-locked List and
+  Table keep exact coordinates. See
+  [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md).
+- **`/sensors/` layout stability (WCAG-adjacent, CLS).** The resident-facing Now card filled from short
+  HTML placeholders a frame late, shoving the blocks below it (Lighthouse CLS 0.133). Its answer,
+  temporal line, guidance, and status now reserve their heights, the card paints in the first
+  synchronous render pass, and the boot fetches run in parallel; measured CLS drops to <0.06 on
+  `/sensors/` and stays <0.02 on `/`.
 - **Dark-mode severity-chip contrast.** The table's AQI/heat severity chips inherited the scheme
   foreground (near-white in dark mode) over their light severity fill — a genuine contrast failure the
   chips' pattern was hiding from the contrast scanner. They now use the permanent dark `--severity-ink`
@@ -30,8 +44,8 @@ All notable changes to swelter are recorded here. The format follows
   tracks the current Spanish catalog, the record-set check keeps the published `label`, selection
   assertions target the pressable control, disabled controls are excluded from the focus-exposure sweep,
   and the map-reset transform assertion accepts Firefox's `translate(0px)` serialisation. See
-  [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md) for the rationale and the
-  remaining dense-marker target-size limitation on the `/sensors/` route.
+  [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md) for the rationale; the
+  dense-marker target-size defect it described on the `/sensors/` route is now fixed (see above).
 
 The dated `0.1.0` section is prepared release metadata; it does not assert that a Git tag or GitHub
 Release exists. Publication completes only after the annotated `v0.1.0` tag passes the release workflow.

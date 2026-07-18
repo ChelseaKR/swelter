@@ -172,6 +172,7 @@ const MAX_ZOOM = 14;
 const reduceMotionMQL = window.matchMedia("(prefers-reduced-motion: reduce)");
 let mapW = 0; // cached #map pixel size — measured on show/resize, never read per frame
 let mapH = 0;
+let markerFractions = new Map(); // cell_id → decluttered {left, bottom} from the last renderMap
 let mapVisible = false; // is the Map tab currently shown?
 let mapDirty = true; // does the (lazy) map need a rebuild before it is shown?
 let lastK = 1; // last --k written; a pure pan must not rewrite it (would repaint every marker)
@@ -2066,9 +2067,10 @@ function renderDistribution(rows) {
   restoreFocus?.focus({ preventScroll: true });
 }
 
-function renderObservatory(rows) {
+// `row` is the focus row already resolved by the synchronous `renderNow` in `render()`; the deferred
+// workspace reuses it for the braid instead of repainting the Now card a second time.
+function renderObservatory(rows, row) {
   renderRangeControls();
-  const row = renderNow(rows);
   renderExposureBraid(row);
   renderDistribution(rows);
   const emptyInspector = $("#inspector-empty");
@@ -2498,6 +2500,134 @@ function addCoolingOverlay(canvas, proj) {
   }
 }
 
+// Required clear box, in canvas pixels at zoom 1, around each reading marker: the dense-marker box is
+// 28px, so a 30px separation keeps a 2px gap between neighbours. Markers are axis-aligned squares, so
+// the relaxation separates them on whichever axis (x or y) they overlap least — Chebyshev separation,
+// not centre distance — which is what stops one marker from obscuring another below the WCAG 2.5.8
+// target-size floor. Comfortably clears the 24px floor too.
+const MARKER_MIN_SEPARATION = 30;
+
+// Keep a marker centre out of a forbidden rectangle (already padded by the marker half-size) by
+// sliding it to the nearest rectangle edge that still lands inside the map. Used so relaxed markers
+// never end up under the absolutely-positioned zoom/reset controls, which would obscure them below the
+// WCAG 2.5.8 target floor even though no two markers overlap. Mutates and returns the point.
+function pushOutOfRect(point, rect, minX, maxX, minY, maxY) {
+  if (point.x <= rect.left || point.x >= rect.right || point.y <= rect.top || point.y >= rect.bottom) {
+    return point;
+  }
+  const candidates = [
+    { x: rect.left, y: point.y, cost: point.x - rect.left },
+    { x: rect.right, y: point.y, cost: rect.right - point.x },
+    { x: point.x, y: rect.top, cost: point.y - rect.top },
+    { x: point.x, y: rect.bottom, cost: rect.bottom - point.y },
+  ]
+    .filter((c) => c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY)
+    .sort((a, b) => a.cost - b.cost);
+  if (candidates.length) {
+    point.x = candidates[0].x;
+    point.y = candidates[0].y;
+  }
+  return point;
+}
+
+// A dense network can reproject many readings into a tiny extent (e.g. the ~150 Sensor.Community
+// locations packed into a few hundred metres of Stuttgart), stacking markers on top of each other so
+// the lower ones fall below the WCAG 2.5.8 target-size/offset floor. This nudges only the colliding
+// markers apart with a deterministic collision relaxation seeded from their true projected position,
+// so every marker becomes a reachable target while the schematic keeps its overall shape. It never
+// drops or merges a reading: Map, List, and Table stay outcome-equivalent (hard rule 5) and the exact
+// coordinates always remain in the equivalence-locked list and table. Runs in canvas pixels at zoom 1
+// (the geometry the target-size checks measure), keeps markers clear of the overlaid map controls, and
+// returns left/bottom fractions aligned with rows.
+function declutterPositions(rows, proj, mapEl) {
+  const base = rows.map((row) => markerPos(row, proj));
+  const width = mapEl.clientWidth;
+  const height = mapEl.clientHeight;
+  // Hidden/unmeasured map (e.g. built while its tab was off-screen): keep the true positions; renderMap
+  // rebuilds once the tab is shown and the box is measurable.
+  if (!width || !height || base.length < 2) return base;
+  const sep = MARKER_MIN_SEPARATION;
+  const half = sep / 2;
+  const minX = half;
+  const maxX = Math.max(half, width - half);
+  const minY = half;
+  const maxY = Math.max(half, height - half);
+  // Forbidden zones (map-local, y from the top) that would obscure a marker, expanded by the marker
+  // half-size plus a small margin so the marker box — not just its centre — clears them.
+  const pad = half + 2;
+  const obstacles = mapControlObstacles(mapEl).map((rect) => ({
+    left: rect.left - pad,
+    right: rect.right + pad,
+    top: rect.top - pad,
+    bottom: rect.bottom + pad,
+  }));
+  const enforce = (point) => {
+    point.x = Math.min(maxX, Math.max(minX, point.x));
+    point.y = Math.min(maxY, Math.max(minY, point.y));
+    for (const rect of obstacles) pushOutOfRect(point, rect, minX, maxX, minY, maxY);
+    return point;
+  };
+  // Project to pixel centres (bottom fraction runs up from the lower edge). A sub-pixel deterministic
+  // spiral seed gives exactly-coincident markers a stable direction to separate along.
+  const points = base.map((position, index) => {
+    const point = {
+      x: position.left * width + Math.cos(index * 2.399963) * 0.6,
+      y: (1 - position.bottom) * height + Math.sin(index * 2.399963) * 0.6,
+    };
+    return enforce(point);
+  });
+  const count = points.length;
+  for (let iteration = 0; iteration < 400; iteration += 1) {
+    let moved = false;
+    for (let i = 0; i < count; i += 1) {
+      for (let j = i + 1; j < count; j += 1) {
+        const dx = points[j].x - points[i].x;
+        const dy = points[j].y - points[i].y;
+        const overlapX = sep - Math.abs(dx);
+        const overlapY = sep - Math.abs(dy);
+        if (overlapX <= 0 || overlapY <= 0) continue; // boxes already clear on one axis
+        // Separate along the axis of least overlap (smallest nudge). A deterministic per-index sign
+        // breaks ties for coincident markers so the layout is stable across renders.
+        if (overlapX <= overlapY) {
+          const dir = dx || (i % 2 ? 1 : -1);
+          const shift = (overlapX / 2) * Math.sign(dir);
+          points[i].x -= shift;
+          points[j].x += shift;
+        } else {
+          const dir = dy || (i % 2 ? 1 : -1);
+          const shift = (overlapY / 2) * Math.sign(dir);
+          points[i].y -= shift;
+          points[j].y += shift;
+        }
+        moved = true;
+      }
+      enforce(points[i]);
+    }
+    if (!moved) break;
+  }
+  return points.map((point) => ({ left: point.x / width, bottom: 1 - point.y / height }));
+}
+
+// The zoom/reset controls sit in an absolutely-positioned overlay above the map's top corner. Return
+// their bounds in map-local pixels (y measured from the top) so declutter can keep markers out from
+// under them. Returns an empty list if the overlay is absent or unmeasured.
+function mapControlObstacles(mapEl) {
+  const wrap = mapEl.closest(".map-wrap");
+  const controls = wrap && wrap.querySelector(".map-controls");
+  if (!controls) return [];
+  const mapRect = mapEl.getBoundingClientRect();
+  const rect = controls.getBoundingClientRect();
+  if (!rect.width || !rect.height) return [];
+  return [
+    {
+      left: rect.left - mapRect.left,
+      right: rect.right - mapRect.left,
+      top: rect.top - mapRect.top,
+      bottom: rect.bottom - mapRect.top,
+    },
+  ];
+}
+
 function renderMap(rows) {
   const map = $("#map");
   const focusedCell = document.activeElement?.closest?.("#map .cell")?.dataset?.cell;
@@ -2526,8 +2656,11 @@ function renderMap(rows) {
   const canvas = document.createElement("div");
   canvas.className = "map-canvas";
   if (state.basemap) canvas.appendChild(buildBasemap(proj));
+  const layout = declutterPositions(rows, proj, map);
+  markerFractions = new Map();
   let restoreFocus = null;
-  for (const row of rows) {
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "cell";
@@ -2547,7 +2680,8 @@ function renderMap(rows) {
     }
     if (row.provisional) btn.classList.add("provisional");
     if (row.cell_id === state.selected) btn.classList.add("selected");
-    const pos = markerPos(row, proj);
+    const pos = layout[index];
+    markerFractions.set(row.cell_id, pos);
     btn.style.left = `${pos.left * 100}%`;
     btn.style.bottom = `${pos.bottom * 100}%`;
     btn.setAttribute("aria-label", describe(row));
@@ -2682,7 +2816,9 @@ function zoomToCell(cellId, animate) {
     applyMapTransform(animate);
     return;
   }
-  const pos = markerPos(row, mapProjection(rows));
+  // Center on the marker's actual (decluttered) position so zoom-to-cell lands on the drawn dot, not
+  // its pre-nudge projection; fall back to the raw projection if the cache is cold.
+  const pos = markerFractions.get(cellId) || markerPos(row, mapProjection(rows));
   const k = Math.min(MAX_ZOOM, Math.max(state.mapView.zoom, 6));
   const px = pos.left * mapW; // marker x in canvas px at scale 1
   const py = (1 - pos.bottom) * mapH; // bottom fraction → top-down px
@@ -3791,6 +3927,11 @@ function render() {
   const rows = current();
   $("#status").textContent = t("status", { n: formatNumber(rows.length) });
   renderHeadline();
+  // Paint the resident-facing "now" answer synchronously, before the deferred evidence workspace. It
+  // is the above-the-fold Largest Contentful element, so filling it here (rather than a frame later)
+  // both lands its final height in the first layout — no late reflow / cumulative layout shift — and
+  // improves LCP. The deferred workspace reuses this focus row for the braid rather than repainting it.
+  const focusRow = renderNow(rows);
   updateLegend();
   $("#main")?.setAttribute("aria-busy", "true");
   document.documentElement.removeAttribute("data-render-ready");
@@ -3805,7 +3946,7 @@ function render() {
       renderCoolingCenters();
       renderSettingsState();
       renderOverview();
-      renderObservatory(rows);
+      renderObservatory(rows, focusRow);
       renderActiveRepresentation(rows);
       renderDetail();
       syncPlay();
@@ -4424,18 +4565,31 @@ function wireSourceSwitch() {
 }
 
 async function init() {
-  // Static builds publish this file; a live server does not. One positive capability check replaces
-  // five guaranteed 404s against nonexistent GitHub Pages /api/* routes.
-  state.demo = await loadDemoContract();
+  const prefs = loadPrefs();
+  const startLang = prefs.lang === "es" ? "es" : "en"; // restore the reader's language
+  // Start the independent boot fetches together so the largest-contentful-paint is not gated by a
+  // chain of sequential round-trips: the demo contract, string catalogue, and basemap have no
+  // interdependency. The surface snapshot waits only for the demo probe, which decides its URL — a
+  // live server must not eat a speculative fetch of the static fallback. Static builds publish
+  // demo.json; a live server does not — one positive capability check replaces five guaranteed 404s
+  // against nonexistent /api/* routes.
+  const demoReady = loadDemoContract();
+  const stringsReady = loadStrings(startLang);
+  const basemapReady = loadBasemap();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker
       .register("sw.js")
       .then((reg) => reg.update())
       .catch(() => {});
   }
-  const prefs = loadPrefs();
-  const startLang = prefs.lang === "es" ? "es" : "en"; // restore the reader's language
-  const stringsLoaded = await loadStrings(startLang);
+  state.demo = await demoReady;
+  // Fast first paint from a 1-hour snapshot, then enrich with history in the background (F16).
+  const snapshotReady = isStaticDeployment()
+    ? fetchSurface("sample-surface.json")
+    : (async () =>
+        (await fetchSurface("api/surface.json?hours=1")) ||
+        (await fetchSurface("sample-surface.json")))();
+  const stringsLoaded = await stringsReady;
   const effectiveLang = stringsLoaded ? startLang : document.documentElement.lang || "en";
   if (stringsLoaded && startLang !== "en") localizeDocumentMetadata();
   const langSel = $("#lang-select");
@@ -4448,7 +4602,6 @@ async function init() {
   applyTextScale(Number(prefs.textStep) || 0); // restore saved text size (no status announce at boot)
   $("#display-status").textContent = "";
   setContrast(prefs.contrast === true);
-  await loadBasemap();
   wireTabs();
   wirePrintTable();
   wireSectionNavigation();
@@ -4462,12 +4615,11 @@ async function init() {
   wireMap();
   // Phones/touch keep the low-friction List; larger screens open the linked map-first workspace.
   setView(smallScreen() ? "tab-list" : "tab-map");
-
-  // Fast first paint from a 1-hour snapshot, then enrich with history in the background (F16).
-  const snapshot = isStaticDeployment()
-    ? await fetchSurface("sample-surface.json")
-    : (await fetchSurface("api/surface.json?hours=1")) ||
-      (await fetchSurface("sample-surface.json"));
+  // Await the snapshot and the basemap (both already in flight) before the first render, so the
+  // basemap-fit map box is sized to the geography on the first paint with no late reflow. The basemap
+  // is smaller than the surface, so on the basemap route it never extends the critical path.
+  const snapshot = await snapshotReady;
+  await basemapReady;
   if (!snapshot) {
     $("#status").textContent = t("no-data");
     $("#time-slider").setAttribute("aria-disabled", "true");

@@ -537,6 +537,10 @@ main {
 }
 
 .now-reading {
+  /* Reserve the resident answer's height so filling it from its HTML placeholder does not grow the
+     card and shove the blocks below it (a large cumulative layout shift). Sized to the rendered
+     English default the metric measures; content settles within it rather than pushing siblings. */
+  min-height: 9.5rem;
   margin: clamp(1.25rem, 3vw, 2.5rem) 0 0;
   color: var(--soot);
   font-family: var(--font-data);
@@ -585,6 +589,8 @@ main {
 }
 
 .now-context {
+  /* Reserve the temporal/contrast line so it does not grow the card on first fill (see .now-reading). */
+  min-height: 6.5rem;
   max-width: 48ch;
   margin: 0.65rem 0 0;
   color: var(--muted);
@@ -596,6 +602,7 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+  min-height: 2rem;
   margin-top: 0.8rem;
 }
 
@@ -606,6 +613,8 @@ main {
 }
 
 .now-guidance {
+  /* Reserve the guidance line's height so its first fill does not reflow the card (see .now-reading). */
+  min-height: 4.5rem;
   position: relative;
   margin: 1.25rem 0 0;
   padding: 1rem 0 0 1.1rem;
@@ -2142,6 +2151,17 @@ body > footer .settings-actions button {
 
   .now-reading {
     font-size: clamp(3rem, 14vw, 5rem);
+  }
+
+  /* Narrow columns wrap the resident answer, temporal line, and guidance onto more lines, so reserve
+     the taller mobile heights to keep the first fill from reflowing the card (see .now-reading). */
+  .now-context,
+  .now-guidance {
+    min-height: 8rem;
+  }
+
+  .now-status {
+    min-height: 4rem;
   }
 
   .now-find {

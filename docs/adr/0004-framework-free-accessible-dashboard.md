@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-06-16
 - Deciders: Chelsea Kelly-Reif
-- **Amended:** 2026-07-16
+- **Amended:** 2026-07-16, 2026-07-18
 - Build/runtime-dependency posture superseded by: ADR 0026
 
 ## Context
@@ -49,6 +49,21 @@ renderer draws only published buckets, leaves missing buckets as gaps, and shows
 published uncertainty and provisional state directly. Desktop opens Map first;
 narrow screens retain the lower-friction List default. The extra stylesheet is a
 progressive visual layer; there are still no runtime dependencies or build output.
+
+The 2026-07-18 amendment settles how the schematic map stays a valid WCAG 2.5.8
+target surface when a dense network reprojects many readings into a tiny extent
+(e.g. ~150 Sensor.Community locations inside a few hundred metres of Stuttgart),
+stacking markers below the 24px target-size floor. Rather than thin the fixture
+(fragile) or hide markers from the map (which would break the Map/List/Table
+outcome-equivalence in invariant 5), `renderMap` declusters in place: a
+deterministic collision relaxation separates overlapping markers on their axis of
+least overlap until each 28px marker box is an unobscured ≥24px target, keeps each
+marker near its true projected cell, and routes markers clear of the overlaid
+zoom/reset controls. Every reading keeps its own marker, so the map still exposes
+the complete record set and the equivalence-locked Table and List remain the exact
+positional record. The map stays a schematic, framework-free, dependency-free
+positional layout — the relaxation is a few lines of hand-written geometry, not a
+mapping or force-layout library.
 
 ## Consequences
 
