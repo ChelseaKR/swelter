@@ -1,5 +1,5 @@
 {
-  "app": "python3 app.py",
+  "app": "uv run --project ../.. --group infra python app.py",
   "watch": {
     "include": ["**"],
     "exclude": [".venv", "cdk.out", "**/__pycache__"]

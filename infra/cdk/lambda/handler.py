@@ -27,9 +27,7 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
     Replace the body of the dispatch with a call into the swelter package once it is bundled. Until
     then this returns a health response so the stack can be deployed and exercised end to end.
     """
-    method = (
-        event.get("requestContext", {}).get("http", {}).get("method", "GET")
-    )
+    method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
     path = event.get("rawPath", "/")
 
     # Read-only by construction: anything other than GET is refused, the same as the stdlib server.
@@ -46,7 +44,9 @@ def handler(event: dict[str, Any], _context: object) -> dict[str, Any]:
         501,
         {
             "error": "not wired up",
-            "hint": "bundle the swelter package + a read-only store snapshot; see infra/cdk/README.md",
+            "hint": (
+                "bundle the swelter package + a read-only store snapshot; see infra/cdk/README.md"
+            ),
         },
     )
 
