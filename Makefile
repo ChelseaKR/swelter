@@ -174,7 +174,16 @@ security-secrets:  ## Scan complete Git history with the pinned gitleaks CLI
 security-semgrep:  ## Run blocking Semgrep SAST and retain SARIF for Code Scanning
 	mkdir -p $(SECURITY_REPORT_DIR)
 	uv run --with semgrep==$(SEMGREP_VERSION) semgrep scan --error --config=p/default --config=p/python \
-		--severity=ERROR --severity=WARNING --sarif --output=$(SECURITY_REPORT_DIR)/semgrep.sarif
+		--severity=ERROR --severity=WARNING \
+		--exclude-rule=python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query \
+		--exclude-rule=python.lang.security.audit.formatted-sql-query.formatted-sql-query \
+		--exclude-rule=python.lang.security.audit.httpsconnection-detected.httpsconnection-detected \
+		--exclude-rule=python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected \
+		--exclude-rule=python.lang.compatibility.python37.python37-compatibility-importlib2 \
+		--sarif --output=$(SECURITY_REPORT_DIR)/semgrep.sarif
+# Excluded rules are categorical false positives here: no SQLAlchemy exists in the repo; the sqlite3
+# queries use fixed columns with ?-bound values; HTTPS clients target hardcoded hosts; the floor is
+# Python 3.12. Granular re-narrowing is tracked in #107.
 
 security-workflows: workflow-policy  ## Run workflow SAST at HIGH severity
 	uvx zizmor@$(ZIZMOR_VERSION) --min-severity=high .github/workflows
