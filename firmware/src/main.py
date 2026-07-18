@@ -120,8 +120,6 @@ class MqttForwarder:
     def _connect(self):
         if self._client is not None:
             return self._client
-        import json as _json  # noqa: F401  (used by send; imported here to fail fast if missing)
-
         from umqtt.simple import MQTTClient  # MicroPython MQTT client
 
         client = MQTTClient(self.client_id, self.host, port=self.port)
@@ -145,9 +143,7 @@ class MqttForwarder:
 def build_transport(cfg):
     """Construct the configured transport. ``client_id`` is the node_id, the only identifier sent."""
     if cfg.get("transport") == "mqtt":
-        return MqttForwarder(
-            cfg["mqtt_host"], cfg["mqtt_port"], cfg["mqtt_topic"], cfg["node_id"]
-        )
+        return MqttForwarder(cfg["mqtt_host"], cfg["mqtt_port"], cfg["mqtt_topic"], cfg["node_id"])
     return HttpForwarder(
         cfg["ingest_url"], node_id=cfg["node_id"], key_hex=cfg.get("ingest_key", "")
     )

@@ -18,7 +18,7 @@ no opaque library:
   parameter, each entry naming the version that produced it. Recalibrating a node is a data
   change with a diff and an audit trail.
 * **Honest error bars.** Every calibrated value carries the residual standard deviation as its
-  1-σ uncertainty. A node with no correction stays raw, and the map shows it as provisional.
+  one-sigma uncertainty. A node with no correction stays raw, and the map shows it as provisional.
 * **Reproducible.** Coefficients are rounded to a fixed precision, so re-running ``fit`` on the
   committed co-location data reproduces the published registry byte-for-byte. Anyone can check
   the calibration instead of trusting it.
@@ -201,7 +201,7 @@ def _design_row(pair: TrainingPair, predictors: tuple[str, ...]) -> list[float]:
 def _solve(matrix: list[list[float]], rhs: list[float]) -> list[float]:
     """Solve a small linear system by Gaussian elimination with partial pivoting."""
     n = len(rhs)
-    a = [row[:] + [rhs[i]] for i, row in enumerate(matrix)]
+    a = [[*row, rhs[i]] for i, row in enumerate(matrix)]
     for col in range(n):
         pivot = max(range(col, n), key=lambda r: abs(a[r][col]))
         if abs(a[pivot][col]) < 1e-12:

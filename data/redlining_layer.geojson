@@ -3,7 +3,7 @@
   "metadata": {
     "license": "CC BY-NC-SA 4.0",
     "attribution": "Illustrative historical-redlining sample for the swelter demo network.",
-    "source": "Illustrative sample placed on the synthetic demo network's published grid cells. NOT a real HOLC determination for this fictional location. A real deployment replaces this with actual digitized HOLC grades for its jurisdiction from Mapping Inequality (only cities HOLC surveyed in 1935-1940 are covered — many places have no HOLC map at all, and that absence should be shown as 'no data', never as an assumed grade) — see docs/decisions/0014-exposure-brief-and-equity-context.md.",
+    "source": "Illustrative sample placed on the synthetic demo network's published grid cells. NOT a real HOLC determination for this fictional location. A real deployment replaces this with actual digitized HOLC grades for its jurisdiction from Mapping Inequality (only cities HOLC surveyed in 1935-1940 are covered — many places have no HOLC map at all, and that absence should be shown as 'no data', never as an assumed grade) — see docs/adr/0018-exposure-brief-and-equity-context.md.",
     "last_verified": "2026-07-09"
   },
   "features": [

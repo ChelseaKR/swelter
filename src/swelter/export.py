@@ -13,11 +13,13 @@ import csv
 import io
 import json
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 from .calibrate import CorrectionRegistry
 from .models import RAW, Observation, parse_timestamp
 from .qc import Gap
+
+TermsKey = str | tuple[str, str] | tuple[str, str, str]
 
 _CSV_FIELDS = (
     "node_id",
@@ -25,6 +27,7 @@ _CSV_FIELDS = (
     "parameter",
     "value",
     "unit",
+    "source",
     "calibration",
     "qc",
     "uncertainty",
@@ -54,43 +57,65 @@ def _csv_safe(value: object) -> object:
     return value
 
 
-def to_records(observations: Iterable[Observation]) -> list[dict[str, object]]:
-    return [
-        {
-            "node_id": o.node_id,
-            "timestamp": o.timestamp,
-            "parameter": o.parameter,
+def to_records(
+    observations: Iterable[Observation],
+    *,
+    terms_by_observation: Mapping[TermsKey, Mapping[str, str]] | None = None,
+) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
+    for observation in observations:
+        record: dict[str, object] = {
+            "node_id": observation.node_id,
+            "timestamp": observation.timestamp,
+            "parameter": observation.parameter,
             # A non-finite value would serialise as invalid JSON (NaN/Infinity tokens); map it
             # to null. Ingest rejects these, so this is belt-and-suspenders for direct callers.
-            "value": o.value if math.isfinite(o.value) else None,
-            "unit": o.unit,
-            "calibration": o.calibration,
-            "qc": o.qc,
-            "uncertainty": o.uncertainty,
+            "value": observation.value if math.isfinite(observation.value) else None,
+            "unit": observation.unit,
+            "source": observation.source,
+            "calibration": observation.calibration,
+            "qc": observation.qc,
+            "uncertainty": observation.uncertainty,
             # An explicit status so a downloader needn't infer trust from the calibration string.
-            "trustworthy": o.is_trustworthy,
+            "trustworthy": observation.is_trustworthy,
         }
-        for o in observations
-    ]
+        node_terms = None
+        if terms_by_observation is not None:
+            node_terms = terms_by_observation.get(
+                (observation.node_id, observation.timestamp, observation.source)
+            )
+            if node_terms is None:
+                node_terms = terms_by_observation.get((observation.node_id, observation.timestamp))
+            if node_terms is None:
+                node_terms = terms_by_observation.get(observation.node_id)
+        if node_terms is not None:
+            record["data_license"] = node_terms["license"]
+            record["data_attribution"] = node_terms["attribution"]
+        records.append(record)
+    return records
 
 
 def to_csv(
     observations: Iterable[Observation],
     *,
-    license: str = DEFAULT_LICENSE,
+    license: str | None = None,
     attribution: str | None = None,
+    terms_by_observation: Mapping[TermsKey, Mapping[str, str]] | None = None,
 ) -> str:
+    items = list(observations)
+    if license is None or not license.strip():
+        raise ValueError("export requires an explicit data license")
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=_CSV_FIELDS)
     writer.writeheader()
-    for record in to_records(observations):
+    for record in to_records(items, terms_by_observation=terms_by_observation):
         row = {
             **record,
             # Keep provenance in-band without inventing non-standard comment lines before the
             # header. Repeating it per row makes an extracted subset self-describing and leaves
             # the result readable by ordinary csv.DictReader/pandas consumers.
-            "data_license": license,
-            "data_attribution": attribution or "",
+            "data_license": record.get("data_license", license),
+            "data_attribution": record.get("data_attribution", attribution or ""),
         }
         writer.writerow({key: _csv_safe(value) for key, value in row.items()})
     return buffer.getvalue()
@@ -100,13 +125,17 @@ def to_json(
     observations: Iterable[Observation],
     *,
     indent: int | None = None,
-    license: str = DEFAULT_LICENSE,
+    license: str | None = None,
     attribution: str | None = None,
+    terms_by_observation: Mapping[TermsKey, Mapping[str, str]] | None = None,
 ) -> str:
+    items = list(observations)
+    if license is None or not license.strip():
+        raise ValueError("export requires an explicit data license")
     payload: dict[str, object] = {"license": license}
     if attribution:
         payload["attribution"] = attribution
-    payload["observations"] = to_records(observations)
+    payload["observations"] = to_records(items, terms_by_observation=terms_by_observation)
     return json.dumps(payload, indent=indent, allow_nan=False)
 
 
@@ -141,7 +170,7 @@ def summarize(
         for version in versions:
             family = version.rsplit(".", 1)[0]
             families[family] = families.get(family, 0) + 1
-        applied = "; ".join(f"{family} ×{count}" for family, count in sorted(families.items()))
+        applied = "; ".join(f"{family} x{count}" for family, count in sorted(families.items()))
         lines.append(f"         calibration applied: {applied}")
     gap_note = ""
     if gaps:

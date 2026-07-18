@@ -27,6 +27,13 @@ from typing import Final
 
 #: Calibration sentinel for an uncorrected reading.
 RAW: Final = "raw"
+SOURCE_NATIVE: Final = "native"
+SOURCE_OPENAQ: Final = "openaq"
+SOURCE_OPENMETEO: Final = "openmeteo"
+SOURCE_SENSOR_COMMUNITY: Final = "sensor-community"
+KNOWN_SOURCES: Final[frozenset[str]] = frozenset(
+    {SOURCE_NATIVE, SOURCE_OPENAQ, SOURCE_OPENMETEO, SOURCE_SENSOR_COMMUNITY}
+)
 
 
 @dataclass(frozen=True)
@@ -77,13 +84,14 @@ class Observation:
     parameter: str
     value: float
     unit: str
+    source: str = SOURCE_NATIVE
     calibration: str = RAW
     qc: str = QC_OK
     uncertainty: float | None = None  # 1-sigma in `unit`, set when calibrated
 
-    def key(self) -> tuple[str, str, str, str]:
+    def key(self) -> tuple[str, str, str, str, str]:
         """Identity for idempotent storage: same key ⇒ same logical observation."""
-        return (self.node_id, self.timestamp, self.parameter, self.calibration)
+        return (self.node_id, self.timestamp, self.parameter, self.source, self.calibration)
 
     def content_hash(self) -> str:
         """Stable SHA-256 over the value-bearing fields, for integrity (dedup is key-based)."""
@@ -94,6 +102,7 @@ class Observation:
                 self.parameter,
                 self.value,
                 self.unit,
+                self.source,
                 self.calibration,
                 self.qc,
                 self.uncertainty,
@@ -180,7 +189,7 @@ def nowcast_concentration(concentrations: Sequence[float]) -> float | None:
     ``sum(w**i * c_i) / sum(w**i)`` for ``i`` counted in hours-ago from the most recent reading
     (``i = 0``), so older hours are discounted relative to the current one.
 
-    See EPA/AirNow's "Technical Assistance Document for the Reporting of Daily Air Quality – the
+    See EPA/AirNow's "Technical Assistance Document for the Reporting of Daily Air Quality - the
     Air Quality Index (AQI)" (NowCast appendix) and the AirNow NowCast formula description
     (airnow.gov). This is decision-support, matching the AQI's non-regulatory framing (ADR 0009),
     not the official 24-hour AQI.
@@ -272,7 +281,7 @@ _HEAT_BANDS: Final[tuple[tuple[float, str], ...]] = (
     (51.1, "Extreme Danger"),
 )
 
-#: PM2.5 AQI category → a 0–4 air concern level, matched to the heat scale so the two hazards sit
+#: PM2.5 AQI category → a 0-to-4 air concern level, matched to the heat scale so the two hazards sit
 #: on one ordinal. "Very Unhealthy" and "Hazardous" both top out at 4 (the scale's ceiling).
 _AIR_CONCERN: Final[dict[str, int]] = {
     "Good": 0,
@@ -283,14 +292,14 @@ _AIR_CONCERN: Final[dict[str, int]] = {
     "Hazardous": 4,
 }
 
-#: The five combined heat-and-air exposure levels, indexed by the 0–4 ordinal.
+#: The five combined heat-and-air exposure levels, indexed by the 0-to-4 ordinal.
 EXPOSURE_LEVELS: Final[tuple[str, ...]] = ("Minimal", "Low", "Elevated", "High", "Extreme")
 
 
 def heat_index_category(heat_index_c: float) -> tuple[int, str]:
-    """NWS heat-index category as a 0–4 concern level and its name.
+    """NWS heat-index category as a 0-to-4 concern level and its name.
 
-    0 is ``"None"`` (below the 26.7 °C / 80 °F Caution floor); 1–4 are Caution, Extreme Caution,
+    0 is ``"None"`` (below the 26.7 °C / 80 °F Caution floor); 1 to 4 are Caution, Extreme Caution,
     Danger, Extreme Danger. NaN is rejected so a missing reading cannot pose as a measurement.
     """
     if math.isnan(heat_index_c):
@@ -313,7 +322,7 @@ def _component_levels(heat_index_c: float, aqi_category: str) -> tuple[int, int]
 def exposure_level(heat_index_c: float, aqi_category: str) -> tuple[int, str, bool]:
     """Combine a heat-index value and a PM2.5 AQI category into one exposure level.
 
-    Returns ``(level, name, compound)``: ``level`` is the 0–4 ordinal, ``name`` the matching
+    Returns ``(level, name, compound)``: ``level`` is the 0-to-4 ordinal, ``name`` the matching
     :data:`EXPOSURE_LEVELS` entry. The level is the **higher** of the heat and air concern — the
     two hazards are placed on one ordinal, never blended into a fabricated number — and
     ``compound`` is true when heat *and* air are each at least the mid (level-2) tier, the joint
@@ -330,7 +339,7 @@ def exposure_bounding_component(heat_index_c: float, aqi_category: str) -> str:
     """Which axis determines `exposure_level`'s ordinal: ``"heat"``, ``"air"``, or ``"both"``.
 
     Exposure's ``mean`` is an ordinal level, not a physical quantity with its own sigma —
-    fabricating a σ for it would misrepresent that. So instead of a number, the exposure cell
+    fabricating a sigma for it would misrepresent that. So instead of a number, the exposure cell
     publishes *which* component bounds the level, letting a reader go look at that component's
     real uncertainty (or provisional flag) directly. ``"both"`` marks a tie, which is also exactly
     the ``compound`` condition's boundary.

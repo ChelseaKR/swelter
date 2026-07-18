@@ -13,7 +13,7 @@ only one, and this isn't it).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 # -- GF(256) arithmetic (primitive polynomial 0x11D), for Reed-Solomon --------------------------
 
@@ -354,7 +354,7 @@ def _place_data(matrix: list[list[int]], reserved: list[list[bool]], bits: list[
         right -= 2
 
 
-def _mask_fn(pattern: int):  # type: ignore[no-untyped-def]
+def _mask_fn(pattern: int) -> Callable[[int, int], bool]:
     return {
         0: lambda r, c: (r + c) % 2 == 0,
         1: lambda r, c: r % 2 == 0,

@@ -29,10 +29,7 @@ Two power-loss properties make the backlog survive an abrupt reset, not just a c
 
 from __future__ import annotations
 
-try:  # MicroPython and CPython both provide json; import at module load is safe on both.
-    import json
-except Exception:  # pragma: no cover - json is always present
-    json = None  # type: ignore[assignment]
+import json
 
 
 def _default_sleep(seconds):

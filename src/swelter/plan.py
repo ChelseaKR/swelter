@@ -18,7 +18,7 @@ are already public record, so no grid-snap applies to them.
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, cast
 
 from .config import NetworkConfig, snap_to_grid
 
@@ -89,8 +89,9 @@ def simulate_add_node(
     located_refs = [m for m in config.reference_monitors if m.lat is not None and m.lon is not None]
     nearest_reference: dict[str, Any] | None = None
     for monitor in located_refs:
-        m_lat, m_lon = monitor.lat, monitor.lon
-        assert m_lat is not None and m_lon is not None  # noqa: S101 (located_refs filter)
+        # ``located_refs`` has already excluded missing coordinates. Preserve that narrowing for
+        # the type checker without relying on an assertion in production code.
+        m_lat, m_lon = cast(float, monitor.lat), cast(float, monitor.lon)
         distance = haversine_m(lat, lon, m_lat, m_lon)
         if nearest_reference is None or distance < nearest_reference["distance_m"]:
             nearest_reference = {"monitor_id": monitor.monitor_id, "distance_m": round(distance, 1)}

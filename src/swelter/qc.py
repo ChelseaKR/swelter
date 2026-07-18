@@ -15,6 +15,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 from statistics import median, pstdev
 
@@ -139,7 +140,7 @@ def detect_gaps(
     limit = expected_interval_s * tolerance
     for (node_id, parameter), series in grouped.items():
         series.sort(key=lambda o: parse_timestamp(o.timestamp))
-        for prev, cur in zip(series, series[1:], strict=False):
+        for prev, cur in pairwise(series):
             delta = (
                 parse_timestamp(cur.timestamp) - parse_timestamp(prev.timestamp)
             ).total_seconds()
