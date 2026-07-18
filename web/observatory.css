@@ -612,6 +612,15 @@ main {
   background: var(--mist-deep);
 }
 
+/* A flagged reading is provisional AND marked suspicious by automatic QC (spike/flatline). It reads
+   distinctly from a plain provisional through a dotted edge and underline, never through color alone
+   (ADR 0029). The flagged rule follows the provisional one so it wins on an equally specific match. */
+.now-primary[data-flagged="true"] #now-trust {
+  border-style: dotted;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+}
+
 .now-guidance {
   /* Reserve the guidance line's height so its first fill does not reflow the card (see .now-reading). */
   min-height: 4.5rem;
@@ -682,6 +691,12 @@ main {
   border-style: dashed;
   color: var(--muted);
   background: var(--mist-deep);
+}
+
+.status-chip.flagged {
+  border-style: dotted;
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
 }
 
 .status-chip[data-state="warning"],
@@ -1614,6 +1629,12 @@ td .tag:is(
   .heat-1, .heat-2, .heat-3, .heat-4, .heat-5
 ) {
   color: var(--severity-ink);
+}
+
+/* Flagged (suspicious-QC) status in the table, distinguished by a dotted underline, not color. */
+td .tag.flagged {
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
 }
 
 /* Inspector and evidence ------------------------------------------------ */

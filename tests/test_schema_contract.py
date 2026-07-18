@@ -81,6 +81,25 @@ def test_freshly_aggregated_surface_matches_schema() -> None:
     _validate(payload, "sample-surface.schema.json")
 
 
+def test_surface_with_qc_flags_matches_schema() -> None:
+    """A suspicious-only cell emits `qc_flags` (ADR 0029); the fresh emitter output must still
+    validate, so the new field stays inside the shared Python↔JS contract (FIX-07). The JS side of
+    this same assertion is `web/tests/schema-contract.test.js`."""
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=420.0, qc="spike")],
+        _CONFIG,
+    )
+    records = surface.to_records()
+    assert any(record.get("qc_flags") for record in records), "fixture must exercise a flagged cell"
+    payload = {
+        "interval": surface.interval,
+        "attribution": "swelter demo network",
+        "buckets": sorted({c.bucket for c in surface.cells}),
+        "cells": records,
+    }
+    _validate(payload, "sample-surface.schema.json")
+
+
 def test_freshly_built_health_report_matches_schema() -> None:
     report = qc.health_report(
         [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0, calibration="v1")]

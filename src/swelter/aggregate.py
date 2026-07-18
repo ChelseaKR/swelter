@@ -131,6 +131,11 @@ class CellReading:
             record["method"] = self.method
         if self.reference:
             record["reference"] = self.reference
+        # A cell that is provisional *because it is suspicious* carries the QC verdict(s) that
+        # flagged it, so a downstream reader can tell it from a merely-uncalibrated cell (ADR 0029,
+        # invariant 4). Omitted when empty — a clean cell should not gain a hollow key.
+        if self.qc_flags:
+            record["qc_flags"] = list(self.qc_flags)
         if self.parameter == "pm25_ugm3":
             record["aqi_window"] = self.aqi_window
         if self.parameter == EXPOSURE:
@@ -139,6 +144,40 @@ class CellReading:
             record["compound"] = self.compound
             record["uncertainty_note"] = self.uncertainty_note
         return record
+
+
+def _snapshot_reading_props(parameter: str, reading: CellReading) -> dict[str, object]:
+    """The GeoJSON properties one parameter's latest reading contributes to its cell's feature.
+
+    Split out of :meth:`Surface.snapshot_geojson` so that method stays simple: this owns the
+    per-parameter fan-out (value, the two uncertainties, provisional/QC-flag caveats, provenance,
+    and the pm25/exposure extras), keyed by ``{parameter}_...`` so several parameters share one
+    feature without colliding.
+    """
+    props: dict[str, object] = {parameter: round(reading.mean, 3)}
+    if reading.uncertainty is not None:
+        props[f"{parameter}_uncertainty"] = round(reading.uncertainty, 3)
+    if reading.mean_member_sigma is not None:
+        props[f"{parameter}_mean_member_sigma"] = round(reading.mean_member_sigma, 3)
+    props[f"{parameter}_provisional"] = reading.provisional
+    if reading.qc_flags:
+        props[f"{parameter}_qc_flags"] = list(reading.qc_flags)
+    if reading.method:
+        props[f"{parameter}_method"] = reading.method
+    if reading.reference:
+        props[f"{parameter}_reference"] = reading.reference
+    if parameter == "pm25_ugm3":
+        props["pm25_aqi"] = reading.aqi
+        props["aqi_category"] = reading.category
+        props["aqi_window"] = reading.aqi_window
+    if parameter == EXPOSURE:
+        props["exposure_level"] = int(reading.mean)
+        props["exposure_category"] = reading.category
+        props["exposure_heat"] = reading.heat_category
+        props["exposure_air"] = reading.air_category
+        props["compound"] = reading.compound
+        props["exposure_uncertainty_note"] = reading.uncertainty_note
+    return props
 
 
 @dataclass(frozen=True)
@@ -182,27 +221,7 @@ class Surface:
             if any_reading.nodes:
                 props["nodes"] = list(any_reading.nodes)
             for parameter, reading in by_param.items():
-                props[parameter] = round(reading.mean, 3)
-                if reading.uncertainty is not None:
-                    props[f"{parameter}_uncertainty"] = round(reading.uncertainty, 3)
-                if reading.mean_member_sigma is not None:
-                    props[f"{parameter}_mean_member_sigma"] = round(reading.mean_member_sigma, 3)
-                props[f"{parameter}_provisional"] = reading.provisional
-                if reading.method:
-                    props[f"{parameter}_method"] = reading.method
-                if reading.reference:
-                    props[f"{parameter}_reference"] = reading.reference
-                if parameter == "pm25_ugm3":
-                    props["pm25_aqi"] = reading.aqi
-                    props["aqi_category"] = reading.category
-                    props["aqi_window"] = reading.aqi_window
-                if parameter == EXPOSURE:
-                    props["exposure_level"] = int(reading.mean)
-                    props["exposure_category"] = reading.category
-                    props["exposure_heat"] = reading.heat_category
-                    props["exposure_air"] = reading.air_category
-                    props["compound"] = reading.compound
-                    props["exposure_uncertainty_note"] = reading.uncertainty_note
+                props.update(_snapshot_reading_props(parameter, reading))
             features.append(
                 {
                     "type": "Feature",
@@ -480,6 +499,9 @@ def _exposure_cells(cells: list[CellReading]) -> list[CellReading]:
                 air_category=air.category,
                 compound=compound,
                 uncertainty_note=_exposure_uncertainty_note(heat, air, air.category),
+                # The derived level inherits its components' QC flags, so a compound cell built on a
+                # suspicious heat or air reading stays visibly flagged (ADR 0029, invariant 4).
+                qc_flags=tuple(sorted(set(heat.qc_flags) | set(air.qc_flags))),
                 nodes=heat.nodes,
             )
         )
@@ -525,6 +547,9 @@ def _nowcast_cells(cells: list[CellReading]) -> list[CellReading]:
                 aqi=aqi,
                 category=category,
                 aqi_window=AQI_WINDOW_NOWCAST,
+                # NowCast is built from the trailing hourly means, so it inherits every QC flag
+                # those component hours carried — a flagged hour never drops out (ADR 0029).
+                qc_flags=tuple(sorted({flag for c in window for flag in c.qc_flags})),
                 nodes=latest.nodes,
             )
         )

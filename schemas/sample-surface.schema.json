@@ -58,7 +58,11 @@
         "aqi_window": { "type": "string" },
         "heat_category": { "type": ["string", "null"] },
         "air_category": { "type": ["string", "null"] },
-        "compound": { "type": "boolean" }
+        "compound": { "type": "boolean" },
+        "qc_flags": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["spike", "flatline"] }
+        }
       }
     }
   }

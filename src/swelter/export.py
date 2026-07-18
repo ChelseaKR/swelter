@@ -14,9 +14,10 @@ import io
 import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
+from typing import cast
 
 from .calibrate import CorrectionRegistry
-from .models import RAW, Observation, parse_timestamp
+from .models import QC_SUSPICIOUS, RAW, Observation, parse_timestamp
 from .qc import Gap
 
 TermsKey = str | tuple[str, str] | tuple[str, str, str]
@@ -30,6 +31,7 @@ _CSV_FIELDS = (
     "source",
     "calibration",
     "qc",
+    "qc_flags",
     "uncertainty",
     "trustworthy",
     "data_license",
@@ -75,6 +77,11 @@ def to_records(
             "source": observation.source,
             "calibration": observation.calibration,
             "qc": observation.qc,
+            # The suspicious QC verdict(s) on this reading, as an array so it matches the surface
+            # cell's `qc_flags` field and travels with the value (ADR 0029, invariant 4). A single
+            # observation carries at most one verdict, so this is [] or a one-element list; range
+            # and missing are physically unmappable, not suspicious, and never appear here.
+            "qc_flags": [observation.qc] if observation.qc in QC_SUSPICIOUS else [],
             "uncertainty": observation.uncertainty,
             # An explicit status so a downloader needn't infer trust from the calibration string.
             "trustworthy": observation.is_trustworthy,
@@ -111,6 +118,9 @@ def to_csv(
     for record in to_records(items, terms_by_observation=terms_by_observation):
         row = {
             **record,
+            # A CSV cell is a scalar, so the qc_flags array (always a list from to_records) is
+            # flattened to a space-joined string ("spike", "flatline", or ""); JSON keeps the array.
+            "qc_flags": " ".join(cast("list[str]", record["qc_flags"])),
             # Keep provenance in-band without inventing non-standard comment lines before the
             # header. Repeating it per row makes an extracted subset self-describing and leaves
             # the result readable by ordinary csv.DictReader/pandas consumers.

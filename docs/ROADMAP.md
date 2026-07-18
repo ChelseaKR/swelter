@@ -63,6 +63,7 @@ both tables and with its referenced tests in the same change.
 | F-21 | Release |
 | F-22 | Event chronicle generator |
 | F-23 | Calibration-drift surveillance in the health report |
+| F-24 | Event-aware QC keeps suspicious readings visible, provisional, and flagged |
 
 ## Delivery history
 
