@@ -37,7 +37,10 @@ jobs:
 
       - name: Authenticate the standards pin against canonical upstream
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          # STANDARDS_PIN_TOKEN is a read-only PAT with access to the private
+          # ChelseaKR/portfolio-standards repo; the default job token cannot read a
+          # different private repo. Falls back to the job token when the secret is unset.
+          GITHUB_TOKEN: ${{ secrets.STANDARDS_PIN_TOKEN || github.token }}
         run: make standards-pin-upstream
 
       - name: Build package and locally validate CycloneDX evidence
