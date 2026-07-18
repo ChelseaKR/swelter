@@ -1521,9 +1521,12 @@ input[type="range"] {
 
 .readings li.selected,
 tr.selected :is(th, td) {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--air) 15%, transparent), transparent 75%),
-    var(--paper);
+  /* A flat, computable selection tint — not a gradient. A contrast scanner cannot read text
+     contrast through a gradient background and returns "cantTell", so the previous gradient made
+     every reading in the selected row unverifiable. A solid tint lets the scanner verify the row
+     against its real background; selection stays cued non-visually by aria-pressed on the row's
+     control and, for the list, the inset accent bar below. */
+  background-color: color-mix(in srgb, var(--air) 12%, var(--paper));
 }
 
 .readings li.selected {
@@ -1590,6 +1593,18 @@ td .tag {
   border-radius: 100vmax;
   font-family: var(--font-data);
   font-size: 0.68rem;
+}
+
+/* Severity chips wear the same permanent dark severity ink as the map cells, so the reading stays
+   legible on the light severity fill in BOTH colour schemes. Without this the chip inherits the
+   scheme foreground — near-white in dark mode — over a light severity background, a real contrast
+   failure the severity texture would otherwise hide from a scanner. Severity is still carried by
+   text plus fill plus pattern, never colour alone (hard rule 5). */
+td .tag:is(
+  .aqi-good, .aqi-moderate, .aqi-usg, .aqi-unhealthy, .aqi-veryunhealthy, .aqi-hazardous,
+  .heat-1, .heat-2, .heat-3, .heat-4, .heat-5
+) {
+  color: var(--severity-ink);
 }
 
 /* Inspector and evidence ------------------------------------------------ */
@@ -2206,7 +2221,14 @@ body > footer .settings-actions button {
     border-inline-end: 0;
   }
 
-  .method-grid > * {
+  /* Collapse every method-grid child to a single column below this breakpoint. The base layout
+     pins `.legend` (span 8) and `.dataset-truth` (span 4) with class selectors, whose specificity
+     outranks a bare `.method-grid > *`; without matching that specificity here the legend and
+     dataset card stay side by side and the 13rem legend columns overflow a 320px viewport
+     (WCAG 1.4.10 Reflow). */
+  .method-grid > *,
+  .method-grid > .legend,
+  .method-grid > .dataset-truth {
     grid-column: 1 / -1;
   }
 

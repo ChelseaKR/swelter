@@ -38,7 +38,7 @@ body {
 }
 
 .skip-link {
-  position: absolute;
+  position: fixed;
   inset-inline-start: 0.5rem;
   top: -3rem;
   background: var(--accent);
@@ -46,9 +46,11 @@ body {
   padding: 0.6rem 1rem;
   border-radius: 0 0 0.4rem 0.4rem;
   z-index: 10;
-  transition: top 0.15s ease;
 }
 
+/* Reveal instantly to the viewport top on focus. A position transition would leave the link off
+   screen for the length of the animation, so a keyboard user (or a focus-exposure check) can land
+   on it before it is visible; fixed positioning keeps it at the viewport edge regardless of scroll. */
 .skip-link:focus {
   top: 0;
 }

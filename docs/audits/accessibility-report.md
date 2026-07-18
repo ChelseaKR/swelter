@@ -84,6 +84,41 @@ separately.
   Node 22 environment. CI is the authoritative blocking run; this report does not convert an
   unexecuted local run into passing evidence.
 
+## Contrast on patterned severity surfaces
+
+The map cells, distribution-braid axis/time labels, and the table's AQI/heat severity chips carry the
+WCAG-mandated non-colour severity texture as a pattern or gradient `background-image` (hard rule 5).
+axe-core cannot compute colour-contrast *through* a pattern background, so for text drawn over that
+texture it returns `incomplete` ("cantTell") rather than a pass or a violation. The browser gate
+(`web/tests/browser/conformance.spec.js`) allowlists only these `color-contrast` **incomplete**
+results, scoped to the cell/reading/category and severity-chip families, and never a real violation.
+The paired assertion "patterned visualization text has an independently verified 4.5:1 contrast pair"
+independently computes the ratio for a map reading, a braid label, and a severity chip in both colour
+schemes, so the allowlist rests on measured contrast, not on a suppressed check.
+
+Two supporting fixes make that allowlist honest rather than a silencer:
+
+- **Severity chips now use `--severity-ink`.** The table chips previously inherited the scheme
+  foreground, which is near-white in dark mode, over the light severity fill — a genuine ~1.1:1
+  contrast failure that the chip's pattern was hiding from the scanner. Pinning the permanent dark
+  severity ink (matching the map cells) restores ~13:1 in both schemes before the texture cantTell is
+  allowlisted.
+- **The selected-row highlight is a flat, computable tint** instead of a gradient, so the scanner can
+  actually verify every reading in the selected List/Table row rather than returning cantTell for it.
+
+The `target-size` engine error that axe throws on overlapping grid cells ("Reduce of empty array") is
+allowlisted as an engine error on any `.cell` (not only provisional cells); WCAG 2.5.8 geometry is
+proven directly by the dedicated 2.5.8 test.
+
+**Known limitation — dense marker target size.** On the `/sensors/` route fixture (a Stuttgart-shaped
+cluster of ~150 provisional locations reprojected into a small extent) the map markers overlap below
+the 24px target-size floor, so axe reports `target-size`/`target-offset` on that route's Map view. The
+California route masks the same crowding by stacking every marker in one corner of the state outline
+(axe skips fully obscured targets). Because Map, List, and Table must expose the same record set,
+resolving it requires a product-level change — marker declustering, a wider map column, or render-shift
+stabilisation (the route also shows a measurable Lighthouse CLS) — rather than allowlisting a real
+target-size violation. This is tracked as remaining work, not remediated.
+
 ## Regenerating this report
 
 Run `make a11y` and `make verify-web` (which installs all three locked browser engines), then complete the matrix in

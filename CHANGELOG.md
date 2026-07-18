@@ -7,9 +7,34 @@ All notable changes to swelter are recorded here. The format follows
 
 ## [Unreleased]
 
-No changes yet. The dated `0.1.0` section is prepared release metadata; it does not assert that a
-Git tag or GitHub Release exists. Publication completes only after the annotated `v0.1.0` tag passes
-the release workflow.
+### Fixed
+
+- **Dark-mode severity-chip contrast.** The table's AQI/heat severity chips inherited the scheme
+  foreground (near-white in dark mode) over their light severity fill — a genuine contrast failure the
+  chips' pattern was hiding from the contrast scanner. They now use the permanent dark `--severity-ink`
+  like the map cells, clearing AA in both colour schemes.
+- **Verifiable selected-row contrast.** The selected List/Table row highlight is a flat, computable
+  tint instead of a gradient, so a contrast scanner can read every reading in the selected row.
+- **Reflow at 320px.** The `#method` legend and dataset card no longer stay side by side below the
+  mobile breakpoint (a class-selector specificity gap left `.legend`/`.dataset-truth` pinned), so the
+  13rem legend columns no longer overflow a 320px viewport (WCAG 1.4.10).
+- **Skip link visible on focus.** The skip link uses fixed positioning and reveals instantly (no slide
+  transition), so it is exposed at the viewport top when focused regardless of scroll.
+
+### Changed
+
+- **Browser accessibility gate.** The Playwright conformance suite allowlists only patterned-severity
+  `color-contrast` *incomplete* results (map cells, braid labels, and severity chips) and the known
+  axe `target-size` engine error on grid cells — never a real violation — and independently verifies a
+  severity chip's 4.5:1 contrast pair. Cross-browser and copy-drift test fixes: the Now heading assertion
+  tracks the current Spanish catalog, the record-set check keeps the published `label`, selection
+  assertions target the pressable control, disabled controls are excluded from the focus-exposure sweep,
+  and the map-reset transform assertion accepts Firefox's `translate(0px)` serialisation. See
+  [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md) for the rationale and the
+  remaining dense-marker target-size limitation on the `/sensors/` route.
+
+The dated `0.1.0` section is prepared release metadata; it does not assert that a Git tag or GitHub
+Release exists. Publication completes only after the annotated `v0.1.0` tag passes the release workflow.
 
 ## [0.1.0] - 2026-07-16
 

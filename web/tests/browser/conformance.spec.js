@@ -39,22 +39,42 @@ async function assertNoBlockingAxe(page, label) {
   const unexpectedReview = results.incomplete.flatMap((issue) =>
     issue.nodes.flatMap((node) => {
       const selector = node.target.join(" ");
-      const html = node.html || "";
+      const html = (node.html || "").toLowerCase();
+      const selectorLower = selector.toLowerCase();
+      // The map cells, distribution-braid axis/time labels, and table severity chips all carry the
+      // WCAG-mandated non-colour severity texture as a pattern/gradient background-image (hard
+      // rule 5). axe-core cannot compute colour-contrast through a pattern background, so for text
+      // drawn over that texture it returns "incomplete" (cantTell) rather than a pass or a
+      // violation. Every one of these elements draws permanent dark severity ink on a solid,
+      // opaque severity fill and clears AA in BOTH colour schemes — proven independently by the
+      // "independently verified 4.5:1 contrast pair" test below (map reading, braid label, and a
+      // severity chip). Allow ONLY these cantTell results; a real color-contrast violation is never
+      // allowlisted. Matching is case-insensitive so class/coordinate casing cannot slip a node
+      // past the filter.
+      const severityChipTexture =
+        /class="tag[ "]/.test(html) &&
+        /\b(?:aqi-(?:good|moderate|usg|unhealthy|veryunhealthy|hazardous)|heat-[1-5])\b/.test(html);
       const knownPatternedText =
         issue.id === "color-contrast" &&
         (html.includes("cell-reading") ||
+          html.includes("cell-cat") ||
           html.includes("braid-axis-label") ||
-          html.includes("braid-time-label"));
+          html.includes("braid-time-label") ||
+          severityChipTexture);
       const knownTargetEngineError =
         issue.id === "target-size" &&
-        selector.startsWith('.provisional.cell[data-cell="') &&
+        // The overlapping-marker layout trips an axe engine bug ("Reduce of empty array") that
+        // skips the target-size rule on a grid cell, regardless of its severity/provisional class.
+        // WCAG 2.5.8 geometry is proven directly by the dedicated 2.5.8 test, so allow the engine
+        // error on any grid cell — but still only the error, never a computed target-size failure.
+        selectorLower.includes('.cell[data-cell="') &&
         node.none.some(
           (check) =>
             check.id === "error-occurred" &&
             check.data?.ruleId === "target-size" &&
             // axe emits this message with varying capitalisation across engine versions
             // ("Reduce"/"reduce of empty array"); match case-insensitively so the known
-            // target-size engine error on provisional cells stays allowlisted.
+            // target-size engine error on grid cells stays allowlisted.
             check.data?.message?.toLowerCase().includes("reduce of empty array"),
         );
       return knownPatternedText || knownTargetEngineError
@@ -75,7 +95,8 @@ for (const route of ROUTES) {
         if (locale === "es") {
           await page.locator("#lang-select").selectOption("es");
           await expect(page.locator("html")).toHaveAttribute("lang", "es");
-          await expect(page.locator("#now-heading")).toHaveText("Ahora");
+          // Confirm the catalog actually re-rendered in Spanish (the Now heading is a stable anchor).
+          await expect(page.locator("#now-heading")).toHaveText("Observación del vecindario");
           await expect(page.locator("html")).toHaveAttribute("data-render-ready", "true");
         }
         for (const tabId of VIEWS) {
@@ -155,7 +176,8 @@ test("patterned visualization text has an independently verified 4.5:1 contrast 
   for (const colorScheme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme });
     await ready(page);
-    const pairs = await page.evaluate(() => {
+    // Sample the map reading and braid label on the default (map) view, where both are present.
+    const mapPairs = await page.evaluate(() => {
       const reading = document.querySelector(".cell-reading");
       const label = document.querySelector(".braid-axis-label");
       const readingStyle = getComputedStyle(reading);
@@ -166,6 +188,16 @@ test("patterned visualization text has an independently verified 4.5:1 contrast 
         { name: "braid label", foreground: labelStyle.fill, background: braidStyle.backgroundColor },
       ];
     });
+    // The severity chip only exists in the Table view; switch to it and sample its solid severity
+    // fill and permanent dark ink directly rather than asserting the pair.
+    await page.locator("#tab-table").click();
+    await expect(page.locator("#data-table-body .tag.aqi-moderate").first()).toBeVisible();
+    const chipPair = await page.evaluate(() => {
+      const chip = document.querySelector("#data-table-body .tag.aqi-moderate");
+      const chipStyle = getComputedStyle(chip);
+      return { name: "severity chip", foreground: chipStyle.color, background: chipStyle.backgroundColor };
+    });
+    const pairs = [...mapPairs, chipPair];
     for (const pair of pairs) {
       expect(ratio(pair.foreground, pair.background), `${colorScheme} ${pair.name}: ${JSON.stringify(pair)}`)
         .toBeGreaterThanOrEqual(4.5);
@@ -258,8 +290,10 @@ test("map keyboard pan, zoom, reset, selection, and equivalent views change real
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => canvas.evaluate((element) => element.style.transform)).not.toBe(zoomed);
   await page.keyboard.press("0");
+  // Reset returns the canvas to the identity transform. Firefox serialises `translate(0px, 0px)` as
+  // the shorter `translate(0px)`, so match either spelling of the zero translation plus unit scale.
   await expect.poll(() => canvas.evaluate((element) => element.style.transform))
-    .toContain("translate(0px, 0px) scale(1)");
+    .toMatch(/translate\(0px(?:,\s*0px)?\)\s+scale\(1\)/);
 
   const marker = page.locator("#map .cell").first();
   const cellId = await marker.getAttribute("data-cell");
@@ -268,10 +302,12 @@ test("map keyboard pan, zoom, reset, selection, and equivalent views change real
   await expect(marker).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#detail")).toBeVisible();
 
+  // The row and its select control both carry data-cell (the row needs it for the record-set
+  // equivalence test); aria-pressed lives on the row-select control, so target it unambiguously.
   await page.locator("#tab-list").click();
-  await expect(page.locator(`#data-list [data-cell="${cellId}"]`)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(`#data-list .row-select[data-cell="${cellId}"]`)).toHaveAttribute("aria-pressed", "true");
   await page.locator("#tab-table").click();
-  await expect(page.locator(`#data-table-body [data-cell="${cellId}"]`)).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(`#data-table-body .row-select[data-cell="${cellId}"]`)).toHaveAttribute("aria-pressed", "true");
 });
 
 test("Map, List, and Table expose the same complete record set on both routes", async ({ page }) => {
@@ -324,7 +360,9 @@ test("Map, List, and Table expose the same complete record set on both routes", 
 
     for (let index = 0; index < map.length; index += 1) {
       const record = JSON.parse(map[index].recordKey);
-      const { label, description, ...rawRecord } = record;
+      // `label` is published surface data (placeName resolves to row.label), so it must survive into
+      // the raw record and match the surface cell; only `description` is derived for display.
+      const { description, ...rawRecord } = record;
       expect(rawRecord).toEqual(expectedRows[index]);
       expect(map[index].ariaLabel).toBe(record.description);
       expect(`${list[index].place}: ${list[index].reading}`).toBe(record.description);
@@ -383,8 +421,10 @@ test("visible keyboard targets remain at least partly exposed after focus", asyn
   const failures = [];
   for (const tabId of ["tab-map", "tab-list", "tab-table"]) {
     await page.locator(`#${tabId}`).click();
+    // Disabled controls (e.g. "smaller text" at the minimum size) are intentionally unfocusable, so
+    // they are not keyboard targets and are excluded from the focus-exposure sweep.
     const targets = page.locator(
-      'a[href]:visible, button:visible, input:visible, select:visible, textarea:visible, summary:visible, [tabindex]:not([tabindex="-1"]):visible',
+      'a[href]:visible, button:not(:disabled):visible, input:not(:disabled):visible, select:not(:disabled):visible, textarea:not(:disabled):visible, summary:visible, [tabindex]:not([tabindex="-1"]):visible',
     );
     for (let index = 0; index < await targets.count(); index += 1) {
       const target = targets.nth(index);
