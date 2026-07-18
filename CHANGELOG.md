@@ -43,6 +43,16 @@ All notable changes to swelter are recorded here. The format follows
   JSON export and a new `qc_flags` column in `/export.csv`. Because adding a CSV column is a break for
   positional parsers under [`docs/VERSIONING.md`](docs/VERSIONING.md), `data_schema_version` moves to
   `2`. Consumers that read the CSV by column name, or the JSON by key, are unaffected.
+- **Sensor-twin "cross-checked" precision tier (EXP-09, F-25).** `qc.twin_agreement` now derives a
+  three-state drift smoke-alarm per twin window — `cross-checked` (co-located low-cost twins agree
+  within a documented spread bar), `diverged` (they drifted apart — investigate), or
+  `insufficient-data` — surfaced in `qc.health_report`'s `twin_agreement` block, `swelter qc`, and
+  `/api/health.json`. The bar is a per-parameter default (`qc.TWIN_AGREEMENT_THRESHOLD`) overridable
+  per pair via a new optional `twin_windows[].agreement_threshold`. It bounds **precision, never
+  accuracy**: cross-checked ≠ calibrated, the verdict is QC/health metadata only, and no observation
+  value, calibration version, or provisional status is ever changed by it (hard rule #3). See
+  [ADR 0030](docs/adr/0030-sensor-twin-crosschecked-tier.md) and
+  [`docs/calibration.md`](docs/calibration.md).
 
 ### Fixed
 

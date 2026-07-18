@@ -49,3 +49,4 @@ evidence of the collision.
 - [ADR 0027: Generate a citable post-event chronicle, descriptive counts only](0027-event-chronicle.md)
 - [ADR 0028: Surface correction-drift age in the health report, without changing any calibrated value](0028-calibration-drift-surveillance.md)
 - [ADR 0029: Map suspicious-QC readings as visible provisional, never blank the map during an event](0029-event-aware-qc-visible-provisional.md)
+- [ADR 0030: Derive a "cross-checked" drift smoke-alarm from twin agreement, never a calibration tier](0030-sensor-twin-crosschecked-tier.md)

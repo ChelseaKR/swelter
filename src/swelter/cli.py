@@ -19,7 +19,7 @@ import json
 import shutil
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -52,6 +52,7 @@ from . import (
 from .config import (
     NetworkConfig,
     NodeConfig,
+    TwinWindow,
     config_concerns,
     consent_concerns,
     haversine_m,
@@ -238,6 +239,48 @@ def _print_calibration_status(calibration: dict[str, Any]) -> None:
             )
 
 
+def _qc_json_payload(
+    health: list[qc.NodeHealth],
+    gaps: list[qc.Gap],
+    coverage: dict[str, object],
+    calibration: dict[str, object] | None,
+    twins: list[qc.TwinAgreement],
+) -> dict[str, Any]:
+    """The ``swelter qc --json`` payload: node health, gaps, coverage, and the optional side
+    blocks — correction-drift ``calibration`` (FIX-03, absent without a registry) and the
+    ``twin_agreement`` cross-check (EXP-09, absent without configured twins)."""
+    payload: dict[str, Any] = {
+        "nodes": [
+            {
+                "node_id": n.node_id,
+                "status": n.status,
+                "observations": n.observations,
+                "completeness": n.completeness,
+                "flagged_fraction": round(n.flagged_fraction, 3),
+                "online": n.online,
+                "last_seen": n.last_seen,
+            }
+            for n in health
+        ],
+        "gaps": [
+            {
+                "node_id": g.node_id,
+                "parameter": g.parameter,
+                "start": g.start,
+                "end": g.end,
+                "minutes": round(g.seconds / 60),
+            }
+            for g in gaps
+        ],
+        "coverage_equity": coverage,
+    }
+    if calibration is not None:
+        payload["calibration"] = calibration
+    if twins:
+        payload["twin_agreement"] = qc.twin_agreement_json(twins)
+    return payload
+
+
 def cmd_qc(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
     paths = store_paths(args.store)
@@ -266,35 +309,13 @@ def cmd_qc(args: argparse.Namespace) -> int:
         else calibrate.CorrectionRegistry()
     )
     calibration = qc.calibration_block(raw, registry) if len(registry) else None
+    # Cross-checked precision tier (EXP-09): how tightly configured sensor twins agree over their
+    # window — a drift smoke-alarm, never a promotion. QC/health metadata only; every reading stays
+    # raw/provisional (hard rule #3). Empty when no twin_windows are configured, so the output is
+    # unchanged for a network that never registers a twin pair.
+    twins = qc.twin_agreement(raw, config.twin_windows) if config.twin_windows else []
     if args.json:
-        payload = {
-            "nodes": [
-                {
-                    "node_id": n.node_id,
-                    "status": n.status,
-                    "observations": n.observations,
-                    "completeness": n.completeness,
-                    "flagged_fraction": round(n.flagged_fraction, 3),
-                    "online": n.online,
-                    "last_seen": n.last_seen,
-                }
-                for n in health
-            ],
-            "gaps": [
-                {
-                    "node_id": g.node_id,
-                    "parameter": g.parameter,
-                    "start": g.start,
-                    "end": g.end,
-                    "minutes": round(g.seconds / 60),
-                }
-                for g in gaps
-            ],
-            "coverage_equity": coverage,
-        }
-        if calibration is not None:
-            payload["calibration"] = calibration
-        print(json.dumps(payload, indent=2))
+        print(json.dumps(_qc_json_payload(health, gaps, coverage, calibration, twins), indent=2))
         return 0
     not_ok = sum(1 for n in health if n.status != "ok")
     _err(
@@ -324,6 +345,19 @@ def cmd_qc(args: argparse.Namespace) -> int:
             _err(
                 f"  provisional cell  {name}  "
                 f"({cell['calibrated_nodes']}/{cell['nodes']} calibrated)"
+            )
+    if twins:
+        diverged = sum(1 for t in twins if t.status == "diverged")
+        _err(
+            f"swelter: twin cross-check — {len(twins)} pair(s), {diverged} diverged "
+            f"(precision only; cross-checked ≠ calibrated — see docs/calibration.md)"
+        )
+        for t in twins:
+            comparator = "≤" if t.residual_spread <= t.agreement_threshold else ">"
+            _err(
+                f"  {t.status.upper():<17}  {t.node_a}/{t.node_b} {t.parameter}  "
+                f"spread {t.residual_spread} {comparator} {t.agreement_threshold} "
+                f"({t.n_pairs} pairs)"
             )
     return 0
 
@@ -811,6 +845,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             coverage=_coverage,
             store_dir=args.store,
             data_terms=demo_terms,
+            twin_windows=config.twin_windows,
         )
         _write_web_alerts(Path(args.web), surface, config, data_terms=demo_terms)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
@@ -951,17 +986,24 @@ def _write_web_health(
     coverage: dict[str, object] | None = None,
     store_dir: str | Path | None = None,
     data_terms: snapshot.DataTerms | None = None,
+    twin_windows: Iterable[TwinWindow] = (),
 ) -> None:
     """Bake the node-health summary so the static dashboard shows coverage with no live API.
 
     A coverage-equity block (calibrated-vs-raw per cell) rides along when provided, so the static
     site carries the same calibration-coverage read as the live ``/api/health.json``. An
     integrity block (chain head from ``digests.jsonl``, read cheaply — see ``qc.health_report``)
-    rides along too when ``store_dir`` is given."""
+    rides along too when ``store_dir`` is given. ``twin_windows`` mirrors the live endpoint's
+    cross-checked precision read (QC/health metadata only); empty by default, so a network with no
+    configured twin pair gets the byte-identical health JSON it always did."""
     if not web_dir.is_dir():
         return
     report = qc.health_report(
-        raw, expected_interval_s=interval_s, coverage=coverage, store_dir=store_dir
+        raw,
+        expected_interval_s=interval_s,
+        coverage=coverage,
+        store_dir=store_dir,
+        twin_windows=twin_windows,
     )
     report["rights"] = _static_rights_envelope(data_terms)
     (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -1497,6 +1539,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
                 coverage=_coverage,
                 store_dir=args.store,
                 data_terms=terms,
+                twin_windows=config.twin_windows,
             )
             _write_web_alerts(web_dir, surface, config, data_terms=terms)
             _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
@@ -1681,7 +1724,14 @@ def cmd_publish(args: argparse.Namespace) -> int:
             attribution=attribution,
             data_terms=terms,
         )
-        _write_web_health(web_dir, raw, args.interval, coverage=coverage, data_terms=terms)
+        _write_web_health(
+            web_dir,
+            raw,
+            args.interval,
+            coverage=coverage,
+            data_terms=terms,
+            twin_windows=config.twin_windows,
+        )
         _write_web_alerts(web_dir, surface, config, data_terms=terms)
         _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
         (web_dir / "export.csv").write_text(

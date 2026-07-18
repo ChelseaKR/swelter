@@ -286,6 +286,82 @@ def test_twin_agreement_skips_twin_bs_unmatched_leading_readings() -> None:
     assert result.residual_spread == 0.0
 
 
+def test_cross_checked_when_twins_agree_within_bound() -> None:
+    # Two twins tracking each other closely (residuals well under the pm25 default bar of 5 µg/m³)
+    # read as cross-checked — precision confirmed, never accuracy.
+    obs = _twin_series("twin-a", [10.0, 11.0, 12.0, 13.0]) + _twin_series(
+        "twin-b", [10.5, 11.2, 11.8, 13.3]
+    )
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == 4
+    assert result.agreement_threshold == qc.TWIN_AGREEMENT_THRESHOLD["pm25_ugm3"]
+    assert result.residual_spread <= result.agreement_threshold
+    assert result.cross_checked is True
+    assert result.status == "cross-checked"
+
+
+def test_diverged_when_twins_exceed_bound_fires_smoke_alarm() -> None:
+    # Twins swinging in opposite directions blow past the agreement bar: the drift smoke-alarm
+    # fires (diverged), and the pair is NOT cross-checked.
+    obs = _twin_series("twin-a", [10.0, 20.0, 10.0, 20.0]) + _twin_series(
+        "twin-b", [20.0, 10.0, 20.0, 10.0]
+    )
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == 4
+    assert result.residual_spread > result.agreement_threshold
+    assert result.cross_checked is False
+    assert result.status == "diverged"
+
+
+def test_too_few_pairs_reads_insufficient_data_not_cross_checked() -> None:
+    # A perfectly tight but tiny window (fewer than MIN_TWIN_PAIRS matched pairs) has no basis for
+    # a verdict: it reads insufficient-data, never a free cross-checked pass on thin evidence.
+    n = qc.MIN_TWIN_PAIRS - 1
+    values = [10.0] * n
+    obs = _twin_series("twin-a", values) + _twin_series("twin-b", values)
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == n
+    assert result.residual_spread <= result.agreement_threshold
+    assert result.cross_checked is False
+    assert result.status == "insufficient-data"
+
+
+def test_window_agreement_threshold_override_tightens_the_bar() -> None:
+    # The same closely-agreeing twins are marked diverged when the pair sets a stricter bar than
+    # the per-parameter default — the documented config knob is honoured.
+    obs = _twin_series("twin-a", [10.0, 11.0, 12.0, 13.0]) + _twin_series(
+        "twin-b", [10.5, 11.2, 11.8, 13.3]
+    )
+    strict = TwinWindow(
+        node_a="twin-a",
+        node_b="twin-b",
+        parameter="pm25_ugm3",
+        start="2026-06-01T00:00:00Z",
+        end="2026-06-01T23:00:00Z",
+        agreement_threshold=0.1,
+    )
+    [result] = qc.twin_agreement(obs, [strict])
+    assert result.agreement_threshold == 0.1
+    assert result.status == "diverged"
+    assert result.cross_checked is False
+
+
+def test_cross_check_never_touches_value_or_calibration_state() -> None:
+    # Hard rule #3: computing the cross-checked tier — whether the twins agree or diverge — mutates
+    # no observation, promotes nothing past provisional, and assigns no calibration version.
+    values = [10.0, 20.0, 10.0, 20.0]
+    diverging = _twin_series("twin-a", values) + _twin_series("twin-b", list(reversed(values)))
+    before = [(o.node_id, o.timestamp, o.value, o.calibration, o.uncertainty) for o in diverging]
+    [result] = qc.twin_agreement(diverging, [_TWIN_WINDOW])
+    report: Any = qc.health_report(diverging, twin_windows=[_TWIN_WINDOW])
+    after = [(o.node_id, o.timestamp, o.value, o.calibration, o.uncertainty) for o in diverging]
+    assert before == after
+    assert all(o.calibration == "raw" and o.uncertainty is None for o in diverging)
+    assert result.status == "diverged"
+    # The verdict rides along as QC/health metadata; it is not a value on the calibration axis.
+    assert report["twin_agreement"][0]["cross_checked"] is False
+
+
 def test_health_report_omits_twin_agreement_by_default() -> None:
     report: Any = qc.health_report([make_obs(node_id="node-01")])
     assert "twin_agreement" not in report
@@ -307,6 +383,9 @@ def test_health_report_surfaces_twin_agreement_when_configured() -> None:
             "parameter": "pm25_ugm3",
             "n_pairs": 3,
             "residual_spread": 0.0,
+            "agreement_threshold": 5.0,
+            "cross_checked": True,
+            "status": "cross-checked",
             "window_start": "2026-06-01T00:00:00Z",
             "window_end": "2026-06-01T23:00:00Z",
         }
@@ -317,6 +396,8 @@ def test_health_report_surfaces_twin_agreement_when_configured() -> None:
 
 def test_health_report_surfaces_twin_agreement_for_empty_observations() -> None:
     report: Any = qc.health_report([], twin_windows=[_TWIN_WINDOW])
+    # No matched pairs is not a pass: too little evidence to judge reads insufficient-data, and the
+    # verdict never flips to cross-checked on an empty window.
     assert report["twin_agreement"] == [
         {
             "node_a": "twin-a",
@@ -324,6 +405,9 @@ def test_health_report_surfaces_twin_agreement_for_empty_observations() -> None:
             "parameter": "pm25_ugm3",
             "n_pairs": 0,
             "residual_spread": 0.0,
+            "agreement_threshold": 5.0,
+            "cross_checked": False,
+            "status": "insufficient-data",
             "window_start": "2026-06-01T00:00:00Z",
             "window_end": "2026-06-01T23:00:00Z",
         }

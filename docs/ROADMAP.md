@@ -64,6 +64,7 @@ both tables and with its referenced tests in the same change.
 | F-22 | Event chronicle generator |
 | F-23 | Calibration-drift surveillance in the health report |
 | F-24 | Event-aware QC keeps suspicious readings visible, provisional, and flagged |
+| F-25 | Sensor-twin cross-checked precision tier |
 
 ## Delivery history
 
@@ -77,7 +78,9 @@ rebuild inputs remain portable.
 
 Fit per-node corrections from recorded co-location windows; publish method, reference, fit window,
 uncertainty, and version. Raw and calibrated observations remain distinguishable at every layer.
-Sensor-twin agreement adds precision evidence but never promotes a reading to calibrated.
+Sensor-twin agreement adds a "cross-checked" precision verdict — a drift smoke-alarm bounding
+precision, never accuracy — that stays QC/health metadata and never promotes a reading to calibrated
+(F-25, [ADR 0030](adr/0030-sensor-twin-crosschecked-tier.md)).
 
 ### Phase 3 — public observatory and interfaces: complete
 
