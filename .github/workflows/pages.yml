@@ -41,10 +41,18 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      - name: Set up the pinned dashboard runtime
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: web/.nvmrc
+      - name: Install the locked dashboard runtime
+        run: |
+          npm --prefix web ci --omit=dev
+          rm -rf web/node_modules
       - name: Cache key date (UTC, so the fetch store's cache key rolls over once a day)
         id: date
         run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
@@ -115,6 +123,7 @@ jobs:
           rm -rf web/sensors && mkdir -p web/sensors
           find web -maxdepth 1 -type f -exec cp {} web/sensors/ \;
           cp -r web/i18n web/sensors/i18n
+          cp -r web/vendor web/sensors/vendor
           rm -f web/sensors/basemap.geojson  # Stuttgart is not California — keep its map schematic
           rm -f web/sensors/cooling-centers.geojson  # the sample centers are Sacramento, not Stuttgart
           # --cooling-centers points at a path that doesn't exist so the sensors page won't re-bake them.
@@ -165,9 +174,23 @@ jobs:
           uv run python scripts/pages_seo.py page --web-dir web --route /
           uv run python scripts/pages_seo.py page --web-dir web/sensors --route /sensors/
           uv run python scripts/pages_seo.py sitemap --output web/sitemap.xml
+      - name: Stamp the exact deployed source identity on both routes
+        run: |
+          SOURCE_TIMESTAMP="$(git show -s --format=%cI "${GITHUB_SHA}")"
+          uv run python scripts/stamp_pages_version.py --web-dir web \
+            --commit "${GITHUB_SHA}" --ref "${GITHUB_REF}" \
+            --repository "${GITHUB_REPOSITORY}" --run-id "${GITHUB_RUN_ID}" \
+            --source-timestamp "${SOURCE_TIMESTAMP}"
+          uv run python scripts/stamp_pages_version.py --web-dir web/sensors \
+            --commit "${GITHUB_SHA}" --ref "${GITHUB_REF}" \
+            --repository "${GITHUB_REPOSITORY}" --run-id "${GITHUB_RUN_ID}" \
+            --source-timestamp "${SOURCE_TIMESTAMP}"
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: web
       - id: deploy
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+# Governance exception #105 preserves the existing cache step, including its legacy comment.
+# Exact immutable version evidence: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0

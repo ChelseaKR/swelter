@@ -1,0 +1,55 @@
+name: Mutation testing
+
+on:
+  schedule:
+    # Nightly at 08:37 UTC, off-the-hour and outside the main CI path.
+    - cron: "37 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-safety:
+    name: core safety mutation score
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Install locked project dependencies
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: false
+      - run: uv sync --locked --group mutation
+
+      - name: Smoke-test the exact locked mutation engine
+        run: make mutation-tool-smoke
+
+      - name: Mutate the selected core safety modules
+        timeout-minutes: 45
+        run: make mutation-run
+
+      - name: Enforce mutation score and render report
+        if: always()
+        run: make mutation-report
+
+      - name: Render a reviewable dated baseline candidate
+        run: >-
+          make mutation-baseline-candidate
+          MUTATION_EVIDENCE_DATE="$(date -u +%Y-%m-%d)"
+
+      - name: Add report to the job summary
+        if: always() && hashFiles('dist/mutation/report.md') != ''
+        run: sed -n '1,240p' dist/mutation/report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve mutation report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: core-safety-mutation-report
+          path: dist/mutation
+          if-no-files-found: error
+          retention-days: 14
