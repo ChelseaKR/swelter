@@ -53,6 +53,16 @@ All notable changes to swelter are recorded here. The format follows
   value, calibration version, or provisional status is ever changed by it (hard rule #3). See
   [ADR 0030](docs/adr/0030-sensor-twin-crosschecked-tier.md) and
   [`docs/calibration.md`](docs/calibration.md).
+- **Multi-hazard packs and a cold pack (EXP-13).** The alert layer's danger floors are now a
+  versioned, cited **hazard pack** (`src/swelter/hazard_packs.py`) a network selects with
+  `hazard_pack:` in `network.yaml`, instead of code. Heat is the default and unchanged — a config
+  that names no pack produces identical output. A new **cold pack** ships alongside it: a
+  `wind_chill_c` parameter (the documented NWS/Environment-Canada metric wind-chill index, honestly
+  labelled an approximation, added to `models.PARAMETERS` with QC bounds and a spike threshold) and
+  the NWS Wind Chill Chart's cited −28.3 °C / −19 °F 30-minute frostbite floor, wired through the
+  alerts feed in English and machine-drafted Spanish. Enabling cold is config alone; every pack
+  floor carries a public-source citation, and `swelter doctor` validates the pack id and its
+  override keys. See [ADR 0031](docs/adr/0031-multi-hazard-packs.md) and F-26.
 
 ### Fixed
 

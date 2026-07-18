@@ -199,12 +199,12 @@ map client that wants the locations collection without walking each Thing.
 ### `GET /v1.1/Datastreams`
 
 One `Datastream` per `(node, parameter)` pair — the SensorThings link between a `Thing` and an
-`ObservedProperty`. The demo network's 150 nodes × 7 parameters yield 1050 streams. Each carries its
+`ObservedProperty`. The demo network's 150 nodes × 8 parameters yield 1200 streams. Each carries its
 unit of measurement and navigation links to its Thing and ObservedProperty.
 
 ```json
 {
-  "@iot.count": 1050,
+  "@iot.count": 1200,
   "value": [
     {
       "@iot.id": "node-01:temp_c",
@@ -229,7 +229,7 @@ section of this file.
 
 ```json
 {
-  "@iot.count": 7,
+  "@iot.count": 8,
   "value": [
     {
       "@iot.id": "temp_c",
@@ -867,6 +867,19 @@ network does not fit a `wbgt_c` correction. This release ships the estimated met
 only; occupational-heat guidance thresholds/bands (e.g. an OSHA/NIOSH-style action-level scale) are
 deferred pending SME sign-off (see `docs/adr/0019-estimated-wbgt.md`). Valid range −40 to 60
 degC.
+
+## wind_chill_c
+
+Wind chill, unit **degC** (degrees Celsius) — the cold pack's hazard parameter (ADR 0031). A
+**documented approximation of how cold exposed skin feels**, not a measured quantity: the standard
+NWS/Environment-Canada metric wind-chill index (2001 revision) from air temperature and 10-metre
+wind speed, defined only for temperatures at or below 10 degC and wind above ~4.8 km/h (air
+temperature is returned unchanged outside that domain). Unlike `heat_index_c`, no current swelter
+source adapter supplies wind speed, so it is **not auto-derived in the fetch path**; it enters as a
+value a node (or an operator with a wind feed) reports directly, and like `heat_index_c` it inherits
+its inputs' raw bias and is **published raw / provisional** unless calibrated. It is a first-class
+parameter (QC, export, this `ObservedProperties` list) but is not part of the default map surface;
+the cold pack aggregates it when a network enables `hazard_pack: cold`. Valid range −100 to 60 degC.
 
 ---
 

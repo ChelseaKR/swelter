@@ -12,11 +12,13 @@
     "self": { "type": "string" },
     "thresholds": {
       "type": "object",
-      "required": ["pm25_aqi", "heat_index_c", "exposure"],
+      "description": "The active hazard pack's danger floors, keyed by floor id. Which keys are present depends on the pack (heat: pm25_aqi, heat_index_c, exposure; cold: pm25_aqi, wind_chill_c), so only the always-watched air-quality floor is required.",
+      "required": ["pm25_aqi"],
       "properties": {
         "pm25_aqi": { "type": "number" },
         "heat_index_c": { "type": "number" },
-        "exposure": { "type": "number" }
+        "exposure": { "type": "number" },
+        "wind_chill_c": { "type": "number" }
       }
     },
     "count": { "type": "integer", "minimum": 0 },
@@ -53,7 +55,7 @@
         "lon": { "type": "number" },
         "parameter": {
           "type": "string",
-          "enum": ["pm25_ugm3", "heat_index_c", "exposure"]
+          "enum": ["pm25_ugm3", "heat_index_c", "exposure", "wind_chill_c"]
         },
         "bucket": { "type": "string" },
         "value": { "type": "number" },

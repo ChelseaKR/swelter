@@ -21,7 +21,18 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import aggregate, alerts, api, calibrate, cooling_centers, export, obs, qc, snapshot
+from . import (
+    aggregate,
+    alerts,
+    api,
+    calibrate,
+    cooling_centers,
+    export,
+    hazard_packs,
+    obs,
+    qc,
+    snapshot,
+)
 from .aggregate import Surface
 from .config import NetworkConfig
 from .models import RAW
@@ -393,6 +404,7 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 network=ctx.config.name,
                 base_url=ctx.base_url,
                 thresholds=ctx.config.alert_thresholds or None,
+                pack=hazard_packs.resolve_pack(ctx.config.hazard_pack),
             )
             area = _one(query, "area")
             if area:

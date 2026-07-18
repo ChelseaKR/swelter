@@ -90,6 +90,15 @@ def headline(alert: _AlertLike, lang: str = "en") -> str:
             provisional=provisional,
             as_of=as_of,
         )
+    if alert.parameter == "wind_chill_c":
+        template = _("{area}: wind chill is {value} °C ({severity}){provisional}{as_of}")
+        return template.format(
+            area=alert.area,
+            severity=alert.severity,
+            value=alert.value,
+            provisional=provisional,
+            as_of=as_of,
+        )
     template = _("{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}")
     return template.format(
         area=alert.area,
