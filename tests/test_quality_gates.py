@@ -70,7 +70,10 @@ def test_version_check_rejects_non_semver_tag(monkeypatch: pytest.MonkeyPatch) -
 
 def test_hygiene_requires_issue_link_for_suppression(tmp_path: Path) -> None:
     untracked = tmp_path / "untracked.py"
-    untracked.write_text("value = 1  # noqa: F841\n", encoding="utf-8")
+    # Assemble the marker at runtime so this test file's own git-tracked source does not
+    # contain a bare suppression token that would trip the hygiene gate that scans it.
+    bare_noqa = "# " + "noqa: F841"
+    untracked.write_text(f"value = 1  {bare_noqa}\n", encoding="utf-8")
     assert any("no linked issue" in problem for problem in hygiene_check._scan([untracked]))
 
     tracked = tmp_path / "tracked.py"

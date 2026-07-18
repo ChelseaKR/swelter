@@ -154,7 +154,11 @@ infra-synth:  ## Synthesize the optional AWS stack with locked libraries and exa
 	cd infra/cdk && npx --yes aws-cdk@$(CDK_CLI_VERSION) synth --output cdk.out
 
 security-pip:  ## Audit the locked Python dependency graph with no vulnerability waiver
-	uv run --with pip-audit==$(PIP_AUDIT_VERSION) pip-audit --locked .
+	REQ="$$(mktemp)"; \
+	uv export --frozen --no-emit-project --all-groups --no-hashes \
+	  --format requirements-txt --output-file "$$REQ" \
+	  && uv run --with pip-audit==$(PIP_AUDIT_VERSION) pip-audit --requirement "$$REQ"; \
+	STATUS=$$?; rm -f "$$REQ"; exit $$STATUS
 
 security-osv:  ## Scan all supported lockfiles against OSV
 	test "$$($(OSV_SCANNER) --version | sed -n '1s/^osv-scanner version: //p')" = "$(OSV_SCANNER_VERSION)"
