@@ -7,12 +7,12 @@ exercise the deterministic mapping with hand-built Open-Meteo-shaped payloads.
 from __future__ import annotations
 
 import time
-import urllib.request
 from typing import Any
 
 import pytest
 
-from swelter.sources import openmeteo
+from swelter.sources import _http, openmeteo
+from swelter.sources._http import SourceError
 
 
 class _FakeResp:
@@ -61,9 +61,8 @@ def test_to_observations_maps_arrays() -> None:
         "wbgt_c",
     }
     assert all(o.node_id == "oak-park" for o in obs)
-    assert all(
-        o.calibration == openmeteo.SOURCE for o in obs
-    )  # provenance travels with every value
+    assert all(o.source == openmeteo.SOURCE for o in obs)  # provenance travels with every value
+    assert all(not o.is_trustworthy for o in obs)  # an upstream model is not swelter-calibrated
     assert all(o.timestamp.endswith("Z") for o in obs)  # normalised to canonical UTC
     pm = next(
         o for o in obs if o.parameter == "pm25_ugm3" and o.timestamp == "2026-06-16T00:00:00Z"
@@ -98,25 +97,25 @@ def test_network_doc_uses_precise_real_centroids() -> None:
 def test_get_json_retries_transient_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"n": 0}
 
-    def fake_urlopen(url: str, timeout: float = 0.0) -> _FakeResp:
+    def fake_request(url: str, headers: dict[str, str], timeout: float) -> Any:
         calls["n"] += 1
         if calls["n"] < 3:
             raise TimeoutError("handshake timed out")  # the failure that dropped the live demo
-        return _FakeResp(b'{"ok": 1}')
+        return {"ok": 1}
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(_http, "_request_json", fake_request)
     monkeypatch.setattr(time, "sleep", lambda *_: None)
     assert openmeteo._get_json("https://example.test") == {"ok": 1}
     assert calls["n"] == 3  # two transient failures, then success
 
 
 def test_get_json_raises_after_exhausting_retries(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_urlopen(url: str, timeout: float = 0.0) -> _FakeResp:
+    def fake_request(url: str, headers: dict[str, str], timeout: float) -> Any:
         raise TimeoutError("down")
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(_http, "_request_json", fake_request)
     monkeypatch.setattr(time, "sleep", lambda *_: None)
-    with pytest.raises(OSError):
+    with pytest.raises(SourceError):
         openmeteo._get_json("https://example.test", retries=2)
 
 

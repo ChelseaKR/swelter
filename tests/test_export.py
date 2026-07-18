@@ -6,23 +6,35 @@ import csv
 import json
 from typing import Any
 
+import pytest
+
 from swelter import export
 
 from .conftest import make_obs
 
 
 def test_to_csv_has_header_and_one_row_per_observation() -> None:
-    text = export.to_csv([make_obs(), make_obs(parameter="humidity_pct", unit="%", value=50.0)])
+    text = export.to_csv(
+        [make_obs(), make_obs(parameter="humidity_pct", unit="%", value=50.0)],
+        license=export.DEFAULT_LICENSE,
+    )
     lines = text.strip().splitlines()
-    assert lines[0].startswith("node_id,timestamp,parameter,value,unit,calibration,qc,uncertainty")
+    assert lines[0].startswith("node_id,timestamp,parameter,value,unit,source,calibration")
     assert lines[0].endswith("data_license,data_attribution")
     assert len(lines) == 3
 
 
 def test_to_json_declares_the_data_license() -> None:
-    doc: Any = json.loads(export.to_json([make_obs()]))
+    doc: Any = json.loads(export.to_json([make_obs()], license=export.DEFAULT_LICENSE))
     assert doc["license"] == "CC0-1.0"
     assert len(doc["observations"]) == 1
+
+
+def test_library_export_requires_an_explicit_rights_decision() -> None:
+    with pytest.raises(ValueError, match="explicit data license"):
+        export.to_csv([make_obs()])
+    with pytest.raises(ValueError, match="explicit data license"):
+        export.to_json([make_obs()])
 
 
 def test_to_json_license_varies_by_source() -> None:

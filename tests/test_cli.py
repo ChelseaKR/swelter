@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 import threading
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -17,11 +15,67 @@ from swelter.models import parse_timestamp
 from swelter.store import open_store, store_paths
 
 from .conftest import ROOT
+from .http_client import request_local
 
 
 def test_version(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["version"]) == 0
     assert "swelter" in capsys.readouterr().out
+
+
+def test_json_log_format_emits_only_complete_json_lines(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = tmp_path / "network.yaml"
+    assert main(["--log-format", "json", "init", "--config", str(cfg)]) == 0
+
+    lines = capsys.readouterr().err.splitlines()
+    assert lines, "a diagnostic-producing command must emit structured stderr"
+    required = {
+        "timestamp",
+        "severity",
+        "service.name",
+        "service.version",
+        "trace_id",
+        "span_id",
+        "stage",
+        "message",
+    }
+    for line in lines:
+        event = json.loads(line)
+        assert required <= event.keys()
+        assert event["service.name"] == "swelter"
+        assert event["stage"] == "cli"
+        assert event["message"] == "diagnostic"
+        assert event["detail"]
+
+
+def test_json_log_handler_does_not_leak_into_the_next_invocation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = tmp_path / "network.yaml"
+    assert main(["--log-format", "json", "init", "--config", str(cfg)]) == 0
+    assert all(line.startswith("{") for line in capsys.readouterr().err.splitlines())
+
+    assert main(["init", "--config", str(cfg)]) == 1
+    human = capsys.readouterr().err
+    assert human.startswith("swelter:")
+    assert not human.startswith("{")
+
+
+def test_json_plan_diagnostic_never_reflects_candidate_coordinates(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    candidate = "38.5816,-121.4944,extra"
+
+    assert main(["--log-format", "json", "plan", "--add-node", candidate]) == 1
+
+    diagnostic = capsys.readouterr().err
+    assert "38.5816" not in diagnostic
+    assert "121.4944" not in diagnostic
+    assert json.loads(diagnostic)["detail"] == (
+        'swelter: --add-node expects exactly two numbers in the form "lat,lon"'
+    )
 
 
 def test_crosswalk_csv(capsys: pytest.CaptureFixture[str]) -> None:
@@ -335,11 +389,5 @@ def test_node_key_creates_a_key_ingest_serve_actually_authenticates_against(
 
 
 def _ingest_post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
-    request = urllib.request.Request(  # noqa: S310 (localhost)
-        url, data=body, headers=headers, method="POST"
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 (localhost)
-            return response.status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        return exc.code, json.loads(exc.read().decode("utf-8"))
+    response = request_local(url, method="POST", body=body, headers=headers)
+    return response.status, json.loads(response.body.decode("utf-8"))

@@ -200,7 +200,8 @@ def test_twin_agreement_divergent_series_has_nonzero_spread() -> None:
 def test_twin_agreement_no_matching_timestamps_reports_zero_pairs() -> None:
     # Same window, same parameter, but the two nodes' readings never land near each other in
     # time (a full day apart) — nothing pairs within the default tolerance.
-    obs = _twin_series("twin-a", [10.0, 11.0]) + [
+    obs = _twin_series("twin-a", [10.0, 11.0])
+    obs.extend(
         make_obs(
             node_id="twin-b",
             timestamp=f"2026-06-02T{i:02d}:00:00Z",
@@ -209,7 +210,7 @@ def test_twin_agreement_no_matching_timestamps_reports_zero_pairs() -> None:
             value=v,
         )
         for i, v in enumerate([10.0, 11.0])
-    ]
+    )
     window = TwinWindow(
         node_a="twin-a",
         node_b="twin-b",
@@ -224,7 +225,8 @@ def test_twin_agreement_no_matching_timestamps_reports_zero_pairs() -> None:
 
 def test_twin_agreement_window_filters_out_of_range_readings() -> None:
     # twin-b's second reading falls outside the configured window and must not be paired.
-    obs = _twin_series("twin-a", [10.0, 11.0]) + [
+    obs = [
+        *_twin_series("twin-a", [10.0, 11.0]),
         make_obs(
             node_id="twin-b",
             timestamp="2026-06-01T00:00:00Z",

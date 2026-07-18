@@ -5,7 +5,7 @@ from __future__ import annotations
 import http.client
 import json
 import threading
-import urllib.request
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -13,11 +13,13 @@ from typing import Any
 import pytest
 
 from swelter import aggregate as aggregate_module
+from swelter import snapshot
 from swelter.config import NetworkConfig, NodeConfig
-from swelter.server import ServerContext, make_server
+from swelter.server import ServerContext, _rights_link_header, make_server
 from swelter.store import SqliteStore
 
 from .conftest import make_obs
+from .http_client import request_local
 
 
 @dataclass
@@ -30,7 +32,7 @@ class _Server:
 
 
 @pytest.fixture
-def server(tmp_path: Path):  # type: ignore[no-untyped-def]
+def server(tmp_path: Path) -> Iterator[_Server]:
     db = SqliteStore(tmp_path / "obs.db")
     db.write([make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0, calibration="v1")])
     config = NetworkConfig(nodes=(NodeConfig(node_id="node-01", lat=38.58, lon=-121.49),))
@@ -63,8 +65,8 @@ def base_url(server: _Server) -> str:
 
 
 def _get(url: str) -> tuple[int, str]:
-    with urllib.request.urlopen(url, timeout=5) as response:  # noqa: S310 (localhost test server)
-        return response.status, response.read().decode("utf-8")
+    response = request_local(url)
+    return response.status, response.body.decode("utf-8")
 
 
 def _get_with_headers(host: str, path: str, headers: dict[str, str] | None = None) -> Any:
@@ -88,12 +90,8 @@ def test_path_traversal_sibling_prefix_is_blocked(base_url: str) -> None:
 
 
 def test_bad_query_param_returns_400_not_dropped_connection(base_url: str) -> None:
-    try:
-        _get(f"{base_url}/v1.1/Observations?top=abc")
-        raised = False
-    except urllib.error.HTTPError as exc:
-        raised = exc.code == 400
-    assert raised, "a non-numeric top must be a clean 400, not a dropped connection"
+    status, _ = _get(f"{base_url}/v1.1/Observations?top=abc")
+    assert status == 400, "a non-numeric top must be a clean 400, not a dropped connection"
 
 
 def test_negative_top_is_clamped(base_url: str) -> None:
@@ -101,6 +99,28 @@ def test_negative_top_is_clamped(base_url: str) -> None:
     payload: Any = json.loads(body)
     assert payload["value"] == []  # clamped to an empty page, not a negative-slice truncation
     assert payload["@iot.count"] >= 0  # @iot.count is the true total, not the page size
+
+
+def test_observation_response_carries_in_band_rights_and_link_header(base_url: str) -> None:
+    response = request_local(f"{base_url}/v1.1/Observations")
+    payload: Any = json.loads(response.body)
+    parameters = payload["value"][0]["parameters"]
+    assert parameters["source"] == "native"
+    assert parameters["data_license"] == snapshot.DEFAULT_DATA_LICENSE
+    assert payload["rights"]["attribution"] == snapshot.DEFAULT_DATA_ATTRIBUTION
+    assert response.headers["Link"].startswith('</DATA-LICENSE>; rel="license"')
+
+
+def test_provider_rights_header_links_to_exact_ledger() -> None:
+    terms = snapshot.DataTerms(
+        "OpenAQ",
+        "Provider-specific (see ledger)",
+        "OpenAQ and the underlying data providers",
+        ledger_content=b"{}",
+    )
+    header = _rights_link_header(terms)
+    assert 'rel="license"' in header
+    assert '</source-license-ledger.json>; rel="describedby"' in header
 
 
 def test_health_endpoint_returns_summary(base_url: str) -> None:
@@ -112,12 +132,9 @@ def test_health_endpoint_returns_summary(base_url: str) -> None:
 
 
 def test_options_preflight_is_204_with_cors(base_url: str) -> None:
-    request = urllib.request.Request(  # noqa: S310 -- test harness talks to its own localhost server
-        f"{base_url}/v1.1/Observations", method="OPTIONS"
-    )
-    with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310
-        assert response.status == 204
-        assert response.headers.get("Access-Control-Allow-Origin") == "*"
+    response = request_local(f"{base_url}/v1.1/Observations", method="OPTIONS")
+    assert response.status == 204
+    assert response.headers.get("Access-Control-Allow-Origin") == "*"
 
 
 def test_repo_license_route_served(base_url: str) -> None:
@@ -167,7 +184,7 @@ def test_alerts_atom_endpoint(base_url: str) -> None:
 
     status, body = _get(f"{base_url}/api/alerts.xml")
     assert status == 200
-    root = ET.fromstring(body)  # noqa: S314 -- our own server's response, not external input
+    root = ET.fromstring(body)  # noqa: S314 -- our own server's response, not external input (#107)
     assert root.tag.endswith("feed")
 
 
@@ -176,7 +193,7 @@ def test_alerts_atom_es_endpoint(base_url: str) -> None:
 
     status, body = _get(f"{base_url}/api/alerts.es.xml")
     assert status == 200
-    root = ET.fromstring(body)  # noqa: S314 -- our own server response; malformed would raise
+    root = ET.fromstring(body)  # noqa: S314 -- our own server response; malformed would raise (#107)
     assert root.tag.endswith("feed")
     assert root.get("{http://www.w3.org/XML/1998/namespace}lang") == "es"
 
@@ -191,15 +208,8 @@ def test_cooling_centers_endpoint_empty_when_unconfigured(base_url: str) -> None
 
 
 def test_writes_are_refused(base_url: str) -> None:
-    request = urllib.request.Request(  # noqa: S310 -- test harness talks to its own localhost server
-        f"{base_url}/v1.1/Observations", method="POST", data=b"{}"
-    )
-    try:
-        urllib.request.urlopen(request, timeout=5)  # noqa: S310
-        raised = False
-    except urllib.error.HTTPError as exc:
-        raised = exc.code == 405
-    assert raised, "the public API must refuse writes"
+    response = request_local(f"{base_url}/v1.1/Observations", method="POST", body=b"{}")
+    assert response.status == 405, "the public API must refuse writes"
 
 
 def test_handler_has_a_read_timeout() -> None:

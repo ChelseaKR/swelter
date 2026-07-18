@@ -10,19 +10,29 @@ store-lifecycle paths run without binding a socket.
 
 from __future__ import annotations
 
+import csv
 import json
+import sqlite3
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
 
-from swelter import aggregate
+from swelter import aggregate, snapshot
 from swelter.cli import _merge_network_doc, _write_web_sample, main
 from swelter.config import load_config
-from swelter.models import RAW, Observation
+from swelter.models import (
+    RAW,
+    SOURCE_NATIVE,
+    SOURCE_OPENAQ,
+    SOURCE_OPENMETEO,
+    SOURCE_SENSOR_COMMUNITY,
+    Observation,
+)
 from swelter.server import ServerContext
 from swelter.sources import openaq, openmeteo, sensor_community
 from swelter.sources._http import SourceError
-from swelter.store import open_store, store_paths
+from swelter.store import SqliteStore, WriteResult, open_store, store_paths
 
 from .conftest import DEMO, ROOT, make_obs
 
@@ -257,8 +267,11 @@ def test_alerts_json_and_web_baking(
     stdout = capsys.readouterr().out
     feed = json.loads(stdout)
     assert "alerts" in feed and "thresholds" in feed
-    assert (web / "alerts.json").is_file()
-    assert (web / "alerts.xml").read_text(encoding="utf-8").startswith("<?xml")
+    baked_feed = json.loads((web / "alerts.json").read_text(encoding="utf-8"))
+    assert baked_feed["rights"]["links"] == [{"rel": "license", "href": "DATA-LICENSE"}]
+    atom = (web / "alerts.xml").read_text(encoding="utf-8")
+    assert atom.startswith("<?xml")
+    assert '<link rel="license" href="DATA-LICENSE"/>' in atom
     es_atom = (web / "alerts.es.xml").read_text(encoding="utf-8")
     assert es_atom.startswith("<?xml")
     assert 'xml:lang="es"' in es_atom
@@ -556,8 +569,63 @@ def test_demo_serve_runs_pipeline_then_serves(
 # -- fetch (source routing + exit codes, no network) -------------------------
 
 
-def _real_temp(node_id: str) -> list[Observation]:
-    return [make_obs(node_id=node_id, parameter="temp_c", value=31.0, calibration=RAW)]
+def _real_temp(node_id: str, *, source: str = SOURCE_NATIVE) -> list[Observation]:
+    return [
+        make_obs(
+            node_id=node_id,
+            parameter="temp_c",
+            value=31.0,
+            source=source,
+            calibration=RAW,
+        )
+    ]
+
+
+def _openaq_ledger(
+    location_id: int,
+    *,
+    fetched_at: str,
+    license_id: int = 1,
+    license_name: str = "CC BY 4.0",
+    valid_from: str | None = None,
+    valid_to: str | None = None,
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "source": "OpenAQ v3",
+        "generated_at": fetched_at,
+        "entries": [
+            {
+                "location_id": location_id,
+                "license_id": license_id,
+                "location_name": f"Site {location_id}",
+                "provider": f"Provider {location_id}",
+                "license_name": license_name,
+                "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                "attribution": f"Provider {location_id}",
+                "attribution_url": "",
+                "valid_from": valid_from,
+                "valid_to": valid_to,
+                "upstream_url": f"{openaq.API}/locations/{location_id}",
+                "fetched_at": fetched_at,
+                "unavailable_fields": [],
+            }
+        ],
+        "excluded_locations": [],
+    }
+
+
+def _tree_bytes(*roots: Path) -> dict[str, bytes]:
+    """Capture every material file so a rejected fetch can prove it made no changes."""
+    captured: dict[str, bytes] = {}
+    for root in roots:
+        if root.is_file():
+            captured[str(root)] = root.read_bytes()
+        elif root.is_dir():
+            for path in sorted(root.rglob("*")):
+                if path.is_file():
+                    captured[str(path)] = path.read_bytes()
+    return captured
 
 
 def test_fetch_openaq_without_key_returns_1(
@@ -630,7 +698,11 @@ def test_fetch_openmeteo_happy_path_and_serve(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     node_id = openmeteo.CALIFORNIA[0].node_id
-    monkeypatch.setattr(openmeteo, "fetch", lambda *_a, **_k: _real_temp(node_id))
+    monkeypatch.setattr(
+        openmeteo,
+        "fetch",
+        lambda *_a, **_k: _real_temp(node_id, source=SOURCE_OPENMETEO),
+    )
     served: list[ServerContext] = []
 
     def fake_serve(ctx: ServerContext, host: str = "127.0.0.1", port: int = 8000) -> None:
@@ -660,17 +732,49 @@ def test_fetch_openmeteo_happy_path_and_serve(
     network = load_config(str(cfg))
     assert any(n.node_id == node_id for n in network.nodes)
     assert len(served) == 1
+    terms = json.loads((tmp_path / "store" / "source-metadata.json").read_text(encoding="utf-8"))
+    assert terms["license"] == openmeteo.LICENSE
+    assert terms["attribution"] == openmeteo.ATTRIBUTION
 
 
 def test_fetch_openaq_with_key_stores_real_sensors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     nodes: dict[str, tuple[str, float, float]] = {"oaq-1": ("Site 1", 38.58, -121.49)}
 
     def fake(
         *_a: object, **_k: object
     ) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
-        return _real_temp("oaq-1"), nodes
+        ledger = _k.get("license_ledger")
+        assert isinstance(ledger, dict)
+        ledger.update(
+            {
+                "schema_version": 1,
+                "source": "OpenAQ v3",
+                "generated_at": "2026-07-16T00:00:00Z",
+                "entries": [
+                    {
+                        "location_id": 1,
+                        "license_id": 1,
+                        "location_name": "Site 1",
+                        "provider": "Provider",
+                        "license_name": "CC BY 4.0",
+                        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                        "attribution": "Provider",
+                        "attribution_url": "",
+                        "valid_from": None,
+                        "valid_to": None,
+                        "upstream_url": f"{openaq.API}/locations/1",
+                        "fetched_at": "2026-07-16T00:00:00Z",
+                        "unavailable_fields": [],
+                    }
+                ],
+                "excluded_locations": [],
+            }
+        )
+        return _real_temp("oaq-1", source=SOURCE_OPENAQ), nodes
 
     monkeypatch.setattr(openaq, "fetch", fake)
     cfg = tmp_path / "net.yaml"
@@ -694,6 +798,20 @@ def test_fetch_openaq_with_key_stores_real_sensors(
     # OpenAQ sensors are real and precise but uncalibrated → no calibration windows.
     assert any(n.node_id == "oaq-1" for n in network.nodes)
     assert not network.calibration_windows
+    ledger = json.loads(
+        (tmp_path / "store" / "source-license-ledger.json").read_text(encoding="utf-8")
+    )
+    assert ledger["entries"][0]["location_id"] == 1
+    terms = json.loads((tmp_path / "store" / "source-metadata.json").read_text(encoding="utf-8"))
+    assert terms["source"] == "OpenAQ"
+    assert terms["license"] == openaq.LICENSE
+
+    capsys.readouterr()
+    assert main(["export", "--store", str(tmp_path / "store"), "--format", "json"]) == 0
+    exported = json.loads(capsys.readouterr().out)
+    [record] = exported["observations"]
+    assert record["data_license"].startswith("CC BY 4.0")
+    assert record["data_attribution"] == "Provider"
 
 
 def test_fetch_openaq_source_error_returns_1(
@@ -753,7 +871,7 @@ def test_fetch_sensor_community_routes_and_stores(
     nodes: dict[str, tuple[str, float, float, str]] = {"sc-1": ("Sensor 1", 48.7758, 9.1829, "")}
 
     def fake(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
-        return _real_temp("sc-1"), nodes
+        return _real_temp("sc-1", source=SOURCE_SENSOR_COMMUNITY), nodes
 
     monkeypatch.setattr(sensor_community, "fetch", fake)
     cfg = tmp_path / "net.yaml"
@@ -772,6 +890,8 @@ def test_fetch_sensor_community_routes_and_stores(
     )
     assert rc == 0
     assert any(n.node_id == "sc-1" for n in load_config(str(cfg)).nodes)
+    terms = json.loads((tmp_path / "store" / "source-metadata.json").read_text(encoding="utf-8"))
+    assert terms["license"] == sensor_community.LICENSE
 
 
 # -- fetch --accumulate (EXP-01: the demo store persists between runs) -------
@@ -781,17 +901,32 @@ def test_fetch_accumulate_keeps_prior_observations(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Without --accumulate a second fetch wipes the first; with it, both survive (the store key
-    ``(node_id, timestamp, parameter, calibration)`` plus INSERT OR IGNORE make this idempotent)."""
+    ``(node_id, timestamp, parameter, source, calibration)`` plus INSERT OR IGNORE make this
+    idempotent)."""
     node_id = openmeteo.CALIFORNIA[0].node_id
     store = tmp_path / "store"
     cfg = tmp_path / "net.yaml"
     web = tmp_path / "web"
 
     def first(*_a: object, **_k: object) -> list[Observation]:
-        return [make_obs(node_id=node_id, timestamp="2026-06-01T00:00:00Z", calibration=RAW)]
+        return [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-01T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+                calibration=RAW,
+            )
+        ]
 
     def second(*_a: object, **_k: object) -> list[Observation]:
-        return [make_obs(node_id=node_id, timestamp="2026-06-02T00:00:00Z", calibration=RAW)]
+        return [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-02T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+                calibration=RAW,
+            )
+        ]
 
     monkeypatch.setattr(openmeteo, "fetch", first)
     rc = main(
@@ -832,6 +967,420 @@ def test_fetch_accumulate_keeps_prior_observations(
     assert timestamps == {"2026-06-01T00:00:00Z", "2026-06-02T00:00:00Z"}
 
 
+def test_fetch_openaq_accumulate_retains_historical_license_periods(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    args = [
+        "fetch",
+        "--source",
+        "openaq",
+        "--api-key",
+        "test-key",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+
+    def day1(
+        *_args: object, **kwargs: object
+    ) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+        ledger = kwargs.get("license_ledger")
+        assert isinstance(ledger, dict)
+        ledger.update(
+            _openaq_ledger(
+                1,
+                fetched_at="2026-06-01T12:00:00Z",
+                license_id=1,
+                license_name="Terms A",
+                valid_from="2026-06-01",
+                valid_to="2026-06-01",
+            )
+        )
+        return [
+            make_obs(node_id="oaq-1", timestamp="2026-06-01T12:00:00Z", source=SOURCE_OPENAQ)
+        ], {"oaq-1": ("Site 1", 38.58, -121.49)}
+
+    def day2(
+        *_args: object, **kwargs: object
+    ) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+        ledger = kwargs.get("license_ledger")
+        assert isinstance(ledger, dict)
+        ledger.update(
+            _openaq_ledger(
+                1,
+                fetched_at="2026-06-02T12:00:00Z",
+                license_id=2,
+                license_name="Terms B",
+                valid_from="2026-06-02",
+            )
+        )
+        return [
+            make_obs(node_id="oaq-1", timestamp="2026-06-02T12:00:00Z", source=SOURCE_OPENAQ)
+        ], {"oaq-1": ("Site 1", 38.58, -121.49)}
+
+    monkeypatch.setattr(openaq, "fetch", day1)
+    assert main(args) == 0
+    monkeypatch.setattr(openaq, "fetch", day2)
+    assert main(args) == 0
+
+    with open_store(store) as opened:
+        observations = list(opened.all())
+    assert {observation.timestamp for observation in observations} == {
+        "2026-06-01T12:00:00Z",
+        "2026-06-02T12:00:00Z",
+    }
+    ledger = json.loads((store / "source-license-ledger.json").read_text(encoding="utf-8"))
+    assert {entry["license_id"] for entry in ledger["entries"]} == {1, 2}
+    assert openaq.validate_license_ledger(ledger, observations=observations)
+
+    capsys.readouterr()
+    assert (
+        main(
+            [
+                "publish",
+                "--store",
+                str(store),
+                "--config",
+                str(cfg),
+                "--web",
+                str(web),
+                "--cooling-centers",
+                str(tmp_path / "missing.geojson"),
+            ]
+        )
+        == 0
+    )
+    rows = list(csv.DictReader((web / "export.csv").read_text(encoding="utf-8").splitlines()))
+    by_time = {row["timestamp"]: row for row in rows}
+    assert "Terms A" in by_time["2026-06-01T12:00:00Z"]["data_license"]
+    assert "Terms B" not in by_time["2026-06-01T12:00:00Z"]["data_license"]
+    assert "Terms B" in by_time["2026-06-02T12:00:00Z"]["data_license"]
+    assert "Terms A" not in by_time["2026-06-02T12:00:00Z"]["data_license"]
+
+
+def test_fetch_accumulate_rejects_malformed_old_ledger_without_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    args = [
+        "fetch",
+        "--source",
+        "openaq",
+        "--api-key",
+        "test-key",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+
+    def fetched(
+        *_args: object, **kwargs: object
+    ) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+        ledger = kwargs.get("license_ledger")
+        assert isinstance(ledger, dict)
+        ledger.update(_openaq_ledger(1, fetched_at="2026-06-01T12:00:00Z"))
+        return [
+            make_obs(node_id="oaq-1", timestamp="2026-06-01T12:00:00Z", source=SOURCE_OPENAQ)
+        ], {"oaq-1": ("Site 1", 38.58, -121.49)}
+
+    monkeypatch.setattr(openaq, "fetch", fetched)
+    assert main(args) == 0
+    ledger_path = store / "source-license-ledger.json"
+    ledger_path.write_text('{"schema_version":1,"entries":[]}', encoding="utf-8")
+    before = _tree_bytes(cfg, store, web)
+
+    capsys.readouterr()
+    assert main(args) == 1
+    assert "source provenance is invalid" in capsys.readouterr().err
+    assert _tree_bytes(cfg, store, web) == before
+
+
+def test_fetch_accumulate_rejects_cross_source_without_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    common = ["--store", str(store), "--config", str(cfg), "--web", str(web), "--accumulate"]
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    monkeypatch.setattr(
+        openmeteo,
+        "fetch",
+        lambda *_a, **_k: _real_temp(node_id, source=SOURCE_OPENMETEO),
+    )
+    assert main(["fetch", "--source", "openmeteo", *common]) == 0
+    before = _tree_bytes(cfg, store, web)
+
+    monkeypatch.setattr(
+        sensor_community,
+        "fetch",
+        lambda _area: (
+            _real_temp("sc-1", source=SOURCE_SENSOR_COMMUNITY),
+            {"sc-1": ("Sensor 1", 48.7758, 9.1829, "")},
+        ),
+    )
+    capsys.readouterr()
+    assert main(["fetch", "--source", "sensor-community", *common]) == 1
+    assert "cannot mix sources" in capsys.readouterr().err
+    assert _tree_bytes(cfg, store, web) == before
+
+
+def test_fetch_accumulate_rejects_same_source_term_drift_without_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    args = [
+        "fetch",
+        "--source",
+        "openmeteo",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+    monkeypatch.setattr(
+        openmeteo,
+        "fetch",
+        lambda *_a, **_k: _real_temp(node_id, source=SOURCE_OPENMETEO),
+    )
+    assert main(args) == 0
+    before = _tree_bytes(cfg, store, web)
+
+    monkeypatch.setattr(openmeteo, "ATTRIBUTION", "changed attribution")
+    capsys.readouterr()
+    assert main(args) == 1
+    assert "source provenance is invalid" in capsys.readouterr().err
+    assert _tree_bytes(cfg, store, web) == before
+
+
+def test_rejected_fetch_rolls_back_legacy_migration_and_digest_rewrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / "store"
+    store.mkdir()
+    db_path = store / "observations.db"
+    connection = sqlite3.connect(db_path)
+    connection.executescript(
+        """
+        CREATE TABLE observations (
+            node_id TEXT NOT NULL, timestamp TEXT NOT NULL, parameter TEXT NOT NULL,
+            value REAL NOT NULL, unit TEXT NOT NULL, calibration TEXT NOT NULL,
+            qc TEXT NOT NULL, uncertainty REAL, content_hash TEXT NOT NULL,
+            PRIMARY KEY (node_id, timestamp, parameter, calibration)
+        );
+        """
+    )
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    connection.execute(
+        "INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            node_id,
+            "2026-06-01T00:00:00Z",
+            "temp_c",
+            25.0,
+            "degC",
+            "copernicus-cams",
+            "ok",
+            None,
+            "legacy-hash",
+        ),
+    )
+    connection.commit()
+    connection.close()
+    snapshot.write_source_metadata(
+        store,
+        source="Copernicus CAMS via Open-Meteo",
+        license=openmeteo.LICENSE,
+        attribution=openmeteo.ATTRIBUTION,
+        license_url=openmeteo.LICENSE_URL,
+        recorded_at="2026-07-16T12:00:00Z",
+    )
+    (store / "digests.jsonl").write_text('{"head":"legacy"}\n', encoding="utf-8")
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    before = _tree_bytes(cfg, store, web)
+
+    monkeypatch.setattr(
+        openmeteo,
+        "fetch",
+        lambda *_a, **_k: _real_temp(node_id, source=SOURCE_OPENMETEO),
+    )
+    monkeypatch.setattr(openmeteo, "ATTRIBUTION", "changed attribution")
+    capsys.readouterr()
+
+    assert (
+        main(
+            [
+                "fetch",
+                "--source",
+                "openmeteo",
+                "--store",
+                str(store),
+                "--config",
+                str(cfg),
+                "--web",
+                str(web),
+                "--accumulate",
+            ]
+        )
+        == 1
+    )
+    assert "source provenance is invalid" in capsys.readouterr().err
+    assert _tree_bytes(cfg, store, web) == before
+
+
+@pytest.mark.parametrize("failure_point", ["config", "database", "web"])
+def test_fetch_post_validation_failure_restores_every_artifact(
+    failure_point: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    web.mkdir()
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    args = [
+        "fetch",
+        "--source",
+        "openmeteo",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+    monkeypatch.setattr(
+        openmeteo,
+        "fetch",
+        lambda *_a, **_k: [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-01T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+            )
+        ],
+    )
+    assert main(args) == 0
+    before = _tree_bytes(cfg, store, web)
+    monkeypatch.setattr(
+        openmeteo,
+        "fetch",
+        lambda *_a, **_k: [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-02T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+            )
+        ],
+    )
+
+    if failure_point == "config":
+        original_write_text = Path.write_text
+
+        def fail_config(
+            self: Path,
+            data: str,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> int:
+            if self.resolve() == cfg.resolve():
+                raise OSError("injected config write failure")
+            return original_write_text(
+                self, data, encoding=encoding, errors=errors, newline=newline
+            )
+
+        monkeypatch.setattr(Path, "write_text", fail_config)
+    elif failure_point == "database":
+        original_db_write = SqliteStore.write
+
+        def fail_database(self: SqliteStore, observations: Iterable[Observation]) -> WriteResult:
+            original_db_write(self, observations)
+            raise OSError("injected database failure after commit")
+
+        monkeypatch.setattr(SqliteStore, "write", fail_database)
+    else:
+
+        def fail_web(*_args: object, **_kwargs: object) -> None:
+            raise OSError("injected web artifact failure")
+
+        monkeypatch.setattr("swelter.cli._write_web_alerts", fail_web)
+
+    capsys.readouterr()
+    assert main(args) == 1
+    assert "restored the prior store and artifacts" in capsys.readouterr().err
+    assert _tree_bytes(cfg, store, web) == before
+
+
+def test_fetch_rejects_malformed_generated_network_without_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    node_id = openmeteo.CALIFORNIA[0].node_id
+    args = [
+        "fetch",
+        "--source",
+        "openmeteo",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+    monkeypatch.setattr(
+        openmeteo,
+        "fetch",
+        lambda *_a, **_k: _real_temp(node_id, source=SOURCE_OPENMETEO),
+    )
+    assert main(args) == 0
+    before = _tree_bytes(cfg, store, web)
+
+    monkeypatch.setattr(openmeteo, "network_doc", lambda *_a, **_k: {"nodes": "invalid"})
+    capsys.readouterr()
+    assert main(args) == 1
+    assert "network config is invalid" in capsys.readouterr().err
+    assert _tree_bytes(cfg, store, web) == before
+
+
 def test_fetch_without_accumulate_wipes_prior_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -842,10 +1391,24 @@ def test_fetch_without_accumulate_wipes_prior_store(
     web = tmp_path / "web"
 
     def first(*_a: object, **_k: object) -> list[Observation]:
-        return [make_obs(node_id=node_id, timestamp="2026-06-01T00:00:00Z", calibration=RAW)]
+        return [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-01T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+                calibration=RAW,
+            )
+        ]
 
     def second(*_a: object, **_k: object) -> list[Observation]:
-        return [make_obs(node_id=node_id, timestamp="2026-06-02T00:00:00Z", calibration=RAW)]
+        return [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-02T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+                calibration=RAW,
+            )
+        ]
 
     monkeypatch.setattr(openmeteo, "fetch", first)
     assert (
@@ -897,10 +1460,13 @@ def test_fetch_accumulate_merges_network_nodes_that_come_and_go(
     nodes_day2 = {"sc-1": ("Sensor 1 (moved)", 48.7760, 9.1830, "")}  # sc-2 dropped out today
 
     def day1(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
-        return [make_obs(node_id="sc-1"), make_obs(node_id="sc-2")], nodes_day1
+        return [
+            make_obs(node_id="sc-1", source=SOURCE_SENSOR_COMMUNITY),
+            make_obs(node_id="sc-2", source=SOURCE_SENSOR_COMMUNITY),
+        ], nodes_day1
 
     def day2(_area: object) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
-        return [make_obs(node_id="sc-1")], nodes_day2
+        return [make_obs(node_id="sc-1", source=SOURCE_SENSOR_COMMUNITY)], nodes_day2
 
     cfg = tmp_path / "net.yaml"
     store = tmp_path / "store"
@@ -981,3 +1547,5 @@ def test_web_sample_cap_drops_older_buckets(demo_store: Path, tmp_path: Path) ->
     # With max_cells=1 only the single newest bucket survives the cap.
     assert len(sample["buckets"]) < len(all_buckets)
     assert sample["buckets"] == [max(all_buckets)]
+    assert sample["rights"]["attribution"] == "x"
+    assert sample["rights"]["links"] == [{"rel": "license", "href": "DATA-LICENSE"}]

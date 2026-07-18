@@ -43,12 +43,16 @@ def test_json_lines_formatter_emits_one_parseable_object_per_line() -> None:
     record.counters = {"payloads_accepted": 3, "payloads_quarantined": 1}
     line = obs.JsonLinesFormatter().format(record)
     payload = json.loads(line)  # must parse as a single JSON object
-    assert payload["level"] == "info"
+    assert payload["severity"] == "INFO"
+    assert payload["service.name"] == "swelter"
+    assert payload["service.version"] == __version__
+    assert payload["trace_id"] is None
+    assert payload["span_id"] is None
     assert payload["stage"] == "ingest"
-    assert payload["event"] == "payloads ingested"
+    assert payload["message"] == "payloads ingested"
     assert payload["payloads_accepted"] == 3
     assert payload["payloads_quarantined"] == 1
-    assert "ts" in payload
+    assert "timestamp" in payload
 
 
 def test_json_lines_formatter_scrubs_person_shaped_and_ip_fields() -> None:
@@ -78,6 +82,46 @@ def test_json_lines_formatter_scrubs_person_shaped_and_ip_fields() -> None:
         assert forbidden not in payload
 
 
+def test_json_lines_formatter_redacts_sensitive_values() -> None:
+    record = logging.LogRecord(
+        name="swelter",
+        level=logging.WARNING,
+        pathname=__file__,
+        lineno=1,
+        msg="upstream 203.0.113.9 rejected bearer super-secret",
+        args=(),
+        exc_info=None,
+    )
+    record.stage = "fetch"
+    record.counters = {"detail": "operator@example.org", "status": 401}
+    payload = json.loads(obs.JsonLinesFormatter().format(record))
+    blob = json.dumps(payload)
+    assert "203.0.113.9" not in blob
+    assert "super-secret" not in blob
+    assert "operator@example.org" not in blob
+    assert blob.count("[REDACTED]") == 3
+
+
+def test_json_lines_formatter_redacts_coordinate_pairs_in_free_form_values() -> None:
+    record = logging.LogRecord(
+        name="swelter",
+        level=logging.WARNING,
+        pathname=__file__,
+        lineno=1,
+        msg="candidate 38.5816,-121.4944 was rejected",
+        args=(),
+        exc_info=None,
+    )
+    record.stage = "cli"
+    record.counters = {"detail": "received +38.5816, -121.4944,extra"}
+
+    blob = obs.JsonLinesFormatter().format(record)
+
+    assert "38.5816" not in blob
+    assert "121.4944" not in blob
+    assert blob.count("[REDACTED]") == 2
+
+
 def test_configure_json_logging_is_idempotent_no_duplicate_handlers() -> None:
     logger = obs.configure_json_logging()
     obs.configure_json_logging()
@@ -94,7 +138,7 @@ def test_log_event_emits_valid_json_line(capsys: pytest.CaptureFixture[str]) -> 
     assert lines, "expected at least one JSON line on stderr"
     payload = json.loads(lines[-1])
     assert payload["stage"] == "ingest"
-    assert payload["event"] == "payloads ingested"
+    assert payload["message"] == "payloads ingested"
     assert payload["payloads_accepted"] == 2
 
 
@@ -288,7 +332,7 @@ def test_health_endpoint_names_the_run_that_built_the_surface(tmp_path: Path) ->
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
-        with urllib.request.urlopen(  # noqa: S310 (localhost test server)
+        with urllib.request.urlopen(
             f"http://127.0.0.1:{port}/api/health.json", timeout=5
         ) as response:
             body = json.loads(response.read().decode("utf-8"))
@@ -320,7 +364,7 @@ def test_health_endpoint_omits_run_block_without_store_dir(tmp_path: Path) -> No
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
-        with urllib.request.urlopen(  # noqa: S310 (localhost test server)
+        with urllib.request.urlopen(
             f"http://127.0.0.1:{port}/api/health.json", timeout=5
         ) as response:
             body = json.loads(response.read().decode("utf-8"))
@@ -356,9 +400,7 @@ def test_request_logging_off_by_default_emits_no_json_lines(
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
-        with urllib.request.urlopen(  # noqa: S310 (localhost test server)
-            f"http://127.0.0.1:{port}/health", timeout=5
-        ):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5):
             pass
     finally:
         httpd.shutdown()
@@ -390,9 +432,7 @@ def test_request_logging_enabled_emits_method_path_status_ms_never_ip(
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     try:
-        with urllib.request.urlopen(  # noqa: S310 (localhost test server)
-            f"http://127.0.0.1:{port}/health", timeout=5
-        ):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5):
             pass
     finally:
         httpd.shutdown()

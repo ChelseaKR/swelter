@@ -139,6 +139,25 @@ def test_alert_thresholds_default_empty() -> None:
     assert parse_config({"name": "x"}).alert_thresholds == {}
 
 
+def test_parse_config_preserves_valid_geographic_scope() -> None:
+    doc = {"geographic_scope": {"id": "US-CA", "boundary": "census-counties-2024"}}
+    config = parse_config(doc)
+    assert config.geographic_scope is not None
+    assert config.geographic_scope.scope_id == "US-CA"
+    assert config.geographic_scope.boundary == "census-counties-2024"
+    assert config_concerns(config, doc) == ([], [])
+
+
+@pytest.mark.parametrize(
+    "scope",
+    ["US-CA", {}, {"id": "US-CA"}, {"id": "US-CA", "boundary": "x", "typo": True}],
+)
+def test_config_concerns_rejects_malformed_geographic_scope(scope: object) -> None:
+    doc = {"geographic_scope": scope}
+    errors, _warnings = config_concerns(parse_config(doc), doc)
+    assert errors
+
+
 def test_load_demo_network_yaml() -> None:
     cfg = load_config(ROOT / "network.yaml")
     assert len(cfg.nodes) >= 18  # a real demo network, count not hardcoded

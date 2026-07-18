@@ -3,8 +3,7 @@
 import json
 import threading
 import time
-import urllib.error
-import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -15,6 +14,8 @@ import yaml
 from swelter import ingest_server
 from swelter.models import parse_timestamp
 from swelter.store import SqliteStore
+
+from .http_client import request_local
 
 
 @pytest.fixture
@@ -361,14 +362,8 @@ FIXED_NOW = parse_timestamp(FIXED_TIMESTAMP).timestamp()
 
 def _post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
     """POST over a real socket and return (status, parsed-JSON-body) whether it's a 2xx or not."""
-    request = urllib.request.Request(  # noqa: S310 (localhost)
-        url, data=body, headers=headers, method="POST"
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=5) as response:  # noqa: S310 (localhost)
-            return response.status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        return exc.code, json.loads(exc.read().decode("utf-8"))
+    response = request_local(url, method="POST", body=body, headers=headers)
+    return response.status, json.loads(response.body.decode("utf-8"))
 
 
 def _quarantine_records(path: Path) -> list[dict[str, Any]]:
@@ -378,7 +373,7 @@ def _quarantine_records(path: Path) -> list[dict[str, Any]]:
 
 
 @pytest.fixture
-def running_server(store_path: Path, store_dir: Path, keys_file: Path):  # type: ignore[no-untyped-def]
+def running_server(store_path: Path, store_dir: Path, keys_file: Path) -> Iterator[SimpleNamespace]:
     """A real ingest listener, bound to 127.0.0.1 on an OS-assigned port, on a daemon thread.
 
     Two nodes (``node-1``, ``node-2``) are pre-provisioned so impersonation-style tests have a

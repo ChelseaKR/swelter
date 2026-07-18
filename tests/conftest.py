@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from swelter.models import RAW, Observation
+from swelter.models import RAW, SOURCE_NATIVE, Observation
 from swelter.store import SqliteStore
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +30,7 @@ def make_obs(
     parameter: str = "temp_c",
     value: float = 25.0,
     unit: str = "degC",
+    source: str = SOURCE_NATIVE,
     calibration: str = RAW,
     qc: str = "ok",
     uncertainty: float | None = None,
@@ -40,6 +41,7 @@ def make_obs(
         parameter=parameter,
         value=value,
         unit=unit,
+        source=source,
         calibration=calibration,
         qc=qc,
         uncertainty=uncertainty,

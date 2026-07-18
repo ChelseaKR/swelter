@@ -6,7 +6,8 @@ alert, and trust copy this project exists to deliver in their language. The org-
 ``INTERNATIONALIZATION-STANDARD`` makes this merge-blocking (G6 key-parity ``keys(en) == keys(es)``
 and G5 placeholder parity); swelter previously had no such check. These tests are it.
 
-Pure stdlib, no browser: the catalogs are flat JSON, so parity is a set comparison and a regex.
+Pure stdlib, no browser: the catalogs are flat JSON, so key and MF2 variable parity are set
+comparisons. Canonical syntax validation remains the pinned MessageFormat runtime's job.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ REFERENCE_LANG = "en"
 #: Every locale the dashboard ships must reach parity with the reference catalog.
 SHIPPED_LANGS = ("en", "es")
 
-_PLACEHOLDER = re.compile(r"\{[^}]+\}")  # e.g. {n}, {place}, {category}
+_PLACEHOLDER = re.compile(r"\{\$([A-Za-z][A-Za-z0-9_-]*)\b")
 # A static t("key") / t('key') lookup in the dashboard logic (templated t(`...`) calls are skipped).
 _T_LITERAL = re.compile(r"""\bt\(\s*["']([a-zA-Z0-9_-]+)["']\s*\)""")
 _DATA_I18N = re.compile(r'data-i18n="([^"]+)"')
@@ -56,9 +57,9 @@ def test_en_es_key_parity_is_exact() -> None:
 
 
 def test_placeholder_parity_per_key() -> None:
-    """G5: each translated string carries the same ``{placeholder}`` set as the reference.
+    """G5: each translated string carries the same MF2 ``{$variable}`` set as the reference.
 
-    A dropped or renamed ``{n}`` / ``{place}`` would render a literal brace token or lose a value
+    A dropped or renamed ``{$n}`` / ``{$place}`` would lose a runtime value
     to a reader in the other language; catch it deterministically rather than in production.
     """
     ref = _load(REFERENCE_LANG)

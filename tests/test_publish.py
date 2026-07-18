@@ -6,18 +6,23 @@ which pipeline command (``fetch`` or ``demo``) populated it.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
+import shutil
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
 
-from swelter import aggregate, export
+from swelter import aggregate, export, snapshot
 from swelter.cli import main
 from swelter.config import load_config
-from swelter.store import open_store
+from swelter.models import Observation
+from swelter.sources import openaq, sensor_community
+from swelter.store import SqliteStore, open_store
 
-from .conftest import DEMO, ROOT
+from .conftest import DEMO, ROOT, make_obs
 
 NETWORK = str(ROOT / "network.yaml")
 COOLING = str(ROOT / "data" / "cooling_centers.geojson")
@@ -128,7 +133,7 @@ def test_publish_export_matches_export_to_csv(demo_store: Path, tmp_path: Path) 
     # Read raw bytes, not read_text(): the CSV module's "\r\n" line terminator survives
     # byte-for-byte only if nothing does universal-newline translation on the way back in.
     baked = (web / "export.csv").read_bytes().decode("utf-8")
-    assert baked == export.to_csv(all_obs)
+    assert baked == export.to_csv(all_obs, license=export.DEFAULT_LICENSE)
 
 
 def test_publish_manifest_enumerates_files_with_hashes(demo_store: Path, tmp_path: Path) -> None:
@@ -258,3 +263,141 @@ def test_publish_license_overrides_travel_into_the_artifact(
     # the sample surface carries the attribution the dashboard shows
     sample = json.loads((web / "sample-surface.json").read_text(encoding="utf-8"))
     assert sample["attribution"].startswith("Real readings from a third-party network")
+
+
+def test_publish_automatically_uses_fetched_store_terms(demo_store: Path, tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    shutil.copytree(demo_store, store)
+    snapshot.write_source_metadata(
+        store,
+        source="Sensor.Community",
+        license=sensor_community.LICENSE,
+        attribution=sensor_community.ATTRIBUTION,
+        license_url=sensor_community.LICENSE_URL,
+        recorded_at="2026-07-16T12:00:00Z",
+    )
+
+    web = tmp_path / "web"
+    assert _publish(store, web) == 0
+    assert "ODC-DbCL-1.0" in (web / "DATA-LICENSE").read_text(encoding="utf-8")
+    assert (web / snapshot.SOURCE_METADATA_FILENAME).is_file()
+    manifest = json.loads((web / "publish-manifest.json").read_text(encoding="utf-8"))
+    assert snapshot.SOURCE_METADATA_FILENAME in {entry["path"] for entry in manifest["files"]}
+
+
+def test_publish_copies_the_exact_source_metadata_bytes_it_validated(
+    demo_store: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = tmp_path / "store"
+    shutil.copytree(demo_store, store)
+    metadata_path = snapshot.write_source_metadata(
+        store,
+        source="Sensor.Community",
+        license=sensor_community.LICENSE,
+        attribution=sensor_community.ATTRIBUTION,
+        license_url=sensor_community.LICENSE_URL,
+        recorded_at="2026-07-16T12:00:00Z",
+    )
+    validated_bytes = metadata_path.read_bytes()
+    original_loader = snapshot.load_data_terms
+
+    def load_then_replace_source(
+        store_path: Path,
+        *,
+        license_override: str | None = None,
+        attribution_override: str | None = None,
+        observations: Iterable[Observation] = (),
+    ) -> snapshot.DataTerms:
+        terms = original_loader(
+            store_path,
+            license_override=license_override,
+            attribution_override=attribution_override,
+            observations=observations,
+        )
+        metadata_path.write_bytes(b'{"tampered":true}\n')
+        return terms
+
+    monkeypatch.setattr(snapshot, "load_data_terms", load_then_replace_source)
+    web = tmp_path / "web"
+
+    assert _publish(store, web) == 0
+    assert (web / snapshot.SOURCE_METADATA_FILENAME).read_bytes() == validated_bytes
+
+
+def test_publish_refuses_openaq_without_per_location_license_ledger(
+    demo_store: Path, tmp_path: Path
+) -> None:
+    store = tmp_path / "store"
+    shutil.copytree(demo_store, store)
+    web = tmp_path / "web"
+    assert (
+        _publish(
+            store,
+            web,
+            license=openaq.LICENSE,
+            attribution=openaq.ATTRIBUTION,
+        )
+        == 1
+    )
+    assert not (web / "publish-manifest.json").exists()
+
+
+def test_publish_copies_and_hashes_openaq_license_ledger(tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    with SqliteStore(store / "observations.db") as db:
+        db.write([make_obs(node_id="oaq-1")])
+    snapshot.write_source_metadata(
+        store,
+        source="OpenAQ",
+        license=openaq.LICENSE,
+        attribution=openaq.ATTRIBUTION,
+        license_url=openaq.LICENSE_URL,
+        recorded_at="2026-07-16T00:00:00Z",
+    )
+    ledger = {
+        "schema_version": 1,
+        "source": "OpenAQ v3",
+        "generated_at": "2026-07-16T00:00:00Z",
+        "entries": [
+            {
+                "location_id": 1,
+                "license_id": 1,
+                "location_name": "Site 1",
+                "provider": "Provider",
+                "license_name": "CC BY 4.0",
+                "license_url": "https://creativecommons.org/licenses/by/4.0/",
+                "attribution": "Provider",
+                "attribution_url": "",
+                "valid_from": None,
+                "valid_to": None,
+                "upstream_url": f"{openaq.API}/locations/1",
+                "fetched_at": "2026-07-16T00:00:00Z",
+                "unavailable_fields": [],
+            }
+        ],
+        "excluded_locations": [],
+    }
+    source = store / openaq.LICENSE_LEDGER_FILENAME
+    source.write_text(json.dumps(ledger, indent=2), encoding="utf-8")
+    web = tmp_path / "web"
+    assert _publish(store, web) == 0
+    target = web / openaq.LICENSE_LEDGER_FILENAME
+    assert json.loads(target.read_text(encoding="utf-8")) == ledger
+    manifest = json.loads((web / "publish-manifest.json").read_text(encoding="utf-8"))
+    listed = {entry["path"]: entry for entry in manifest["files"]}
+    assert (
+        listed[openaq.LICENSE_LEDGER_FILENAME]["sha256"]
+        == hashlib.sha256(target.read_bytes()).hexdigest()
+    )
+    assert "source-license-ledger.json" in (web / "DATA-LICENSE").read_text(encoding="utf-8")
+    sample = json.loads((web / "sample-surface.json").read_text(encoding="utf-8"))
+    assert {link["rel"] for link in sample["rights"]["links"]} == {
+        "license",
+        "describedby",
+    }
+    atom = (web / "alerts.xml").read_text(encoding="utf-8")
+    assert '<link rel="license" href="DATA-LICENSE"/>' in atom
+    assert '<link rel="describedby" href="source-license-ledger.json"/>' in atom
+    rows = list(csv.DictReader((web / "export.csv").read_text(encoding="utf-8").splitlines()))
+    assert rows[0]["data_license"].startswith("CC BY 4.0")
+    assert rows[0]["data_attribution"] == "Provider"

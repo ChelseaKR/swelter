@@ -9,6 +9,7 @@ from swelter.ac_access_layer import from_cells as ac_from_cells
 from swelter.config import NetworkConfig, NodeConfig
 from swelter.context_layers import ContextCell
 from swelter.context_layers import from_cells as canopy_from_cells
+from swelter.models import Observation
 from swelter.redlining_layer import RedliningCell
 from swelter.redlining_layer import from_cells as redlining_from_cells
 
@@ -21,8 +22,8 @@ _CONFIG = NetworkConfig(grid_resolution_m=150.0, nodes=(_NODE,))
 _CELL_ID = "38.581600,-121.494400"
 
 
-def _surface(*obs: object) -> aggregate.Surface:
-    return aggregate.aggregate(list(obs), _CONFIG)  # type: ignore[arg-type]
+def _surface(*obs: Observation) -> aggregate.Surface:
+    return aggregate.aggregate(obs, _CONFIG)
 
 
 # -- count_danger_days --------------------------------------------------------
@@ -168,9 +169,12 @@ def test_brief_joins_all_three_context_layers_by_cell_id() -> None:
     assert "https://dsl.richmond.edu/panorama/redlining/" in lines[3]
 
     record = brief.as_record()
-    assert record["canopy"]["canopy_pct"] == 27.5  # type: ignore[index]
-    assert record["ac_access"]["no_ac_pct"] == 22.0  # type: ignore[index]
-    assert record["redlining"]["holc_grade"] == "D"  # type: ignore[index]
+    canopy_record = record["canopy"]
+    ac_record = record["ac_access"]
+    redlining_record = record["redlining"]
+    assert isinstance(canopy_record, dict) and canopy_record["canopy_pct"] == 27.5
+    assert isinstance(ac_record, dict) and ac_record["no_ac_pct"] == 22.0
+    assert isinstance(redlining_record, dict) and redlining_record["holc_grade"] == "D"
     assert brief.to_text() == "\n".join(lines)
 
 

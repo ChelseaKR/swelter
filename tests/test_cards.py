@@ -11,6 +11,7 @@ from swelter import aggregate, cards
 from swelter.cli import main
 from swelter.config import NetworkConfig, NodeConfig
 from swelter.cooling_centers import CoolingCenter, CoolingCenterSet, empty, from_features
+from swelter.models import Observation
 from swelter.store import store_paths
 
 from .conftest import make_obs
@@ -33,8 +34,8 @@ class _LinkCollector(HTMLParser):
             )
 
 
-def _surface(*obs: object) -> aggregate.Surface:
-    return aggregate.aggregate(list(obs), _CONFIG)  # type: ignore[arg-type]
+def _surface(*obs: Observation) -> aggregate.Surface:
+    return aggregate.aggregate(obs, _CONFIG)
 
 
 def test_card_contains_the_cell_label() -> None:

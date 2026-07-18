@@ -17,13 +17,18 @@ NEAR_LAT, NEAR_LON = 38.575120, -121.506400  # ~250m away: same neighbourhood, d
 FAR_LAT, FAR_LON = 34.052235, -118.243683  # Los Angeles: far from anything above
 
 
-def _config(**overrides: object) -> NetworkConfig:
-    defaults: dict[str, object] = {
-        "grid_resolution_m": 150.0,
-        "nodes": (NodeConfig(node_id="node-01", label="Cedar & 4th", lat=NODE_LAT, lon=NODE_LON),),
-    }
-    defaults.update(overrides)
-    return NetworkConfig(**defaults)  # type: ignore[arg-type]
+def _config(
+    *,
+    nodes: tuple[NodeConfig, ...] | None = None,
+    reference_monitors: tuple[ReferenceMonitor, ...] = (),
+) -> NetworkConfig:
+    return NetworkConfig(
+        grid_resolution_m=150.0,
+        nodes=nodes
+        if nodes is not None
+        else (NodeConfig(node_id="node-01", label="Cedar & 4th", lat=NODE_LAT, lon=NODE_LON),),
+        reference_monitors=reference_monitors,
+    )
 
 
 def test_haversine_m_is_zero_for_the_same_point() -> None:
