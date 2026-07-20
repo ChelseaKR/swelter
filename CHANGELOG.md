@@ -27,6 +27,22 @@ All notable changes to swelter are recorded here. The format follows
   a ranking of neighborhoods (hard rule #3). `calibrate.apply()` and `data/demo/corrections.yaml` are
   untouched, so the byte-for-byte calibration replay is unaffected
   ([ADR 0028](docs/adr/0028-calibration-drift-surveillance.md)).
+- **Event-aware QC on every surface (F-22).** A suspicious spike or flatline reading is now shown
+  visible, provisional, and *flagged* instead of dropped, so the worst hour of a real smoke front or
+  pollution excursion is never blanked off the map for the residents who most need it. Each cell's
+  `qc_flags` travel to every surface — the surface record and map GeoJSON, the CSV/JSON export, the
+  `/api/schema.json` data dictionary, and the dashboard legend, table, evidence panel, and Now view —
+  so a cell that is provisional *because it looked suspicious* reads distinctly from one that is
+  merely uncalibrated. Physically impossible (`range`) and absent (`missing`) values stay unmapped;
+  no value is ever promoted to calibrated
+  ([ADR 0029](docs/adr/0029-event-aware-qc-visible-provisional.md)).
+
+### Changed
+
+- **Data schema version 2 (was 1).** The observation export gains a `qc_flags` field: an array in the
+  JSON export and a new `qc_flags` column in `/export.csv`. Because adding a CSV column is a break for
+  positional parsers under [`docs/VERSIONING.md`](docs/VERSIONING.md), `data_schema_version` moves to
+  `2`. Consumers that read the CSV by column name, or the JSON by key, are unaffected.
 
 ### Fixed
 

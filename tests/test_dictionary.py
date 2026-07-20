@@ -82,6 +82,7 @@ def test_observation_fields_cover_the_dataclass() -> None:
         "source",
         "calibration",
         "qc",
+        "qc_flags",
         "uncertainty",
         "trustworthy",
     }
@@ -91,6 +92,13 @@ def test_observation_fields_cover_the_dataclass() -> None:
         if field["name"] == "source"
     )
     assert set(cast(list[str], source_field["enum"])) == set(KNOWN_SOURCES)
+    qc_flags_field = next(
+        field
+        for field in cast(list[dict[str, Any]], doc["observation_fields"])
+        if field["name"] == "qc_flags"
+    )
+    # The documented enum is the suspicious verdicts only — range/missing are unmappable.
+    assert set(cast(list[str], qc_flags_field["enum"])) == {QC_SPIKE, QC_FLATLINE}
 
 
 def test_calibration_block_names_the_raw_sentinel() -> None:

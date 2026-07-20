@@ -26,14 +26,16 @@ from .models import (
     QC_RANGE,
     QC_REJECTED,
     QC_SPIKE,
+    QC_SUSPICIOUS,
     RAW,
 )
 
 #: The data schema's own format version — independent of the package's semver. Bump this,
 #: following the "Data schema — what counts as breaking" rules in ``docs/VERSIONING.md``, whenever
 #: an observation field, the CSV column set/order, or a QC verdict's meaning changes in a way that
-#: rule marks breaking. Start at 1.
-DATA_SCHEMA_VERSION: int = 1
+#: rule marks breaking. v1 was the initial schema; v2 added the ``qc_flags`` export field, a CSV
+#: column-set change (MAJOR under those rules — see ADR 0029 and CHANGELOG).
+DATA_SCHEMA_VERSION: int = 2
 
 _UNRESOLVED_DATA_SOURCE = "Source-specific; resolve from the serving store."
 _UNRESOLVED_DATA_LICENSE = "Source-specific; see the serving store's rights envelope."
@@ -119,6 +121,21 @@ _OBSERVATION_FIELDS: tuple[dict[str, object], ...] = (
         "unit": None,
         "nullable": False,
         "description": "One of the qc_verdicts entries below. Never silently dropped.",
+    },
+    {
+        "name": "qc_flags",
+        "type": "array",
+        "unit": None,
+        "nullable": False,
+        "enum": sorted(QC_SUSPICIOUS),
+        "description": (
+            "The suspicious QC verdict(s) carried with this reading, as an array of "
+            "'spike'/'flatline' strings (empty when none). A single observation holds at most one; "
+            "the same field on an aggregated surface cell may list more. It mirrors the surface "
+            "`qc_flags` so a reading that is provisional *because it looked suspicious* stays "
+            "distinguishable from a merely-uncalibrated one (ADR 0029). Range and missing are "
+            "physically unmappable, not suspicious, and never appear here."
+        ),
     },
     {
         "name": "uncertainty",

@@ -73,6 +73,21 @@ test("a cell record with the wrong type for `provisional` fails validation", () 
   assert.equal(validate(payload), false, "schema should reject a non-boolean `provisional`");
 });
 
+test("a cell carrying qc_flags validates against the surface schema", () => {
+  const { validate } = validatorFor("sample-surface.schema.json");
+  const payload = readJson(WEB, "sample-surface.json");
+  payload.cells[0].provisional = true;
+  payload.cells[0].qc_flags = ["spike"]; // a provisional-because-suspicious cell carries its verdict
+  assertValid(validate, payload, "surface with a qc_flags cell");
+});
+
+test("a cell whose qc_flags value is outside the spike/flatline enum fails validation", () => {
+  const { validate } = validatorFor("sample-surface.schema.json");
+  const payload = readJson(WEB, "sample-surface.json");
+  payload.cells[0].qc_flags = ["range"]; // range is unmappable, never a surface flag (ADR 0029)
+  assert.equal(validate(payload), false, "schema should reject a non-enum qc_flags value");
+});
+
 // -- setData() actually parses what the schema says is valid -------------------------------------
 // This is the other half of the contract: the schema is a *description* of what app.js consumes,
 // not just of what Python emits. Load app.js (via the harness used by app.unit.test.js), feed it a

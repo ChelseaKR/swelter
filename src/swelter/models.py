@@ -65,8 +65,18 @@ QC_SPIKE: Final = "spike"
 QC_FLATLINE: Final = "flatline"
 QC_MISSING: Final = "missing"
 
-#: QC verdicts that mean "do not trust this value as a measurement".
-QC_REJECTED: Final[frozenset[str]] = frozenset({QC_RANGE, QC_SPIKE, QC_FLATLINE, QC_MISSING})
+#: Verdicts that mean "this is not a measurement" — physically impossible or absent. A cell never
+#: places one, even provisionally (see ADR 0029).
+QC_UNMAPPABLE: Final[frozenset[str]] = frozenset({QC_RANGE, QC_MISSING})
+
+#: Verdicts that mean "this looks suspicious" — a heuristic spike or a stuck-sensor flatline. The
+#: onset of a real smoke front or a calm noise-floor stretch looks like these, so the value is kept
+#: and shown *provisional and flagged* rather than dropped (ADR 0029). It is never trusted.
+QC_SUSPICIOUS: Final[frozenset[str]] = frozenset({QC_SPIKE, QC_FLATLINE})
+
+#: QC verdicts that mean "do not trust this value as a measurement" — the union of the two above.
+#: ``node_health`` counts these as flagged: a suspicious reading is still node-trouble evidence.
+QC_REJECTED: Final[frozenset[str]] = QC_UNMAPPABLE | QC_SUSPICIOUS
 
 ISO_FORMAT: Final = "%Y-%m-%dT%H:%M:%SZ"
 

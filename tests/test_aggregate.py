@@ -43,6 +43,109 @@ def test_unplaced_node_is_excluded() -> None:
     assert surface.cells == ()
 
 
+def test_suspicious_only_cell_is_visible_provisional_and_flagged() -> None:
+    # A spike-flagged reading is the only evidence for the cell: it must still appear (not blank),
+    # provisional and carrying its QC verdict, so a smoke front is never dropped (ADR 0029).
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=420.0, qc="spike")], _CONFIG
+    )
+    assert len(surface.cells) == 1
+    cell = surface.cells[0]
+    assert cell.provisional is True
+    assert cell.qc_flags == ("spike",)
+    assert cell.mean == 420.0  # the flagged value is shown, not silently dropped
+
+
+def test_qc_flags_travel_through_record_and_snapshot() -> None:
+    # A cell that is provisional *because it is suspicious* must carry its QC flag into the flat
+    # record and the map snapshot, so the caveat reaches every surface (ADR 0029, invariant 4).
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=420.0, qc="spike")], _CONFIG
+    )
+    assert surface.cells[0].as_record()["qc_flags"] == ["spike"]
+    geojson: Any = json.loads(json.dumps(surface.snapshot_geojson()))
+    assert geojson["features"][0]["properties"]["pm25_ugm3_qc_flags"] == ["spike"]
+
+
+def test_clean_cell_omits_qc_flags_from_record_and_snapshot() -> None:
+    # A clean (uncalibrated or confirmed) cell must not gain a hollow qc_flags key on any surface.
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0, calibration="v1")], _CONFIG
+    )
+    assert "qc_flags" not in surface.cells[0].as_record()
+    geojson: Any = json.loads(json.dumps(surface.snapshot_geojson()))
+    assert "pm25_ugm3_qc_flags" not in geojson["features"][0]["properties"]
+
+
+def test_exposure_cell_inherits_component_qc_flags() -> None:
+    # A compound exposure level derived from suspicious components stays flagged: a spike or
+    # flatline under the level is never laundered into a clean-looking cell (ADR 0029, invariant 4).
+    surface = aggregate.aggregate(
+        [
+            make_obs(parameter="heat_index_c", value=35.0, qc="flatline"),
+            make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, qc="spike"),
+        ],
+        _CONFIG,
+    )
+    cell = _exposure(surface)[0]
+    assert cell.qc_flags == ("flatline", "spike")
+    assert cell.as_record()["qc_flags"] == ["flatline", "spike"]
+
+
+def test_nowcast_cell_inherits_component_qc_flags() -> None:
+    # NowCast is built from the trailing hourly means, so a flagged hour keeps the trend flagged.
+    obs = [
+        make_obs(
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            timestamp=f"2026-06-01T0{h}:00:00Z",
+            value=v,
+            qc=q,
+        )
+        for h, (v, q) in enumerate([(8.0, "ok"), (10.0, "spike"), (12.0, "ok")])
+    ]
+    surface = aggregate.aggregate(obs, _CONFIG)
+    nowcast = next(c for c in surface.cells if c.aqi_window == "nowcast")
+    assert nowcast.qc_flags == ("spike",)
+
+
+def test_unmappable_reading_is_never_placed() -> None:
+    # Out-of-range (physically impossible) stays unmapped — not even provisional (ADR 0029).
+    surface = aggregate.aggregate(
+        [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0, qc="range")], _CONFIG
+    )
+    assert surface.cells == ()
+
+
+def test_suspicious_reading_never_pulls_a_clean_mean() -> None:
+    # A clean provisional reading and a spike in the same cell/hour: the clean value wins the mean
+    # and the cell carries no QC flag; the spike is excluded, not averaged in (ADR 0029).
+    surface = aggregate.aggregate(
+        [
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=10.0,
+                qc="ok",
+                timestamp="2026-06-01T00:00:00Z",
+            ),
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=420.0,
+                qc="spike",
+                timestamp="2026-06-01T00:05:00Z",
+            ),
+        ],
+        _CONFIG,
+    )
+    assert len(surface.cells) == 1
+    cell = surface.cells[0]
+    assert cell.provisional is True
+    assert cell.qc_flags == ()
+    assert cell.mean == 10.0
+
+
 def _exposure(surface: aggregate.Surface) -> list[aggregate.CellReading]:
     return [c for c in surface.cells if c.parameter == aggregate.EXPOSURE]
 

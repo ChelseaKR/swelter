@@ -605,7 +605,7 @@ it without a second request.
 
 ```json
 {
-  "data_schema_version": 1,
+  "data_schema_version": 2,
   "package_version": "0.1.0",
   "generated_from": "swelter",
   "license": "CC0-1.0 (observations) · see DATA-LICENSE",

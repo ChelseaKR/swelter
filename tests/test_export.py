@@ -24,6 +24,21 @@ def test_to_csv_has_header_and_one_row_per_observation() -> None:
     assert len(lines) == 3
 
 
+def test_qc_flags_travel_in_export() -> None:
+    """A downloaded reading carries its suspicious QC verdict(s): a `qc_flags` array in JSON and a
+    space-joined `qc_flags` column in CSV, so the flag leaves with the value (ADR 0029)."""
+    obs = [
+        make_obs(parameter="pm25_ugm3", unit="ug/m3", value=420.0, qc="spike"),
+        make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0),  # clean → no flag
+    ]
+    rows = list(csv.DictReader(export.to_csv(obs, license=export.DEFAULT_LICENSE).splitlines()))
+    assert rows[0]["qc_flags"] == "spike"
+    assert rows[1]["qc_flags"] == ""
+    doc: Any = json.loads(export.to_json(obs, license=export.DEFAULT_LICENSE))
+    assert doc["observations"][0]["qc_flags"] == ["spike"]
+    assert doc["observations"][1]["qc_flags"] == []
+
+
 def test_to_json_declares_the_data_license() -> None:
     doc: Any = json.loads(export.to_json([make_obs()], license=export.DEFAULT_LICENSE))
     assert doc["license"] == "CC0-1.0"

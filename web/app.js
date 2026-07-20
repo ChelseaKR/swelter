@@ -641,6 +641,22 @@ function exposureReading(row) {
   return row.provisional ? `~${localExposure(row.category)}` : localExposure(row.category);
 }
 
+// A cell is provisional for one of two reasons a resident must be able to tell apart: it is only
+// *uncalibrated* (an early reading, no reference fit yet), or it is *flagged* — automatic quality
+// control judged the value suspicious (a spike or a flatline) and it is shown provisional instead of
+// dropped, so a smoke front is never blanked off the map (ADR 0029). `qc_flags` is the array of
+// suspicious verdicts the surface carries; empty or absent means not flagged.
+function qcFlagged(row) {
+  return Array.isArray(row.qc_flags) && row.qc_flags.length > 0;
+}
+
+// The short status word glued to a provisional reading so the caveat travels with the value (R5)
+// and never lives only in the legend: "flagged" wording when QC marked it suspicious, else the plain
+// provisional wording.
+function provisionalTag(row) {
+  return qcFlagged(row) ? t("state-flagged") : t("state-provisional");
+}
+
 function describe(row) {
   const place = placeName(row);
   if (isExposure()) {
@@ -649,17 +665,17 @@ function describe(row) {
     if (row.heat_category) ctx.push(`${t("exp-heat")}: ${localHeat(row.heat_category)}`);
     if (row.air_category) ctx.push(`${t("exp-air")}: ${localCategory(row.air_category)}`);
     const detail = ctx.length ? ` (${ctx.join(", ")})` : "";
-    const prov = row.provisional ? ` (${t("state-provisional")})` : "";
+    const prov = row.provisional ? ` (${provisionalTag(row)})` : "";
     return `${place}: ${exposureReading(row)}${comp}${detail}${prov}`;
   }
   if (state.parameter === "pm25_ugm3") {
     const aqiNumber = formatNumber(row.aqi, { maximumFractionDigits: 0 });
     const aqi = row.provisional ? `~AQI ${aqiNumber}` : `AQI ${aqiNumber}`;
     // Provisional cells never assert a named category as fact (F4).
-    const cat = row.provisional ? ` (${t("state-provisional")})` : `, ${localCategory(row.category)}`;
+    const cat = row.provisional ? ` (${provisionalTag(row)})` : `, ${localCategory(row.category)}`;
     return `${place}: ${aqi}${cat}, ${formatNumber(Math.round(row.mean))} µg/m³`;
   }
-  const prov = row.provisional ? ` (${t("state-provisional")})` : "";
+  const prov = row.provisional ? ` (${provisionalTag(row)})` : "";
   return `${place}: ${fmtValue(row.mean)}${fmtUncertainty(row.uncertainty)}${prov}`;
 }
 
@@ -740,6 +756,12 @@ function renderProvenance(row) {
       ? t("prov-verdict-provisional")
       : sourceTerm("non_provisional_label", "prov-verdict-confirmed"),
   );
+
+  // A provisional cell that is *flagged* gets an extra, plain-language row so a resident sees why it
+  // is provisional (QC judged it suspicious) rather than only that it is (ADR 0029, invariant 4).
+  if (qcFlagged(row)) {
+    addRow("prov-qc-label", t("qc-flagged-note"));
+  }
 
   if (!row.provisional) {
     if (!isExposure() && row.uncertainty != null) {
@@ -1425,6 +1447,7 @@ function renderNow(rows) {
     $("#now-freshness").textContent = fmtBucket(currentBucket());
     $("#now-guidance").textContent = "";
     if (card) card.removeAttribute("data-provisional");
+    if (card) card.removeAttribute("data-flagged");
     if (open) open.setAttribute("data-cell", state.selected);
     return missingSelected;
   }
@@ -1437,6 +1460,7 @@ function renderNow(rows) {
     $("#now-freshness").textContent = "—";
     $("#now-guidance").textContent = "";
     if (card) card.removeAttribute("data-provisional");
+    if (card) card.removeAttribute("data-flagged");
     if (open) open.removeAttribute("data-cell");
     return null;
   }
@@ -1450,7 +1474,7 @@ function renderNow(rows) {
   const temporalContext = temporalContextText(row.bucket);
   $("#now-context").textContent = [temporalContext, contrastLine(row)].filter(Boolean).join(" ");
   $("#now-trust").textContent = row.provisional
-    ? t("state-provisional")
+    ? provisionalTag(row)
     : sourceTerm("non_provisional_label", "state-calibrated");
   $("#now-freshness").textContent = `${fmtBucket(row.bucket)} · ${ageText(row.bucket)}`;
   const guidance = guidanceForRow(row);
@@ -1458,10 +1482,12 @@ function renderNow(rows) {
     temporalContext ? t("guidance-associated") : "",
     guidance,
     row.provisional ? t("now-provisional-note") : "",
+    qcFlagged(row) ? t("qc-flagged-note") : "",
   ]
     .filter(Boolean)
     .join(" ");
   if (card) card.setAttribute("data-provisional", String(row.provisional));
+  if (card) card.setAttribute("data-flagged", String(qcFlagged(row)));
   if (open) open.setAttribute("data-cell", row.cell_id);
   return row;
 }
@@ -2391,9 +2417,10 @@ function renderTable(rows) {
 
     const stateCell = document.createElement("td");
     const tag = document.createElement("span");
-    tag.className = `tag ${row.provisional ? "provisional" : ""}`;
+    const flagged = qcFlagged(row);
+    tag.className = `tag ${row.provisional ? "provisional" : ""}${flagged ? " flagged" : ""}`.trim();
     tag.textContent = row.provisional
-      ? t("state-provisional")
+      ? provisionalTag(row)
       : sourceTerm("non_provisional_label", "state-calibrated");
     stateCell.appendChild(tag);
     tr.appendChild(stateCell);
