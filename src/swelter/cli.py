@@ -16,6 +16,7 @@ import contextlib
 import csv
 import hashlib
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -34,6 +35,7 @@ from . import (
     calibrate,
     cards,
     chronicle,
+    colocate,
     context_layers,
     cooling_centers,
     crosswalk,
@@ -62,7 +64,7 @@ from .config import (
     load_config_doc,
     parse_config,
 )
-from .models import RAW, Observation, format_timestamp
+from .models import QC_REJECTED, RAW, Observation, format_timestamp
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
 
@@ -442,6 +444,133 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
         _err(f"swelter: applied corrections → {written.written} calibrated observations")
     manifest.finish()
     obs.write_manifest(paths["dir"], manifest)
+    return 0
+
+
+def _monitor_bbox(
+    args: argparse.Namespace, *, pad: float = 0.1
+) -> tuple[float, float, float, float] | None:
+    """A small AirNow bounding box around the reference monitor's published coordinates.
+
+    Regulatory monitors are public record, so their coordinates live in ``network.yaml`` under
+    ``reference_monitors:`` (``ReferenceMonitor.lat``/``lon``). A live fetch needs them to scope the
+    query; ``None`` (after a diagnostic) when they are absent, steering the operator to a fixture.
+    """
+    config = _load_config(args.config)
+    monitor = next((m for m in config.reference_monitors if m.monitor_id == args.monitor), None)
+    if monitor is None or monitor.lat is None or monitor.lon is None:
+        _err(
+            f"swelter: no coordinates for monitor {args.monitor} in {args.config}; add lat/lon "
+            "under reference_monitors: or pass --reference-fixture for an offline run"
+        )
+        return None
+    return (monitor.lon - pad, monitor.lat - pad, monitor.lon + pad, monitor.lat + pad)
+
+
+def _colocate_reference_series(
+    args: argparse.Namespace, start: str, end: str, parameter: str
+) -> list[Any] | None:
+    """The reference series for ``colocate``: a committed fixture (offline) or live AirNow fetch.
+
+    ``None`` (after a diagnostic) when a live fetch is requested without a key or monitor
+    coordinates, or when the fixture cannot be parsed. The key is read from ``--api-key`` or
+    ``AIRNOW_API_KEY`` and never echoed.
+    """
+    from .sources import airnow
+    from .sources._http import SourceError
+
+    if args.reference_fixture:
+        try:
+            payload = json.loads(Path(args.reference_fixture).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            _err(f"swelter: cannot read --reference-fixture {args.reference_fixture}: {exc}")
+            return None
+        return airnow.parse_series(payload, parameter=parameter)
+
+    api_key = args.api_key or os.environ.get("AIRNOW_API_KEY", "")
+    if not api_key:
+        _err(
+            "swelter: live reference fetch needs --api-key or AIRNOW_API_KEY "
+            "(or pass --reference-fixture for an offline run)"
+        )
+        return None
+    bbox = _monitor_bbox(args)
+    if bbox is None:
+        return None
+    try:
+        return airnow.fetch(
+            args.monitor, api_key, start=start[:13], end=end[:13], bbox=bbox, parameter=parameter
+        )
+    except SourceError as exc:
+        _err(f"swelter: AirNow fetch failed: {exc}")
+        return None
+
+
+def cmd_colocate(args: argparse.Namespace) -> int:
+    """EXP-02: build co-location training pairs from stored raw node data and a reference series.
+
+    Emits ``TrainingPair``s in ``calibrate.read_colocation`` format (plus the reference ``monitor``
+    id), matching each hourly reference reading to the nearest node sample within ``--tolerance-s``
+    (see :mod:`swelter.colocate`). The reference series comes from a committed fixture
+    (``--reference-fixture``, offline) or a live AirNow fetch (``--api-key``/``AIRNOW_API_KEY``);
+    its own license and attribution travel to stderr so the reference's rights are never dropped.
+    The monitor's AQS id flows into ``Correction.reference`` when the emitted pairs are later fit.
+    """
+    from .sources import airnow
+
+    if ".." not in args.window:
+        _err('swelter: --window expects "START..END" ISO-8601 timestamps')
+        return 1
+    start_s, _, end_s = args.window.partition("..")
+    start_s, end_s = start_s.strip(), end_s.strip()
+    try:
+        start_e, end_e = colocate._epoch(start_s), colocate._epoch(end_s)
+    except ValueError:
+        _err("swelter: --window timestamps must be ISO-8601 (e.g. 2026-06-01T00:00:00Z)")
+        return 1
+    if end_e < start_e:
+        _err("swelter: --window end is before its start")
+        return 1
+    parameter = args.parameter
+
+    with open_store(args.store) as store:
+        node_raw = store.read(node_id=args.node, parameter=parameter, calibration=RAW)
+        humidity_raw = store.read(node_id=args.node, parameter="humidity_pct", calibration=RAW)
+    node_samples = [
+        colocate.Sample(o.timestamp, o.value)
+        for o in node_raw
+        if o.qc not in QC_REJECTED and start_e <= colocate._epoch(o.timestamp) <= end_e
+    ]
+    humidity = {o.timestamp: o.value for o in humidity_raw if o.qc not in QC_REJECTED}
+
+    readings = _colocate_reference_series(args, start_s, end_s, parameter)
+    if readings is None:
+        return 1
+    readings = [r for r in readings if r.monitor_id == args.monitor]
+    pairs = colocate.pair_reference(
+        args.node,
+        parameter,
+        node_samples,
+        colocate.reference_samples(readings),
+        tolerance_s=args.tolerance_s,
+        humidity=humidity,
+        monitor=args.monitor,
+    )
+
+    lines = "\n".join(json.dumps(colocate.training_pair_to_row(p)) for p in pairs)
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(lines + "\n" if lines else "", encoding="utf-8")
+    elif lines:
+        print(lines)
+
+    _err(
+        f"swelter colocate: {len(pairs)} pair(s) for {args.node}/{parameter} vs "
+        f"monitor {args.monitor}" + (f" → {args.out}" if args.out else "")
+    )
+    _err(f"  reference source: {airnow.SOURCE}; license: {airnow.LICENSE}")
+    _err(f"  {airnow.ATTRIBUTION}")
     return 0
 
 
@@ -2049,6 +2178,47 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_cal)
     add_config(p_cal)
     p_cal.set_defaults(func=cmd_calibrate)
+
+    p_colo = sub.add_parser(
+        "colocate",
+        help="assemble co-location training pairs from stored raw node data + a reference monitor",
+    )
+    p_colo.add_argument("--node", required=True, help="the node co-located with the reference")
+    p_colo.add_argument(
+        "--monitor",
+        required=True,
+        help="reference monitor id (public AQS site id) recorded into Correction.reference",
+    )
+    p_colo.add_argument(
+        "--window",
+        required=True,
+        metavar="START..END",
+        help='co-location window, ISO-8601, e.g. "2026-06-01T00:00:00Z..2026-06-02T00:00:00Z"',
+    )
+    p_colo.add_argument(
+        "--parameter",
+        default="pm25_ugm3",
+        choices=("pm25_ugm3", "pm10_ugm3"),
+        help="parameter to pair (default: pm25_ugm3, the regulatory reference)",
+    )
+    p_colo.add_argument(
+        "--tolerance-s",
+        type=float,
+        default=colocate.DEFAULT_TOLERANCE_S,
+        help="max seconds between a reference reading and the node sample it pairs to",
+    )
+    p_colo.add_argument(
+        "--reference-fixture",
+        default="",
+        help="AirNow-shaped JSON file to pair against offline instead of a live keyed fetch",
+    )
+    p_colo.add_argument(
+        "--api-key", default="", help="AirNow API key for a live fetch (or set AIRNOW_API_KEY)"
+    )
+    p_colo.add_argument("--out", default="", help="JSONL output path (default: stdout)")
+    add_store(p_colo)
+    add_config(p_colo)
+    p_colo.set_defaults(func=cmd_colocate)
 
     p_agg = sub.add_parser("aggregate", help="build the gridded heat/AQI surface")
     p_agg.add_argument("--out", default="", help="GeoJSON output path")

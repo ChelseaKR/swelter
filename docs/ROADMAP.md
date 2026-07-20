@@ -4,7 +4,7 @@ The product goal is a community-owned measurement-to-action record: residents ca
 and air conditions, investigate change and uneven exposure, inspect evidence, and take the data with
 them without surrendering control to an account or vendor.
 
-Owner: Chelsea Kelly-Reif. Last verified: 2026-07-16. Recheck cadence: monthly, each release, and
+Owner: Chelsea Kelly-Reif. Last verified: 2026-07-18. Recheck cadence: monthly, each release, and
 after partner research or a material incident. The [root README](../README.md) describes the current
 product; this file records delivery state, next decisions, and measurable success.
 
@@ -66,6 +66,7 @@ both tables and with its referenced tests in the same change.
 | F-24 | Event-aware QC keeps suspicious readings visible, provisional, and flagged |
 | F-25 | Sensor-twin cross-checked precision tier |
 | F-26 | EXP-13: multi-hazard packs and a cold pack |
+| F-27 | Reference-monitor co-location adapter |
 
 ## Delivery history
 

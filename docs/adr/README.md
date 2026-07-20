@@ -51,3 +51,4 @@ evidence of the collision.
 - [ADR 0029: Map suspicious-QC readings as visible provisional, never blank the map during an event](0029-event-aware-qc-visible-provisional.md)
 - [ADR 0030: Derive a "cross-checked" drift smoke-alarm from twin agreement, never a calibration tier](0030-sensor-twin-crosschecked-tier.md)
 - [ADR 0031: Generalize the alert layer into versioned hazard packs, and ship a cold pack](0031-multi-hazard-packs.md)
+- [ADR 0032: Assemble co-location training pairs from a reference-monitor feed](0032-reference-monitor-adapter.md)
