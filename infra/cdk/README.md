@@ -6,15 +6,15 @@ collective that wants a hosted, public copy of the dashboard behind a CDN, and i
 **read-only snapshot** of the store — never the data of record. Committing it commits a choice you
 can make, not one you have made.
 
-Last verified: 2026-06-16. Recheck cadence: every 6 months, or when `swelter_serverless_stack.py`
+Last verified: 2026-07-16. Recheck cadence: every 6 months, or when `swelter_serverless_stack.py`
 changes.
 
 ## What it provisions
 
 - An **S3 bucket + CloudFront distribution** serving the static dashboard from `../../web/`.
-- A **scale-to-zero Lambda** (function URL) serving swelter's read-only API. It runs only while a
-  request is in flight and costs nothing between visitors. `lambda/handler.py` ships as a thin stub
-  (see [Packaging](#packaging-the-api) below).
+- A **scale-to-zero Lambda** (function URL) with a read-only health/stub handler. It runs only while
+  a request is in flight and costs nothing between visitors. It does **not** serve the full swelter
+  API until the package and a snapshot are bundled (see [Packaging](#packaging-the-api) below).
 - An **AWS Budgets monthly cost alarm** that emails a contact through SNS on overrun.
 
 Everything is plain `aws-cdk-lib` L2 constructs — no custom resources, no third-party constructs,
@@ -23,11 +23,9 @@ nothing pinned to an exotic version.
 ## Prerequisites
 
 ```console
-$ npm install -g aws-cdk                 # the CDK Toolkit (the `cdk` command)
-$ python -m venv .venv && . .venv/bin/activate
-$ pip install -r requirements.txt        # aws-cdk-lib + constructs
+$ uv sync --locked --group infra         # exact aws-cdk-lib + constructs from the root lock
 $ aws configure                          # credentials for the target account
-$ cdk bootstrap                          # one-time per account/region
+$ npx --yes aws-cdk@2.1132.0 bootstrap   # exact CLI; one-time per account/region
 ```
 
 ## Deploy
@@ -36,21 +34,21 @@ Pass the funding contact and the dollar ceiling as context so nothing community-
 into the code:
 
 ```console
-$ cdk synth   -c budget_email=alerts@example.org -c monthly_budget_usd=5
-$ cdk deploy  -c budget_email=alerts@example.org -c monthly_budget_usd=5
+$ npx --yes aws-cdk@2.1132.0 synth  -c budget_email=alerts@example.org -c monthly_budget_usd=5
+$ npx --yes aws-cdk@2.1132.0 deploy -c budget_email=alerts@example.org -c monthly_budget_usd=5
 ```
 
 The deploy prints the dashboard URL, the API URL, and the budget contact as stack outputs. The SNS
 email subscription must be confirmed once (AWS sends a confirmation link to the address).
 
 To refresh the published snapshot after new readings: regenerate the dashboard sample locally
-(`swelter demo`, which rewrites `web/sample-surface.json`) and run `cdk deploy` again. The deploy
-re-uploads `web/` and invalidates the CDN cache.
+(`swelter demo`, which rewrites `web/sample-surface.json`) and run the pinned `npx ... deploy`
+command again. The deploy re-uploads `web/` and invalidates the CDN cache.
 
 ## Destroy
 
 ```console
-$ cdk destroy -c budget_email=alerts@example.org -c monthly_budget_usd=5
+$ npx --yes aws-cdk@2.1132.0 destroy -c budget_email=alerts@example.org -c monthly_budget_usd=5
 ```
 
 This removes everything cleanly. The S3 bucket holds only a re-uploadable snapshot of `web/`, never

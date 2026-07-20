@@ -2,11 +2,12 @@
 
 VPAT 2.5 (Rev 508) — Revised Section 508 Edition
 
-Last full manual screen-reader verification: 2026-06-16. Observatory implementation regression
-review: 2026-07-16 (structural gate, bilingual parity, automated browser interactions at desktop and
-mobile widths, and CI axe/pa11y gate). The expanded linked visualizations retain text equivalents;
-NVDA and VoiceOver should be re-run for the next formal conformance-signoff. Recheck cadence:
-regenerated and re-committed each release, and at least every 6 months when no release ships.
+Last full manual screen-reader verification: 2026-06-16. Implementation and test-coverage review:
+2026-07-17. The final MF2 JavaScript and browser suites remain pending in a clean Node 22
+environment; CI is the authoritative execution environment. The expanded linked visualizations retain
+text equivalents, but NVDA on Windows, VoiceOver on macOS/iOS, 200% zoom, and reflow must be re-run
+for the next formal conformance signoff. Recheck cadence: regenerated and re-committed each release,
+and at least every 6 months when no release ships.
 
 > swelter is an independent, community-run heat and air-quality dashboard. It is **not federal
 > ICT**, so the Revised Section 508 Standards (36 CFR Part 1194) do not apply to it as a matter
@@ -21,34 +22,49 @@ regenerated and re-committed each release, and at least every 6 months when no r
 | --- | --- |
 | Name of product | swelter dashboard (the `web/` single-page application) |
 | Version | Tracks the repository release; this report covers the dashboard as committed on the date below |
-| Report date | 2026-07-16 |
-| Product description | A framework-free, dependency-free exposure observatory for neighborhood heat and air quality. A resident-first Now view leads into linked history, distribution, map, sortable table, plain list, and evidence-inspector views of one aggregated surface. Served by `swelter serve`; installable as a PWA; deployable to static hosting. |
+| Report date | 2026-07-17 |
+| Product description | A framework-free exposure observatory for neighborhood heat and air quality. A resident-first Now view leads into linked history, distribution, map, sortable table, plain list, and evidence-inspector views of one aggregated surface. Served by `swelter serve`; installable as a PWA; deployable to static hosting. |
 | Contact information | Chelsea Kelly-Reif — github.com/ChelseaKR/swelter |
-| Notes | The shell is four static files (`web/index.html`, `web/styles.css`, `web/observatory.css`, `web/app.js`) plus per-language string bundles (`web/i18n/en.json`, `web/i18n/es.json`). No build step, bundler, runtime framework, map tiles, or external font request. |
+| Notes | The shell is plain HTML/CSS/ES modules plus complete 395-key English and Spanish MF2 catalogs. An install step pins `messageformat@4.0.0-11` and generates the local MF2 runtime; there is no bundler, runtime framework, map-tile request, external package request, or external font request. Stable `messageformat@4.0.0` has not been verified. |
 | Evaluation methods used | See below. |
 
 ### Evaluation methods used
 
-- **Automated, advisory:** `axe-core` and `pa11y` run against the served page. Advisory because
-  they cannot prove or disprove the criteria that require human judgement.
+- **Automated, merge-blocking in CI:** `npm --prefix web run verify` is configured to run MF2/unit
+  contracts, Playwright plus Axe, Pa11y, and Lighthouse against distinct root and Sensor.Community
+  route fixtures in Chromium, Firefox, and WebKit. Confirmed moderate-or-worse Axe findings and
+  Pa11y errors fail. Axe scans every Map/List/Table view in English and Spanish. Separate Playwright
+  assertions compare the complete rendered record set across all three views, use `elementsFromPoint`
+  samples to check focus non-obscuration, load an actual Arabic fixture for RTL and mixed-direction
+  behavior, and inspect native plus focusable/pointer targets at desktop and 320 CSS pixels. The
+  target-size check permits only the WCAG 2.5.8 inline-text and 24 CSS-pixel-spacing exceptions. The
+  final MF2 unit/browser suite has not yet run in the clean CI environment, so this report describes
+  implemented assertions, not a local pass. Automation cannot prove criteria that require human
+  judgement.
 - **Automated, merge-blocking:** the structural WCAG 2.2 AA gate `scripts/a11y_check.py`
   (`make a11y`, part of `make verify`). Twelve deterministic, browser-free checks; the build
   fails if any regresses. It holds the structural floor — a language, a non-empty `<title>`, a
-  single `<h1>`, landmarks, a working skip link, labelled controls, a real data-table equivalent
-  to the map, image text alternatives, no positive `tabindex`, a language switch, a
+  single `<h1>`, landmarks, a working skip link, labelled controls, a semantic data-table shell,
+  image text alternatives, no positive `tabindex`, a language switch, a
   `prefers-reduced-motion` rule, and a visible focus indicator. As of this report all twelve pass.
 - **Manual screen-reader review:** the 2026-06-16 baseline covered NVDA on Windows (Firefox and
   Chrome) and VoiceOver on macOS (Safari), exercising every original data representation and
   control. The 2026-07-16 observatory keeps those tested controls/IDs and adds text summaries for
-  its decorative SVG, but its expanded linked-view sequence awaits the next full NVDA/VoiceOver
-  signoff; this limitation is stated rather than silently rolling the old date forward.
-- **Keyboard-only review:** full task completion using only Tab / Shift+Tab, Enter / Space, and
-  arrow keys, confirming a visible focus indicator on every interactive element and no keyboard
-  trap.
-- **200% zoom and reflow:** browser zoom to 200% and a narrow viewport, confirming no loss of
-  content or function and no horizontal scrolling of the page.
-- **Reduced motion:** verified with the operating-system "reduce motion" preference set; the
-  dashboard has no essential animation and honours `prefers-reduced-motion`.
+  its decorative SVG, but its expanded linked-view sequence awaits the next full walkthrough with
+  NVDA on Windows and VoiceOver on macOS/iOS; this limitation is stated rather than silently rolling
+  the old date forward.
+- **Keyboard browser review:** Playwright is configured to complete the primary path using only Tab /
+  Shift+Tab, Enter / Space, Arrow, Home, End, and the documented single-key shortcut, while checking
+  focus visibility and linked-view state. The 2026-06-16 baseline supplied the last human keyboard
+  pass; the new assertions still require their authoritative CI run and manual confirmation.
+- **Text expansion and reflow:** Playwright is configured to switch through Map, List, and Table at a
+  320 CSS-pixel viewport and under a 40%-expanded pseudolocale, checking page-level overflow and
+  clipped marked copy in each view. The 2026-06-16
+  baseline supplied the last manual 200% browser-zoom pass; final browser execution and manual
+  zoom/reflow must be repeated with the expanded sequence.
+- **Reduced motion:** Playwright is configured to emulate the operating-system reduced-motion
+  preference and assert authored animation, transition, and smooth scrolling are suppressed. No
+  essential information is designed to be motion-only; final browser execution remains pending.
 
 ### Applicable standards / guidelines
 
@@ -58,10 +74,11 @@ regenerated and re-committed each release, and at least every 6 months when no r
 | Revised Section 508 Standards — 36 CFR Part 1194, Appendices A, B, and C | Yes |
 | EN 301 549 | Not separately evaluated |
 
-The dashboard is built and self-assessed to **WCAG 2.2 Level AA**. WCAG 2.2 is backward
-compatible: meeting 2.2 A/AA meets the 2.0 A/AA criteria that the Revised 508 Standards
-incorporate by reference. The success-criteria table below uses the WCAG numbering shared across
-2.0/2.1/2.2.
+The dashboard is built toward **WCAG 2.2 Level AA**. The expanded experience is reported as partial
+where its manual assistive-technology sequence is still pending; automated results are not used to
+erase that limitation. WCAG 2.2 is backward compatible: meeting 2.2 A/AA also meets the 2.0 A/AA
+criteria that the Revised 508 Standards incorporate by reference. The table below uses the WCAG
+numbering shared across 2.0/2.1/2.2.
 
 ### Terms
 
@@ -117,20 +134,20 @@ incorporate by reference. The success-criteria table below uses the WCAG numberi
 | 1.2.5 Audio Description (Prerecorded) | Not Applicable | No multimedia. |
 | 1.3.4 Orientation | Supports | Layout is responsive and works in portrait and landscape; orientation is not locked. |
 | 1.3.5 Identify Input Purpose | Not Applicable | No fields collect information about the user; the inputs select a measurement and an hour, which are not autocomplete-eligible purposes. |
-| 1.4.3 Contrast (Minimum) | Supports | Body text, labels, and control text meet at least 4.5:1, and large text and UI borders meet 3:1, in both the light and dark `prefers-color-scheme` palettes defined in `:root`. Category swatch colors are paired with patterns and never carry meaning by contrast alone. Verified with the axe/pa11y contrast checks; spot-checked manually. |
-| 1.4.4 Resize Text | Supports | All sizing uses `rem`/relative units; text scales to 200% with no clipping. |
+| 1.4.3 Contrast (Minimum) | Partially Supports | Body text, labels, and control text are designed for at least 4.5:1, and large text and UI borders for 3:1, in both light and dark palettes. Category swatches pair color with patterns. Axe/Pa11y and a browser calculation for patterned map-reading and braid-label pairs are configured as CI gates, but their final MF2 browser run is pending; the report does not claim a current local pass. |
+| 1.4.4 Resize Text | Partially Supports | Sizing uses `rem`/relative units and the previous interface passed a manual 200% zoom review. The expanded linked-view sequence still needs the documented 200% zoom walkthrough to confirm no clipping or loss of function. |
 | 1.4.5 Images of Text | Supports | No images of text; all text is real text. The PWA icon is the only image asset and is non-text branding. |
-| 1.4.10 Reflow | Supports | The single-column responsive layout reflows to a 320 CSS-pixel width with no two-dimensional scrolling (`@media (max-width: 40rem)` and flex wrapping). |
-| 1.4.11 Non-text Contrast | Supports | Control borders, the focus outline (`--focus`), the cell borders, and tab boundaries meet 3:1 against their adjacent surfaces in both palettes. |
+| 1.4.10 Reflow | Partially Supports | The single-column responsive layout targets a 320 CSS-pixel width (`@media (max-width: 40rem)` and flex wrapping), and Playwright is configured to switch through Map, List, and Table while checking page-level overflow and clipped marked copy at that width with expanded text. The final browser run and manual zoom/reflow walkthrough remain pending. |
+| 1.4.11 Non-text Contrast | Partially Supports | Control borders, the focus outline (`--focus`), cell borders, and tab boundaries are designed for 3:1 against adjacent surfaces in both palettes. The configured browser contrast gate still needs its authoritative final run. |
 | 1.4.12 Text Spacing | Supports | No fixed line-height or letter-spacing that would clip when users override text spacing; content uses normal flow with `line-height: 1.5`. |
 | 1.4.13 Content on Hover or Focus | Not Applicable | No hover/focus-triggered tooltips or popovers; readings are stated inline, not on hover. |
 | 2.4.5 Multiple Ways | Supports | The same aggregated surface is reachable three ways within the page — Map, Table, and List tabs — and the page is a single view; export endpoints (`/export.csv`, `/export.json`) offer an additional path to the data. |
 | 2.4.6 Headings and Labels | Supports | Headings ("swelter", "Air-quality categories (PM2.5)") and control labels are descriptive; the visually-hidden "Controls" heading names the control group. |
 | 2.4.7 Focus Visible | Supports | A 3px `:focus-visible` outline with offset is applied to every interactive element, including map cells and tabs; the gate asserts a visible focus indicator exists in CSS. |
-| 2.4.11 Focus Not Obscured (Minimum) | Supports | Sticky command-bar and desktop-inspector layouts reserve scroll padding/margins; the inspector stops being sticky in the stacked layout. Automated keyboard review found no focused control fully obscured. (WCAG 2.2.) |
+| 2.4.11 Focus Not Obscured (Minimum) | Partially Supports | Sticky command-bar and desktop-inspector layouts reserve scroll padding/margins; the inspector stops being sticky in the stacked layout. The Playwright assertion samples `elementsFromPoint` around every visible keyboard target across Map, List, and Table to reject full obscuration. Its final MF2 browser execution and manual confirmation remain pending. (WCAG 2.2.) |
 | 2.5.7 Dragging Movements | Supports | The time slider is fully operable with arrow keys; no action requires a dragging movement. (WCAG 2.2.) |
-| 2.5.8 Target Size (Minimum) | Supports | Interactive targets — tabs, selects, slider thumbs, sort buttons, map cells, and distribution rows — meet the 24×24 CSS-pixel minimum or its spacing exception. The braid's full plot surface is one large pointer target that selects the nearest observation; compact dots also have expanded hit areas, and the time slider is an equivalent control. (WCAG 2.2.) |
-| 3.1.2 Language of Parts | Supports | UI strings follow the selected document language (`en`/`es`). Source-authored English exposure-method notes can appear inside the Spanish interface; those raw notes are explicitly marked `lang="en"` in the braid and provenance views so assistive technology switches pronunciation correctly. |
+| 2.5.8 Target Size (Minimum) | Partially Supports | The Playwright assertion enumerates native controls plus focusable/pointer composite surfaces across Map, List, and Table at desktop and 320 CSS pixels, and rejects targets below 24×24 CSS pixels unless they satisfy exactly the WCAG inline-text or 24 CSS-pixel-spacing exception. The braid's full plot surface and the map pan surface are included explicitly. Final browser execution and manual touch/zoom confirmation remain pending. (WCAG 2.2.) |
+| 3.1.2 Language of Parts | Partially Supports | UI strings follow the selected document language (`en`/`es`) and provenance output marks raw source-authored English notes with `lang="en"`. The actual Arabic fixture exercises page direction and mixed-direction rendering. Screen-reader pronunciation of composed Spanish/source-English content remains part of the pending manual AT walkthrough. |
 | 3.2.3 Consistent Navigation | Supports | The single-page dashboard presents the same controls and tab order on every render. |
 | 3.2.4 Consistent Identification | Supports | The same components ("provisional" tag, AQI tag, view tabs) are labelled identically wherever they appear. |
 | 3.2.6 Consistent Help | Not Applicable | No help mechanism is provided across multiple pages; the dashboard is a single page. (WCAG 2.2.) |
@@ -138,7 +155,7 @@ incorporate by reference. The success-criteria table below uses the WCAG numberi
 | 3.3.4 Error Prevention (Legal, Financial, Data) | Not Applicable | No legal, financial, or data-modifying transactions; the dashboard is read-only. |
 | 3.3.7 Redundant Entry | Not Applicable | No multi-step process re-asks for information. (WCAG 2.2.) |
 | 3.3.8 Accessible Authentication (Minimum) | Not Applicable | No authentication; the data is open and requires no account. (WCAG 2.2.) |
-| 4.1.3 Status Messages | Supports | Cell count, source headline, alert/copy/watch feedback, and no-data/offline states use status/live text without moving focus. Range values and braid summaries are persistent control descriptions rather than live regions, preventing announcement storms during slider input. |
+| 4.1.3 Status Messages | Supports | Cell count, source headline, alert/copy/watch feedback, and no-data/offline states use status/live text without moving focus. Personal alerts announce through a dedicated atomic text node; their action buttons are siblings outside that live region, and an unchanged alert is not rewritten/re-announced during a linked-view render. Range values and braid summaries are persistent control descriptions rather than live regions, preventing announcement storms during slider input. |
 
 ---
 
@@ -150,13 +167,13 @@ Applied where the WCAG criteria above do not fully address the user need.
 
 | Criterion | Conformance level | Remarks and explanations |
 | --- | --- | --- |
-| 302.1 Without Vision | Supports | The map is never the only way in. The identical dataset renders as a semantic `<table>` (the canonical screen-reader path: caption, column and row headers, sortable columns with `aria-sort`) and as a plain readings list with one sentence per cell. Each map cell also carries a text `aria-label`. Slider value and cell counts are announced via `aria-live`. Verified with NVDA and VoiceOver. |
-| 302.2 With Limited Vision | Supports | Text scales to 200% and the layout reflows to ~320 px with no loss of content; contrast meets AA in light and dark palettes; a 3px visible focus outline tracks the keyboard; severity is text-and-pattern, not fine color discrimination. |
+| 302.1 Without Vision | Partially Supports | The map is never the only way in. The identical active dataset renders as a semantic `<table>` (caption, column and row headers, sortable columns with `aria-sort`) or a plain readings list with one sentence per cell. Each map cell also carries a text accessible name; slider value and status changes are announced. The original controls passed the 2026-06-16 NVDA/VoiceOver baseline, but the expanded braid/distribution/inspector task sequence awaits the new manual walkthrough. |
+| 302.2 With Limited Vision | Partially Supports | The layout is designed to scale to 200% and reflow to ~320 px, a 3px focus outline tracks the keyboard, and severity is text-and-pattern rather than fine color discrimination. The final browser gates and manual 200% zoom/reflow walkthrough for the expanded interface remain pending. |
 | 302.3 Without Perception of Color | Supports | Air-quality category is conveyed by text and a distinct background pattern per category, and provisional state by a dashed border plus the word "provisional"; color is never the only signal (WCAG 1.4.1). |
 | 302.4 Without Hearing | Supports | The dashboard conveys no information through sound; nothing depends on hearing. |
 | 302.5 With Limited Hearing | Supports | No audio output. |
 | 302.6 Without Speech | Supports | No operation requires speech input. |
-| 302.7 With Limited Manipulation | Supports | Every task is completable by keyboard alone with no dragging, no multipoint gesture, and no timed action; targets meet the 24×24 px minimum with spacing (WCAG 2.5.7, 2.5.8, 2.1.1). |
+| 302.7 With Limited Manipulation | Partially Supports | Native and custom keyboard paths avoid required dragging, multipoint gestures, or timed actions. CI is configured to exercise the keyboard path and exhaustively inspect rendered target geometry using only the inline-text and 24px-spacing exceptions; final execution and manual switch/touch confirmation remain pending. |
 | 302.8 With Limited Reach and Strength | Supports | All controls are reachable in a single tab order from a keyboard or switch; no action requires simultaneous keys, sustained pressure, or precise pointer travel. |
 | 302.9 With Limited Language, Cognitive, and Learning Abilities | Partially Supports | Plain, concrete labels; one screen with a consistent layout; severity named in words; an explicit note that the page reports what the readings are and "does not tell anyone they are safe"; English and Spanish parity. The underlying subject (AQI categories, calibrated-vs-provisional, µg/m³ units) is inherently technical, and while it is explained in text it still asks more of the reader than a single number would. |
 
@@ -173,17 +190,17 @@ reason.
 
 | Criterion | Conformance level | Remarks and explanations |
 | --- | --- | --- |
-| 502 Interoperability with Assistive Technology | Supports | The dashboard uses native HTML controls and standard ARIA, exposing name, role, state, and value through the browser's accessibility tree to NVDA and VoiceOver. No custom accessibility API bridge is used or needed. |
+| 502 Interoperability with Assistive Technology | Partially Supports | The dashboard uses native HTML controls and standard ARIA, exposing name, role, state, and value through the browser accessibility tree. The 2026-06-16 baseline covered the original controls with NVDA and VoiceOver; tree/interaction assertions are configured for the expanded components, whose authoritative browser execution and complete manual task sequence remain pending. No custom accessibility API bridge is used. |
 | 502.2.1 User Control of Accessibility Features | Not Applicable | The dashboard is not platform software and does not disrupt platform accessibility features. |
 | 502.2.2 No Disruption of Accessibility Features | Supports | The page does not override or disable platform or browser accessibility features (zoom, contrast, reduced motion, screen-reader). It honours `prefers-color-scheme` and `prefers-reduced-motion`. |
 | 502.3 Accessibility Services | Not Applicable | Web content; it relies on the browser's accessibility services rather than implementing a platform accessibility API. |
 | 502.4 Platform Accessibility Features | Not Applicable | Not a platform; no platform features are claimed or implemented. |
-| 503 Applications | Supports | See sub-criteria. |
+| 503 Applications | Partially Supports | See sub-criteria; the pending expanded assistive-technology sequence is reflected in 502 and the WCAG report. |
 | 503.2 User Preferences | Supports | The page inherits the platform/browser settings for color, contrast, font size, and motion; it does not impose its own font or color that overrides user settings, and it offers a language preference. |
 | 503.3 Alternative User Interfaces | Not Applicable | No alternative UI replaces platform accessibility features. |
 | 503.4 User Controls for Captions and Audio Description | Not Applicable | No multimedia player. |
 | 504 Authoring Tools | Not Applicable | The dashboard is not an authoring tool; it presents read-only data and produces no user-authored content. |
-| 602.3 / WCAG conformance of web content | Supports | As detailed in the WCAG 2.x tables above, the web content conforms to WCAG 2.2 Level AA (and thereby the WCAG 2.0 A/AA incorporated by 508). |
+| 602.3 / WCAG conformance of web content | Partially Supports | Structural evidence and implemented browser assertions support the criteria detailed above, but the final browser gates and expanded NVDA/VoiceOver/iOS/zoom/reflow walkthrough remain pending. Full conformance is not claimed until they complete and their findings are resolved. |
 
 ### Chapter 6: Support Documentation and Services
 

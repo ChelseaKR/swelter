@@ -1,0 +1,14 @@
+{
+  "canonical_distribution": "GitHub Releases",
+  "channel": "PyPI",
+  "owner": "Chelsea Kelly-Reif",
+  "release_blocking": true,
+  "required_external_configuration": [
+    "Configure the swelter project on PyPI with a GitHub Actions trusted publisher bound to the release workflow.",
+    "Create and protect a dedicated GitHub PyPI environment before granting the workflow an id-token publishing job."
+  ],
+  "reviewed": "2026-07-16",
+  "schema_version": 1,
+  "state": "pending_external_configuration",
+  "tracking_issue": 108
+}

@@ -1,11 +1,6 @@
-# Release pipeline. Triggered by pushing a version tag (e.g. v0.1.0). Re-verifies the tagged
-# commit against the full merge gate, builds the sdist + wheel with uv, generates SLSA build
-# provenance, signs the artifacts with Sigstore cosign (keyless / OIDC), and attaches everything
-# to a GitHub Release. Nothing here runs on an ordinary push.
-#
-# Gating on `make verify` at the tag (not just trusting that CI was green on `main` at some
-# earlier point) is deliberate: a red `main` must not be able to ship a signed, provenance-
-# attested release (audit 2026-07-05, P0-3).
+# A release is public only after a read-only preflight validates the signed tag and committed
+# evidence, an isolated builder stages and internally verifies every payload, and a clean consumer
+# verifies the exact draft download. The draft is the atomic promotion boundary.
 name: Release
 
 on:
@@ -13,7 +8,6 @@ on:
     tags:
       - "v*"
 
-# Default to no access; the one job below elevates only what it needs (CICD-04).
 permissions:
   contents: read
 
@@ -22,108 +16,690 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: build + sign
+  preflight:
+    name: signed tag + release ancestry
     runs-on: ubuntu-latest
     permissions:
-      # id-token lets the keyless cosign/SLSA flow mint an OIDC token; contents
-      # lets the job create the Release and upload assets.
-      id-token: write
-      contents: write
+      contents: read
+    outputs:
+      commit: ${{ steps.tag.outputs.commit }}
+      epoch: ${{ steps.tag.outputs.epoch }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
-          fetch-depth: 0 # need full history + tag objects for the tag/CHANGELOG assertions below
+          fetch-depth: 0
 
-      - name: Set up uv
+      - name: Verify the annotated SSH-signed tag and its main ancestry
+        id: tag
+        run: |
+          git fetch --force origin \
+            "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}" \
+            "+refs/heads/main:refs/remotes/origin/main"
+          kind="$(git cat-file -t "${GITHUB_REF_NAME}")"
+          if [ "${kind}" != "tag" ]; then
+            echo "::error::${GITHUB_REF_NAME} is not an annotated tag object"
+            exit 1
+          fi
+          git config --local gpg.format ssh
+          git config --local gpg.ssh.allowedSignersFile \
+            "${GITHUB_WORKSPACE}/.github/allowed_signers"
+          git verify-tag "${GITHUB_REF_NAME}"
+          tag_commit="$(git rev-parse "${GITHUB_REF_NAME}^{commit}")"
+          if [ "${tag_commit}" != "${GITHUB_SHA}" ]; then
+            echo "::error::tag peels to ${tag_commit}, but the workflow runs at ${GITHUB_SHA}"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor \
+            "${tag_commit}" "refs/remotes/origin/main"; then
+            echo "::error::signed release commit is not reachable from origin/main"
+            exit 1
+          fi
+          tag_epoch="$(git show -s --format=%ct "${tag_commit}")"
+          echo "commit=${tag_commit}" >> "${GITHUB_OUTPUT}"
+          echo "epoch=${tag_epoch}" >> "${GITHUB_OUTPUT}"
+
+      - name: Require release metadata and current mutation evidence
+        run: |
+          python scripts/version_check.py
+          python scripts/mutation_report.py verify-baseline \
+            --baseline docs/audits/mutation-baseline.json
+          python scripts/release_artifacts.py validate-publishing-gap \
+            docs/audits/release-publishing-gap.json
+          python scripts/release_review_check.py validate \
+            --manifest docs/audits/release-review-attestations.json \
+            --version "${GITHUB_REF_NAME#v}" --require-complete
+
+  build:
+    name: isolated build + internal verification
+    needs: preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set deterministic release identity
+        env:
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.commit }}
+          SOURCE_DATE_EPOCH: ${{ needs.preflight.outputs.epoch }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          if [ "${actual}" != "${RELEASE_COMMIT}" ]; then
+            echo "::error::builder checked out ${actual}, expected ${RELEASE_COMMIT}"
+            exit 1
+          fi
+          echo "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}" >> "${GITHUB_ENV}"
+          echo "RELEASE_COMMIT=${RELEASE_COMMIT}" >> "${GITHUB_ENV}"
+
+      - name: Set up uv without a release cache
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
-          # Never cache in the job that mints SLSA provenance and cosign-signs artifacts
-          # (CICD-24) -- a poisoned cache must not be able to influence a signed release.
           enable-cache: false
+          version: "0.11.28"
 
-      # REL-08: the pushed ref must be an annotated tag object, not a lightweight ref, so the
-      # release always carries tag metadata (tagger, date, message) and is a stable target for
-      # `git tag -v`. If the maintainer signs tags (`git tag -s`), the second check verifies the
-      # signature; that step requires the verifying key/allowed_signers to be available to this
-      # runner (e.g. via `gitsign` or a committed allowed-signers file) and is currently
-      # best-effort -- see the incident note (docs/decisions/, P0-2) for the interim posture on
-      # commit/tag signing.
-      - name: Assert annotated tag
+      - name: Set up Node without a package cache
+        # setup-node caches only when `cache` names a package manager; empty is explicit.
+        # zizmor: ignore[cache-poisoning]
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22.12.0"
+          cache: ""
+
+      - name: Install checksum-verified OSV-Scanner and CycloneDX CLI
         run: |
-          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
-          kind="$(git cat-file -t "${GITHUB_REF_NAME}")"
-          if [ "$kind" != "tag" ]; then
-            echo "::error::${GITHUB_REF_NAME} is a lightweight ref (kind=$kind), not an annotated tag object"
+          mkdir -p "${RUNNER_TEMP}/release-bin"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/release-bin/osv-scanner" \
+            https://github.com/google/osv-scanner/releases/download/v2.3.8/osv-scanner_linux_amd64
+          echo "bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc  ${RUNNER_TEMP}/release-bin/osv-scanner" \
+            | sha256sum --check --strict
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/release-bin/cyclonedx" \
+            https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.32.0/cyclonedx-linux-x64
+          echo "454879e6a4a405c8a13bff49b8982adcb0596f3019b26b0811c66e4d7f0783e1  ${RUNNER_TEMP}/release-bin/cyclonedx" \
+            | sha256sum --check --strict
+          chmod 0755 "${RUNNER_TEMP}/release-bin/osv-scanner" \
+            "${RUNNER_TEMP}/release-bin/cyclonedx"
+          echo "${RUNNER_TEMP}/release-bin" >> "${GITHUB_PATH}"
+
+      - name: Install pinned gitleaks from checksummed Go modules
+        env:
+          GOBIN: ${{ runner.temp }}/release-bin
+        run: go install github.com/gitleaks/gitleaks/v8@v8.30.1
+
+      - name: Install the locked Python environment
+        run: uv sync --locked --all-groups
+
+      - name: Re-run every automatic gate at the signed tag
+        run: make verify PLAYWRIGHT_INSTALL_ARGS="--with-deps chromium firefox webkit"
+
+      - name: Build the versioned two-route observatory artifact and BOM
+        run: |
+          uv run python scripts/frontend_release.py \
+            --web-dir web \
+            --output "dist/swelter-observatory-${GITHUB_REF_NAME#v}.tgz" \
+            --version "${GITHUB_REF_NAME#v}" --commit "${RELEASE_COMMIT}" \
+            --repository "${GITHUB_REPOSITORY}" --ref "${GITHUB_REF}" \
+            --source-epoch "${SOURCE_DATE_EPOCH}"
+
+      - name: Schema-validate every CycloneDX 1.7 package BOM
+        run: |
+          for bom in dist/*.cdx.json; do
+            cyclonedx validate --input-file "${bom}" --input-format json \
+              --input-version v1_7 --fail-on-errors
+          done
+
+      - name: Install Grype
+        id: grype
+        uses: anchore/scan-action/download-grype@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          cache-db: false
+
+      - name: Gate every package BOM at HIGH severity
+        run: |
+          for bom in dist/*.cdx.json; do
+            "${{ steps.grype.outputs.cmd }}" "sbom:${bom}" --fail-on high
+          done
+
+      - name: Extract human-readable release notes
+        run: |
+          uv run python scripts/release_artifacts.py release-notes \
+            --version "${GITHUB_REF_NAME#v}" --output dist/RELEASE_NOTES.md
+
+      - name: Compute and verify the unsigned build manifest
+        run: |
+          cd dist
+          sha256sum -- *.whl swelter-*.tar.gz swelter-observatory-*.tgz *.cdx.json \
+            RELEASE_NOTES.md > BUILD_SHA256SUMS
+          sha256sum --check --strict BUILD_SHA256SUMS
+
+      - name: Install and smoke-test the staged wheel in a clean environment
+        run: |
+          uv venv "${RUNNER_TEMP}/consumer-venv"
+          wheel="$(find dist -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          uv pip install --python "${RUNNER_TEMP}/consumer-venv/bin/python" "${wheel}"
+          actual="$("${RUNNER_TEMP}/consumer-venv/bin/swelter" version)"
+          expected="swelter ${GITHUB_REF_NAME#v}"
+          if [ "${actual}" != "${expected}" ]; then
+            echo "::error::installed CLI reported '${actual}', expected '${expected}'"
             exit 1
           fi
 
-      - name: Verify tag signature (best-effort until signing is wired, see incident note)
-        continue-on-error: true
-        run: git tag -v "${GITHUB_REF_NAME}"
+      - name: Stage the unsigned, internally verified build output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unsigned-release-candidate-${{ github.ref_name }}
+          path: |
+            dist/*.whl
+            dist/swelter-*.tar.gz
+            dist/swelter-observatory-*.tgz
+            dist/*.cdx.json
+            dist/RELEASE_NOTES.md
+            dist/BUILD_SHA256SUMS
+          if-no-files-found: error
+          retention-days: 1
 
-      # REL-10: the version being released must have its own dated CHANGELOG section, not just
-      # an [Unreleased] bucket -- a release with no changelog entry is a documentation defect.
-      - name: CHANGELOG has a dated section for this version
+  attest-sign:
+    name: credential-isolated attestation + signing
+    needs: [preflight, build]
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    env:
+      RELEASE_COMMIT: ${{ needs.preflight.outputs.commit }}
+      SOURCE_DATE_EPOCH: ${{ needs.preflight.outputs.epoch }}
+    steps:
+      # Deliberately no checkout, package-manager setup, dependency install, or repository script.
+      # This job can sign the builder's exact bytes but cannot execute the builder's source tree.
+      - name: Download the exact unsigned build output
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: unsigned-release-candidate-${{ github.ref_name }}
+          path: dist
+
+      - name: Verify unsigned inventory and builder digests without executing repository code
         run: |
-          v="${GITHUB_REF_NAME#v}"
-          grep -Eq "^## \[${v}\] . [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md || {
-            echo "::error::CHANGELOG.md has no dated '## [${v}] - YYYY-MM-DD' section"
-            exit 1
-          }
-
-      # REL-14/REL-15: the full merge gate, re-run at the exact tagged commit -- not inherited
-      # from whatever `main`'s CI happened to report earlier. A red gate here fails the release
-      # before anything is built, signed, or published.
-      - name: Install (locked)
-        run: uv sync --locked
-
-      - name: make verify (fmt-check, lint, typecheck, a11y, i18n, test)
-        run: make verify
-
-      # Reproducible build from the locked environment, into ./dist.
-      - name: Build sdist + wheel
-        run: uv build
-
-      # Hashes feed both the GitHub attestation and the cosign signatures, and
-      # give downstream consumers a checksum to verify against.
-      - name: Compute artifact digests
-        id: hash
-        run: |
+          set -euo pipefail
+          export LC_ALL=C
           cd dist
-          sha256sum ./* | tee SHA256SUMS
+          shopt -s nullglob
+          version="${GITHUB_REF_NAME#v}"
+          wheels=(swelter-"${version}"-*.whl)
+          sdists=(swelter-"${version}".tar.gz)
+          frontends=(swelter-observatory-"${version}".tgz)
+          if (( ${#wheels[@]} != 1 || ${#sdists[@]} != 1 || ${#frontends[@]} != 1 )); then
+            echo "::error::unsigned release must contain one version-matched wheel, sdist, and frontend"
+            exit 1
+          fi
+          payloads=("${wheels[0]}" "${sdists[0]}" "${frontends[0]}")
+          sboms=()
+          for payload in "${payloads[@]}"; do
+            sbom="${payload}.cdx.json"
+            test -f "${sbom}" && test ! -L "${sbom}"
+            sboms+=("${sbom}")
+          done
+          expected=("${payloads[@]}" "${sboms[@]}" RELEASE_NOTES.md BUILD_SHA256SUMS)
+          for path in "${expected[@]}"; do
+            test -f "${path}" && test ! -L "${path}"
+          done
+          printf '%s\n' "${expected[@]}" | sort > "${RUNNER_TEMP}/expected-unsigned"
+          find . -mindepth 1 -maxdepth 1 -printf '%f\n' | sort > "${RUNNER_TEMP}/actual-unsigned"
+          cmp "${RUNNER_TEMP}/expected-unsigned" "${RUNNER_TEMP}/actual-unsigned"
+          printf '%s\n' "${payloads[@]}" "${sboms[@]}" RELEASE_NOTES.md \
+            | sort > "${RUNNER_TEMP}/expected-build-digests"
+          awk '{sub(/^\*/, "", $2); print $2}' BUILD_SHA256SUMS \
+            | sort > "${RUNNER_TEMP}/actual-build-digests"
+          cmp "${RUNNER_TEMP}/expected-build-digests" "${RUNNER_TEMP}/actual-build-digests"
+          sha256sum --check --strict BUILD_SHA256SUMS
 
-      # SLSA-style build provenance, kept native to GitHub so no extra trust
-      # root is introduced. Produces a signed attestation bound to ./dist.
-      - name: Generate build provenance attestation
+      - name: Attest the exact unsigned payloads
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
-          subject-path: "dist/*"
+          subject-path: |
+            dist/*.whl
+            dist/swelter-*.tar.gz
+            dist/swelter-observatory-*.tgz
+            dist/*.cdx.json
+            dist/RELEASE_NOTES.md
 
-      # Keyless Sigstore signing: cosign requests a short-lived OIDC token (the
-      # id-token permission above), signs each artifact, and records it in the
-      # public transparency log. No long-lived private key is stored.
-      - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-
-      - name: Sign artifacts (keyless)
+      - name: Assemble the offline provenance bundle without repository code
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          for artifact in dist/*.tar.gz dist/*.whl; do
-            cosign sign-blob --yes \
-              --output-signature "${artifact}.sig" \
-              --output-certificate "${artifact}.pem" \
-              "${artifact}"
+          set -euo pipefail
+          export LC_ALL=C
+          provenance_root="${RUNNER_TEMP}/provenance"
+          mkdir -p "${provenance_root}/attestations"
+          candidates=(dist/*.whl dist/swelter-*.tar.gz dist/swelter-observatory-*.tgz \
+            dist/*.cdx.json dist/RELEASE_NOTES.md)
+          mapfile -t assets < <(printf '%s\n' "${candidates[@]}" | sort)
+          subjects="${RUNNER_TEMP}/subjects.json"
+          printf '[]\n' > "${subjects}"
+          for asset in "${assets[@]}"; do
+            digest="$(sha256sum "${asset}" | cut -d ' ' -f 1)"
+            (
+              cd "${provenance_root}"
+              gh attestation download "${GITHUB_WORKSPACE}/${asset}" \
+                --repo "${GITHUB_REPOSITORY}"
+            )
+            downloaded="${provenance_root}/sha256:${digest}.jsonl"
+            attestation="attestations/$(basename "${asset}").intoto.jsonl"
+            test -f "${downloaded}"
+            mv "${downloaded}" "${provenance_root}/${attestation}"
+            jq --arg name "$(basename "${asset}")" --arg sha256 "${digest}" \
+              --arg attestation "${attestation}" \
+              '. + [{name: $name, sha256: $sha256, attestation: $attestation}]' \
+              "${subjects}" > "${subjects}.next"
+            mv "${subjects}.next" "${subjects}"
+          done
+          gh attestation trusted-root > "${provenance_root}/trusted_root.jsonl"
+          files="${RUNNER_TEMP}/provenance-files.json"
+          printf '{}\n' > "${files}"
+          while IFS= read -r relative; do
+            digest="$(sha256sum "${provenance_root}/${relative}" | cut -d ' ' -f 1)"
+            jq --arg name "${relative}" --arg sha256 "${digest}" \
+              '. + {($name): $sha256}' "${files}" > "${files}.next"
+            mv "${files}.next" "${files}"
+          done < <(cd "${provenance_root}" && find . -type f -printf '%P\n' | sort)
+          jq -n --sort-keys \
+            --arg version "${GITHUB_REF_NAME#v}" \
+            --arg tag "${GITHUB_REF_NAME}" \
+            --arg commit "${RELEASE_COMMIT}" \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --slurpfile subjects "${subjects}" --slurpfile files "${files}" \
+            '{schema_version: 1,
+              release: {version: $version, tag: $tag, commit: $commit, repository: $repository},
+              subjects: $subjects[0], files_sha256: $files[0]}' \
+            > "${provenance_root}/MANIFEST.json"
+          while IFS= read -r document; do
+            jq -e . "${provenance_root}/${document}" > /dev/null
+          done < <(cd "${provenance_root}" && find . -type f \
+            \( -name '*.json' -o -name '*.jsonl' \) -printf '%P\n' | sort)
+          mapfile -t provenance_files < <(cd "${provenance_root}" \
+            && find . -type f -printf '%P\n' | sort)
+          tar --sort=name --format=ustar --mtime="@${SOURCE_DATE_EPOCH}" \
+            --mode='u=rw,go=r' --owner=0 --group=0 --numeric-owner \
+            -C "${provenance_root}" -cf "${RUNNER_TEMP}/SUPPLY_CHAIN_PROVENANCE.tar" \
+            "${provenance_files[@]}"
+          gzip --no-name --stdout "${RUNNER_TEMP}/SUPPLY_CHAIN_PROVENANCE.tar" \
+            > dist/SUPPLY_CHAIN_PROVENANCE.tgz
+
+      - name: Compute exact release checksums
+        run: |
+          cd dist
+          sha256sum -- *.whl swelter-*.tar.gz swelter-observatory-*.tgz *.cdx.json \
+            RELEASE_NOTES.md SUPPLY_CHAIN_PROVENANCE.tgz > SHA256SUMS
+          sha256sum --check --strict SHA256SUMS
+
+      - name: Attest the provenance bundle and checksum manifest
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            dist/SUPPLY_CHAIN_PROVENANCE.tgz
+            dist/SHA256SUMS
+
+      - name: Install exact Cosign v3
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v3.1.1"
+
+      - name: Keylessly sign and immediately verify every payload bundle
+        run: |
+          set -euo pipefail
+          test "$(cosign version --json | jq -r .gitVersion)" = "v3.1.1"
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${GITHUB_REF_NAME}"
+          assets=(dist/*.whl dist/swelter-*.tar.gz dist/swelter-observatory-*.tgz dist/*.cdx.json \
+            dist/RELEASE_NOTES.md dist/SUPPLY_CHAIN_PROVENANCE.tgz dist/SHA256SUMS)
+          for asset in "${assets[@]}"; do
+            cosign sign-blob --yes --bundle "${asset}.sigstore.json" "${asset}"
+            test -s "${asset}.sigstore.json"
+            jq -e 'type == "object"' "${asset}.sigstore.json" > /dev/null
+            cosign verify-blob "${asset}" \
+              --bundle "${asset}.sigstore.json" \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
           done
 
-      # Attach the wheel, sdist, checksums, and the cosign signature +
-      # certificate for each to the Release for the pushed tag.
-      - name: Publish GitHub Release
+      - name: Stage the signed and attested release candidate
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-candidate-${{ github.ref_name }}
+          path: |
+            dist/*.whl
+            dist/swelter-*.tar.gz
+            dist/swelter-observatory-*.tgz
+            dist/*.cdx.json
+            dist/RELEASE_NOTES.md
+            dist/SUPPLY_CHAIN_PROVENANCE.tgz
+            dist/SHA256SUMS
+            dist/*.sigstore.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-draft:
+    name: clean draft publication boundary
+    needs: [preflight, attest-sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the exact staged candidate
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: release-candidate-${{ github.ref_name }}
+          path: dist
+
+      - name: Re-verify exact staging inventory without repository code
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          cd dist
+          shopt -s nullglob
+          version="${GITHUB_REF_NAME#v}"
+          wheels=(swelter-"${version}"-*.whl)
+          sdists=(swelter-"${version}".tar.gz)
+          frontends=(swelter-observatory-"${version}".tgz)
+          if (( ${#wheels[@]} != 1 || ${#sdists[@]} != 1 || ${#frontends[@]} != 1 )); then
+            echo "::error::signed release must contain one version-matched wheel, sdist, and frontend"
+            exit 1
+          fi
+          payloads=("${wheels[0]}" "${sdists[0]}" "${frontends[0]}")
+          sboms=()
+          for payload in "${payloads[@]}"; do
+            sbom="${payload}.cdx.json"
+            test -f "${sbom}" && test ! -L "${sbom}"
+            sboms+=("${sbom}")
+          done
+          signed=("${payloads[@]}" "${sboms[@]}" RELEASE_NOTES.md \
+            SUPPLY_CHAIN_PROVENANCE.tgz SHA256SUMS)
+          expected=("${signed[@]}")
+          for asset in "${signed[@]}"; do
+            test -f "${asset}" && test ! -L "${asset}"
+            bundle="${asset}.sigstore.json"
+            test -f "${bundle}" && test ! -L "${bundle}"
+            jq -e 'type == "object" and .mediaType == "application/vnd.dev.sigstore.bundle.v0.3+json"' \
+              "${bundle}" > /dev/null
+            expected+=("${bundle}")
+          done
+          printf '%s\n' "${expected[@]}" | sort > "${RUNNER_TEMP}/expected-draft"
+          find . -mindepth 1 -maxdepth 1 -printf '%f\n' | sort > "${RUNNER_TEMP}/actual-draft"
+          cmp "${RUNNER_TEMP}/expected-draft" "${RUNNER_TEMP}/actual-draft"
+          printf '%s\n' "${payloads[@]}" "${sboms[@]}" RELEASE_NOTES.md \
+            SUPPLY_CHAIN_PROVENANCE.tgz | sort > "${RUNNER_TEMP}/expected-checksums"
+          awk '{sub(/^\*/, "", $2); print $2}' SHA256SUMS \
+            | sort > "${RUNNER_TEMP}/actual-checksums"
+          cmp "${RUNNER_TEMP}/expected-checksums" "${RUNNER_TEMP}/actual-checksums"
+          sha256sum --check --strict SHA256SUMS
+
+      - name: Reject replacement of an already-public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if state="$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [ "${state}" != "true" ]; then
+              echo "::error::${GITHUB_REF_NAME} is already public and will not be replaced"
+              exit 1
+            fi
+          fi
+
+      - name: Upload the internally verified candidate as a private draft
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
+          body_path: dist/RELEASE_NOTES.md
+          draft: true
+          fail_on_unmatched_files: true
           files: |
-            dist/*.tar.gz
             dist/*.whl
+            dist/swelter-*.tar.gz
+            dist/swelter-observatory-*.tgz
+            dist/*.cdx.json
+            dist/RELEASE_NOTES.md
+            dist/SUPPLY_CHAIN_PROVENANCE.tgz
             dist/SHA256SUMS
-            dist/*.sig
-            dist/*.pem
+            dist/*.sigstore.json
+
+  draft-verification:
+    name: clean cryptographic draft binding
+    needs: [preflight, publish-draft]
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: read
+      contents: read
+    outputs:
+      asset_set_sha256: ${{ steps.bind.outputs.asset_set_sha256 }}
+    steps:
+      # No checkout or payload execution: this job binds only verified public-release bytes.
+      - name: Install exact Cosign v3
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v3.1.1"
+
+      - name: Download every asset from the exact private draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${GITHUB_REF_NAME}" --dir draft
+
+      - name: Verify signatures, attestations, exact inventory, and bind every byte
+        id: bind
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.commit }}
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          test "$(cosign version --json | jq -r .gitVersion)" = "v3.1.1"
+          cd draft
+          shopt -s nullglob
+          version="${GITHUB_REF_NAME#v}"
+          wheels=(swelter-"${version}"-*.whl)
+          sdists=(swelter-"${version}".tar.gz)
+          frontends=(swelter-observatory-"${version}".tgz)
+          if (( ${#wheels[@]} != 1 || ${#sdists[@]} != 1 || ${#frontends[@]} != 1 )); then
+            echo "::error::private draft is not version-bound and exact"
+            exit 1
+          fi
+          payloads=("${wheels[0]}" "${sdists[0]}" "${frontends[0]}")
+          sboms=()
+          for payload in "${payloads[@]}"; do
+            sbom="${payload}.cdx.json"
+            test -f "${sbom}" && test ! -L "${sbom}"
+            sboms+=("${sbom}")
+          done
+          primary=("${payloads[@]}" "${sboms[@]}" RELEASE_NOTES.md)
+          signed=("${primary[@]}" SUPPLY_CHAIN_PROVENANCE.tgz SHA256SUMS)
+          expected=("${signed[@]}")
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${GITHUB_REF_NAME}"
+          for asset in "${signed[@]}"; do
+            test -f "${asset}" && test ! -L "${asset}"
+            bundle="${asset}.sigstore.json"
+            test -f "${bundle}" && test ! -L "${bundle}"
+            cosign verify-blob "${asset}" \
+              --bundle "${bundle}" \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
+            expected+=("${bundle}")
+          done
+          printf '%s\n' "${expected[@]}" | sort > "${RUNNER_TEMP}/expected-bound-draft"
+          find . -mindepth 1 -maxdepth 1 -printf '%f\n' \
+            | sort > "${RUNNER_TEMP}/actual-bound-draft"
+          cmp "${RUNNER_TEMP}/expected-bound-draft" "${RUNNER_TEMP}/actual-bound-draft"
+          printf '%s\n' "${payloads[@]}" "${sboms[@]}" RELEASE_NOTES.md \
+            SUPPLY_CHAIN_PROVENANCE.tgz | sort > "${RUNNER_TEMP}/expected-bound-checksums"
+          awk '{sub(/^\*/, "", $2); print $2}' SHA256SUMS \
+            | sort > "${RUNNER_TEMP}/actual-bound-checksums"
+          cmp "${RUNNER_TEMP}/expected-bound-checksums" \
+            "${RUNNER_TEMP}/actual-bound-checksums"
+          sha256sum --check --strict SHA256SUMS
+          for asset in "${primary[@]}"; do
+            gh attestation verify "${asset}" --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --source-digest "${RELEASE_COMMIT}" \
+              --source-ref "refs/tags/${GITHUB_REF_NAME}"
+          done
+          for asset in SUPPLY_CHAIN_PROVENANCE.tgz SHA256SUMS; do
+            gh attestation verify "${asset}" --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --source-digest "${RELEASE_COMMIT}" \
+              --source-ref "refs/tags/${GITHUB_REF_NAME}"
+          done
+          sha256sum "${expected[@]}" > "${RUNNER_TEMP}/verified-asset-set"
+          asset_set_sha256="$(sha256sum "${RUNNER_TEMP}/verified-asset-set" | cut -d ' ' -f 1)"
+          echo "asset_set_sha256=${asset_set_sha256}" >> "${GITHUB_OUTPUT}"
+
+  consumer-verification:
+    name: read-only exact draft consumer verification
+    needs: [preflight, draft-verification]
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: read
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv without a release cache
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: false
+          version: "0.11.28"
+
+      - name: Install exact Cosign v3
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: "v3.1.1"
+
+      - name: Download every asset from the exact private draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${GITHUB_REF_NAME}" --dir consumer
+
+      - name: Verify exact inventory, checksums, BOM linkage, and provenance bundle
+        run: |
+          python scripts/release_artifacts.py verify-download \
+            --directory consumer --version "${GITHUB_REF_NAME#v}"
+          python scripts/release_artifacts.py extract-provenance \
+            --bundle consumer/SUPPLY_CHAIN_PROVENANCE.tgz \
+            --directory "${RUNNER_TEMP}/provenance"
+
+      - name: Verify offline and hosted GitHub provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.preflight.outputs.commit }}
+        run: |
+          primary=(consumer/*.whl consumer/swelter-*.tar.gz consumer/swelter-observatory-*.tgz \
+            consumer/*.cdx.json consumer/RELEASE_NOTES.md)
+          for asset in "${primary[@]}"; do
+            gh attestation verify "${asset}" --repo "${GITHUB_REPOSITORY}" \
+              --bundle "${RUNNER_TEMP}/provenance/attestations/$(basename "${asset}").intoto.jsonl" \
+              --custom-trusted-root "${RUNNER_TEMP}/provenance/trusted_root.jsonl" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --source-digest "${RELEASE_COMMIT}" \
+              --source-ref "refs/tags/${GITHUB_REF_NAME}"
+          done
+          for asset in consumer/SUPPLY_CHAIN_PROVENANCE.tgz consumer/SHA256SUMS; do
+            gh attestation verify "${asset}" --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "${GITHUB_REPOSITORY}/.github/workflows/release.yml" \
+              --source-digest "${RELEASE_COMMIT}" \
+              --source-ref "refs/tags/${GITHUB_REF_NAME}"
+          done
+
+      - name: Verify every downloaded Sigstore bundle
+        run: |
+          test "$(cosign version --json | jq -r .gitVersion)" = "v3.1.1"
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/${GITHUB_REF_NAME}"
+          assets=(consumer/*.whl consumer/swelter-*.tar.gz consumer/swelter-observatory-*.tgz \
+            consumer/*.cdx.json \
+            consumer/RELEASE_NOTES.md consumer/SUPPLY_CHAIN_PROVENANCE.tgz \
+            consumer/SHA256SUMS)
+          for asset in "${assets[@]}"; do
+            cosign verify-blob "${asset}" \
+              --bundle "${asset}.sigstore.json" \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          done
+
+      - name: Install and smoke-test the downloaded wheel in a clean environment
+        run: |
+          uv venv consumer/venv
+          wheel="$(find consumer -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          uv pip install --python consumer/venv/bin/python "${wheel}"
+          actual="$(consumer/venv/bin/swelter version)"
+          expected="swelter ${GITHUB_REF_NAME#v}"
+          if [ "${actual}" != "${expected}" ]; then
+            echo "::error::installed CLI reported '${actual}', expected '${expected}'"
+            exit 1
+          fi
+
+  promote-release:
+    name: clean atomic promotion boundary
+    needs: [preflight, draft-verification, consumer-verification]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Deliberately no checkout, package setup, artifact extraction, or repository script.
+      # The clean job rechecks the exact draft bytes with runner-native tools before mutation.
+      - name: Re-download and checksum the exact private draft
+        env:
+          EXPECTED_ASSET_SET_SHA256: ${{ needs.draft-verification.outputs.asset_set_sha256 }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir consumer
+          gh release download "${GITHUB_REF_NAME}" --dir consumer
+          cd consumer
+          shopt -s nullglob
+          version="${GITHUB_REF_NAME#v}"
+          wheels=(swelter-"${version}"-*.whl)
+          sdists=(swelter-"${version}".tar.gz)
+          frontends=(swelter-observatory-"${version}".tgz)
+          if (( ${#wheels[@]} != 1 || ${#sdists[@]} != 1 || ${#frontends[@]} != 1 )); then
+            echo "::error::draft inventory is not version-bound and exact"
+            exit 1
+          fi
+          payloads=("${wheels[0]}" "${sdists[0]}" "${frontends[0]}")
+          sboms=()
+          for payload in "${payloads[@]}"; do
+            sbom="${payload}.cdx.json"
+            test -f "${sbom}" && test ! -L "${sbom}"
+            sboms+=("${sbom}")
+          done
+          signed=("${payloads[@]}" "${sboms[@]}" RELEASE_NOTES.md \
+            SUPPLY_CHAIN_PROVENANCE.tgz SHA256SUMS)
+          expected=("${signed[@]}")
+          for asset in "${signed[@]}"; do
+            test -f "${asset}" && test ! -L "${asset}"
+            bundle="${asset}.sigstore.json"
+            test -f "${bundle}" && test ! -L "${bundle}"
+            expected+=("${bundle}")
+          done
+          printf '%s\n' "${expected[@]}" | sort > "${RUNNER_TEMP}/expected-public"
+          find . -mindepth 1 -maxdepth 1 -printf '%f\n' | sort > "${RUNNER_TEMP}/actual-public"
+          cmp "${RUNNER_TEMP}/expected-public" "${RUNNER_TEMP}/actual-public"
+          test -f SHA256SUMS && test ! -L SHA256SUMS
+          sha256sum --check --strict SHA256SUMS
+          sha256sum "${expected[@]}" > "${RUNNER_TEMP}/public-asset-set"
+          actual_asset_set_sha256="$(sha256sum "${RUNNER_TEMP}/public-asset-set" | cut -d ' ' -f 1)"
+          if [ "${actual_asset_set_sha256}" != "${EXPECTED_ASSET_SET_SHA256}" ]; then
+            echo "::error::private draft bytes changed after cryptographic verification"
+            exit 1
+          fi
+
+      - name: Atomically promote the still-private verified draft to public
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          state="$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq .isDraft)"
+          if [ "${state}" != "true" ]; then
+            echo "::error::${GITHUB_REF_NAME} is no longer the verified private draft"
+            exit 1
+          fi
+          gh release edit "${GITHUB_REF_NAME}" --draft=false --latest --verify-tag

@@ -1,0 +1,52 @@
+# swelter alert-feed messages.
+# Copyright (C) 2026 Chelsea Kelly-Reif
+# This file is distributed under the Apache-2.0 license.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: swelter 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/ChelseaKR/swelter/issues\n"
+"POT-Creation-Date: 2026-07-16 00:00-0700\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid " (provisional, not yet calibrated)"
+msgstr ""
+
+#, python-brace-format
+msgid ", as of {bucket}."
+msgstr ""
+
+#, python-brace-format
+msgid "{area}: air quality is {severity} (AQI {aqi}){provisional}{as_of}"
+msgstr ""
+
+#, python-brace-format
+msgid ""
+"{area}: heat index is in the {severity} range ({value} "
+"°C){provisional}{as_of}"
+msgstr ""
+
+#, python-brace-format
+msgid "{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}"
+msgstr ""
+
+msgid ""
+"Public, aggregate environmental alerts — no account, no PII. Subscribe "
+"via the Atom feed at /api/alerts.xml in any reader; live servers accept "
+"?area=<area_id>."
+msgstr ""
+
+#, python-brace-format
+msgid "{network} — heat & air-quality alerts"
+msgstr ""
+
+msgid ""
+"Areas where heat or air quality has crossed a public-health danger "
+"threshold. Aggregate environmental data, no PII."
+msgstr ""

@@ -25,7 +25,7 @@ cell's own standard error — ``sqrt(sum(sigma_i^2)) / n`` — which is what sho
 as "the cell's uncertainty" when averaging several independent-ish readings. It carries a caveat:
 members of one cell often share a calibration fit (same node, same correction), so their errors are
 not fully independent, and this SE is a lower bound on the true combined uncertainty, not an exact
-one. The derived ``exposure`` cell has no σ of its own — its mean is an ordinal level, not a
+one. The derived ``exposure`` cell has no sigma of its own — its mean is an ordinal level, not a
 physical quantity — so instead of a fabricated number it carries an ``uncertainty_note`` identifying
 which component (heat or air) bounds the published level.
 """
@@ -390,9 +390,10 @@ def _exposure_uncertainty_note(heat: CellReading, air: CellReading, air_category
     """The exposure cell's uncertainty statement: which axis bounds the published level.
 
     ``exposure.mean`` is an ordinal (the higher of two concern tiers), not a physical quantity, so
-    it has no σ of its own — fabricating one would misrepresent it. Instead this names the bounding
-    component and points at *that* component's real signal (its category, and its own uncertainty
-    or provisional status) so a reader can go verify it directly. ``air_category`` is passed in
+    it has no sigma of its own — fabricating one would misrepresent it. Instead this names the
+    bounding component and points at *that* component's real signal (its category, and its own
+    uncertainty or provisional status) so a reader can go verify it directly. ``air_category`` is
+    passed in
     (rather than read off ``air.category``) because the caller has already established it is not
     ``None`` before building an exposure cell at all.
     """
@@ -418,8 +419,8 @@ def _exposure_cells(cells: list[CellReading]) -> list[CellReading]:
 
     Built only where a calibrated-or-provisional heat-index cell *and* a PM2.5 cell exist for the
     same cell and hour, so the compound claim is never made from a single axis. The exposure cell
-    is provisional whenever either component is, and carries no fabricated σ — its ``mean`` is the
-    ordinal level used for sorting; the human signal is in ``category``, the components, and
+    is provisional whenever either component is, and carries no fabricated sigma — its ``mean`` is
+    the ordinal level used for sorting; the human signal is in ``category``, the components, and
     ``uncertainty_note`` (which axis bounds the level — see `_exposure_uncertainty_note`).
     """
     by_cell_bucket: dict[tuple[str, str], dict[str, CellReading]] = defaultdict(dict)

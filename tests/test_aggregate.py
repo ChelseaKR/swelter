@@ -195,7 +195,7 @@ def test_exposure_note_names_both_when_heat_and_air_tie() -> None:
         _CONFIG,
     )
     cell = _exposure(surface)[0]
-    assert cell.uncertainty is None  # exposure never fabricates a σ
+    assert cell.uncertainty is None  # exposure never fabricates a sigma
     assert cell.uncertainty_note is not None
     assert "heat" in cell.uncertainty_note
     assert "air" in cell.uncertainty_note
@@ -231,7 +231,7 @@ def test_exposure_note_names_heat_confirmed_without_numeric_uncertainty() -> Non
     assert cell.uncertainty_note is not None
     assert cell.uncertainty_note.startswith("bounded by heat")
     assert "no numeric uncertainty" in cell.uncertainty_note
-    assert "provisional" not in cell.uncertainty_note  # confirmed, just has no σ to report
+    assert "provisional" not in cell.uncertainty_note  # confirmed, no numeric sigma to report
 
 
 def test_exposure_note_names_heat_when_provisional_heat_bounds() -> None:

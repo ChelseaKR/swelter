@@ -1,0 +1,74 @@
+name: DORA evidence
+
+on:
+  schedule:
+    - cron: "17 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+
+concurrency:
+  group: dora-evidence
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: dora-evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Verify the committed evidence snapshot
+        run: python scripts/dora_evidence.py check
+
+      - name: Retain the rolling GitHub evidence window
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          window_end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          window_start="$(date -u --date='30 days ago' +%Y-%m-%dT%H:%M:%SZ)"
+          raw_dir="${RUNNER_TEMP}/dora-raw"
+          mkdir -p "${raw_dir}" dist/dora
+          gh api --paginate --slurp \
+            "/repos/${EVIDENCE_REPOSITORY}/actions/workflows/pages.yml/runs?created=${window_start}..${window_end}&per_page=100" \
+            > "${raw_dir}/actions.json"
+          gh api --paginate --slurp \
+            "/repos/${EVIDENCE_REPOSITORY}/issues?labels=incident&state=all&per_page=100" \
+            > "${raw_dir}/issues.json"
+          collected_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python scripts/dora_evidence.py retain \
+            --actions-raw "${raw_dir}/actions.json" \
+            --issues-raw "${raw_dir}/issues.json" \
+            --repository "${EVIDENCE_REPOSITORY}" \
+            --workflow pages.yml \
+            --window-start "${window_start}" \
+            --window-end "${window_end}" \
+            --collected-at "${collected_at}" \
+            --out-dir dist/dora
+          python scripts/dora_evidence.py generate \
+            --actions dist/dora/actions.json \
+            --issues dist/dora/issues.json \
+            --snapshot dist/dora/snapshot.json \
+            --markdown dist/dora/DORA.md
+          python scripts/dora_evidence.py check \
+            --actions dist/dora/actions.json \
+            --issues dist/dora/issues.json \
+            --snapshot dist/dora/snapshot.json \
+            --markdown dist/dora/DORA.md
+
+      - name: Retain generated DORA evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dora-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/dora
+          if-no-files-found: warn
+          retention-days: 90

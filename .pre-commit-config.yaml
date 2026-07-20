@@ -1,4 +1,5 @@
-# Local guardrails that mirror the CI merge gate. Install with `uv run pre-commit install`.
+# Local guardrails that mirror the CI merge gate. Install with
+# `uvx pre-commit@4.6.0 install` (the runner version is explicit; hooks are pinned below).
 # Pinned revisions; bump deliberately via Dependabot / a reviewed PR.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

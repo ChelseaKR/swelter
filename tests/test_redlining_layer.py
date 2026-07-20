@@ -4,7 +4,7 @@ keeps its provenance."""
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -114,7 +114,7 @@ def test_cell_id_defaults_from_coordinates_when_absent() -> None:
 def test_empty_dataset_is_valid() -> None:
     gj = redlining_layer.empty().to_geojson()
     assert gj["features"] == []
-    assert gj["metadata"]["count"] == 0  # type: ignore[index]
+    assert cast(dict[str, object], gj["metadata"])["count"] == 0
 
 
 def test_from_cells_builds_a_set() -> None:
@@ -138,6 +138,6 @@ def test_to_geojson_roundtrip_preserves_fields() -> None:
         }
     )
     gj = dataset.to_geojson()
-    feature = gj["features"][0]  # type: ignore[index]
+    feature = cast(list[dict[str, Any]], gj["features"])[0]
     assert feature["properties"]["holc_grade"] == "D"
     redlining_layer.parse(gj)  # roundtrip re-parses cleanly

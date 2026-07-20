@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from collections.abc import Mapping
+from typing import cast
 
 from swelter import aggregate, alerts
 from swelter.config import NetworkConfig, NodeConfig
+from swelter.models import Observation
 
 from .conftest import make_obs
 
@@ -15,9 +18,14 @@ _NODE = NodeConfig(
 _CONFIG = NetworkConfig(grid_resolution_m=150.0, nodes=(_NODE,))
 
 
-def _feed(*obs: object, **kw: object) -> alerts.AlertFeed:
-    surface = aggregate.aggregate(list(obs), _CONFIG)  # type: ignore[arg-type]
-    return alerts.build_feed(surface, network="demo", base_url="https://example.org", **kw)  # type: ignore[arg-type]
+def _feed(*obs: Observation, thresholds: Mapping[str, float] | None = None) -> alerts.AlertFeed:
+    surface = aggregate.aggregate(obs, _CONFIG)
+    return alerts.build_feed(
+        surface,
+        network="demo",
+        base_url="https://example.org",
+        thresholds=thresholds,
+    )
 
 
 def test_clean_air_raises_no_alert() -> None:
@@ -115,7 +123,7 @@ def test_atom_is_valid_xml_with_one_entry_per_alert() -> None:
         make_obs(parameter="pm25_ugm3", unit="ug/m3", value=60.0, calibration="v1"),
         make_obs(parameter="heat_index_c", value=41.0, calibration="v2"),
     )
-    root = ET.fromstring(feed.to_atom())  # noqa: S314 -- parsing our own generated feed, not external input
+    root = ET.fromstring(feed.to_atom())  # noqa: S314 -- parsing our own generated feed, not external input (#107)
     ns = "{http://www.w3.org/2005/Atom}"
     entries = root.findall(f"{ns}entry")
     assert len(entries) == len(feed.alerts)
@@ -151,8 +159,8 @@ def test_alert_record_carries_only_public_fields() -> None:
 def test_to_json_advertises_no_account_subscription() -> None:
     feed = _feed(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"))
     doc = feed.to_json()
-    assert "no account" in doc["note"]  # type: ignore[operator]
-    assert doc["thresholds"]["pm25_aqi"] == 101.0  # type: ignore[index]
+    assert "no account" in cast(str, doc["note"])
+    assert cast(dict[str, float], doc["thresholds"])["pm25_aqi"] == 101.0
 
 
 # -- bilingual (es) surfaces: server-side catalog, parity-gated -------------
@@ -182,7 +190,7 @@ def test_to_atom_es_differs_from_en_and_carries_spanish_text() -> None:
     es_atom = feed.to_atom(lang="es")
     assert en_atom != es_atom
     assert 'xml:lang="es"' in es_atom
-    root = ET.fromstring(es_atom)  # noqa: S314 -- our own generated feed, not external input
+    root = ET.fromstring(es_atom)  # noqa: S314 -- our own generated feed, not external input (#107)
     ns = "{http://www.w3.org/2005/Atom}"
     assert root.get("{http://www.w3.org/XML/1998/namespace}lang") == "es"
     entries = root.findall(f"{ns}entry")
@@ -204,7 +212,7 @@ def test_to_atom_es_is_labeled_machine_translated() -> None:
 
 def test_to_atom_links_the_alternate_language() -> None:
     feed = _feed(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"))
-    root = ET.fromstring(feed.to_atom())  # noqa: S314 -- our own generated feed, not external input
+    root = ET.fromstring(feed.to_atom())  # noqa: S314 -- our own generated feed, not external input (#107)
     ns = "{http://www.w3.org/2005/Atom}"
     alternates = [
         link

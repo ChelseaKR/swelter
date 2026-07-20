@@ -4,12 +4,12 @@
 Every authored locale tag the dashboard ships must be a well-formed, registered BCP 47 (RFC 5646)
 tag. A typo like ``es_ES`` (underscore), ``spanish``, or ``en-USA`` (bad region) silently breaks
 ``Intl``/content-negotiation and the language switch — the reader gets the wrong or no language.
-The standard names ``babel.Locale.parse`` / ``Intl.Locale``; swelter keeps a stdlib-only gate
-(one runtime dependency, by design), so this validates the RFC 5646 grammar directly and
+The standard names ``babel.Locale.parse`` / ``Intl.Locale``; swelter keeps this gate stdlib-only,
+so it validates the RFC 5646 grammar directly and
 registry-checks the primary language subtag against the ISO 639-1 set.
 
 Authored tags are discovered, not hand-listed, from the surfaces that carry them:
-  * the ``web/i18n/<tag>.json`` catalog filenames (the shipped locales),
+  * the ``web/i18n/<tag>.json`` catalog filenames (excluding ``*.manifest.json`` metadata),
   * the ``<html lang>`` root attribute in ``web/index.html`` (this is also **G4 html-lang-valid**,
     the merge-blocking complement to the structural a11y gate's ``html-has-lang``), and
   * the ``"lang"`` field in ``web/manifest.webmanifest``.
@@ -66,7 +66,7 @@ def _walk_remaining_subtags(subtags: list[str]) -> str | None:
         if _VARIANT.match(sub):
             i += 1
             continue
-        if len(sub) == 1 and _SINGLETON.match(sub) or sub.lower() == "x":
+        if (len(sub) == 1 and _SINGLETON.match(sub)) or sub.lower() == "x":
             return None  # extension / private-use block — accept the tag as well-formed
         return f"subtag {sub!r} is not a valid script/region/variant"
     return None
@@ -95,6 +95,8 @@ def _authored_tags() -> list[tuple[str, str]]:
     """Return ``(source, tag)`` pairs for every authored locale tag, in a stable order."""
     tags: list[tuple[str, str]] = []
     for path in sorted(I18N_DIR.glob("*.json")):
+        if path.name.endswith(".manifest.json"):
+            continue
         tags.append((f"catalog {path.name}", path.stem))
     if INDEX.is_file():
         m = _HTML_LANG.search(INDEX.read_text(encoding="utf-8"))

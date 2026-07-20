@@ -8,7 +8,7 @@ anyone to deploy it; you can read it, ignore it, or delete the folder and lose n
 
 There are two supported deployment modes. Pick one. Most networks should pick the first.
 
-Last verified: 2026-06-16. Recheck cadence: every 6 months, or when the cloud stack in
+Last verified: 2026-07-16. Recheck cadence: every 6 months, or when the cloud stack in
 [`cdk/`](cdk/) changes.
 
 ---
@@ -16,7 +16,8 @@ Last verified: 2026-06-16. Recheck cadence: every 6 months, or when the cloud st
 ## Mode 1 — single-board computer / self-host (recommended default)
 
 Run swelter on hardware you own. A Raspberry-Pi-class board is enough: the services are pure
-Python (PyYAML is the only runtime dependency), the store is SQLite plus a few plain files, and the
+Python (the only direct runtime dependencies are PyYAML and structlog), the store is SQLite plus a
+few plain files, and the
 server is single-threaded and read-only.
 
 ```console
@@ -66,10 +67,9 @@ scale-to-zero cloud copy on AWS:
   `styles.css`, `app.js`, the language bundles) are uploaded to S3 and served through CloudFront.
   Static files served from a CDN have no server to crash; this is the part people actually look at,
   and it stays up on its own.
-- **The read-only API on a scale-to-zero function.** `swelter.server`'s GET routes
-  (`/v1.1/...` SensorThings, `/api/surface.json`, `/export.csv`, `/export.json`) run in a Lambda
-  behind a function URL. It is read-only by construction — there is no write path to expose — and it
-  runs only while a request is in flight.
+- **A read-only scale-to-zero function scaffold.** The committed Lambda answers health checks and
+  rejects writes. It does not expose `swelter.server`'s data routes until an operator explicitly
+  bundles the package and a read-only snapshot, as documented in `cdk/README.md`.
 - **A hard monthly budget alarm.** AWS Budgets watches the account spend and emails a contact when
   it crosses a single-digit-dollar threshold, because a community group funds this and a surprise
   bill is the failure mode that actually hurts.

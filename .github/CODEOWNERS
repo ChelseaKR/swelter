@@ -1,7 +1,6 @@
-# Code ownership for review routing. Single-maintainer repo today; this file exists so
-# GitHub can enforce "require review from Code Owners" once branch protection is enabled
-# (P0-2 in audit-2026-07-05/swelter-REMEDIATION.md), and so the ownership of the
-# security-sensitive paths below is explicit rather than implicit.
+# Code ownership for review routing. This single-maintainer repository records ownership of
+# security-sensitive paths explicitly. The current live ruleset does not require Code Owner
+# review; that intentionally excluded governance gap is tracked in issue #105.
 
 * @ChelseaKR
 

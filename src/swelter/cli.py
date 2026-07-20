@@ -12,12 +12,15 @@ the dashboard, with no hardware in the loop.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import hashlib
 import json
 import shutil
 import sys
+import tempfile
 from collections.abc import Callable, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -54,8 +57,9 @@ from .config import (
     label_concerns,
     load_config,
     load_config_doc,
+    parse_config,
 )
-from .models import RAW, Observation
+from .models import RAW, Observation, format_timestamp
 from .server import ServerContext, serve
 from .store import SqliteStore, open_store, store_paths
 
@@ -123,8 +127,14 @@ calibration_windows:            # one per (node, parameter); a node with none st
 """
 
 
+_JSON_DIAGNOSTICS = False
+
+
 def _err(message: str) -> None:
-    print(message, file=sys.stderr)
+    if _JSON_DIAGNOSTICS:
+        obs.log_event("cli", "diagnostic", detail=message)
+    else:
+        print(message, file=sys.stderr)
 
 
 def _corrections_skipped_stale(
@@ -187,6 +197,9 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         _err(f"swelter: input {args.input} not found")
         return 1
     paths = store_paths(args.store)
+    if (paths["dir"] / snapshot.SOURCE_METADATA_FILENAME).is_file():
+        _err("swelter: refusing to mix native ingest with a fetched third-party store")
+        return 1
     manifest = obs.RunManifest()
     with open_store(args.store) as store:
         result = ingest.ingest_file(args.input, store, quarantine_path=paths["quarantine"])
@@ -379,7 +392,8 @@ def cmd_alerts(args: argparse.Namespace) -> int:
     """Build the neighborhood heat/AQI alerts feed (JSON + Atom) from the current surface."""
     config = _load_config(args.config)
     with open_store(args.store) as store:
-        surface = aggregate.aggregate(store.all(), config)
+        observations = list(store.all())
+        surface = aggregate.aggregate(observations, config)
     feed = alerts.build_feed(
         surface,
         network=config.name,
@@ -391,7 +405,12 @@ def cmd_alerts(args: argparse.Namespace) -> int:
     elif args.format == "json":
         sys.stdout.write(json.dumps(feed.to_json(), indent=2) + "\n")
     if args.web:
-        _write_web_alerts(Path(args.web), surface, config)
+        try:
+            terms = snapshot.load_data_terms(Path(args.store), observations=observations)
+        except ValueError as exc:
+            _err(f"swelter alerts: data provenance is invalid ({exc}); refusing to publish")
+            return 1
+        _write_web_alerts(Path(args.web), surface, config, data_terms=terms)
         _err(f"swelter: wrote alerts.json + alerts.xml + alerts.es.xml → {args.web}/")
     _err(f"swelter: {len(feed.alerts)} active alert(s) at {feed.bucket or 'no data'}")
     return 0
@@ -466,17 +485,37 @@ def cmd_export(args: argparse.Namespace) -> int:
         )
         raw = store.read(calibration=RAW)
     gaps = qc.detect_gaps(raw, args.interval)
+    try:
+        terms = snapshot.load_data_terms(
+            Path(args.store),
+            license_override=args.license,
+            attribution_override=args.attribution,
+            observations=observations,
+        )
+    except ValueError as exc:
+        _err(f"swelter export: {exc}; refusing")
+        return 1
+    terms_by_observation = snapshot.export_terms_by_observation(terms, observations)
     if args.format == "json":
         sys.stdout.write(
             export.to_json(
-                observations, indent=2, license=args.license, attribution=args.attribution
+                observations,
+                indent=2,
+                license=terms.license,
+                attribution=terms.attribution,
+                terms_by_observation=terms_by_observation,
             )
         )
     else:
         sys.stdout.write(
-            export.to_csv(observations, license=args.license, attribution=args.attribution)
+            export.to_csv(
+                observations,
+                license=terms.license,
+                attribution=terms.attribution,
+                terms_by_observation=terms_by_observation,
+            )
         )
-    _err(export.summarize(observations, gaps=gaps, license=args.license))
+    _err(export.summarize(observations, gaps=gaps, license=terms.license))
     return 0
 
 
@@ -489,6 +528,12 @@ def _cooling_path(path: str) -> Path | None:
 def cmd_serve(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
     store = open_store(args.store)
+    try:
+        data_terms = snapshot.load_data_terms(Path(args.store), observations=list(store.all()))
+    except ValueError as exc:
+        store.close()
+        _err(f"swelter serve: {exc}; refusing")
+        return 1
     base = f"http://{args.host}:{args.port}"
     ctx = ServerContext(
         store=store,
@@ -497,6 +542,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         base_url=base,
         cooling_centers_path=_cooling_path(args.cooling_centers),
         store_dir=store_paths(args.store)["dir"],
+        data_terms=data_terms,
     )
     _err(f"swelter: serving dashboard + API at {base}  (Ctrl-C to stop)")
     _err(f"  dashboard {base}/   ·   SensorThings {base}/v1.1   ·   export {base}/export.csv")
@@ -527,6 +573,9 @@ def cmd_ingest_serve(args: argparse.Namespace) -> int:
         _err(f"swelter: keys file {args.keys} holds no node keys; issue them with swelter node-key")
         return 1
     paths = store_paths(args.store)
+    if (paths["dir"] / snapshot.SOURCE_METADATA_FILENAME).is_file():
+        _err("swelter: refusing to mix node ingest with a fetched third-party store")
+        return 1
     store = open_store(args.store)
     ctx = ingest_server.IngestServerContext(
         store=store,
@@ -577,8 +626,7 @@ def _print_node_preview(node: NodeConfig, config: NetworkConfig) -> None:
         print()
         return
     print(f"  your private coordinate — never published: {node.lat:.6f}, {node.lon:.6f}")
-    published = node.public_location(config.grid_resolution_m)
-    assert published is not None  # noqa: S101 (lat/lon set, so this cannot be None)
+    published = cast(tuple[float, float], node.public_location(config.grid_resolution_m))
     cell_id, cell_label = aggregate.node_cell_map(config).get(node.node_id, ("", ""))
     label_suffix = f" ({cell_label})" if cell_label else ""
     print(f"  published coordinate: {published[0]:.6f}, {published[1]:.6f}")
@@ -623,6 +671,13 @@ def cmd_demo(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
     paths = store_paths(args.store)
     paths["db"].unlink(missing_ok=True)  # a fresh demo store every run; replay is idempotent
+    for directory in (paths["dir"], Path(args.web)):
+        for name in (
+            snapshot.SOURCE_METADATA_FILENAME,
+            snapshot.SOURCE_LICENSE_LEDGER_FILENAME,
+            snapshot.DATA_LICENSE_FILENAME,
+        ):
+            (directory / name).unlink(missing_ok=True)
     manifest = obs.RunManifest()
 
     with SqliteStore(paths["db"]) as store:
@@ -666,10 +721,16 @@ def cmd_demo(args: argparse.Namespace) -> int:
         paths["aggregate"].write_text(
             json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
         )
+        demo_terms = snapshot.DataTerms(
+            "Synthetic demonstration dataset",
+            snapshot.DEFAULT_DATA_LICENSE,
+            "Synthetic demonstration data — no real sensors (gen_demo_data.py).",
+        )
         _write_web_sample(
             Path(args.web),
             surface,
-            attribution="Synthetic demonstration data — no real sensors (gen_demo_data.py).",
+            attribution=demo_terms.attribution,
+            data_terms=demo_terms,
         )
         _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
         _write_web_health(
@@ -678,8 +739,9 @@ def cmd_demo(args: argparse.Namespace) -> int:
             args.interval,
             coverage=_coverage,
             store_dir=args.store,
+            data_terms=demo_terms,
         )
-        _write_web_alerts(Path(args.web), surface, config)
+        _write_web_alerts(Path(args.web), surface, config, data_terms=demo_terms)
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
         all_obs = list(store.all())
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
@@ -690,6 +752,12 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
     if args.serve:
         store = open_store(args.store)
+        try:
+            data_terms = snapshot.load_data_terms(paths["dir"], observations=list(store.all()))
+        except ValueError as exc:
+            store.close()
+            _err(f"swelter demo: data provenance is invalid ({exc}); refusing to serve")
+            return 1
         base = f"http://{args.host}:{args.port}"
         ctx = ServerContext(
             store=store,
@@ -698,6 +766,7 @@ def cmd_demo(args: argparse.Namespace) -> int:
             base_url=base,
             cooling_centers_path=_cooling_path(args.cooling_centers),
             store_dir=paths["dir"],
+            data_terms=data_terms,
         )
         _err(f"swelter demo: serving at {base}  (Ctrl-C to stop)")
         try:
@@ -707,8 +776,45 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _default_static_data_terms(*, attribution: str = "") -> snapshot.DataTerms:
+    return snapshot.DataTerms(
+        snapshot.DEFAULT_DATA_SOURCE,
+        snapshot.DEFAULT_DATA_LICENSE,
+        attribution or snapshot.DEFAULT_DATA_ATTRIBUTION,
+    )
+
+
+def _static_rights_envelope(
+    terms: snapshot.DataTerms | None, *, attribution: str = ""
+) -> dict[str, object]:
+    effective = terms or _default_static_data_terms(attribution=attribution)
+    return snapshot.rights_envelope(
+        effective,
+        license_href="DATA-LICENSE",
+        ledger_href=snapshot.SOURCE_LICENSE_LEDGER_FILENAME,
+    )
+
+
+def _atom_with_static_rights(document: str, terms: snapshot.DataTerms) -> str:
+    """Add Atom-native rights evidence links without changing existing entries or feed fields."""
+    marker = "  <updated>"
+    links = ['  <link rel="license" href="DATA-LICENSE"/>']
+    if terms.ledger_content is not None:
+        links.append(
+            f'  <link rel="describedby" href="{snapshot.SOURCE_LICENSE_LEDGER_FILENAME}"/>'
+        )
+    if marker not in document:
+        raise ValueError("generated Atom feed has no updated element for rights-link insertion")
+    return document.replace(marker, "\n".join(links) + "\n" + marker, 1)
+
+
 def _write_web_sample(
-    web_dir: Path, surface: aggregate.Surface, *, attribution: str = "", max_cells: int = 4000
+    web_dir: Path,
+    surface: aggregate.Surface,
+    *,
+    attribution: str = "",
+    max_cells: int = 4000,
+    data_terms: snapshot.DataTerms | None = None,
 ) -> None:
     """Refresh the dashboard's offline fallback if web/ exists, capped to keep the static payload
     light on a host like GitHub Pages — the most recent hourly buckets up to ~``max_cells`` cells,
@@ -733,12 +839,19 @@ def _write_web_sample(
         "attribution": attribution,
         "buckets": buckets,
         "cells": records,
+        "rights": _static_rights_envelope(data_terms, attribution=attribution),
     }
     (web_dir / "sample-surface.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _write_web_surface_slice(
-    web_dir: Path, surface: aggregate.Surface, hours: int, filename: str, *, attribution: str = ""
+    web_dir: Path,
+    surface: aggregate.Surface,
+    hours: int,
+    filename: str,
+    *,
+    attribution: str = "",
+    data_terms: snapshot.DataTerms | None = None,
 ) -> None:
     """Bake a trailing-window surface slice (``surface-24h.json``, ``surface-7d.json``) so a fully
     static deploy carries the same time-sliced views the live ``/api/surface.json?hours=N`` route
@@ -754,6 +867,7 @@ def _write_web_surface_slice(
         "attribution": attribution,
         "buckets": buckets,
         "cells": records,
+        "rights": _static_rights_envelope(data_terms, attribution=attribution),
     }
     (web_dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -765,6 +879,7 @@ def _write_web_health(
     *,
     coverage: dict[str, object] | None = None,
     store_dir: str | Path | None = None,
+    data_terms: snapshot.DataTerms | None = None,
 ) -> None:
     """Bake the node-health summary so the static dashboard shows coverage with no live API.
 
@@ -777,10 +892,17 @@ def _write_web_health(
     report = qc.health_report(
         raw, expected_interval_s=interval_s, coverage=coverage, store_dir=store_dir
     )
+    report["rights"] = _static_rights_envelope(data_terms)
     (web_dir / "sample-health.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
-def _write_web_alerts(web_dir: Path, surface: aggregate.Surface, config: NetworkConfig) -> None:
+def _write_web_alerts(
+    web_dir: Path,
+    surface: aggregate.Surface,
+    config: NetworkConfig,
+    *,
+    data_terms: snapshot.DataTerms | None = None,
+) -> None:
     """Bake the neighborhood-alerts feed (JSON + English and Spanish Atom) so the static site can
     show and syndicate it.
 
@@ -795,9 +917,14 @@ def _write_web_alerts(web_dir: Path, surface: aggregate.Surface, config: Network
     feed = alerts.build_feed(
         surface, network=config.name, base_url="", thresholds=config.alert_thresholds or None
     )
-    (web_dir / "alerts.json").write_text(json.dumps(feed.to_json(), indent=2), encoding="utf-8")
-    (web_dir / "alerts.xml").write_text(feed.to_atom(), encoding="utf-8")
-    (web_dir / "alerts.es.xml").write_text(feed.to_atom(lang="es"), encoding="utf-8")
+    terms = data_terms or _default_static_data_terms()
+    document = feed.to_json()
+    document["rights"] = _static_rights_envelope(terms)
+    (web_dir / "alerts.json").write_text(json.dumps(document, indent=2), encoding="utf-8")
+    (web_dir / "alerts.xml").write_text(_atom_with_static_rights(feed.to_atom(), terms), "utf-8")
+    (web_dir / "alerts.es.xml").write_text(
+        _atom_with_static_rights(feed.to_atom(lang="es"), terms), "utf-8"
+    )
 
 
 def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
@@ -811,8 +938,94 @@ def _write_web_cooling_centers(web_dir: Path, source: Path) -> None:
 
 
 _FetchOk = tuple[
-    list[Observation], dict[str, Any], str, str, str
-]  # observations, network, attribution, source label, license
+    list[Observation], dict[str, Any], str, str, str, str, dict[str, Any] | None
+]  # observations, network, attribution, source label, license, license URL, optional ledger
+
+
+class _FileRollback:
+    """Recover a bounded set of fetch outputs if any post-validation write fails."""
+
+    def __init__(self, targets: Sequence[Path]) -> None:
+        self._backup_dir = Path(tempfile.mkdtemp(prefix="swelter-fetch-rollback-"))
+        self._records: list[tuple[Path, Path | None]] = []
+        self._missing_parents: set[Path] = set()
+        try:
+            for index, target in enumerate(dict.fromkeys(path.resolve() for path in targets)):
+                if target.exists() and not target.is_file():
+                    raise OSError(f"fetch output target is not a regular file: {target}")
+                parent = target.parent
+                while not parent.exists() and parent != parent.parent:
+                    self._missing_parents.add(parent)
+                    parent = parent.parent
+                backup: Path | None = None
+                if target.is_file():
+                    backup = self._backup_dir / str(index)
+                    shutil.copy2(target, backup)
+                self._records.append((target, backup))
+        except Exception:
+            self.close()
+            raise
+
+    def rollback(self) -> None:
+        for target, backup in reversed(self._records):
+            if target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+            if backup is not None:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(backup, target)
+        for directory in sorted(
+            self._missing_parents, key=lambda path: len(path.parts), reverse=True
+        ):
+            with contextlib.suppress(FileNotFoundError, OSError):
+                directory.rmdir()
+
+    def close(self) -> None:
+        shutil.rmtree(self._backup_dir, ignore_errors=True)
+
+
+def _fetch_mutation_targets(config_path: Path, paths: dict[str, Path], web_dir: Path) -> list[Path]:
+    store_files = [
+        paths["db"],
+        paths["digests"],
+        paths["aggregate"],
+        paths["dir"] / snapshot.SOURCE_METADATA_FILENAME,
+        paths["dir"] / snapshot.SOURCE_LICENSE_LEDGER_FILENAME,
+    ]
+    sqlite_sidecars = [Path(f"{paths['db']}{suffix}") for suffix in ("-journal", "-shm", "-wal")]
+    web_files = [
+        web_dir / snapshot.SOURCE_LICENSE_LEDGER_FILENAME,
+        web_dir / "sample-surface.json",
+        web_dir / "sample-health.json",
+        web_dir / "alerts.json",
+        web_dir / "alerts.xml",
+        web_dir / "alerts.es.xml",
+        web_dir / "cooling-centers.geojson",
+    ]
+    return [config_path, *store_files, *sqlite_sidecars, *web_files]
+
+
+def _reject_fetch_provenance(rollback: _FileRollback, exc: ValueError) -> int:
+    """Restore pre-validation files and retain the fetch command's provenance error contract."""
+    try:
+        rollback.rollback()
+    except OSError as rollback_exc:
+        _err(
+            "swelter: source provenance is invalid "
+            f"({exc}) and rollback failed ({rollback_exc}); operator recovery is required"
+        )
+        return 1
+    _err(f"swelter: source provenance is invalid ({exc}); refusing")
+    return 1
+
+
+def _validated_fetch_config(network: dict[str, Any]) -> NetworkConfig:
+    config = parse_config(network)
+    errors, _warnings = config_concerns(config, network)
+    if errors:
+        raise ValueError("generated network config failed validation: " + "; ".join(errors))
+    return config
 
 
 def _merge_network_doc(config_path: Path, network: dict[str, Any]) -> dict[str, Any]:
@@ -860,8 +1073,12 @@ def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
         f"(up to {args.max_locations} sites, block-by-block)…"
     )
     try:
+        license_ledger: dict[str, Any] = {}
         observations, nodes = openaq.fetch(
-            api_key, max_locations=args.max_locations, throttle_s=args.throttle
+            api_key,
+            max_locations=args.max_locations,
+            throttle_s=args.throttle,
+            license_ledger=license_ledger,
         )
     except (SourceError, OSError, ValueError) as exc:
         _err(f"swelter: fetch failed ({exc}); check your network/API key")
@@ -870,7 +1087,15 @@ def _fetch_openaq(args: argparse.Namespace) -> _FetchOk | int:
         _err("swelter: no readings returned from OpenAQ")
         return 1
     network = openaq.network_doc("California", nodes)
-    return observations, network, openaq.ATTRIBUTION, "OpenAQ", openaq.LICENSE
+    return (
+        observations,
+        network,
+        openaq.ATTRIBUTION,
+        "OpenAQ",
+        openaq.LICENSE,
+        openaq.LICENSE_URL,
+        license_ledger,
+    )
 
 
 def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
@@ -897,6 +1122,8 @@ def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
         sensor_community.ATTRIBUTION,
         "Sensor.Community",
         sensor_community.LICENSE,
+        sensor_community.LICENSE_URL,
+        None,
     )
 
 
@@ -926,7 +1153,188 @@ def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
         openmeteo.ATTRIBUTION,
         "Copernicus CAMS via Open-Meteo",
         openmeteo.LICENSE,
+        openmeteo.LICENSE_URL,
+        None,
     )
+
+
+def _existing_fetch_observations(
+    args: argparse.Namespace, paths: dict[str, Path]
+) -> list[Observation]:
+    if not args.accumulate or not paths["db"].is_file():
+        return []
+    with open_store(paths["dir"]) as existing_store:
+        return list(existing_store.all())
+
+
+def _validate_accumulation_source(
+    args: argparse.Namespace,
+    paths: dict[str, Path],
+    source_label: str,
+    license: str,
+    license_url: str,
+    attribution: str,
+    existing_observations: Sequence[Observation],
+) -> None:
+    if not args.accumulate:
+        return
+    existing_metadata = paths["dir"] / snapshot.SOURCE_METADATA_FILENAME
+    if existing_observations and not existing_metadata.is_file():
+        raise ValueError("--accumulate requires source-metadata.json for an existing store")
+    if not existing_metadata.is_file():
+        return
+    existing_terms = snapshot.load_data_terms(paths["dir"], observations=existing_observations)
+    expected = snapshot.DataTerms(source_label, license, attribution, license_url)
+    recorded = snapshot.DataTerms(
+        existing_terms.source,
+        existing_terms.license,
+        existing_terms.attribution,
+        existing_terms.license_url,
+    )
+    if recorded.source != expected.source:
+        raise ValueError(
+            f"--accumulate cannot mix sources in one store ({recorded.source} != {expected.source})"
+        )
+    if recorded != expected:
+        raise ValueError("--accumulate cannot rewrite the source license, URL, or attribution")
+
+
+def _prepare_openaq_ledger(
+    args: argparse.Namespace,
+    paths: dict[str, Path],
+    license_ledger: dict[str, Any] | None,
+    observations: Sequence[Observation],
+    existing_observations: Sequence[Observation],
+) -> dict[str, Any]:
+    from .sources import openaq
+
+    if license_ledger is None or not openaq.validate_license_ledger(
+        license_ledger, observations=observations
+    ):
+        raise ValueError("OpenAQ fetch returned an incomplete source-license ledger")
+    prepared = license_ledger
+    ledger_path = paths["dir"] / snapshot.SOURCE_LICENSE_LEDGER_FILENAME
+    if args.accumulate and ledger_path.is_file():
+        try:
+            previous = json.loads(ledger_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("existing OpenAQ source-license ledger is invalid") from exc
+        prepared = openaq.merge_license_ledgers(previous, license_ledger)
+    if not openaq.validate_license_ledger(
+        prepared, observations=[*existing_observations, *observations]
+    ):
+        raise ValueError("accumulated OpenAQ ledger does not cover every retained observation")
+    return prepared
+
+
+def _prepare_fetch_provenance(
+    args: argparse.Namespace,
+    paths: dict[str, Path],
+    *,
+    source_label: str,
+    license: str,
+    license_url: str,
+    attribution: str,
+    license_ledger: dict[str, Any] | None,
+    observations: Sequence[Observation],
+) -> dict[str, Any] | None:
+    """Validate source identity and the complete post-fetch ledger before any mutation."""
+    if not all(value.strip() for value in (source_label, license, attribution)):
+        raise ValueError("source, license, and attribution must be non-empty")
+    if not license_url.startswith("https://"):
+        raise ValueError("source license URL must use HTTPS")
+    existing_observations = _existing_fetch_observations(args, paths)
+    _validate_accumulation_source(
+        args,
+        paths,
+        source_label,
+        license,
+        license_url,
+        attribution,
+        existing_observations,
+    )
+
+    if source_label != "OpenAQ":
+        if license_ledger is not None:
+            raise ValueError(f"{source_label} unexpectedly returned an OpenAQ license ledger")
+        return None
+
+    return _prepare_openaq_ledger(args, paths, license_ledger, observations, existing_observations)
+
+
+def _write_fetch_provenance(
+    args: argparse.Namespace,
+    paths: dict[str, Path],
+    *,
+    source_label: str,
+    license: str,
+    license_url: str,
+    attribution: str,
+    license_ledger: dict[str, Any] | None,
+) -> None:
+    """Persist source terms after all source and ledger checks have passed."""
+    snapshot.write_source_metadata(
+        paths["dir"],
+        source=source_label,
+        license=license,
+        attribution=attribution,
+        license_url=license_url,
+        recorded_at=format_timestamp(datetime.now(UTC)),
+    )
+    ledger_path = paths["dir"] / snapshot.SOURCE_LICENSE_LEDGER_FILENAME
+    web_ledger_path = Path(args.web) / snapshot.SOURCE_LICENSE_LEDGER_FILENAME
+    if license_ledger is None:
+        ledger_path.unlink(missing_ok=True)
+        web_ledger_path.unlink(missing_ok=True)
+        return
+    paths["dir"].mkdir(parents=True, exist_ok=True)
+    serialized_ledger = json.dumps(license_ledger, indent=2, sort_keys=True) + "\n"
+    ledger_path.write_text(serialized_ledger, encoding="utf-8")
+    if Path(args.web).is_dir():
+        web_ledger_path.write_text(serialized_ledger, encoding="utf-8")
+
+
+def _fetch_from_selected_source(args: argparse.Namespace) -> _FetchOk | int:
+    """Dispatch one validated source name without adding route branches to ``cmd_fetch``."""
+    fetchers: dict[str, Callable[[argparse.Namespace], _FetchOk | int]] = {
+        "openaq": _fetch_openaq,
+        "sensor-community": _fetch_sensor_community,
+        "openmeteo": _fetch_openmeteo,
+    }
+    return fetchers.get(args.source, _fetch_openmeteo)(args)
+
+
+def _serve_after_fetch(
+    args: argparse.Namespace,
+    *,
+    paths: dict[str, Path],
+    config: NetworkConfig,
+    source_label: str,
+) -> int:
+    """Open the committed fetch result and serve it only after rights revalidation."""
+    store = open_store(args.store)
+    try:
+        data_terms = snapshot.load_data_terms(paths["dir"], observations=list(store.all()))
+    except ValueError as exc:
+        store.close()
+        _err(f"swelter: source provenance is invalid after fetch ({exc}); refusing to serve")
+        return 1
+    base = f"http://{args.host}:{args.port}"
+    ctx = ServerContext(
+        store=store,
+        config=config,
+        web_dir=Path(args.web),
+        base_url=base,
+        cooling_centers_path=_cooling_path(args.cooling_centers),
+        store_dir=paths["dir"],
+        data_terms=data_terms,
+    )
+    _err(f"swelter: serving REAL data ({source_label}) at {base}  (Ctrl-C to stop)")
+    try:
+        serve(ctx, host=args.host, port=args.port)
+    finally:
+        store.close()
+    return 0
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -939,46 +1347,88 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     first, so each fetch is a fresh snapshot; ``--accumulate`` keeps the existing store between
     runs instead (see ADR 0013), so readings pile up run over run and the time slider ends up
     with real longitudinal history rather than one fetch's worth."""
-    if args.source == "openaq":
-        result = _fetch_openaq(args)
-    elif args.source == "sensor-community":
-        result = _fetch_sensor_community(args)
-    else:
-        result = _fetch_openmeteo(args)
+    result = _fetch_from_selected_source(args)
     if isinstance(result, int):
         return result
-    observations, network, attribution, source_label, license = result
+    observations, network, attribution, source_label, license, license_url, license_ledger = result
 
     observations = qc.apply(observations)
-    config_path = Path(args.config)
-    if args.accumulate:
-        network = _merge_network_doc(config_path, network)
-    config_path.write_text(yaml.safe_dump(network, sort_keys=False), encoding="utf-8")
-    config = _load_config(args.config)  # parse it back so we fail loudly if the write was bad
-
     paths = store_paths(args.store)
-    if not args.accumulate:
-        paths["db"].unlink(missing_ok=True)  # a fresh snapshot each fetch; re-running is idempotent
-    with SqliteStore(paths["db"]) as store:
-        # write() is INSERT OR IGNORE on (node_id, timestamp, parameter, calibration), so
-        # re-fetching overlapping history under --accumulate is idempotent, not duplicated.
-        written = store.write(observations)
-        surface = aggregate.aggregate(store.all(), config)
-        paths["aggregate"].write_text(
-            json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
+    config_path = Path(args.config)
+    try:
+        if args.accumulate:
+            network = _merge_network_doc(config_path, network)
+        config = _validated_fetch_config(network)
+        serialized_config = yaml.safe_dump(network, sort_keys=False)
+    except (AttributeError, OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+        _err(f"swelter: fetched network config is invalid ({exc}); refusing")
+        return 1
+
+    web_dir = Path(args.web)
+    try:
+        rollback = _FileRollback(_fetch_mutation_targets(config_path, paths, web_dir))
+    except OSError as exc:
+        _err(f"swelter: could not prepare an atomic fetch update ({exc}); refusing")
+        return 1
+    try:
+        try:
+            # Opening an accumulated store can migrate its schema and integrity chain. Validate
+            # provenance only after the rollback journal covers those files, so a rejected fetch
+            # restores the exact pre-open store rather than leaking migration side effects.
+            license_ledger = _prepare_fetch_provenance(
+                args,
+                paths,
+                source_label=source_label,
+                license=license,
+                license_url=license_url,
+                attribution=attribution,
+                license_ledger=license_ledger,
+                observations=observations,
+            )
+        except ValueError as exc:
+            return _reject_fetch_provenance(rollback, exc)
+        config_path.write_text(serialized_config, encoding="utf-8")
+        _write_fetch_provenance(
+            args,
+            paths,
+            source_label=source_label,
+            license=license,
+            license_url=license_url,
+            attribution=attribution,
+            license_ledger=license_ledger,
         )
-        _write_web_sample(Path(args.web), surface, attribution=attribution)
-        _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
-        _write_web_health(
-            Path(args.web),
-            store.read(calibration=RAW),
-            args.interval,
-            coverage=_coverage,
-            store_dir=args.store,
-        )
-        _write_web_alerts(Path(args.web), surface, config)
-        _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
-        all_obs = list(store.all())
+        if not args.accumulate:
+            # A fresh snapshot replaces the database, but the rollback journal retains the prior
+            # bytes until every config/store/web artifact is known-good.
+            paths["db"].unlink(missing_ok=True)
+        with SqliteStore(paths["db"]) as store:
+            # write() is INSERT OR IGNORE on
+            # (node_id, timestamp, parameter, source, calibration), so
+            # re-fetching overlapping history under --accumulate is idempotent, not duplicated.
+            written = store.write(observations)
+            all_obs = list(store.all())
+            surface = aggregate.aggregate(all_obs, config)
+            terms = snapshot.load_data_terms(paths["dir"], observations=all_obs)
+            paths["aggregate"].write_text(
+                json.dumps(surface.snapshot_geojson(), indent=2), encoding="utf-8"
+            )
+            _write_web_sample(
+                web_dir,
+                surface,
+                attribution=attribution,
+                data_terms=terms,
+            )
+            _coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
+            _write_web_health(
+                web_dir,
+                [observation for observation in all_obs if observation.calibration == RAW],
+                args.interval,
+                coverage=_coverage,
+                store_dir=args.store,
+                data_terms=terms,
+            )
+            _write_web_alerts(web_dir, surface, config, data_terms=terms)
+            _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
         mode = "accumulated" if args.accumulate else "stored"
         _err(
             f"swelter: {mode} {written.written} new of {len(all_obs)} total real observations "
@@ -987,24 +1437,23 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         _err(
             export.summarize(all_obs, gaps=qc.detect_gaps(all_obs, args.interval), license=license)
         )
-
-    if args.serve:
-        store = open_store(args.store)
-        base = f"http://{args.host}:{args.port}"
-        ctx = ServerContext(
-            store=store,
-            config=config,
-            web_dir=Path(args.web),
-            base_url=base,
-            cooling_centers_path=_cooling_path(args.cooling_centers),
-            store_dir=paths["dir"],
-        )
-        _err(f"swelter: serving REAL data ({source_label}) at {base}  (Ctrl-C to stop)")
+    except Exception as exc:
         try:
-            serve(ctx, host=args.host, port=args.port)
-        finally:
-            store.close()
-    return 0
+            rollback.rollback()
+        except OSError as rollback_exc:
+            _err(
+                f"swelter: fetch update failed ({exc}) and rollback failed ({rollback_exc}); "
+                "operator recovery is required"
+            )
+            return 1
+        _err(f"swelter: fetch update failed ({exc}); restored the prior store and artifacts")
+        return 1
+    finally:
+        rollback.close()
+
+    if not args.serve:
+        return 0
+    return _serve_after_fetch(args, paths=paths, config=config, source_label=source_label)
 
 
 def cmd_rebuild(args: argparse.Namespace) -> int:
@@ -1041,6 +1490,8 @@ _PUBLISH_FILES = (
     "surface-24h.json",
     "surface-7d.json",
     "export.csv",
+    "source-metadata.json",
+    "source-license-ledger.json",
     "DATA-LICENSE",
     "LICENSE",
 )
@@ -1066,6 +1517,56 @@ def _write_publish_manifest(
     return files
 
 
+def _prepare_publish_provenance(
+    args: argparse.Namespace, web_dir: Path, observations: Sequence[Observation]
+) -> tuple[snapshot.DataTerms, str]:
+    terms = snapshot.load_data_terms(
+        Path(args.store),
+        license_override=args.license,
+        attribution_override=args.attribution,
+        observations=observations,
+    )
+    metadata_target = web_dir / snapshot.SOURCE_METADATA_FILENAME
+    if terms.metadata_content is not None:
+        metadata_target.write_bytes(terms.metadata_content)
+    else:
+        metadata_target.unlink(missing_ok=True)
+
+    ledger_target = web_dir / snapshot.SOURCE_LICENSE_LEDGER_FILENAME
+    if terms.ledger_content is not None:
+        ledger_target.write_bytes(terms.ledger_content)
+    else:
+        ledger_target.unlink(missing_ok=True)
+    attribution = (
+        terms.attribution if terms.metadata_content is not None or args.attribution else ""
+    )
+    return terms, attribution
+
+
+def _write_publish_license_files(
+    web_dir: Path, terms: snapshot.DataTerms, attribution: str
+) -> None:
+    if terms.license == export.DEFAULT_LICENSE and not attribution:
+        for name in ("DATA-LICENSE", "LICENSE"):
+            source = _REPO_ROOT / name
+            if source.is_file():
+                shutil.copyfile(source, web_dir / name)
+        return
+
+    lines = [f"swelter — this deploy's data: {terms.license}"]
+    if attribution:
+        lines.append(attribution)
+    if terms.license_url:
+        lines.append(f"License URL: {terms.license_url}")
+    if terms.ledger_content is not None:
+        lines.append("Per-location terms and attribution: /source-license-ledger.json")
+    lines.append("swelter source code is Apache-2.0 (see /LICENSE).")
+    (web_dir / "DATA-LICENSE").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    license_source = _REPO_ROOT / "LICENSE"
+    if license_source.is_file():
+        shutil.copyfile(license_source, web_dir / "LICENSE")
+
+
 def cmd_publish(args: argparse.Namespace) -> int:
     """Bake a complete, fully static site from an existing store: every artifact ``fetch``/``demo``
     already write into ``--web`` as a side effect, promoted into its own first-class, tested command
@@ -1076,43 +1577,53 @@ def cmd_publish(args: argparse.Namespace) -> int:
     web_dir = Path(args.web)
     web_dir.mkdir(parents=True, exist_ok=True)
 
-    attribution = args.attribution or ""
     with open_store(args.store) as store:
         raw = store.read(calibration=RAW)
         all_obs = list(store.all())
+        try:
+            terms, attribution = _prepare_publish_provenance(args, web_dir, all_obs)
+        except ValueError as exc:
+            _err(f"swelter publish: {exc}; refusing")
+            return 1
         surface = aggregate.aggregate(all_obs, config)
         coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
 
-        _write_web_sample(web_dir, surface, attribution=attribution)
-        _write_web_surface_slice(web_dir, surface, 24, "surface-24h.json", attribution=attribution)
-        _write_web_surface_slice(
-            web_dir, surface, 24 * 7, "surface-7d.json", attribution=attribution
+        _write_web_sample(
+            web_dir,
+            surface,
+            attribution=attribution,
+            data_terms=terms,
         )
-        _write_web_health(web_dir, raw, args.interval, coverage=coverage)
-        _write_web_alerts(web_dir, surface, config)
+        _write_web_surface_slice(
+            web_dir,
+            surface,
+            24,
+            "surface-24h.json",
+            attribution=attribution,
+            data_terms=terms,
+        )
+        _write_web_surface_slice(
+            web_dir,
+            surface,
+            24 * 7,
+            "surface-7d.json",
+            attribution=attribution,
+            data_terms=terms,
+        )
+        _write_web_health(web_dir, raw, args.interval, coverage=coverage, data_terms=terms)
+        _write_web_alerts(web_dir, surface, config, data_terms=terms)
         _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
         (web_dir / "export.csv").write_text(
-            export.to_csv(all_obs, license=args.license, attribution=args.attribution),
+            export.to_csv(
+                all_obs,
+                license=terms.license,
+                attribution=attribution or None,
+                terms_by_observation=snapshot.export_terms_by_observation(terms, all_obs),
+            ),
             encoding="utf-8",
         )
 
-    # License provenance travels with the artifact (never claim CC0 for a fetched third-party
-    # store): an explicit --license writes this deploy's real terms; the default keeps the
-    # repo's own CC0 DATA-LICENSE for the native store.
-    if args.license != export.DEFAULT_LICENSE or args.attribution:
-        lines = [f"swelter — this deploy's data: {args.license}"]
-        if args.attribution:
-            lines.append(args.attribution)
-        lines.append("swelter source code is Apache-2.0 (see /LICENSE).")
-        (web_dir / "DATA-LICENSE").write_text("\n".join(lines) + "\n", encoding="utf-8")
-        license_source = _REPO_ROOT / "LICENSE"
-        if license_source.is_file():
-            shutil.copyfile(license_source, web_dir / "LICENSE")
-    else:
-        for name in ("DATA-LICENSE", "LICENSE"):
-            source = _REPO_ROOT / name
-            if source.is_file():
-                shutil.copyfile(source, web_dir / name)
+    _write_publish_license_files(web_dir, terms, attribution)
 
     data_hour = max((cell.bucket for cell in surface.cells), default="")
     written = _write_publish_manifest(
@@ -1142,7 +1653,9 @@ def cmd_plan(args: argparse.Namespace) -> int:
     numbers only, never an "optimal placement" score."""
     parsed = _parse_lat_lon(args.add_node)
     if parsed is None:
-        _err(f'swelter: --add-node expects "lat,lon", got {args.add_node!r}')
+        # Never reflect the candidate value: it may contain a resident's exact coordinates, and
+        # diagnostics can be emitted as retained JSON logs.
+        _err('swelter: --add-node expects exactly two numbers in the form "lat,lon"')
         return 1
     lat, lon = parsed
     config = _load_config(args.config)
@@ -1245,9 +1758,18 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
     """Freeze a citable, versioned data release: raw observations + corrections + surface, a
     MANIFEST.json with per-file SHA-256, and a dataset CITATION.cff/CITATION.txt pair. Local
     artifacts only — no external DOI service; pass --doi once a collective has minted one."""
-    manifest = snapshot.build_snapshot(
-        Path(args.store), Path(args.out), args.version, args.doi or None
-    )
+    try:
+        manifest = snapshot.build_snapshot(
+            Path(args.store),
+            Path(args.out),
+            args.version,
+            args.doi or None,
+            data_license=args.license,
+            data_attribution=args.attribution,
+        )
+    except ValueError as exc:
+        _err(f"swelter snapshot: {exc}; refusing")
+        return 1
     citation_text = (Path(args.out) / snapshot.CITATION_TXT_FILENAME).read_text(encoding="utf-8")
     _err(
         f"swelter: snapshot {manifest.release_version} → {args.out} "
@@ -1330,6 +1852,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Community heat and air-quality sensing network with open, calibrated data.",
     )
     parser.add_argument("--version", action="version", version=f"swelter {__version__}")
+    parser.add_argument(
+        "--log-format",
+        choices=("human", "json"),
+        default="human",
+        help="operator log format on stderr (default: human)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     def add_store(p: argparse.ArgumentParser) -> None:
@@ -1475,9 +2003,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp.add_argument("--bbox", default=None, help="named area (reserved; see docs/api.md)")
     p_exp.add_argument(
         "--license",
-        default=export.DEFAULT_LICENSE,
-        help="license of the exported data (default: CC0-1.0, the store's native default; "
-        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+        default=None,
+        help="override native-store terms; fetched stores always use their recorded source terms",
     )
     p_exp.add_argument(
         "--attribution", default=None, help="attribution text to carry alongside --license"
@@ -1597,9 +2124,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_publish.add_argument("--web", default=DEFAULT_WEB)
     p_publish.add_argument(
         "--license",
-        default=export.DEFAULT_LICENSE,
-        help="license of the published data (default: CC0-1.0, the store's native default; "
-        "pass the source's real terms — e.g. 'ODC-DbCL-1.0' — for a fetched third-party store)",
+        default=None,
+        help="override the store's recorded data license (native stores default to CC0-1.0)",
     )
     p_publish.add_argument(
         "--attribution", default=None, help="attribution text baked into the published artifacts"
@@ -1644,6 +2170,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="DOI for this release, if one has been minted (e.g. via Zenodo/DataCite); "
         "omit for a clearly-labelled placeholder",
     )
+    p_snap.add_argument(
+        "--license",
+        default=None,
+        help="override the store's recorded data license (native stores default to CC0-1.0)",
+    )
+    p_snap.add_argument(
+        "--attribution",
+        default=None,
+        help="override the store's recorded source attribution",
+    )
     p_snap.set_defaults(func=cmd_snapshot)
 
     p_verify = sub.add_parser(
@@ -1671,11 +2207,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    global _JSON_DIAGNOSTICS
     parser = build_parser()
     args = parser.parse_args(argv)
-    func = args.func
-    result: int = func(args)
-    return result
+    _JSON_DIAGNOSTICS = args.log_format == "json"
+    if _JSON_DIAGNOSTICS:
+        obs.configure_json_logging()
+    else:
+        obs.disable_json_logging()
+    try:
+        func = args.func
+        result: int = func(args)
+        return result
+    finally:
+        if _JSON_DIAGNOSTICS:
+            obs.disable_json_logging()
+        _JSON_DIAGNOSTICS = False
 
 
 if __name__ == "__main__":

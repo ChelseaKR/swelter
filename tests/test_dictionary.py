@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import threading
-import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
-from swelter import export
+from swelter import export, snapshot
 from swelter.config import NetworkConfig, NodeConfig
 from swelter.dictionary import DATA_SCHEMA_VERSION, build_data_dictionary
 from swelter.models import (
+    KNOWN_SOURCES,
     PARAMETERS,
     QC_FLATLINE,
     QC_MISSING,
@@ -23,7 +24,10 @@ from swelter.models import (
     QC_SPIKE,
 )
 from swelter.server import ServerContext, make_server
+from swelter.sources import sensor_community
 from swelter.store import SqliteStore
+
+from .http_client import request_local
 
 
 def test_data_schema_version_is_a_positive_int() -> None:
@@ -62,7 +66,8 @@ def test_dictionary_carries_version_signals_and_license() -> None:
     assert doc["data_schema_version"] == DATA_SCHEMA_VERSION
     assert doc["generated_from"] == "swelter"
     assert isinstance(doc["package_version"], str) and doc["package_version"]
-    assert "license" in doc
+    assert "source-specific" in str(doc["license"]).lower()
+    assert "CC0" not in str(doc["license"])
 
 
 def test_observation_fields_cover_the_dataclass() -> None:
@@ -74,11 +79,18 @@ def test_observation_fields_cover_the_dataclass() -> None:
         "parameter",
         "value",
         "unit",
+        "source",
         "calibration",
         "qc",
         "uncertainty",
         "trustworthy",
     }
+    source_field = next(
+        field
+        for field in cast(list[dict[str, Any]], doc["observation_fields"])
+        if field["name"] == "source"
+    )
+    assert set(cast(list[str], source_field["enum"])) == set(KNOWN_SOURCES)
 
 
 def test_calibration_block_names_the_raw_sentinel() -> None:
@@ -89,13 +101,19 @@ def test_calibration_block_names_the_raw_sentinel() -> None:
 
 
 @pytest.fixture
-def base_url(tmp_path: Path):  # type: ignore[no-untyped-def]
+def base_url(tmp_path: Path) -> Iterator[str]:
     db = SqliteStore(tmp_path / "obs.db")
     config = NetworkConfig(nodes=(NodeConfig(node_id="node-01", lat=38.58, lon=-121.49),))
     web = tmp_path / "web"
     web.mkdir()
     (web / "index.html").write_text("<!doctype html><title>swelter</title>", "utf-8")
-    ctx = ServerContext(store=db, config=config, web_dir=web)
+    terms = snapshot.DataTerms(
+        "Sensor.Community",
+        sensor_community.LICENSE,
+        sensor_community.ATTRIBUTION,
+        sensor_community.LICENSE_URL,
+    )
+    ctx = ServerContext(store=db, config=config, web_dir=web, data_terms=terms)
     httpd = make_server(ctx, "127.0.0.1", 0)
     port = httpd.server_address[1]
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -109,17 +127,29 @@ def base_url(tmp_path: Path):  # type: ignore[no-untyped-def]
 
 
 def test_schema_endpoint_returns_the_dictionary(base_url: str) -> None:
-    with urllib.request.urlopen(f"{base_url}/api/schema.json", timeout=5) as response:  # noqa: S310
-        status = response.status
-        content_type = response.headers.get("Content-Type")
-        body = response.read().decode("utf-8")
-    assert status == 200
+    response = request_local(f"{base_url}/api/schema.json")
+    content_type = response.headers.get("Content-Type")
+    body = response.body.decode("utf-8")
+    assert response.status == 200
     assert content_type is not None and "application/json" in content_type
     payload: Any = json.loads(body)
     assert payload["data_schema_version"] == DATA_SCHEMA_VERSION
+    assert payload["data_source"] == "Sensor.Community"
+    assert payload["license"] == sensor_community.LICENSE
+    assert payload["attribution"] == sensor_community.ATTRIBUTION
+    assert payload["license_url"] == sensor_community.LICENSE_URL
+    assert payload["rights"] == snapshot.rights_envelope(
+        snapshot.DataTerms(
+            "Sensor.Community",
+            sensor_community.LICENSE,
+            sensor_community.ATTRIBUTION,
+            sensor_community.LICENSE_URL,
+        )
+    )
+    assert response.headers["Link"].startswith('</DATA-LICENSE>; rel="license"')
 
 
 def test_service_document_advertises_data_schema_version(base_url: str) -> None:
-    with urllib.request.urlopen(f"{base_url}/v1.1", timeout=5) as response:  # noqa: S310
-        payload: Any = json.loads(response.read().decode("utf-8"))
+    response = request_local(f"{base_url}/v1.1")
+    payload: Any = json.loads(response.body.decode("utf-8"))
     assert payload["serverSettings"]["dataSchemaVersion"] == DATA_SCHEMA_VERSION

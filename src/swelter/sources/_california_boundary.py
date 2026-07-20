@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import math
 from functools import lru_cache
-from importlib.resources import (  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2  # noqa: E501
+from importlib.resources import (  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2  # noqa: E501 (#107)
     files,
 )
 

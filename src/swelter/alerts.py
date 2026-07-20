@@ -306,7 +306,7 @@ def crossing(
         return None
     if parameter == EXPOSURE:
         floor = floors["exposure"]
-        level = int(round(mean))
+        level = round(mean)
         if level >= floor:
             name = category or EXPOSURE_LEVELS[min(level, len(EXPOSURE_LEVELS) - 1)]
             return name, floor

@@ -1,0 +1,59 @@
+# Spanish translations for swelter alert feeds.
+# Machine-drafted; independent fluent review is tracked in issue #106.
+msgid ""
+msgstr ""
+"Project-Id-Version: swelter 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/ChelseaKR/swelter/issues\n"
+"POT-Creation-Date: 2026-07-16 00:00-0700\n"
+"PO-Revision-Date: 2026-07-16 00:00-0700\n"
+"Last-Translator: machine draft — review pending #106\n"
+"Language: es\n"
+"Language-Team: Spanish\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid " (provisional, not yet calibrated)"
+msgstr " (provisional, aún sin calibrar)"
+
+#, python-brace-format
+msgid ", as of {bucket}."
+msgstr ", a partir de {bucket}."
+
+#, python-brace-format
+msgid "{area}: air quality is {severity} (AQI {aqi}){provisional}{as_of}"
+msgstr "{area}: la calidad del aire es {severity} (AQI {aqi}){provisional}{as_of}"
+
+#, python-brace-format
+msgid ""
+"{area}: heat index is in the {severity} range ({value} "
+"°C){provisional}{as_of}"
+msgstr ""
+"{area}: el índice de calor está en el rango {severity} ({value} "
+"°C){provisional}{as_of}"
+
+#, python-brace-format
+msgid "{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}"
+msgstr "{area}: la exposición combinada de calor y aire es {severity}{provisional}{as_of}"
+
+msgid ""
+"Public, aggregate environmental alerts — no account, no PII. Subscribe "
+"via the Atom feed at /api/alerts.xml in any reader; live servers accept "
+"?area=<area_id>."
+msgstr ""
+"Alertas ambientales públicas y agregadas — sin cuenta, sin datos "
+"personales. Suscríbete al feed Atom en /api/alerts.xml con cualquier "
+"lector; los servidores en vivo aceptan ?area=<area_id>."
+
+#, python-brace-format
+msgid "{network} — heat & air-quality alerts"
+msgstr "{network} — alertas de calor y calidad del aire"
+
+msgid ""
+"Areas where heat or air quality has crossed a public-health danger "
+"threshold. Aggregate environmental data, no PII."
+msgstr ""
+"Zonas donde el calor o la calidad del aire superó un umbral de peligro "
+"de salud pública. Datos ambientales agregados, sin datos personales."

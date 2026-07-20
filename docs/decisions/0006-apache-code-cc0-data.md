@@ -1,5 +1,11 @@
 # ADR 0006: License the code Apache-2.0 and the observations CC0-1.0
 
+> **Legacy historical text.** The authoritative record is
+> [`docs/adr/0006`](../adr/0006-apache-code-cc0-data.md), superseded by
+> [`docs/adr/0024`](../adr/0024-preserve-source-specific-data-terms.md). CC0 applies only to
+> project-authored synthetic or authorized first-party observations; third-party terms remain
+> binding.
+
 Date: 2026-06-16. Status: accepted.
 
 ## Decision

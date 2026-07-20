@@ -48,8 +48,8 @@ library). It:
    `value[].result`, `value[].parameters.parameter`, `unitOfMeasurement.symbol`, ...).
 3. Walks `Observations` back to `(node, parameter, value, unit)` using only those documented
    fields, and confirms the recovered values match the inputs exactly — including that
-   calibration dedupe (raw vs. calibrated at the same node/timestamp/parameter) resolved the way
-   `api.observations()` promises.
+   calibration dedupe (raw vs. calibrated at the same node/timestamp/parameter/source) resolved the
+   way `api.observations()` promises.
 4. For every recovered/`ObservedProperty` parameter, calls `crosswalk.to_openaq` /
    `crosswalk.to_sensor_community` and asserts the expected commons label comes back —
    confirming the exported stream is translatable into OpenAQ/Sensor.Community terms end to end.
@@ -59,5 +59,5 @@ library). It:
 adapter, `to_openaq`/`to_sensor_community` is the exact inverse of `sources/openaq.py _PARAM`
 and `sources/sensor_community.py _MAP`).
 
-See also: [ADR 0007](decisions/0007-ogc-sensorthings-export.md) (the SensorThings export
+See also: [ADR 0007](adr/0007-ogc-sensorthings-export.md) (the SensorThings export
 itself), [`docs/api.md`](api.md) (the full HTTP surface).

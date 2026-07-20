@@ -1,0 +1,62 @@
+{
+  "collection_complete": false,
+  "generated_at": "2026-07-17T07:00:00Z",
+  "inputs": {
+    "actions_sha256": "ba558ff3a9060dc121e87f5d1263741fb67cff50fb40a7e0aefdfc6dd1f1f2fc",
+    "combined_sha256": "135ded7ddd14dfda63f977cd9f75bf9d43e8df97baf8bfdcac45c902b2e55a93",
+    "issues_sha256": "e881bf9bfd8cbf40541ad3049e416c478d116e5d7f5ba9179c7b44cc2d525551"
+  },
+  "metrics": {
+    "change_fail_rate": {
+      "reason": "The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. Scheduled CI will produce the first complete retained snapshot.",
+      "status": "unavailable"
+    },
+    "change_lead_time": {
+      "reason": "The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. Scheduled CI will produce the first complete retained snapshot.",
+      "status": "unavailable"
+    },
+    "deployment_frequency": {
+      "reason": "The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. Scheduled CI will produce the first complete retained snapshot.",
+      "status": "unavailable"
+    },
+    "deployment_rework_rate": {
+      "reason": "The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. Scheduled CI will produce the first complete retained snapshot.",
+      "status": "unavailable"
+    },
+    "failed_deployment_recovery_time": {
+      "reason": "The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. Scheduled CI will produce the first complete retained snapshot.",
+      "status": "unavailable"
+    }
+  },
+  "queries": {
+    "actions": {
+      "endpoint": "/repos/ChelseaKR/swelter/actions/workflows/pages.yml/runs",
+      "pagination": "gh api --paginate --slurp",
+      "parameters": {
+        "created": "2026-07-03T00:00:00Z..2026-07-17T07:00:00Z",
+        "per_page": 100
+      },
+      "source": "GitHub REST API",
+      "window_end": "2026-07-17T07:00:00Z",
+      "window_start": "2026-07-03T00:00:00Z"
+    },
+    "issues": {
+      "endpoint": "/repos/ChelseaKR/swelter/issues",
+      "pagination": "gh api --paginate --slurp",
+      "parameters": {
+        "labels": "incident",
+        "per_page": 100,
+        "state": "all"
+      },
+      "source": "GitHub REST API",
+      "window_end": "2026-07-17T07:00:00Z",
+      "window_start": "2026-07-03T00:00:00Z"
+    }
+  },
+  "repository": "ChelseaKR/swelter",
+  "schema_version": 1,
+  "window": {
+    "end": "2026-07-17T07:00:00Z",
+    "start": "2026-07-03T00:00:00Z"
+  }
+}

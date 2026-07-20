@@ -212,7 +212,7 @@ class IngestServerContext:
     now: Callable[[], float] = time.time  # injectable clock so the replay window is testable
 
 
-def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901
+def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901 (#107)
     # Ruff's mccabe walker sums every nested method's branches into this factory function because
     # the handler class is defined inside it (closure over `ctx`, the stdlib http.server pattern);
     # each method below is independently simple. Documented exception, not a silent one — see
@@ -225,7 +225,7 @@ def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:  # 
         def log_message(self, *_: object) -> None:  # refusals go to quarantine, not stdout
             return
 
-        def do_GET(self) -> None:  # noqa: N802 (http.server API)
+        def do_GET(self) -> None:
             # Liveness only. Everything readable lives on the public read server; keeping this
             # surface write-only is the trust boundary, not a missing feature.
             path = urlparse(self.path).path.rstrip("/") or "/"
@@ -234,7 +234,7 @@ def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:  # 
             else:
                 self._error(405, "the ingest listener is write-only; read via `swelter serve`")
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             try:
                 self._post()
             except BrokenPipeError:  # client went away mid-response

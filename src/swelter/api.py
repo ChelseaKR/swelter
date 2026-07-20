@@ -8,14 +8,14 @@ everyone else.
 
 The subset is honest about its limits: ``Observations`` paginate with ``$top``/``$skip``, report a
 true total ``@iot.count``, and emit an ``@iot.nextLink``; by default they are deduped to one row per
-(node, timestamp, parameter) preferring the calibrated value (pass ``dedupe=False`` for the raw
-*and* calibrated rows). These functions return plain dicts; :mod:`swelter.server` is the thin HTTP
-layer over them, which keeps the whole API testable without a socket.
+(node, timestamp, parameter, source) preferring the calibrated value (pass ``dedupe=False`` for the
+raw *and* calibrated rows). These functions return plain dicts; :mod:`swelter.server` is the thin
+HTTP layer over them, which keeps the whole API testable without a socket.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from . import export
 from .config import NetworkConfig
@@ -48,9 +48,20 @@ def service_document(base_url: str) -> dict[str, object]:
     }
 
 
-def schema_document() -> dict[str, object]:
+def schema_document(
+    *,
+    data_source: str | None = None,
+    data_license: str | None = None,
+    data_attribution: str | None = None,
+    data_license_url: str | None = None,
+) -> dict[str, object]:
     """The machine-readable data dictionary served at ``/api/schema.json``."""
-    return build_data_dictionary()
+    return build_data_dictionary(
+        data_source=data_source,
+        data_license=data_license,
+        data_attribution=data_attribution,
+        data_license_url=data_license_url,
+    )
 
 
 def things(config: NetworkConfig, base_url: str) -> dict[str, object]:
@@ -142,10 +153,10 @@ def observed_properties(base_url: str) -> dict[str, object]:
 
 
 def _dedupe_prefer_calibrated(obs: Sequence[Observation]) -> list[Observation]:
-    """One observation per (node, timestamp, parameter), preferring the calibrated value."""
-    chosen: dict[tuple[str, str, str], Observation] = {}
+    """One observation per source-aware identity, preferring its calibrated value."""
+    chosen: dict[tuple[str, str, str, str], Observation] = {}
     for o in obs:
-        key = (o.node_id, o.timestamp, o.parameter)
+        key = (o.node_id, o.timestamp, o.parameter, o.source)
         existing = chosen.get(key)
         if existing is None or (existing.calibration == RAW and o.calibration != RAW):
             chosen[key] = o
@@ -160,6 +171,10 @@ def observations(
     skip: int = 0,
     dedupe: bool = True,
     order: str = "asc",
+    data_license: str | None = None,
+    data_attribution: str | None = None,
+    data_license_url: str | None = None,
+    terms_by_observation: Mapping[export.TermsKey, Mapping[str, str]] | None = None,
 ) -> dict[str, object]:
     """Readings as SensorThings ``Observations``, paginated with a true total and a nextLink.
 
@@ -173,25 +188,48 @@ def observations(
     top = max(0, top)
     skip = max(0, skip)
     page = items[skip : skip + top] if top else []
-    value = [
-        {
-            "@iot.id": f"{o.node_id}|{o.timestamp}|{o.parameter}|{o.calibration}",
-            "phenomenonTime": o.timestamp,
-            "result": o.value,
-            "resultQuality": {
-                "qc": o.qc,
-                "uncertainty": o.uncertainty,
-                "trustworthy": o.is_trustworthy,
-            },
-            "parameters": {
-                "node_id": o.node_id,
-                "parameter": o.parameter,
-                "unit": o.unit,
-                "calibration": o.calibration,
-            },
+    value: list[dict[str, object]] = []
+    for o in page:
+        exact_terms: Mapping[str, str] | None = None
+        if terms_by_observation is not None:
+            exact_terms = terms_by_observation.get((o.node_id, o.timestamp, o.source))
+            if exact_terms is None:
+                exact_terms = terms_by_observation.get((o.node_id, o.timestamp))
+            if exact_terms is None:
+                exact_terms = terms_by_observation.get(o.node_id)
+        row_license = exact_terms.get("license") if exact_terms is not None else data_license
+        row_attribution = (
+            exact_terms.get("attribution") if exact_terms is not None else data_attribution
+        )
+        row_license_url = (
+            exact_terms.get("license_url") if exact_terms is not None else data_license_url
+        )
+        parameters: dict[str, object] = {
+            "node_id": o.node_id,
+            "parameter": o.parameter,
+            "unit": o.unit,
+            "source": o.source,
+            "calibration": o.calibration,
         }
-        for o in page
-    ]
+        if row_license:
+            parameters["data_license"] = row_license
+        if row_attribution:
+            parameters["data_attribution"] = row_attribution
+        if row_license_url:
+            parameters["data_license_url"] = row_license_url
+        value.append(
+            {
+                "@iot.id": (f"{o.node_id}|{o.timestamp}|{o.parameter}|{o.source}|{o.calibration}"),
+                "phenomenonTime": o.timestamp,
+                "result": o.value,
+                "resultQuality": {
+                    "qc": o.qc,
+                    "uncertainty": o.uncertainty,
+                    "trustworthy": o.is_trustworthy,
+                },
+                "parameters": parameters,
+            }
+        )
     result: dict[str, object] = {"@iot.count": total, "value": value}
     if top and skip + top < total:
         base = base_url.rstrip("/")

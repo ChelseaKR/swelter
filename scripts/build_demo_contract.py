@@ -83,6 +83,13 @@ PROFILES: dict[str, dict[str, Any]] = {
                     "label": _text("OpenAQ license metadata", "Metadatos de licencia de OpenAQ"),
                     "href": "https://docs.openaq.org/resources/licenses",
                 },
+                {
+                    "label": _text(
+                        "This release's source-license ledger",
+                        "Registro de licencias de fuentes de esta versión",
+                    ),
+                    "href": "source-license-ledger.json",
+                },
             ],
         },
     },
@@ -130,14 +137,14 @@ PROFILES: dict[str, dict[str, Any]] = {
                 "Datos del modelo externo CAMS; no son una calibración de sensores de Swelter.",
             ),
             "overview_counts": _text(
-                "{n} locations — {confirmed} with upstream model output, {provisional} "
+                "{$n} locations — {$confirmed} with upstream model output, {$provisional} "
                 "provisional.",
-                "{n} ubicaciones — {confirmed} con datos de un modelo externo, {provisional} "
+                "{$n} ubicaciones — {$confirmed} con datos de un modelo externo, {$provisional} "
                 "provisionales.",
             ),
             "headline_worst": _text(
-                "Highest modeled air right now: {place} — AQI {aqi}, {category}.",
-                "Mayor nivel de aire modelado ahora: {place} — ICA {aqi}, {category}.",
+                "Highest modeled air right now: {$place} — AQI {$aqi}, {$category}.",
+                "Mayor nivel de aire modelado ahora: {$place} — ICA {$aqi}, {$category}.",
             ),
             "headline_none": _text(
                 "No modeled air-quality values are available for this hour.",
@@ -404,7 +411,7 @@ def main() -> int:
         surface = json.loads(args.surface.read_text(encoding="utf-8"))
         contract = build_contract(args.source, surface, fallback_for=args.fallback_for)
     except (OSError, json.JSONDecodeError, ValueError) as exc:
-        parser.error(str(exc))
+        parser.exit(status=2, message=f"{parser.prog}: error: {exc}\n")
     args.output.write_text(
         json.dumps(contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )

@@ -3,7 +3,7 @@
   "metadata": {
     "license": "CC-BY-4.0",
     "attribution": "Illustrative cooling-center sample for the swelter demo network.",
-    "source": "Curated sample placed within the synthetic demo-network footprint. NOT a real facility list. Replace with your jurisdiction's published cooling-center dataset (e.g. a county OES / 211 list or city open-data portal) before deploying for a real community — see docs/decisions/0011-cooling-center-overlay.md.",
+    "source": "Curated sample placed within the synthetic demo-network footprint. NOT a real facility list. Replace with your jurisdiction's published cooling-center dataset (e.g. a county OES / 211 list or city open-data portal) before deploying for a real community — see docs/adr/0011-cooling-center-overlay.md.",
     "last_verified": "2026-06-29"
   },
   "features": [
@@ -19,7 +19,7 @@
         "air_conditioned": true,
         "notes": "Drinking water and seating available during heat events.",
         "source": "Illustrative sample (swelter demo)",
-        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/adr/0011-cooling-center-overlay.md",
         "last_verified": "2026-06-29"
       }
     },
@@ -35,7 +35,7 @@
         "air_conditioned": true,
         "notes": "Designated extended-hours cooling site during declared heat emergencies.",
         "source": "Illustrative sample (swelter demo)",
-        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/adr/0011-cooling-center-overlay.md",
         "last_verified": "2026-06-29"
       }
     },
@@ -51,7 +51,7 @@
         "air_conditioned": true,
         "notes": "Priority access for older adults; call ahead for transport.",
         "source": "Illustrative sample (swelter demo)",
-        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/adr/0011-cooling-center-overlay.md",
         "last_verified": "2026-06-29"
       }
     },
@@ -67,7 +67,7 @@
         "air_conditioned": true,
         "notes": "Heat-activated site only; not wheelchair accessible at the main entrance.",
         "source": "Illustrative sample (swelter demo)",
-        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/adr/0011-cooling-center-overlay.md",
         "last_verified": "2026-06-29"
       }
     },
@@ -83,7 +83,7 @@
         "air_conditioned": false,
         "notes": "Outdoor shade and drinking fountains; not air-conditioned.",
         "source": "Illustrative sample (swelter demo)",
-        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/decisions/0011-cooling-center-overlay.md",
+        "source_url": "https://github.com/ChelseaKR/swelter/blob/main/docs/adr/0011-cooling-center-overlay.md",
         "last_verified": "2026-06-29"
       }
     }

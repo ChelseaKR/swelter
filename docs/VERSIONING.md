@@ -44,8 +44,8 @@ Breaking (MAJOR):
   `result`, or `resultQuality` from an Observation, or renaming a key inside `parameters` or
   `properties`.
 - Removing or reordering a column in `/export.csv`, or renaming a CSV column. The CSV column order
-  (`node_id, timestamp, parameter, value, unit, calibration, qc, uncertainty`) is part of the
-  contract because consumers parse positionally.
+  (`node_id, timestamp, parameter, value, unit, source, calibration, qc, uncertainty, trustworthy,
+  data_license, data_attribution`) is part of the contract because consumers parse positionally.
 - Changing the meaning, type, or units of an existing field — for example changing a `result` from
   a number to a string, or a `phenomenonTime` away from ISO-8601 UTC (`...Z`).
 - Removing or changing the default of a query parameter in a way that changes existing results
@@ -74,10 +74,18 @@ parts.
 ### Observation fields
 
 The `Observation` record (`src/swelter/models.py`): `node_id`, `timestamp` (ISO-8601 UTC `...Z`),
-`parameter`, `value`, `unit`, `calibration` (`raw` or a correction version id), `qc`, `uncertainty`
-(1-sigma in `unit`, or null). The idempotent store key is
-`(node_id, timestamp, parameter, calibration)`; `content_hash()` is a SHA-256 over the value-bearing
-fields.
+`parameter`, `value`, `unit`, `source`, `calibration` (`raw` or a correction version id), `qc`,
+`uncertainty` (1-sigma in `unit`, or null). The idempotent store key is
+`(node_id, timestamp, parameter, source, calibration)`; `content_hash()` is a SHA-256 over the
+value-bearing fields, including `source`.
+
+The 0.1.0 release candidate is the first public contract with source-qualified identity. Opening a
+pre-contract SQLite store runs one transactional migration: strict legacy markers infer only known
+native, OpenAQ, Sensor.Community, or CAMS sources; ambiguous or conflicting rows fail closed; the
+new table is collision-checked before the old table is dropped; content hashes and `digests.jsonl`
+are rebuilt together. Any failure rolls the database and integrity chain back. The migration is
+covered by `tests/test_store.py`; after 0.1.0, another identity change is MAJOR and needs a new,
+documented migration.
 
 Breaking (MAJOR):
 
@@ -174,16 +182,18 @@ The same path applies to both surfaces.
    release line after the announcement. Deprecation alone never changes behavior.
 3. **Remove on a MAJOR.** Removal happens only on a MAJOR bump, and the changelog lists every removed
    item under "Breaking changes" with the migration step.
-4. **Data outlives code.** Because the archive is a copyable folder of open formats (CC0
-   observations), a community can always read an older archive with the matching older release even
-   after a MAJOR moves on. Export is first-class precisely so no version bump can strand a
-   community's data.
+4. **Data outlives code.** Because the archive is a copyable folder of open formats with its
+   source-specific license and attribution evidence, a community can always read an older archive
+   with the matching older release even after a MAJOR moves on. Export is first-class precisely so
+   no version bump can strand a community's data. CC0 applies only to authorized first-party or
+   project-authored data; fetched records retain provider terms.
 
-## Recorded changes since 0.1.0
+## Compatibility decisions in the 0.1.0 release candidate
 
-This section applies the policy above to the concrete surface and data-quality changes made after
-`0.1.0`. They are recorded here, ahead of the release that ships them, so the compatibility level of
-each change is unambiguous before the version digits move.
+No `v0.1.0` tag or public package release predates these changes. This section records how the
+release-candidate surface became the initial `0.1.0` contract; it does not claim that an already
+published `0.1.0` contract was changed in place. The classifications show the version impact the
+same change would have after the first release.
 
 ### Additive surface/API fields — MINOR (backward compatible)
 
@@ -215,7 +225,7 @@ object") they are **MINOR**, not breaking.
   `/v1.1/Locations`, join the service document. Adding an endpoint, a query parameter with a safe
   default, and a field to a response object are all explicitly MINOR above.
 
-### Cell `uncertainty` now means the cell's standard error, not mean-of-sigmas — MAJOR
+### Cell `uncertainty` means the cell's standard error — future MAJOR if redefined
 
 Every calibrated surface cell's `uncertainty` field (on `/api/surface.json` records and the
 `{param}_uncertainty` properties on `/api/surface.geojson`) used to be the plain mean of the
@@ -224,27 +234,21 @@ contributing members' 1-sigmas. It now holds the cell's own standard error,
 than one calibrated member, and a *different* number even for a single-member cell only by
 coincidence of arithmetic (`n=1` makes the two formulas equal). The key, type, and units are
 unchanged, but the value a consumer reads today at that key means something different than it did
-before this change, which the "what counts as breaking" rule above treats as breaking (MAJOR) even
-though nothing was renamed or retyped: silently reinterpreting a number under an unchanged key is
-exactly the failure mode the surrounding fields exist to prevent. The old number survives, unchanged
-in meaning, at the new `mean_member_sigma` key (see the MINOR entry above) — a consumer that wants
-the old behavior back reads that key instead; a consumer that wants the actual combined uncertainty
-of the cell should prefer the (now-correct) `uncertainty`.
+before this correction. Because no public release predates the correction, standard error is the
+initial `0.1.0` meaning. After release, silently reinterpreting that number under the same key would
+be MAJOR even if the type and units stayed unchanged. The former mean-of-sigmas quantity remains
+available under the unambiguous `mean_member_sigma` key.
 
-### The CSV `trustworthy` column — additive in shape, but flagged
+### The CSV `trustworthy` column — initial contract; future addition would be MAJOR
 
-The export CSV gained a final `trustworthy` column: the order is now
-`node_id, timestamp, parameter, value, unit, calibration, qc, uncertainty, trustworthy`. JSON
+The `0.1.0` export CSV includes a `trustworthy` column: the order is
+`node_id, timestamp, parameter, value, unit, source, calibration, qc, uncertainty, trustworthy`.
+JSON
 observations gained the same `trustworthy` field, and that JSON addition is plainly MINOR.
 
-The CSV column is the one place where "additive" and "backward-compatible" come apart under this
-policy. The section above states deliberately that **adding a CSV column at the end is treated as
-breaking for positional parsers and so is MAJOR**, because the CSV column set and order are part of
-the contract that consumers parse positionally. A parser that hard-codes "8 columns" or reads only
-through `uncertainty` is unaffected; a parser that asserts the exact column count is not. It is
-recorded here explicitly rather than waved through as minor, and consumers with additive needs are
-pointed at the JSON export (where `trustworthy` is unambiguously MINOR), consistent with the
-guidance above.
+Because this is the first public contract, its inclusion does not break a released positional
+parser. After `0.1.0`, however, even appending a CSV column is MAJOR under this policy; JSON remains
+the preferred additive format.
 
 ### `/api/schema.json` and `serverSettings.dataSchemaVersion` — MINOR (backward compatible)
 
@@ -257,17 +261,18 @@ at `1` and is not, by its introduction, a schema change — it is a new descript
 existing schema, not a change to the schema; only a future bump of the integer would need
 evaluating against the "Data schema — what counts as breaking" rules above.
 
-### The CSV `data_license` / `data_attribution` columns — additive in shape, but flagged
+### CSV `data_license` / `data_attribution` — initial contract; future addition would be MAJOR
 
-The export CSV gained two final provenance columns: the order is now `node_id, timestamp,
-parameter, value, unit, calibration, qc, uncertainty, trustworthy, data_license,
-data_attribution`. By the same rule as the `trustworthy` column above, **appending CSV columns is
-treated as breaking for positional parsers and so is MAJOR**; it is recorded here rather than
-waved through. The JSON export's changes are MINOR: the top-level `license` key already existed
-and still defaults to `CC0-1.0` (it now honors an explicit `--license` at export time instead of
-being hardcoded), and the optional top-level `attribution` key is new and absent unless supplied.
-A caller that never passes `--license`/`--attribution` gets byte-identical JSON and two extra CSV
-columns holding the same CC0 default the banner always claimed.
+The `0.1.0` export CSV includes two final provenance columns: the order is `node_id, timestamp,
+parameter, value, unit, source, calibration, qc, uncertainty, trustworthy, data_license,
+data_attribution`. They are part of the initial contract; adding them after a public release would
+have been MAJOR for positional parsers. The JSON export's changes are additive: the top-level
+`license` key already existed
+and now reflects the store's source metadata (with an explicit override available), while the
+optional top-level `attribution` key is additive. Native stores retain the authorized first-party
+CC0 default; fetched stores carry their provider terms, and provider-specific OpenAQ releases fail
+closed without the per-location license ledger. The two added CSV columns carry the same
+source-specific license and attribution as the JSON export.
 
 ### Heat-index plausibility ceiling (60 degC) — data-quality fix, PATCH
 
@@ -280,12 +285,32 @@ only improves the data flowing through the unchanged shape, which is the definit
 above ("bug fixes ... that change neither surface's contract"). The same plausible-range gate
 applies to every parameter; this records the heat-index ceiling specifically.
 
+## Release artifact trust boundary
+
+The tag workflow separates code execution from release credentials. The `build` job has read-only
+repository access and no OIDC or attestation permission; it runs the locked gates, builds the three
+versioned payloads and their CycloneDX documents, smoke-tests the wheel, and uploads an unsigned
+digest-bound candidate. A downstream `attest-sign` job has the OIDC and attestation permissions but
+does not check out or execute repository code, install project dependencies, or run a package
+manager. It accepts only the exact version-matched inventory and builder digest manifest before
+attesting and signing those bytes.
+
+The release workflow pins Node `22.12.0`, uv `0.11.28`, Hatchling `1.31.0`, and Cosign `v3.1.1`.
+Cosign emits one standard v0.3 `*.sigstore.json` bundle per consumer-visible asset; the credentialed
+job verifies every bundle immediately. A clean no-checkout publisher accepts only that exact staged
+inventory and creates a private draft. A separate clean read-only job verifies every draft signature
+and hosted attestation, then binds the full asset set—including the signature bundles—to one digest.
+Repository-level verification and wheel execution happen only in a different read-only consumer
+job. Finally, a fresh no-checkout promotion job re-downloads the private draft and requires an exact
+match to the clean verifier's bound digest before it can make the release public. No job that runs
+repository or package code has release-write permission.
+
 ## Where this is recorded
 
 Every release records its API and schema compatibility level in the changelog and release notes.
 Breaking changes are never silent: they are named, with a migration step, before the version digits
 are trusted.
 
-Last verified: 2026-06-17. Recheck cadence: review on each release, and whenever the SensorThings
+Last verified: 2026-07-17. Recheck cadence: review on each release, and whenever the SensorThings
 subset, the export shape, the observation fields, the store layout, or the correction-registry
 format change.

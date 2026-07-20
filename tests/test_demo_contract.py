@@ -110,7 +110,7 @@ def test_source_terms_match_current_primary_policies() -> None:
 
 
 def test_contract_fails_closed_when_source_status_and_surface_disagree() -> None:
-    with pytest.raises(ValueError, match="claims all_provisional.*all_confirmed"):
+    with pytest.raises(ValueError, match=r"claims all_provisional.*all_confirmed"):
         build_contract("openaq", _surface([False]))
 
 
@@ -185,6 +185,16 @@ def test_pages_build_records_each_fallback_winner() -> None:
     assert sensor_community.ATTRIBUTION in workflow
 
 
+def test_pages_builds_and_copies_the_integrity_locked_mf2_runtime() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+
+    assert "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0" in workflow
+    assert "node-version-file: web/.nvmrc" in workflow
+    assert "npm --prefix web ci" in workflow
+    assert "rm -rf web/node_modules" in workflow
+    assert "cp -r web/vendor web/sensors/vendor" in workflow
+
+
 def test_pages_rewrites_only_the_route_scoped_cache_release() -> None:
     workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
 
@@ -196,9 +206,17 @@ def test_pages_rewrites_only_the_route_scoped_cache_release() -> None:
 def test_static_runtime_uses_baked_files_without_api_probes() -> None:
     app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
 
-    assert "state.demo = await loadDemoContract()" in app
+    # The boot fetches run in parallel (F16): the contract probe starts first and is awaited
+    # before any surface fetch, because it decides whether /api/* may be touched at all.
+    assert "const demoReady = loadDemoContract()" in app
+    assert "state.demo = await demoReady" in app
     assert 'isStaticDeployment() ? null : await fetchJson("api/alerts.json")' in app
-    assert '? await fetchSurface("sample-surface.json")' in app
+    assert (
+        'isStaticDeployment()\n    ? fetchSurface("sample-surface.json")\n'
+        "    : (async () =>\n"
+        '        (await fetchSurface("api/surface.json?hours=1")) ||\n'
+        '        (await fetchSurface("sample-surface.json")))()' in app
+    )
     assert 'isStaticDeployment()\n    ? await fetchSurface("surface-7d.json")' in app
     assert ': await fetchSurface("api/surface.json?hours=168")' in app
 

@@ -4,7 +4,7 @@ What swelter is for in a crowded field, who needs it, what to claim, what not to
 free, community-owned instance sustains itself. This is a strategy note, not a spec; the README is
 the source of truth and the hard rules in it bind everything here.
 
-Author: Chelsea Kelly-Reif. Year: 2026.
+Author: Chelsea Kelly-Reif. Year: 2026. Last verified: 2026-07-16.
 
 This note is built from a 2026 scan of the competitive, funding, and demand landscape. External
 facts carry citations inline; the volatile ones (federal funding status especially) carry a recheck
@@ -12,9 +12,10 @@ cadence at the foot of the file. Treat the market claims as dated, not permanent
 
 ## The position, in one sentence
 
-swelter is the open, community-owned **trust layer** for neighborhood heat-and-air exposure: every
-reading is calibrated against a reference monitor, labeled with its uncertainty and calibration
-state, snapped to a privacy grid, served through open standards, and the collective keeps it.
+swelter is an open, community-operated **trust layer** for neighborhood heat-and-air exposure: every
+reading states its source, calibration/QC state, uncertainty when evidenced, and public location;
+uncalibrated readings stay provisional, open interfaces make the record portable, and the collective
+can run its own instance.
 
 **The headline capability underneath that sentence is that a community can run it themselves.**
 Copy `network.yaml`, register your nodes, your reference monitor, and your co-location windows, and
@@ -33,10 +34,10 @@ held one to three of the properties below; none held all of them.
 | Continuous (not one day a year) | yes | yes | yes | yes | yes | no (one day) | yes |
 | Heat **and** air as published surfaces | partial | partial | no | no | no | heat only | yes |
 | Per-node calibration **with published uncertainty** | no | no (pass-through) | corrected, hidden | yes (closed) | yes (opaque) | n/a | yes |
-| CC0 / no-account export | no (restricted licence) | CC BY + registration | government | no | no | reports only | yes |
+| No-account export with source terms | no (restricted licence) | provider-specific | government | no | no | reports only | yes |
 | Open-standard egress (OGC SensorThings) | no | no | no | no | no | no | yes |
 | Community-owned governance | no | no | no | no | no | vendor-run | yes |
-| Merge-gated WCAG 2.2 AA, bilingual, map = table = list | no | no | partial | no | no | no | yes |
+| WCAG 2.2 AA target, bilingual, map/table/list outcomes, automated gates | no | no | partial | no | no | no | yes |
 | Self-hostable: copy one config file, run your own instance, no vendor | no (proprietary devices) | no (hosted platform) | no (federal service) | no (hosted SaaS) | no (hosted SaaS) | no (vendor-run campaign) | yes |
 
 "partial" on heat: PurpleAir and OpenAQ carry temperature and humidity but do not publish a
@@ -51,19 +52,20 @@ only what holds.
 
 **Say:**
 
-- Heat is treated as a calibrated, first-class published surface (heat index), not an uncorrected
-  byproduct.
-- Every reading names its calibration version and carries a 1-sigma uncertainty (`residual_std`);
-  calibrated and raw are never silently mixed; uncalibrated nodes are shown provisional.
-- Data is CC0 and exportable with no account through CSV, JSON, the OGC SensorThings subset, and a
-  copyable Datasette-openable store.
+- First-party heat can be calibrated and published as a first-class surface; fetched model/estimated
+  heat remains clearly identified rather than borrowing that calibration claim.
+- Every reading names its calibration state; calibrated values carry their evidenced uncertainty,
+  calibrated and raw are never silently mixed, and uncalibrated nodes are shown provisional.
+- Data is exportable without an account through CSV, JSON, the OGC SensorThings subset, and a
+  copyable SQLite store, with source-specific terms and attribution retained.
 - The hosting collective owns siting, location precision, and governance; there is no hosted
   dependency to switch off.
 - Any community can register its own network by copying `network.yaml` — a working demo instance
   (dashboard, API, exports) stands up in an afternoon with no hardware; going live with real sensors
   takes longer, because co-location and siting take real time (`ADD-YOUR-NEIGHBORHOOD.md`).
-- The dashboard meets WCAG 2.2 AA as a merge gate, in English and Spanish, with map, table, and list
-  as three equal views.
+- The dashboard targets WCAG 2.2 AA in English and Spanish, with map, table, and list outcome parity
+  and automated merge gates; current manual assistive-technology and independent Spanish signoff is
+  tracked in issue #106.
 
 **Do not say:**
 
@@ -74,7 +76,8 @@ only what holds.
   swelter follows it; the edge is the per-node fit plus the exposed per-reading uncertainty that
   AirNow and IQAir do not surface.[^airnow]
 - **"Competitors own your data" (re: Clarity).** Clarity lets cities retain ownership. The honest
-  contrast is no account, no hosted dependency, CC0 — not data capture.[^clarity]
+  contrast is no account, no required swelter-hosted dependency, portable source-aware exports — not
+  data capture or a blanket CC0 claim.[^clarity]
 - **"Regulatory-grade."** EPA is explicit that corrected low-cost data is non-regulatory and
   complements, not replaces, reference monitors.[^epa-nonreg] Claim "credible and auditable."
 - **Absence as proof.** The SensorThings and full-WCAG-AA uniqueness rest on not finding a
@@ -92,8 +95,8 @@ only what holds.
   deploy resources off neighborhood heat-vulnerability maps;[^cho] heat-action-plan reviews name a
   gap between identifying vulnerable people and reaching them.[^hap] swelter's gridded heat-index
   surface fits, and CDC pairs HeatRisk with AQI, validating the heat-and-air pairing.[^cdc] For a
-  public-entity partner specifically, the merge-gated WCAG 2.2 AA + bilingual posture above is also
-  a DOJ ADA Title II compliance asset — see
+  public-entity partner specifically, the automated WCAG 2.2 AA target + bilingual evidence posture
+  above is procurement input, not a certification — see
   [`AGENCY-COMPLIANCE-PACK.md`](AGENCY-COMPLIANCE-PACK.md) (ROADMAP Phase 5.4).
 - **Researchers & academia.** Low-cost sensor data is widely held back for lacking calibration, QA,
   and traceability;[^research-qa] the field wants raw and processed data with machine-readable
@@ -143,8 +146,8 @@ only what holds.
 ## Risks and failure modes to design against
 
 - **Drift and maintenance death-spiral** — the dominant decay mechanism for these networks.[^drift]
-  swelter's QC (drift / flatline / spike / gap, `node_health`) and low-maintenance, single-dependency
-  design hedge it, but a **named local steward** is still required.
+  swelter's QC (drift / flatline / spike / gap, `node_health`) and low-maintenance, two-dependency
+  Python runtime hedge it, but a **named local steward** is still required.
 - **Equity-washing** — sensors in frontline neighborhoods can worsen information disparities if the
   data is not calibrated.[^equity] The calibration layer is what makes siting credible, not
   decorative.
@@ -195,7 +198,7 @@ number or a hard negative in public material:
 [^drift]: Community sensor networks, drift and data discontinuity — https://www.nature.com/articles/s41612-025-01216-4
 [^equity]: Low-cost networks can reduce or worsen information disparities — https://pmc.ncbi.nlm.nih.gov/articles/PMC10329730/
 
-Last verified: 2026-06-18. Recheck cadence: federal funding status (the philanthropy-first ordering
+Last verified: 2026-07-16. Recheck cadence: federal funding status (the philanthropy-first ordering
 and the EPA/IRA rows) is volatile under 2025–2026 litigation — recheck quarterly and before any
 proposal. Recheck the competitive table and the demand examples at least annually, and whenever a
 named tool changes its data licence or adds a heat surface.

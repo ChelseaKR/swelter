@@ -45,6 +45,7 @@ _KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "calibration_windows",
         "alert_thresholds",
         "twin_windows",
+        "geographic_scope",
     }
 )
 _KNOWN_LOCATIONS: frozenset[str] = frozenset({"coarse", "precise"})
@@ -188,6 +189,14 @@ class TwinWindow:
 
 
 @dataclass(frozen=True)
+class GeographicScope:
+    """Machine-readable jurisdiction provenance for generated network configurations."""
+
+    scope_id: str = ""
+    boundary: str = ""
+
+
+@dataclass(frozen=True)
 class NetworkConfig:
     """The whole network as one reviewable document."""
 
@@ -203,6 +212,8 @@ class NetworkConfig:
     #: Per-network danger floors for the alerts feed (keys: ``pm25_aqi``, ``heat_index_c``,
     #: ``exposure``). Empty means "use the documented public-health defaults" (see ``alerts.py``).
     alert_thresholds: dict[str, float] = field(default_factory=dict)
+    #: Optional jurisdiction and boundary identifier used to constrain an imported source.
+    geographic_scope: GeographicScope | None = None
 
     def node(self, node_id: str) -> NodeConfig | None:
         return next((n for n in self.nodes if n.node_id == node_id), None)
@@ -320,6 +331,16 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
     thresholds = {
         str(k): float(v) for k, v in (doc.get("alert_thresholds") or {}).items() if v is not None
     }
+    raw_scope = doc.get("geographic_scope")
+    scope_doc = raw_scope if isinstance(raw_scope, dict) else {}
+    geographic_scope = (
+        GeographicScope(
+            scope_id=_as_str(scope_doc.get("id")),
+            boundary=_as_str(scope_doc.get("boundary")),
+        )
+        if raw_scope is not None
+        else None
+    )
     return NetworkConfig(
         name=_as_str(doc.get("name"), "swelter network"),
         grid_resolution_m=float(doc.get("grid_resolution_m", DEFAULT_GRID_M)),
@@ -329,6 +350,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         calibration_windows=windows,
         twin_windows=twin_windows,
         alert_thresholds=thresholds,
+        geographic_scope=geographic_scope,
     )
 
 
@@ -413,6 +435,24 @@ def _unknown_key_concerns(doc: dict[str, Any], errors: list[str]) -> None:
                 f"network.yaml: unknown top-level key {key!r}{hint} — remove it or fix the typo "
                 f"(recognized keys: {', '.join(sorted(_KNOWN_TOP_LEVEL_KEYS))})"
             )
+    raw_scope = doc.get("geographic_scope")
+    if raw_scope is None:
+        return
+    if not isinstance(raw_scope, dict):
+        errors.append("geographic_scope: expected a mapping with 'id' and 'boundary' fields")
+        return
+    known_scope_keys = frozenset({"id", "boundary"})
+    for key in raw_scope:
+        if key not in known_scope_keys:
+            hint = _did_you_mean(str(key), known_scope_keys)
+            errors.append(
+                f"geographic_scope: unknown key {key!r}{hint} — recognized keys: "
+                f"{', '.join(sorted(known_scope_keys))}"
+            )
+    for key in sorted(known_scope_keys):
+        value = raw_scope.get(key)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"geographic_scope: {key!r} must be a non-empty string")
 
 
 def _node_id_concerns(config: NetworkConfig, errors: list[str]) -> None:

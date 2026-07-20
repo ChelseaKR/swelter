@@ -198,8 +198,9 @@ person's home. The defaults protect hosts at no cost to the mission, and the gui
   never opts in loses nothing.
 - **Disclosing a precise location is the host's decision, recorded.** Only that node's host may
   consent, the consent is written in the governance log, and the `network.yaml` change references
-  it. Data already published under CC0 cannot be recalled, so treat precise as permanent. When in
-  doubt, stay coarse. (`governance.md` §3–§4.)
+  it. Published coordinates can be copied beyond the collective's control—and an authorized CC0
+  dedication cannot be recalled—so treat precise as permanent. When in doubt, stay coarse.
+  (`governance.md` §3–§4.)
 - **The collective owns the network.** Siting, grid resolution, and precision policy are the local
   collective's to decide; swelter is a tool the group runs, not a service that runs the group.
   Copy `governance.md` into your repo and adapt the roles, quorum, and cadence; keep the five hard
@@ -232,7 +233,9 @@ coarse locations mean. (A standalone version lives in
 > shown plainly as not-yet-confirmed — we never dress up an unverified reading as a fact. The combined
 > heat-and-air exposure level stays provisional until both its heat and air readings are confirmed.
 >
-> **The data is yours.** Readings are public-domain (CC0): download them, check our work, or take a
-> full copy and run the network elsewhere. Nobody can switch it off or fence the data away.
+> **The data is portable.** Download the readings, check our work, or take a full copy and run the
+> network elsewhere. Data produced by this collective is [CC0 / insert the terms the collective
+> actually adopted]; readings fetched from another provider keep that provider's license and
+> attribution. See the data notice shipped with each export.
 >
 > Questions, or want to host a sensor near you? [contact / meeting details].

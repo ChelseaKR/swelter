@@ -16,8 +16,9 @@ endpoint this module backs.
 from __future__ import annotations
 
 from . import __version__
-from .export import _CSV_FIELDS, DATA_LICENSE_LINE
+from .export import _CSV_FIELDS
 from .models import (
+    KNOWN_SOURCES,
     PARAMETERS,
     QC_FLATLINE,
     QC_MISSING,
@@ -33,6 +34,9 @@ from .models import (
 #: an observation field, the CSV column set/order, or a QC verdict's meaning changes in a way that
 #: rule marks breaking. Start at 1.
 DATA_SCHEMA_VERSION: int = 1
+
+_UNRESOLVED_DATA_SOURCE = "Source-specific; resolve from the serving store."
+_UNRESOLVED_DATA_LICENSE = "Source-specific; see the serving store's rights envelope."
 
 #: Every QC verdict, in the order the pipeline can produce it, paired with a human note. Kept as a
 #: tuple of (name, description) so :func:`build_data_dictionary` can compute the `rejected` flag
@@ -85,6 +89,17 @@ _OBSERVATION_FIELDS: tuple[dict[str, object], ...] = (
         "unit": None,
         "nullable": False,
         "description": "The unit `value` is expressed in (matches the parameter's registered unit)",
+    },
+    {
+        "name": "source",
+        "type": "string",
+        "unit": None,
+        "nullable": False,
+        "enum": sorted(KNOWN_SOURCES),
+        "description": (
+            "The observation's origin identity. Source-specific license and attribution terms "
+            "must be resolved from the representation's rights envelope."
+        ),
     },
     {
         "name": "calibration",
@@ -145,18 +160,25 @@ def _qc_verdicts() -> list[dict[str, object]]:
     ]
 
 
-def build_data_dictionary() -> dict[str, object]:
+def build_data_dictionary(
+    *,
+    data_source: str | None = None,
+    data_license: str | None = None,
+    data_attribution: str | None = None,
+    data_license_url: str | None = None,
+) -> dict[str, object]:
     """Assemble the published data dictionary from the running code's own source-of-truth constants.
 
     Every list here is generated, never hand-copied, so it cannot drift from the pipeline it
     describes: `parameters` from `models.PARAMETERS`, `qc_verdicts` from the `QC_*` constants,
     and `csv_columns` from `export._CSV_FIELDS` (the exact list `export.to_csv` writes).
     """
-    return {
+    document: dict[str, object] = {
         "data_schema_version": DATA_SCHEMA_VERSION,
         "package_version": __version__,
         "generated_from": "swelter",
-        "license": DATA_LICENSE_LINE,
+        "data_source": data_source or _UNRESOLVED_DATA_SOURCE,
+        "license": data_license or _UNRESOLVED_DATA_LICENSE,
         "observation_fields": [dict(field) for field in _OBSERVATION_FIELDS],
         "csv_columns": list(_CSV_FIELDS),
         "parameters": _parameters(),
@@ -171,3 +193,8 @@ def build_data_dictionary() -> dict[str, object]:
             ),
         },
     }
+    if data_attribution is not None:
+        document["attribution"] = data_attribution
+    if data_license_url is not None:
+        document["license_url"] = data_license_url
+    return document

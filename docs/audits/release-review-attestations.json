@@ -1,0 +1,80 @@
+{
+  "attestations": [
+    {
+      "artifact": "docs/audits/ethics-consequence-scan.md",
+      "id": "ethics",
+      "independent": false,
+      "notes": "Awaiting named-human consequence, non-goal, misuse, owner, and rollback review.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    },
+    {
+      "artifact": "docs/audits/fairness-review.md",
+      "id": "fairness",
+      "independent": false,
+      "notes": "Awaiting named-human coverage, representation, ranking, and disparate-impact review.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    },
+    {
+      "artifact": "docs/audits/privacy-dpia.md",
+      "id": "privacy",
+      "independent": false,
+      "notes": "Awaiting named-human DPIA, retention, browser-location, and data-flow review.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    },
+    {
+      "artifact": "docs/RESPONSIBLE-TECH-AUDITS.md",
+      "id": "transparency",
+      "independent": false,
+      "notes": "Awaiting named-human framing, provenance, caveat, uncertainty, and non-goal review.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    },
+    {
+      "artifact": "docs/audits/threat-model.md",
+      "id": "security",
+      "independent": false,
+      "notes": "Awaiting named-human STRIDE, abuse-case, residual-risk, and recovery review.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    },
+    {
+      "artifact": "docs/accessibility/MANUAL-AT-WALKTHROUGH.md",
+      "id": "accessibility",
+      "independent": true,
+      "notes": "Awaiting the complete NVDA, VoiceOver, keyboard, zoom, reflow, and touch walkthrough.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    },
+    {
+      "artifact": "docs/I18N.md",
+      "id": "spanish-language",
+      "independent": true,
+      "notes": "Awaiting independent Spanish safety, source, caveat, task, and comprehension review.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    },
+    {
+      "artifact": "DEFINITION_OF_DONE.md",
+      "id": "owner-release",
+      "independent": false,
+      "notes": "Awaiting accountable-owner review of every REVIEW and RELEASE item for this source tree.",
+      "outcome": "pending",
+      "reviewed": null,
+      "reviewer": null
+    }
+  ],
+  "release_version": "0.1.0",
+  "reviewed_source_sha256": null,
+  "schema_version": 1,
+  "tracking_issue": 106
+}

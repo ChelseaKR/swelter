@@ -4,7 +4,7 @@ dataset of 1930s Home Owners' Loan Corporation (HOLC) "residential security" gra
 Redlining context belongs next to a heat/AQI reading for the same reason canopy does: it helps
 explain why exposure lands unequally across a city today, without swelter computing a verdict
 about it. This module follows the exact pattern :mod:`swelter.context_layers` set for tree
-canopy (ADR 0013) and :mod:`swelter.ac_access_layer` for AC access: **one** descriptive
+canopy (ADR 0023) and :mod:`swelter.ac_access_layer` for AC access: **one** descriptive
 measurement per grid cell, plus its provenance.
 
 The measurement here is a **historical fact**, not a swelter judgment: the letter grade
@@ -15,7 +15,7 @@ Scholarship Lab, University of Richmond). ``holc_grade`` is deliberately *not* a
 single external fact (the grade HOLC itself published) carried with its source, the same way
 ``canopy_pct`` carries a tree-canopy survey's number. Rendering it is a citation, not an opinion:
 callers must say what the grade *was*, in the 1930s, per the source — never what it implies
-today. See ``docs/decisions/0018-exposure-brief-and-equity-context.md`` for the full framing
+today. See ``docs/adr/0018-exposure-brief-and-equity-context.md`` for the full framing
 discussion and the coverage gap (HOLC only mapped select cities, not every place swelter runs).
 """
 

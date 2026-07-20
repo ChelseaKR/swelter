@@ -1,0 +1,18 @@
+{
+  "evidence_date": "2026-07-16",
+  "release_blocking": true,
+  "schema_version": 1,
+  "tracking_issue": 109,
+  "blockers": [
+    {
+      "evidence": "web/performance-baseline.json",
+      "id": "hosted-performance-baseline",
+      "state": "pending_hosted_measurement"
+    },
+    {
+      "evidence": "docs/audits/dora/snapshot.json",
+      "id": "retained-dora-baseline",
+      "state": "pending_complete_collection"
+    }
+  ]
+}

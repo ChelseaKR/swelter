@@ -281,7 +281,7 @@ def test_sitemap_lists_only_stable_absolute_routes(tmp_path: Path) -> None:
     sitemap = tmp_path / "sitemap.xml"
     pages_seo.write_sitemap(sitemap)
     # This is trusted XML generated in-process by the function under test.
-    root = ET.parse(sitemap).getroot()  # noqa: S314
+    root = ET.parse(sitemap).getroot()  # noqa: S314 (#107)
     namespace = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
     assert [element.text for element in root.findall("s:url/s:loc", namespace)] == [
         "https://chelseakr.github.io/swelter/",

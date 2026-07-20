@@ -1,6 +1,5 @@
-# CI runs `make verify` directly (fmt-check + lint + typecheck + a11y + i18n + test), so drift
-# between the Makefile and CI is impossible rather than a matter of manual discipline
-# (CICD-27). A wheel/sdist build runs on every push too, not just at release (CQ-10).
+# Component jobs call the same Make targets aggregated by `make verify`, keeping local and hosted
+# enforcement aligned while preserving the stable status-check names required by repository rules.
 name: CI
 
 on:
@@ -13,38 +12,11 @@ permissions:
   contents: read
 
 jobs:
-  # The merge gate: exactly `make verify`.
   checks:
     name: checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-
-      # `--locked` fails if uv.lock is stale, so CI builds the same environment
-      # that produced the local green run.
-      - name: Install (locked)
-        run: uv sync --locked
-
-      - name: make verify (fmt-check, lint, typecheck, a11y, i18n, test)
-        run: make verify
-
-      - name: Build sdist + wheel (packaging sanity check, every push)
-        run: uv build
-
-  # Supply-chain checks. Separate job so a dependency or secret finding is
-  # reported on its own, not tangled with the functional gate.
-  security:
-    name: security
-    runs-on: ubuntu-latest
-    steps:
-      # Full history so the gitleaks Action can resolve the PR commit range
-      # (it diffs <sha>^..<sha>; a shallow clone lacks the parent commit).
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -52,131 +24,185 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 
-      # Audit the locked dependency set against known advisories. Run from the
-      # project's resolved requirements so the audited tree matches what ships.
-      - name: Sync (locked)
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Install locked Python environment
         run: uv sync --locked
 
-      # Audit the project's runtime environment (PyYAML + the package), not an
-      # isolated tool env. `--no-dev` keeps dev-tool noise out of the gate.
-      # Retry to ride out transient advisory-DB fetch failures rather than
-      # silencing the gate; a real finding still fails the build.
-      #
-      # PYSEC-2026-597 (CVE-2026-12243, nltk path traversal in nltk.data.load())
-      # is waived: nltk is a transitive dev-only dependency of textstat (the
-      # reading-level lint gate), never imported by this package's own code
-      # (verified: zero `import nltk`/`nltk.` references outside .venv), and
-      # textstat only ever loads its own bundled resources -- never an
-      # attacker-controlled path. No fixed nltk release exists yet (the
-      # advisory affects every published version). Revisit when upstream ships
-      # a fix.
-      - name: pip-audit (known-vulnerability scan)
-        run: |
-          for a in 1 2 3; do uv run --no-dev --with pip-audit pip-audit --ignore-vuln PYSEC-2026-597 && exit 0; sleep 10; done
-          uv run --no-dev --with pip-audit pip-audit --ignore-vuln PYSEC-2026-597
+      - name: Python, documentation, and policy gates
+        run: make verify-core
 
-      # Secret scan. A repository scan needs a (free) GitLeaks license for the
-      # Action; any finding is now merge-blocking.
-      - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+      - name: Authenticate the standards pin against canonical upstream
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # STANDARDS_PIN_TOKEN is a read-only PAT with access to the private
+          # ChelseaKR/portfolio-standards repo; the default job token cannot read a
+          # different private repo, so without the secret the canonical authentication
+          # cannot run at all (HTTP 404) — that infrastructure gap is tracked in #119
+          # and is announced loudly here instead of failing every merge on it. The
+          # offline standards-pin gate (byte-integrity of the vendored standards
+          # against the committed manifest) remains blocking in verify-core above.
+          STANDARDS_PIN_TOKEN: ${{ secrets.STANDARDS_PIN_TOKEN }}
+        run: |
+          if [ -n "$STANDARDS_PIN_TOKEN" ]; then
+            GITHUB_TOKEN="$STANDARDS_PIN_TOKEN" make standards-pin-upstream
+          else
+            echo "::warning title=standards-pin upstream authentication did not run::STANDARDS_PIN_TOKEN is not configured, so the pin cannot be authenticated against the private canonical repository. Tracked in #119; the offline byte-integrity gate stays blocking."
+          fi
 
-      # SAST beyond CodeQL: OWASP-style Python rules + secrets/injection patterns (SEC-07).
-      # No SEMGREP_APP_TOKEN is configured, so this runs the open default+python rule packs
-      # locally rather than Semgrep's hosted policy/Supply Chain features. This step has no
-      # error-suppressing shell fallback and no continue-on-error, so any finding at Semgrep's
-      # default blocking severity fails the build for real.
-      # Version pinned so a new Semgrep release can't silently redden the gate with new rules;
-      # bump deliberately via Dependabot/Renovate or a reviewed PR, same discipline as pre-commit.
-      - name: Semgrep (SAST)
-        run: uv run --no-dev --with semgrep==1.168.0 semgrep ci --config=p/default --config=p/python
+      - name: Build package and locally validate CycloneDX evidence
+        run: make verify-package
 
-      # Workflow-file SAST: injection via untrusted expressions, missing permissions/pinning,
-      # cache-poisoning-prone patterns (CICD-19/CICD-20's actions half, guards CICD-04/CICD-24).
-      # Version pinned for the same reason as Semgrep above.
-      - name: zizmor (GitHub Actions workflow audit)
-        run: uvx zizmor@1.16.3 --min-severity=high .github/workflows
+      - name: Synthesize optional infrastructure
+        run: make infra-synth
 
-  # Node firmware is checked in alongside the Python code. Syntax-compile the
-  # MicroPython sources so a broken node build is caught in CI, then run the
-  # hardware-free firmware tests (store-and-forward buffering, bounded
-  # retry/backoff, sampler fault-tolerance) on desktop CPython. The firmware is
-  # not the installed package, so it needs only pytest, no project deps.
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+
+      - name: Set up Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install locked Python environment
+        run: uv sync --locked
+
+      - name: Install checksum-verified OSV-Scanner v2.3.8
+        run: |
+          mkdir -p "${RUNNER_TEMP}/osv-bin"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/osv-bin/osv-scanner" \
+            https://github.com/google/osv-scanner/releases/download/v2.3.8/osv-scanner_linux_amd64
+          echo "bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc  ${RUNNER_TEMP}/osv-bin/osv-scanner" \
+            | sha256sum --check --strict
+          chmod 0755 "${RUNNER_TEMP}/osv-bin/osv-scanner"
+          echo "${RUNNER_TEMP}/osv-bin" >> "${GITHUB_PATH}"
+
+      - name: pip-audit (locked Python graph, no waiver)
+        run: make security-pip
+
+      - name: OSV-Scanner (all lockfiles)
+        run: make security-osv
+
+      - name: npm audit (HIGH/CRITICAL)
+        run: make security-node
+
+      - name: Install checksum-verified gitleaks v8.30.1
+        run: |
+          mkdir -p "${RUNNER_TEMP}/security-bin"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/gitleaks.tar.gz" \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  ${RUNNER_TEMP}/gitleaks.tar.gz" \
+            | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/gitleaks.tar.gz" -C "${RUNNER_TEMP}/security-bin" gitleaks
+          chmod 0755 "${RUNNER_TEMP}/security-bin/gitleaks"
+          echo "${RUNNER_TEMP}/security-bin" >> "${GITHUB_PATH}"
+
+      - name: Full-history secret scan
+        run: make security-secrets
+
+      - name: Semgrep (blocking SAST + SARIF)
+        run: make security-semgrep
+
+      - name: Upload Semgrep SARIF
+        if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@dd903d2e4f5405488e5ef1422510ee31c8b32357 # v3.36.2
+        with:
+          sarif_file: dist/security/semgrep.sarif
+          category: semgrep
+
+      - name: Workflow policy and zizmor
+        run: make security-workflows
+
   firmware:
     name: firmware
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 
-      - name: Byte-compile firmware sources
-        run: python -m compileall firmware/src
+      - name: Install locked Python environment
+        run: uv sync --locked
 
-      - name: Firmware tests (hardware-free, CPython)
-        run: |
-          python -m pip install --quiet pytest
-          python -m pytest firmware/tests -q
+      - name: Firmware compile and tests
+        run: make firmware-test
 
-  # web/app.js's pure, function-scoped dashboard logic under `node --test`, plus the JSON-schema
-  # contract (`schemas/*.schema.json`) validated from the JS side — the counterpart to
-  # `tests/test_schema_contract.py` on the Python side (FIX-07). Merge-blocking: web/ has zero
-  # runtime dependencies, but its dev-only Node toolchain is real test infrastructure, not
-  # advisory. `npm ci` installs the exact locked tree from the committed package-lock.json.
   web-tests:
     name: web-tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          # `node --test` only expands glob arguments from Node 21 on; the test
-          # script passes "tests/**/*.test.js", so Node 20 fails "could not find".
           node-version: "22"
-          cache: "npm"
+          cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Install (locked)
-        working-directory: web
-        run: npm ci
+      - name: Dashboard unit, schema, i18n, and conformance tests
+        run: make web-unit
 
-      - name: node --test (app.js unit tests + JS-side schema contract)
-        working-directory: web
-        run: npm test
-
-  # A real-browser axe pass over the built dashboard (page load, WCAG2AA). Promoted from advisory
-  # to merge-blocking (FIX-07) now that the structural gate in `checks` (make a11y) has this
-  # dynamic counterpart backing it up too; pa11y is pinned to an exact release, same discipline as
-  # the other pinned scanners in `security` below.
   a11y:
-    # Still published under the name the branch-protection ruleset requires ("a11y-advisory").
-    # The job itself is merge-blocking (FIX-07): the ruleset requires it to pass, and it no
-    # longer swallows failures. Renaming it needs a ruleset edit first, or every PR wedges on
-    # an "expected" check that never reports.
+    # This published name is required by the existing repository ruleset; changing it would wedge
+    # pull requests until the live governance exception is separately approved.
     name: a11y-advisory
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: "20"
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
-      - name: pa11y (axe runner, WCAG2AA)
-        # Chromium has no usable sandbox on the GitHub runner, so launch with --no-sandbox.
+      - name: Browser accessibility and performance gates
+        run: make web-browser PLAYWRIGHT_INSTALL_ARGS="--with-deps chromium firefox webkit"
+
+      - name: Render the exact hosted performance candidate
+        if: ${{ always() }}
+        env:
+          PERFORMANCE_BASELINE_OUTPUT: performance-baseline.candidate.json
         run: |
-          echo '{"chromeLaunchConfig":{"args":["--no-sandbox","--disable-setuid-sandbox"]}}' > .pa11y.json
-          npx --yes pa11y@8.0.0 --config .pa11y.json --standard WCAG2AA --runner axe ./web/index.html
+          if find web/.lighthouseci -maxdepth 1 -type f -name 'lhr-*.json' -print -quit | grep -q .; then
+            npm --prefix web run performance:baseline
+          fi
+
+      - name: Retain browser accessibility and performance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: a11y-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            web/test-results
+            web/.lighthouseci
+            web/performance-baseline.candidate.json
+          if-no-files-found: warn
+          retention-days: 30

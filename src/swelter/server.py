@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import aggregate, alerts, api, cooling_centers, export, obs, qc
+from . import aggregate, alerts, api, cooling_centers, export, obs, qc, snapshot
 from .aggregate import Surface
 from .config import NetworkConfig
 from .models import RAW
@@ -31,6 +31,19 @@ from .store import SqliteStore, Store
 #: default: a community dashboard's request log is operationally uninteresting until someone
 #: asks for it, and JSON lines on stderr are noise for the common `swelter serve` terminal use.
 _REQUEST_LOG_ENV = "SWELTER_LOG_REQUESTS"
+
+_RIGHTS_BEARING_STATIC_FILES = frozenset(
+    {
+        "alerts.es.xml",
+        "alerts.json",
+        "alerts.xml",
+        "export.csv",
+        "sample-health.json",
+        "sample-surface.json",
+        "surface-24h.json",
+        "surface-7d.json",
+    }
+)
 
 
 def _request_logging_enabled() -> bool:
@@ -51,6 +64,22 @@ class ServerContext:
     # ServerContext without a store-backed pipeline run behind it (e.g. tests); the health
     # report simply omits the `run` and `integrity` blocks in that case.
     store_dir: Path | None = None
+    data_terms: snapshot.DataTerms | None = None
+
+
+def _resolved_data_terms(ctx: ServerContext) -> snapshot.DataTerms:
+    if ctx.store_dir is None:
+        if ctx.data_terms is not None:
+            return ctx.data_terms
+        return snapshot.DataTerms(
+            snapshot.DEFAULT_DATA_SOURCE,
+            snapshot.DEFAULT_DATA_LICENSE,
+            snapshot.DEFAULT_DATA_ATTRIBUTION,
+        )
+    try:
+        return snapshot.load_data_terms(ctx.store_dir, observations=list(ctx.store.all()))
+    except ValueError as exc:
+        raise RuntimeError("store data-rights provenance is incomplete") from exc
 
 
 def _store_version(store: Store) -> object:
@@ -89,6 +118,24 @@ def _etag_matches(if_none_match: str, etag: str) -> bool:
     )
 
 
+def _rights_link_header(terms: snapshot.DataTerms) -> str:
+    """RFC 8288 links that keep a downloaded representation attached to its rights evidence."""
+    links = ['</DATA-LICENSE>; rel="license"; type="text/plain"']
+    if terms.ledger_content is not None:
+        links.append('</source-license-ledger.json>; rel="describedby"; type="application/json"')
+    return ", ".join(links)
+
+
+def _rights_cache_token(terms: snapshot.DataTerms) -> str:
+    """Stable cache discriminator for response bodies containing a rights envelope."""
+    digest = hashlib.sha256(
+        json.dumps(snapshot.rights_envelope(terms), sort_keys=True).encode("utf-8")
+    )
+    if terms.ledger_content is not None:
+        digest.update(terms.ledger_content)
+    return digest.hexdigest()[:16]
+
+
 class _ResponseCache:
     """Process-lifetime cache: the aggregated surface plus precomputed response bodies.
 
@@ -111,7 +158,8 @@ class _ResponseCache:
                 self.surface = surface
                 self.bodies = {}  # the store moved on; every cached body is now stale
             return surface
-        assert self.surface is not None  # noqa: S101 (version matched => prior compute set it)
+        if self.surface is None:
+            raise RuntimeError("response cache version exists without a computed surface")
         return self.surface
 
     def body_for(self, store: Store, cache_id: str) -> tuple[bytes, bytes | None, str] | None:
@@ -128,7 +176,7 @@ class _ResponseCache:
             self.bodies[cache_id] = entry
 
 
-def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901
+def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901 (#107)
     # Ruff's mccabe walker sums every nested method's branches into this factory function because
     # the handler class is defined inside it (closure over `ctx`, the stdlib http.server pattern);
     # most methods below are independently simple. Documented exception, not a silent one — see
@@ -151,7 +199,7 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             self._status_sent = code  # captured for optional request logging, never IPs
             super().send_response(code, message)
 
-        def do_GET(self) -> None:  # noqa: N802, C901 (http.server API; flat route dispatch, see above)
+        def do_GET(self) -> None:  # noqa: C901 (http.server API; flat route dispatch, see above) (#107)
             started = time.monotonic()
             self._status_sent = 0
             parsed = urlparse(self.path)
@@ -162,15 +210,30 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 if path in ("/health", "/healthz"):
                     self._json({"status": "ok", "observations": ctx.store.count()})
                 elif path == v:
-                    self._json(api.service_document(ctx.base_url))
+                    self._json(
+                        api.service_document(ctx.base_url),
+                        data_terms=_resolved_data_terms(ctx),
+                    )
                 elif path == f"{v}/Things":
-                    self._json(api.things(ctx.config, ctx.base_url))
+                    self._json(
+                        api.things(ctx.config, ctx.base_url),
+                        data_terms=_resolved_data_terms(ctx),
+                    )
                 elif path == f"{v}/Locations":
-                    self._json(api.locations(ctx.config, ctx.base_url))
+                    self._json(
+                        api.locations(ctx.config, ctx.base_url),
+                        data_terms=_resolved_data_terms(ctx),
+                    )
                 elif path == f"{v}/Datastreams":
-                    self._json(api.datastreams(ctx.config, ctx.base_url))
+                    self._json(
+                        api.datastreams(ctx.config, ctx.base_url),
+                        data_terms=_resolved_data_terms(ctx),
+                    )
                 elif path == f"{v}/ObservedProperties":
-                    self._json(api.observed_properties(ctx.base_url))
+                    self._json(
+                        api.observed_properties(ctx.base_url),
+                        data_terms=_resolved_data_terms(ctx),
+                    )
                 elif path == f"{v}/Observations":
                     self._observations(query)
                 elif path == "/api/surface.geojson":
@@ -195,6 +258,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                     self._export(query, fmt="json")
                 elif path in ("/LICENSE", "/DATA-LICENSE", "/NOTICE"):
                     self._repo_file(path.lstrip("/"))
+                elif path == "/source-license-ledger.json":
+                    self._source_license_ledger()
                 else:
                     self._static(path)
             except BrokenPipeError:  # client went away mid-response
@@ -215,12 +280,12 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                         ms=ms,
                     )
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             self._safe_error(405, "swelter's public API is read-only")
 
         do_PUT = do_DELETE = do_PATCH = do_POST
 
-        def do_OPTIONS(self) -> None:  # noqa: N802 — CORS preflight
+        def do_OPTIONS(self) -> None:
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
@@ -254,16 +319,32 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             dedupe = _one(query, "dedupe") != "false"
             orderby = (_one(query, "order") or _one(query, "$orderby") or "").lower()
             order = "desc" if "desc" in orderby else "asc"
-            self._json(
-                api.observations(obs, ctx.base_url, top=top, skip=skip, dedupe=dedupe, order=order)
+            terms = _resolved_data_terms(ctx)
+            document = api.observations(
+                obs,
+                ctx.base_url,
+                top=top,
+                skip=skip,
+                dedupe=dedupe,
+                order=order,
+                data_license=terms.license,
+                data_attribution=terms.attribution,
+                data_license_url=terms.license_url,
+                terms_by_observation=snapshot.export_terms_by_observation(terms, obs),
             )
+            document["rights"] = snapshot.rights_envelope(terms)
+            self._json(document, data_terms=terms)
 
         def _surface(self) -> None:
             surface = cache.surface_for(ctx.store, ctx.config)
+            terms = _resolved_data_terms(ctx)
+            document = surface.snapshot_geojson()
+            document["rights"] = snapshot.rights_envelope(terms)
             self._json(
-                surface.snapshot_geojson(),
+                document,
                 content_type="application/geo+json",
                 cache_id="surface.geojson",
+                data_terms=terms,
             )
 
         def _surface_records(self, query: dict[str, list[str]]) -> None:
@@ -274,9 +355,16 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             buckets = sorted({c.bucket for c in surface.cells})[-hours:] if hours else []
             keep = set(buckets)
             records = [c.as_record() for c in surface.cells if c.bucket in keep]
+            terms = _resolved_data_terms(ctx)
             self._json(
-                {"interval": surface.interval, "buckets": buckets, "cells": records},
+                {
+                    "interval": surface.interval,
+                    "buckets": buckets,
+                    "cells": records,
+                    "rights": snapshot.rights_envelope(terms),
+                },
                 cache_id=f"surface.json:hours={hours}",
+                data_terms=terms,
             )
 
         def _alerts(self, query: dict[str, list[str]], *, fmt: str, lang: str = "en") -> None:
@@ -295,14 +383,18 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             if area:
                 feed = feed.for_area(area)
             cache_id = f"alerts.{fmt}:lang={lang}:area={area or ''}"
+            terms = _resolved_data_terms(ctx)
             if fmt == "atom":
                 self._body(
                     feed.to_atom(lang=lang).encode("utf-8"),
                     "application/atom+xml; charset=utf-8",
                     cache_id=cache_id,
+                    data_terms=terms,
                 )
             else:
-                self._json(feed.to_json(), cache_id=cache_id)
+                document = feed.to_json()
+                document["rights"] = snapshot.rights_envelope(terms)
+                self._json(document, cache_id=cache_id, data_terms=terms)
 
         def _cooling_centers(self) -> None:
             # The curated cooling-center overlay. Served validated; an absent/empty dataset
@@ -335,14 +427,24 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                         "finished_at": manifest.get("finished_at"),
                         "counters": manifest.get("counters"),
                     }
-            self._json(report)
+            terms = _resolved_data_terms(ctx)
+            report["rights"] = snapshot.rights_envelope(terms)
+            self._json(report, data_terms=terms)
 
         def _schema(self) -> None:
             # The machine-readable data dictionary: generated from the running code's own
             # source-of-truth constants (PARAMETERS, the QC_* verdicts, export._CSV_FIELDS), so it
             # cannot drift from what the pipeline actually does. `data_schema_version` is the pin
             # target — see docs/VERSIONING.md.
-            self._json(api.schema_document())
+            terms = _resolved_data_terms(ctx)
+            document = api.schema_document(
+                data_source=terms.source,
+                data_license=terms.license,
+                data_attribution=terms.attribution,
+                data_license_url=terms.license_url,
+            )
+            document["rights"] = snapshot.rights_envelope(terms)
+            self._json(document, data_terms=terms)
 
         def _export(self, query: dict[str, list[str]], *, fmt: str) -> None:
             obs = ctx.store.read(
@@ -351,10 +453,30 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 since=_one(query, "since"),
                 until=_one(query, "until"),
             )
+            terms = _resolved_data_terms(ctx)
+            terms_by_observation = snapshot.export_terms_by_observation(terms, obs)
             if fmt == "csv":
-                self._body(export.to_csv(obs).encode("utf-8"), "text/csv; charset=utf-8")
+                self._body(
+                    export.to_csv(
+                        obs,
+                        license=terms.license,
+                        attribution=terms.attribution,
+                        terms_by_observation=terms_by_observation,
+                    ).encode("utf-8"),
+                    "text/csv; charset=utf-8",
+                    data_terms=terms,
+                )
             else:
-                self._body(export.to_json(obs).encode("utf-8"), "application/json")
+                self._body(
+                    export.to_json(
+                        obs,
+                        license=terms.license,
+                        attribution=terms.attribution,
+                        terms_by_observation=terms_by_observation,
+                    ).encode("utf-8"),
+                    "application/json",
+                    data_terms=terms,
+                )
 
         def _static(self, path: str) -> None:
             rel = path.lstrip("/") or "index.html"
@@ -366,16 +488,36 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 self._safe_error(404, "not found")
                 return
             content_type, _ = mimetypes.guess_type(str(target))
-            self._body(target.read_bytes(), content_type or "application/octet-stream")
+            data_terms = _resolved_data_terms(ctx) if rel in _RIGHTS_BEARING_STATIC_FILES else None
+            self._body(
+                target.read_bytes(),
+                content_type or "application/octet-stream",
+                data_terms=data_terms,
+            )
 
         def _repo_file(self, name: str) -> None:
             # Serve the repo-root LICENSE / DATA-LICENSE / NOTICE so the footer's citation trail
             # resolves under `swelter serve` (web_dir's parent is the repo root in that layout).
+            if name == snapshot.DATA_LICENSE_FILENAME:
+                terms = _resolved_data_terms(ctx)
+                self._body(
+                    snapshot.render_data_license(terms).encode("utf-8"),
+                    "text/plain; charset=utf-8",
+                    data_terms=terms,
+                )
+                return
             target = ctx.web_dir.resolve().parent / name
             if target.is_file():
                 self._body(target.read_bytes(), "text/plain; charset=utf-8")
             else:
                 self._safe_error(404, "not found")
+
+        def _source_license_ledger(self) -> None:
+            terms = _resolved_data_terms(ctx)
+            if terms.ledger_content is None:
+                self._safe_error(404, "not found")
+                return
+            self._body(terms.ledger_content, "application/json", data_terms=terms)
 
         def _json(
             self,
@@ -383,25 +525,47 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             content_type: str = "application/json",
             *,
             cache_id: str | None = None,
+            data_terms: snapshot.DataTerms | None = None,
         ) -> None:
-            self._body(json.dumps(payload).encode("utf-8"), content_type, cache_id=cache_id)
+            self._body(
+                json.dumps(payload).encode("utf-8"),
+                content_type,
+                cache_id=cache_id,
+                data_terms=data_terms,
+            )
 
-        def _body(self, data: bytes, content_type: str, *, cache_id: str | None = None) -> None:
+        def _body(
+            self,
+            data: bytes,
+            content_type: str,
+            *,
+            cache_id: str | None = None,
+            data_terms: snapshot.DataTerms | None = None,
+        ) -> None:
             # `cache_id` names one of the "big three" aggregated payloads (surface/alerts); it
             # keys a process-lifetime cache of the compressed bytes + ETag alongside the cached
             # Surface, so a repeat request within the same store version skips re-gzip and
             # re-hash entirely. Endpoints that pass no `cache_id` (static files, exports, the
             # observation feed) still get an ETag, just computed fresh each time — they are
             # already cheap, so precomputing would only add bookkeeping.
-            cached = cache.body_for(ctx.store, cache_id) if cache_id is not None else None
+            effective_cache_id = cache_id
+            if effective_cache_id is not None and data_terms is not None:
+                effective_cache_id = (
+                    f"{effective_cache_id}:rights={_rights_cache_token(data_terms)}"
+                )
+            cached = (
+                cache.body_for(ctx.store, effective_cache_id)
+                if effective_cache_id is not None
+                else None
+            )
             if cached is not None:
                 data, gzip_data, etag = cached
             else:
                 etag = hashlib.sha256(data).hexdigest()[:16]
                 compressible = len(data) > 1024 and _compressible(content_type)
-                if cache_id is not None:
+                if effective_cache_id is not None:
                     gzip_data = gzip.compress(data) if compressible else None
-                    cache.store_body(ctx.store, cache_id, (data, gzip_data, etag))
+                    cache.store_body(ctx.store, effective_cache_id, (data, gzip_data, etag))
                 else:
                     want_gzip = compressible and "gzip" in self.headers.get("Accept-Encoding", "")
                     gzip_data = gzip.compress(data) if want_gzip else None
@@ -413,6 +577,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 self.send_header("ETag", f'"{etag}"')
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Cache-Control", "public, max-age=60")
+                if data_terms is not None:
+                    self.send_header("Link", _rights_link_header(data_terms))
                 self.end_headers()
                 return
 
@@ -427,6 +593,8 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Access-Control-Allow-Origin", "*")  # open data: read from anywhere
             self.send_header("Cache-Control", "public, max-age=60")
+            if data_terms is not None:
+                self.send_header("Link", _rights_link_header(data_terms))
             self.end_headers()
             self.wfile.write(body)
 

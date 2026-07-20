@@ -22,12 +22,20 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
+from ..models import (
+    SOURCE_SENSOR_COMMUNITY,
+    Observation,
+    format_timestamp,
+    heat_index_c,
+    parse_timestamp,
+    wbgt_c,
+)
 from ._http import get_json
 
 AREA_URL = "https://data.sensor.community/airrohr/v1/filter/area="
 #: Sensor.Community's stated terms for database contents (sensor.community/en/docs/).
 LICENSE = "ODC-DbCL-1.0"
+LICENSE_URL = "https://opendatacommons.org/licenses/dbcl/1-0/"
 ATTRIBUTION = (
     "Real readings from the Sensor.Community network of community low-cost sensors "
     "(sensor.community, ODC-DbCL-1.0) — uncalibrated, so shown raw / provisional."
@@ -83,7 +91,12 @@ def _emit(
     # RAW: these are uncalibrated community sensors. QC and the map will mark them provisional.
     out.append(
         Observation(
-            node_id=node_id, timestamp=ts, parameter=parameter, value=round(numeric, 2), unit=unit
+            node_id=node_id,
+            timestamp=ts,
+            parameter=parameter,
+            value=round(numeric, 2),
+            unit=unit,
+            source=SOURCE_SENSOR_COMMUNITY,
         )
     )
 

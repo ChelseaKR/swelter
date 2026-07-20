@@ -1,0 +1,3 @@
+.lighthouseci/
+test-results/
+/vendor/messageformat/

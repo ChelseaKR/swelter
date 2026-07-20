@@ -1,5 +1,9 @@
 # ADR 0013: Add a curated, descriptive-only context-layer overlay, starting with tree canopy
 
+> **Legacy number.** The original log assigned 0013 twice. This context-layer record is authoritative
+> as [ADR 0023](../adr/0023-context-layer-overlay.md); ADR 0013 now unambiguously names the
+> accumulation/cache decision.
+
 Date: 2026-07-08. Status: accepted.
 
 ## Decision

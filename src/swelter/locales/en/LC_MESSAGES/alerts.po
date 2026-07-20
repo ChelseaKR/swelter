@@ -1,0 +1,58 @@
+# English translations for swelter alert feeds.
+msgid ""
+msgstr ""
+"Project-Id-Version: swelter 0.1.0\n"
+"Report-Msgid-Bugs-To: https://github.com/ChelseaKR/swelter/issues\n"
+"POT-Creation-Date: 2026-07-16 00:00-0700\n"
+"PO-Revision-Date: 2026-07-16 00:00-0700\n"
+"Last-Translator: Chelsea Kelly-Reif\n"
+"Language: en\n"
+"Language-Team: English\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+msgid " (provisional, not yet calibrated)"
+msgstr " (provisional, not yet calibrated)"
+
+#, python-brace-format
+msgid ", as of {bucket}."
+msgstr ", as of {bucket}."
+
+#, python-brace-format
+msgid "{area}: air quality is {severity} (AQI {aqi}){provisional}{as_of}"
+msgstr "{area}: air quality is {severity} (AQI {aqi}){provisional}{as_of}"
+
+#, python-brace-format
+msgid ""
+"{area}: heat index is in the {severity} range ({value} "
+"°C){provisional}{as_of}"
+msgstr ""
+"{area}: heat index is in the {severity} range ({value} "
+"°C){provisional}{as_of}"
+
+#, python-brace-format
+msgid "{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}"
+msgstr "{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}"
+
+msgid ""
+"Public, aggregate environmental alerts — no account, no PII. Subscribe "
+"via the Atom feed at /api/alerts.xml in any reader; live servers accept "
+"?area=<area_id>."
+msgstr ""
+"Public, aggregate environmental alerts — no account, no PII. Subscribe "
+"via the Atom feed at /api/alerts.xml in any reader; live servers accept "
+"?area=<area_id>."
+
+#, python-brace-format
+msgid "{network} — heat & air-quality alerts"
+msgstr "{network} — heat & air-quality alerts"
+
+msgid ""
+"Areas where heat or air quality has crossed a public-health danger "
+"threshold. Aggregate environmental data, no PII."
+msgstr ""
+"Areas where heat or air quality has crossed a public-health danger "
+"threshold. Aggregate environmental data, no PII."

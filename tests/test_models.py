@@ -28,7 +28,8 @@ from .conftest import make_obs
 def test_observation_is_immutable() -> None:
     obs = make_obs()
     with pytest.raises(FrozenInstanceError):
-        obs.value = 99.0  # type: ignore[misc]  # the frozen guard must fire at runtime
+        field = "value"
+        setattr(obs, field, 99.0)  # the frozen guard must fire at runtime
 
 
 def test_content_hash_is_stable_and_value_sensitive() -> None:
@@ -37,6 +38,12 @@ def test_content_hash_is_stable_and_value_sensitive() -> None:
     c = make_obs(value=25.1)
     assert a.content_hash() == b.content_hash()
     assert a.content_hash() != c.content_hash()
+
+
+def test_content_hash_covers_source_identity() -> None:
+    native = make_obs(source="native")
+    imported = make_obs(source="openmeteo")
+    assert native.content_hash() != imported.content_hash()
 
 
 def test_calibration_state_drives_trust() -> None:

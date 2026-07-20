@@ -8,8 +8,9 @@ any published surface can name the pipeline run that built it.
 
 Two things live here:
 
-* :class:`JsonLinesFormatter`, a stdlib :class:`logging.Formatter` — one JSON object per
-  line: ``ts``, ``level``, ``stage``, ``event``, plus whatever counter fields the caller
+* :class:`JsonLinesFormatter`, a structlog-JSON-backed :class:`logging.Formatter` — one JSON object
+  per line using the repository Tier-C schema: ``timestamp``, ``severity``, ``service.name``,
+  ``service.version``, ``trace_id``, ``span_id``, ``message``, ``stage``, plus counter fields
   passes. Attach it via :func:`configure_json_logging`; nothing is emitted unless a caller
   opts in — the CLI's existing human-readable ``_err`` banners are unchanged.
 * :class:`RunManifest` — an accumulator a pipeline invocation (``ingest`` → ``calibrate`` →
@@ -27,12 +28,15 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final
+
+import structlog
 
 from . import __version__
 
@@ -66,32 +70,59 @@ LOGGER_NAME: Final = "swelter"
 
 _ISO_FORMAT: Final = "%Y-%m-%dT%H:%M:%SZ"
 
+_SENSITIVE_VALUE_PATTERNS: Final = (
+    re.compile(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"),
+    re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE),
+    # A coordinate pair embedded in a free-form diagnostic is sensitive even when the field is
+    # named only ``detail`` or ``message``. Broad matching is intentional: a harmless numeric pair
+    # is safer to hide than a resident's exact location is to retain.
+    re.compile(r"(?<![\d.])[+-]?\d{1,2}(?:\.\d+)?\s*,\s*[+-]?\d{1,3}(?:\.\d+)?(?![\d.])"),
+    re.compile(
+        r"\b(?:bearer\s+|api[_-]?key[=: ]+|password[=: ]+|token[=: ]+)[^\s,;]+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"(?:[?&](?:token|key|secret|password)=)[^&#\s]+", re.IGNORECASE),
+)
+
+_JSON_RENDERER: Final = structlog.processors.JSONRenderer(sort_keys=True)
+
 
 def _utcnow_iso() -> str:
     return datetime.now(UTC).strftime(_ISO_FORMAT)
 
 
-def _scrub(fields: dict[str, Any]) -> dict[str, Any]:
-    """Drop any field whose name looks person- or network-shaped (hard rule 1, defense-in-depth).
+def _scrub_value(value: Any) -> Any:
+    """Redact common PII, coordinate, and credential shapes while preserving value types."""
+    if isinstance(value, str):
+        clean = value
+        for pattern in _SENSITIVE_VALUE_PATTERNS:
+            clean = pattern.sub("[REDACTED]", clean)
+        return clean
+    if isinstance(value, list):
+        return [_scrub_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_scrub_value(item) for item in value)
+    if isinstance(value, dict):
+        return _scrub(value)
+    return value
 
-    Values are never inspected — only names — because the callers in this codebase (counters,
-    run ids, stage names) never have a legitimate reason to pass a person-shaped value in the
-    first place; this exists to fail loud-but-safe (drop, don't crash) if one ever does.
-    """
+
+def _scrub(fields: dict[str, Any]) -> dict[str, Any]:
+    """Drop unsafe field names and redact unsafe values (hard rule 1, defense-in-depth)."""
     clean: dict[str, Any] = {}
     for key, value in fields.items():
         lowered = key.lower()
         if key in _ALLOWED_DESPITE_SUBSTRING:
-            clean[key] = value
+            clean[key] = _scrub_value(value)
             continue
         if any(bad in lowered for bad in _FORBIDDEN_FIELD_SUBSTRINGS):
             continue
-        clean[key] = value
+        clean[key] = _scrub_value(value)
     return clean
 
 
 class JsonLinesFormatter(logging.Formatter):
-    """One JSON object per line: ``ts``, ``level``, ``stage``, ``event``, plus counter fields.
+    """One JSON object per line using the committed Tier-C observability schema.
 
     Counter fields ride in on ``record.counters`` (a dict), set via the ``extra=`` kwarg of
     the stdlib logging call — never via ``%``-style message interpolation, so a structured
@@ -100,15 +131,19 @@ class JsonLinesFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
-            "ts": datetime.fromtimestamp(record.created, tz=UTC).strftime(_ISO_FORMAT),
-            "level": record.levelname.lower(),
-            "stage": getattr(record, "stage", None),
-            "event": record.getMessage(),
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).strftime(_ISO_FORMAT),
+            "severity": record.levelname,
+            "service.name": "swelter",
+            "service.version": __version__,
+            "trace_id": _scrub_value(getattr(record, "trace_id", None)),
+            "span_id": _scrub_value(getattr(record, "span_id", None)),
+            "stage": _scrub_value(getattr(record, "stage", None)),
+            "message": _scrub_value(record.getMessage()),
         }
         counters = getattr(record, "counters", None)
         if counters:
             payload.update(_scrub(dict(counters)))
-        return json.dumps(payload, sort_keys=True)
+        return str(_JSON_RENDERER(None, record.levelname.lower(), payload))
 
 
 def configure_json_logging(stream: Any = None, *, level: int = logging.INFO) -> logging.Logger:
@@ -134,6 +169,15 @@ def configure_json_logging(stream: Any = None, *, level: int = logging.INFO) -> 
 def get_logger() -> logging.Logger:
     """The module logger, unconfigured (no handler) until :func:`configure_json_logging` runs."""
     return logging.getLogger(LOGGER_NAME)
+
+
+def disable_json_logging() -> None:
+    """Remove JSON handlers so captured/rotated stderr streams cannot leak across invocations."""
+    logger = get_logger()
+    for handler in list(logger.handlers):
+        if isinstance(handler.formatter, JsonLinesFormatter):
+            logger.removeHandler(handler)
+            handler.close()
 
 
 def log_event(stage: str, event: str, **counters: Any) -> None:

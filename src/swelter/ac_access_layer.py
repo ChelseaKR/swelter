@@ -3,7 +3,7 @@
 A heat map tells a resident how hot it is; it does not tell them who has the least ability to
 get relief indoors. Whether a household has working air conditioning is one of the strongest
 predictors of who is hurt by a heat event, and it is not visible in a temperature reading. This
-module follows the exact pattern :mod:`swelter.context_layers` set for tree canopy (ADR 0013):
+module follows the exact pattern :mod:`swelter.context_layers` set for tree canopy (ADR 0023):
 one descriptive measurement per grid cell — the modeled percent of households that may lack
 air conditioning — with its provenance, handed to callers (the CLI brief, a future map layer) as
 a validated, joinable dataset.
@@ -16,7 +16,7 @@ its own narrow allowlist instead.
 The real, citable source for this measurement is the U.S. Census Bureau's **Local Air
 Conditioning Estimates (LACE)** — an experimental, model-based estimate of AC prevalence at the
 state/county/census-tract level, built by fusing the American Housing Survey and the American
-Community Survey (see ``docs/decisions/0018-exposure-brief-and-equity-context.md`` for the
+Community Survey (see ``docs/adr/0018-exposure-brief-and-equity-context.md`` for the
 research notes and known gaps). LACE is tract-level, not sensor-cell-level, so a real deployment
 joins it by geocoding each published cell to its census tract — that join is out of scope here;
 this module only loads and validates the resulting per-cell dataset, the same boundary

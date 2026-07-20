@@ -2621,5 +2621,17 @@
   },
   "integrity": {
     "available": false
+  },
+  "rights": {
+    "schema_version": 1,
+    "source": "Synthetic demonstration dataset",
+    "license": "CC0-1.0",
+    "attribution": "Synthetic demonstration data \u2014 no real sensors (gen_demo_data.py).",
+    "links": [
+      {
+        "rel": "license",
+        "href": "DATA-LICENSE"
+      }
+    ]
   }
 }

@@ -22,11 +22,12 @@ governs *how* bytes are fetched, never what an observation means.
 
 from __future__ import annotations
 
+import http.client
 import json
 import time
-import urllib.error
-import urllib.request
+from collections.abc import Mapping
 from typing import Any
+from urllib.parse import urlsplit
 
 #: HTTP statuses worth retrying: rate-limit, request-timeout, and server-side faults.
 _RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
@@ -45,7 +46,16 @@ class SourceError(OSError):
     """
 
 
-def _retry_after_seconds(exc: urllib.error.HTTPError, *, cap: float = _MAX_RETRY_AFTER_S) -> float:
+class _HTTPStatusError(OSError):
+    """An upstream returned a non-success status, with headers retained for retry policy."""
+
+    def __init__(self, code: int, headers: Mapping[str, str]) -> None:
+        super().__init__(f"HTTP {code}")
+        self.code = code
+        self.headers = headers
+
+
+def _retry_after_seconds(exc: _HTTPStatusError, *, cap: float = _MAX_RETRY_AFTER_S) -> float:
     """Honor a 429/503 ``Retry-After`` header (delta-seconds form), capped; else 0."""
     raw = exc.headers.get("Retry-After") if exc.headers is not None else None
     if not raw:
@@ -54,6 +64,32 @@ def _retry_after_seconds(exc: urllib.error.HTTPError, *, cap: float = _MAX_RETRY
         return max(0.0, min(cap, float(raw)))
     except (TypeError, ValueError):
         return 0.0  # HTTP-date form is rare here; fall back to plain backoff
+
+
+def _request_json(url: str, headers: Mapping[str, str], timeout: float) -> Any:
+    """Fetch one JSON document from an absolute HTTPS URL.
+
+    Source adapters construct these URLs internally, but this boundary still validates the
+    transport and host before opening a socket. Using ``http.client`` makes the HTTPS-only policy
+    explicit instead of relying on a broad dynamic-URL waiver around ``urllib``.
+    """
+    parts = urlsplit(url)
+    if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
+        raise ValueError(f"source URL must be absolute HTTPS without userinfo: {url!r}")
+    target = parts.path or "/"
+    if parts.query:
+        target = f"{target}?{parts.query}"
+    connection = http.client.HTTPSConnection(parts.hostname, parts.port, timeout=timeout)
+    try:
+        connection.request("GET", target, headers=dict(headers))
+        response = connection.getresponse()
+        body = response.read()
+        response_headers = {name: value for name, value in response.getheaders()}
+        if not 200 <= response.status < 300:
+            raise _HTTPStatusError(response.status, response_headers)
+        return json.loads(body.decode("utf-8"))
+    finally:
+        connection.close()
 
 
 def get_json(
@@ -71,26 +107,18 @@ def get_json(
     raised immediately. On exhaustion (or an immediate non-retryable error) raises
     :class:`SourceError` with the underlying exception as ``__cause__``.
     """
-    # `url` always comes from this module's own adapters (OpenAQ/Open-Meteo/Sensor.Community),
-    # which build fixed https:// endpoints -- never an arbitrary caller-supplied scheme.
-    request = urllib.request.Request(url, headers=headers or {})  # noqa: S310
     last: Exception | None = None
     attempts = max(1, retries)
     for attempt in range(attempts):
         wait = min(max_backoff_s, 2.0**attempt)
         try:
-            # `url` is always a fixed https:// endpoint built by this module's own callers
-            # (OpenAQ/Open-Meteo/Sensor.Community), never attacker-controlled -- same
-            # justification as the `Request` construction above (S310).
-            # nosemgrep: dynamic-urllib-use-detected
-            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
+            return _request_json(url, headers or {}, timeout)
+        except _HTTPStatusError as exc:
             last = exc
             if exc.code not in _RETRYABLE_STATUS:
                 raise SourceError(f"{url} returned HTTP {exc.code}") from exc
             wait = max(wait, _retry_after_seconds(exc))
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, http.client.HTTPException) as exc:
             # URLError, timeout, SSL/reset, truncated body, and bad JSON all land here.
             last = exc
         if attempt < attempts - 1:

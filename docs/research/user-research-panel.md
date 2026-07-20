@@ -4,6 +4,12 @@
 
 # swelter Dashboard — Synthetic User Research Report
 
+> **Historical baseline, not current conformance evidence.** This frozen 2026-06-17 synthetic study
+> records what the panel saw then. Subsequent remediation changed the observatory, source licensing,
+> API, and evidence. In particular, its blanket-CC0 wording was a product/documentation defect:
+> current fetched data retains provider terms. Use the root README, source data cards, and current
+> ACR/audits for present behavior.
+
 ## 1. Executive Summary
 
 We ran a 12-persona synthetic think-aloud study against the live swelter dashboard, CLI, firmware, and API to learn whether a community heat & air-quality tool actually serves its mission: helping residents — especially vulnerable ones — understand local conditions, while staying scientifically honest. The study reveals a tool with an **exceptional, auditable data and trust foundation** sitting underneath a **public-facing layer that fails its primary residents.**
@@ -94,7 +100,7 @@ This was a **synthetic think-aloud panel**: 12 personas spanning swelter's real 
 - For the **policymaker**, Act = "name the worst block at the podium." He stalls on no place names (**F1**), ascending sort (**F10**), and — fatally — the worst cell and *all heat* being provisional (**F4/F8**), so he has no calibrated fact to state.
 
 ### Leave with the data / Operate
-- **Strongest stage for experts.** Priya/Dr. Chen/Ortiz pull CC0 CSV with no account and reproduce calibration byte-for-byte. But Priya hits the **DATA-LICENSE 404** following the citation trail, can't get on-screen error bars (**F5**), and can't responsibly cite heat (**F8**).
+- **Strongest stage for experts.** Priya/Dr. Chen/Ortiz pull a no-account CSV (then incorrectly labelled blanket CC0) and reproduce calibration byte-for-byte. Priya hits the **DATA-LICENSE 404** following the citation trail, can't get on-screen error bars (**F5**), and can't responsibly cite heat (**F8**).
 - **Dr. Chen / Alex / Wei** must abandon the aggregated surface (no uncertainty, n=1) and the `/v1.1` SensorThings layer (**F13**), falling back to per-observation `/export.*` and `/api/surface.json`.
 - **Devon (operate)** runs `qc` instantly but it under-reports exactly the failure a steward exists to catch (**F11**); governance/ownership/precision are the best he's seen.
 - **Sam (build)** completes end-to-end ingest with verified privacy-by-construction, but the reference firmware reads nothing as-shipped (**F19**) and the headline heat example is wrong (**F12**).
@@ -109,8 +115,8 @@ This was a **synthetic think-aloud panel**: 12 personas spanning swelter's real 
 - **Accessibility is the real thing, not theatre** (James): real landmarks, one h1, sectioned h2s incl. a visually-hidden "Controls", a genuine `tablist` with roving tabindex + arrow keys, a semantic table (caption, `scope=col/row`, working `aria-sort`), a List view as a true non-visual map equivalent, provisional state in **words not just color**, visible focus everywhere, honors reduce-motion. An honest ACR/VPAT that self-marks cognitive load as only "Partially Supports."
 - **Spanish chrome is excellent** — natural, instant, no reload; legend categories, provisional note, and the safety framing read like real translation, 33/33 keys (Rosa, Maria, Ortiz, Tanya).
 - **No account, no login, no cookie wall, no tracking, no location request** — "I could just open it and look" (Maria, Tanya).
-- **Open data is frictionless & citable** — CC0 with a ready attribution line, filterable CSV/JSON, no key (Priya, Ortiz, James, Dr. Chen).
-- **Governance & ownership are the best seen** (Devon): written for a block club, "right to leave," CC0 data + Apache code, coarse-by-default location precision **enforced in the API** (not just promised), honest about CC0 permanence. Realistic, low maintenance burden.
+- **Portable data was frictionless but mislicensed** — filterable CSV/JSON needed source-specific terms instead of the blanket CC0 line the panel saw (Priya, Ortiz, James, Dr. Chen).
+- **Governance & ownership are the best seen** (Devon): written for a block club, "right to leave," Apache code, portable data, and coarse-by-default location precision **enforced in the API** (not just promised). The later source-rights remediation narrows CC0 to authorized first-party/synthetic data.
 - **Privacy-by-construction is verifiable in code** (Sam): grepping the firmware finds *zero* mic/camera/BT/GPS drivers — the schema has no field that could locate a person. Idempotent store-and-forward behaved exactly as documented.
 - **Clean read-only API shape** where it's flat: `/api/surface.json`, `/export.*`, 405 on writes, 60s caching, CORS on GETs, stable composite `@iot.id` (Wei).
 
@@ -183,7 +189,7 @@ The "calibrated vs raw / provisional / published uncertainty / we-don't-tell-you
 
 | Rec | Addresses | Component/file |
 |---|---|---|
-| Serve `DATA-LICENSE`/`LICENSE` at stable URLs (or link CC0 legalcode) | F20 | `server.py`, `index.html`/`en.json` |
+| Serve `DATA-LICENSE`/`LICENSE` at stable URLs with source-specific terms | F20 | `server.py`, `index.html`/`en.json` |
 | Add explicit `provisional`/`status` boolean column to CSV/JSON exports | F18 | `export`/`server.py` |
 | Ship/link working SHT31 + SDS011/PMS5003 drivers, or a loud README warning; check in a firmware test; OTA "not implemented" banner; pin MicroPython/esptool notes | F19 | `firmware/src/sampler.py`, `firmware/README.md`, `assembly.md` |
 | JSON error bodies; OPTIONS 204 + CORS headers; "latest N"/desc order; document raw+calibrated dedupe; uniform `top` validation; `geo+json` content-type; trailing-slash normalization | F21 | `server.py`, `docs/api.md` |

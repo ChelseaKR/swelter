@@ -23,7 +23,7 @@
   --canopy-wash: #e0eee8;
   --line: #9dafaa;
   --line-strong: #6f837d;
-  --footer-bg: #17211f;
+  --footer-bg: var(--soot);
   --footer-fg: #eaf1ef;
   --footer-link: #cbd4ff;
   --shadow-soft: 0 0.7rem 2rem rgb(23 33 31 / 0.08);
@@ -34,6 +34,25 @@
   --font-display: "Aptos Narrow", "Arial Narrow", "Roboto Condensed", "Helvetica Neue", sans-serif;
   --font-body: "Atkinson Hyperlegible", "Atkinson Hyperlegible Next", "Segoe UI", system-ui, sans-serif;
   --font-data: "Recursive Mono", "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  /* Shared semantic palettes. Base components and the observatory layer both consume these
+     tokens; raw copies in two stylesheets previously made severity colors drift-prone. */
+  --severity-ink: #17211f;
+  --marker-ink: #14110f;
+  --provisional-marker-ink: #2a221c;
+  --provisional-marker-a: #e7ddd2;
+  --provisional-marker-b: #d9cdbf;
+  --aqi-good-bg: #d7f0d0;
+  --aqi-moderate-bg: #f2e9b8;
+  --aqi-usg-bg: #f6cf9b;
+  --aqi-unhealthy-bg: #ef9a9a;
+  --aqi-very-unhealthy-bg: #cf93c8;
+  --aqi-hazardous-bg: #c79a9a;
+  --heat-1-bg: #dbe9f2;
+  --heat-2-bg: #e6edcb;
+  --heat-3-bg: #f4e3b0;
+  --heat-4-bg: #f2c197;
+  --heat-5-bg: #e89887;
 
   /* Remap the base application tokens. */
   --bg: var(--mist);
@@ -78,7 +97,7 @@
     --surface: var(--paper);
     --border: var(--grid);
     --accent: var(--heat);
-    --accent-fg: #17211f;
+    --accent-fg: var(--severity-ink);
     --focus: #d9e4ff;
     --provisional: #c3d3ce;
     --map-land: #1d302a;
@@ -194,6 +213,12 @@ body {
   min-height: 2.45rem;
 }
 
+/* Compact map dots, link-like data buttons, and disclosure summaries still own a full WCAG 2.2
+   target even when their visual treatment is intentionally terse. */
+:where(.cell, .linklike, summary) {
+  min-block-size: 1.5rem;
+}
+
 a {
   color: var(--air);
   text-decoration-thickness: 0.1em;
@@ -263,7 +288,7 @@ h1 {
 }
 
 .header-controls {
-  margin-left: auto;
+  margin-inline-start: auto;
   gap: 0.65rem;
   align-items: center;
 }
@@ -323,9 +348,9 @@ h1 {
 
 .observatory-nav a::after {
   position: absolute;
-  right: 0.72rem;
+  inset-inline-end: 0.72rem;
   bottom: 0.28rem;
-  left: 0.72rem;
+  inset-inline-start: 0.72rem;
   height: 0.12rem;
   background: var(--heat);
   content: "";
@@ -383,7 +408,7 @@ main {
 }
 
 .offline {
-  border-left-color: var(--heat);
+  border-inline-start-color: var(--heat);
   background: var(--heat-wash);
 }
 
@@ -391,7 +416,7 @@ main {
   margin-top: 0;
   padding: 0.7rem 0.9rem;
   border: 1px solid var(--line);
-  border-left: 0.28rem solid var(--heat);
+  border-inline-start: 0.28rem solid var(--heat);
   background: var(--paper);
   font-size: 0.92rem;
 }
@@ -400,6 +425,14 @@ main {
   color: var(--muted);
   font-family: var(--font-data);
   font-size: 0.72rem;
+}
+
+/* Host-supplied place/source names may use a different writing direction from the interface. */
+[dir="auto"],
+.place,
+.distribution-label,
+.cell {
+  unicode-bidi: isolate;
 }
 
 .source-switch {
@@ -504,6 +537,10 @@ main {
 }
 
 .now-reading {
+  /* Reserve the resident answer's height so filling it from its HTML placeholder does not grow the
+     card and shove the blocks below it (a large cumulative layout shift). Sized to the rendered
+     English default the metric measures; content settles within it rather than pushing siblings. */
+  min-height: 9.5rem;
   margin: clamp(1.25rem, 3vw, 2.5rem) 0 0;
   color: var(--soot);
   font-family: var(--font-data);
@@ -537,7 +574,7 @@ main {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border-left: 1px solid var(--line-strong);
+  border-inline-start: 1px solid var(--line-strong);
   background: var(--paper);
 }
 
@@ -552,6 +589,8 @@ main {
 }
 
 .now-context {
+  /* Reserve the temporal/contrast line so it does not grow the card on first fill (see .now-reading). */
+  min-height: 6.5rem;
   max-width: 48ch;
   margin: 0.65rem 0 0;
   color: var(--muted);
@@ -563,6 +602,7 @@ main {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+  min-height: 2rem;
   margin-top: 0.8rem;
 }
 
@@ -573,6 +613,8 @@ main {
 }
 
 .now-guidance {
+  /* Reserve the guidance line's height so its first fill does not reflow the card (see .now-reading). */
+  min-height: 4.5rem;
   position: relative;
   margin: 1.25rem 0 0;
   padding: 1rem 0 0 1.1rem;
@@ -599,7 +641,7 @@ main {
 .now-guidance::before {
   position: absolute;
   top: 1.35rem;
-  left: 0;
+  inset-inline-start: 0;
   width: 0.48rem;
   height: 0.48rem;
   border-radius: 50%;
@@ -707,7 +749,7 @@ input::placeholder {
 }
 
 input[type="range"] {
-  min-height: 1.4rem;
+  min-height: 1.75rem;
   accent-color: var(--air);
 }
 
@@ -883,17 +925,6 @@ input[type="range"] {
   isolation: isolate;
   min-height: 15rem;
   background: var(--paper);
-}
-
-.exposure-braid::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  background:
-    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 3rem,
-    linear-gradient(90deg, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px) 0 0 / 4.5rem 100%;
-  content: "";
-  pointer-events: none;
 }
 
 .exposure-braid > * {
@@ -1073,7 +1104,7 @@ input[type="range"] {
   border: 0;
   background: transparent;
   color: var(--soot);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1097,7 +1128,7 @@ input[type="range"] {
   font-family: var(--font-data);
   font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: end;
 }
 
 .distribution-viz :where(.distribution-value, .distribution-reading, .rank-value) {
@@ -1253,7 +1284,7 @@ input[type="range"] {
 .view-switcher .status {
   flex: 1 1 auto;
   margin: 0 0 0.2rem;
-  text-align: right;
+  text-align: end;
 }
 
 .view-switcher .views button,
@@ -1262,7 +1293,7 @@ input[type="range"] {
   min-height: 2.45rem;
   padding: 0.42rem 0.85rem;
   border: 0;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   border-radius: 0;
   background: var(--paper);
   color: var(--soot);
@@ -1274,7 +1305,7 @@ input[type="range"] {
 
 .view-switcher .views button:last-child,
 .views [role="tab"]:last-child {
-  border-right: 0;
+  border-inline-end: 0;
 }
 
 .view-switcher .views button[aria-pressed="true"],
@@ -1334,7 +1365,7 @@ input[type="range"] {
 
 .map-controls {
   top: 0.75rem;
-  right: 0.75rem;
+  inset-inline-end: 0.75rem;
   gap: 0.2rem;
 }
 
@@ -1377,7 +1408,13 @@ input[type="range"] {
   border: 0.14rem solid var(--soot);
   border-radius: var(--radius-xs);
   background-color: var(--cell-bg);
-  background-image: none;
+  /* The severity texture is a background layer on the cell itself, not a content-bearing ::before
+     overlay. A pseudo-element painted between the fill and the reading text makes axe-core throw a
+     color-contrast TypeError (pseudoContent) on the map tab, even though the dark reading on the
+     light fill clears AA. Keeping it a real background layer lets the engine read the fill; the
+     texture still carries severity non-visually alongside colour (hard rule 5). */
+  background-image: var(--cell-pattern);
+  background-size: var(--cell-pattern-size);
   color: var(--soot);
   box-shadow: 0 0.25rem 0.7rem rgb(23 33 31 / 0.2);
   font-family: var(--font-data);
@@ -1385,36 +1422,36 @@ input[type="range"] {
   font-variant-numeric: tabular-nums;
 }
 
-.cell::before {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  background-image: var(--cell-pattern);
-  background-size: var(--cell-pattern-size);
-  content: "";
-  pointer-events: none;
-}
-
 .cell > * {
   position: relative;
   z-index: 1;
 }
 
-.cell:is(.aqi-good, .aqi-moderate, .aqi-usg, .aqi-unhealthy, .aqi-veryunhealthy, .aqi-hazardous, .heat-1, .heat-2, .heat-3, .heat-4, .heat-5) {
-  color: #17211f;
+/* A solid text plate keeps every reading and category legible when the semantic hatch passes
+   behind it. It also gives contrast tools an unambiguous foreground/background pair. */
+.cell > :where(.cell-reading, .cell-cat) {
+  display: inline-block;
+  padding: 0.02rem 0.14rem;
+  border-radius: 0.12rem;
+  background: var(--paper);
+  color: var(--soot);
 }
 
-.cell.aqi-good { --cell-bg: #d7f0d0; }
-.cell.aqi-moderate { --cell-bg: #f2e9b8; }
-.cell.aqi-usg { --cell-bg: #f6cf9b; }
-.cell.aqi-unhealthy { --cell-bg: #ef9a9a; }
-.cell.aqi-veryunhealthy { --cell-bg: #cf93c8; }
-.cell.aqi-hazardous { --cell-bg: #c79a9a; }
-.cell.heat-1 { --cell-bg: #dbe9f2; }
-.cell.heat-2 { --cell-bg: #e6edcb; }
-.cell.heat-3 { --cell-bg: #f4e3b0; }
-.cell.heat-4 { --cell-bg: #f2c197; }
-.cell.heat-5 { --cell-bg: #e89887; }
+.cell:is(.aqi-good, .aqi-moderate, .aqi-usg, .aqi-unhealthy, .aqi-veryunhealthy, .aqi-hazardous, .heat-1, .heat-2, .heat-3, .heat-4, .heat-5) {
+  color: var(--severity-ink);
+}
+
+.cell.aqi-good { --cell-bg: var(--aqi-good-bg); }
+.cell.aqi-moderate { --cell-bg: var(--aqi-moderate-bg); }
+.cell.aqi-usg { --cell-bg: var(--aqi-usg-bg); }
+.cell.aqi-unhealthy { --cell-bg: var(--aqi-unhealthy-bg); }
+.cell.aqi-veryunhealthy { --cell-bg: var(--aqi-very-unhealthy-bg); }
+.cell.aqi-hazardous { --cell-bg: var(--aqi-hazardous-bg); }
+.cell.heat-1 { --cell-bg: var(--heat-1-bg); }
+.cell.heat-2 { --cell-bg: var(--heat-2-bg); }
+.cell.heat-3 { --cell-bg: var(--heat-3-bg); }
+.cell.heat-4 { --cell-bg: var(--heat-4-bg); }
+.cell.heat-5 { --cell-bg: var(--heat-5-bg); }
 
 .cell:is(.aqi-moderate, .heat-2) {
   --cell-pattern: radial-gradient(circle, rgb(0 0 0 / 0.32) 1px, transparent 1.2px);
@@ -1438,6 +1475,7 @@ input[type="range"] {
 }
 
 .cell .cell-cat {
+  display: block;
   margin-top: 0.08rem;
   font-size: 0.58rem;
   letter-spacing: 0.02em;
@@ -1446,7 +1484,9 @@ input[type="range"] {
 
 .cell.provisional {
   border-style: dashed;
-  background: var(--mist-deep);
+  /* background-color, not the shorthand: the shorthand would reset the --cell-pattern
+     background-image now set on .cell and drop the provisional hatching. */
+  background-color: var(--mist-deep);
   color: var(--soot);
   --cell-pattern: repeating-linear-gradient(135deg, transparent 0 4px, var(--grid) 4px 7px);
 }
@@ -1490,9 +1530,12 @@ input[type="range"] {
 
 .readings li.selected,
 tr.selected :is(th, td) {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--air) 15%, transparent), transparent 75%),
-    var(--paper);
+  /* A flat, computable selection tint — not a gradient. A contrast scanner cannot read text
+     contrast through a gradient background and returns "cantTell", so the previous gradient made
+     every reading in the selected row unverifiable. A solid tint lets the scanner verify the row
+     against its real background; selection stays cued non-visually by aria-pressed on the row's
+     control and, for the list, the inset accent bar below. */
+  background-color: color-mix(in srgb, var(--air) 12%, var(--paper));
 }
 
 .readings li.selected {
@@ -1502,7 +1545,7 @@ tr.selected :is(th, td) {
 .readings .place {
   font-family: var(--font-display);
   font-size: 1.05rem;
-  text-align: left;
+  text-align: start;
 }
 
 .readings .reading {
@@ -1561,6 +1604,18 @@ td .tag {
   font-size: 0.68rem;
 }
 
+/* Severity chips wear the same permanent dark severity ink as the map cells, so the reading stays
+   legible on the light severity fill in BOTH colour schemes. Without this the chip inherits the
+   scheme foreground — near-white in dark mode — over a light severity background, a real contrast
+   failure the severity texture would otherwise hide from a scanner. Severity is still carried by
+   text plus fill plus pattern, never colour alone (hard rule 5). */
+td .tag:is(
+  .aqi-good, .aqi-moderate, .aqi-usg, .aqi-unhealthy, .aqi-veryunhealthy, .aqi-hazardous,
+  .heat-1, .heat-2, .heat-3, .heat-4, .heat-5
+) {
+  color: var(--severity-ink);
+}
+
 /* Inspector and evidence ------------------------------------------------ */
 
 .detail {
@@ -1614,15 +1669,15 @@ td .tag {
 }
 
 .guidance {
-  padding-left: 0.75rem;
-  border-left: 0.24rem solid var(--canopy);
+  padding-inline-start: 0.75rem;
+  border-inline-start: 0.24rem solid var(--canopy);
   font-weight: 650;
 }
 
 .action-card {
   padding: 0.8rem 0.9rem;
   border-color: var(--line);
-  border-left-color: var(--heat);
+  border-inline-start-color: var(--heat);
   border-radius: var(--radius-xs);
   background: var(--heat-wash);
 }
@@ -1755,13 +1810,13 @@ td .tag {
 .overview > p:not(.overview-actions) {
   margin: 0;
   padding: 0.75rem;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   font-size: 0.88rem;
 }
 
 .overview > p:nth-of-type(even) {
-  border-right: 0;
+  border-inline-end: 0;
 }
 
 .overview-fresh {
@@ -1776,7 +1831,7 @@ td .tag {
 
 .alerts,
 .area-alerts {
-  border-left: 0.3rem solid var(--heat);
+  border-inline-start: 0.3rem solid var(--heat);
 }
 
 .alerts :where(h2, h3),
@@ -1797,7 +1852,7 @@ td .tag {
 .aa-list,
 .alerts-list,
 .cooling-list {
-  padding-left: 1.3rem;
+  padding-inline-start: 1.3rem;
 }
 
 .aa-item,
@@ -1881,13 +1936,13 @@ td .tag {
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   gap: 0;
   border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
 }
 
 .legend-items li {
   min-height: 3.35rem;
   padding: 0.6rem;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   font-size: 0.8rem;
 }
@@ -1914,13 +1969,13 @@ td .tag {
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
 }
 
 .method-list li {
   margin: 0;
   padding: 0.75rem;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   font-size: 0.83rem;
 }
@@ -1968,7 +2023,7 @@ body > footer .settings-actions button {
   background-image: none;
 }
 
-:root[data-contrast="high"] .cell::before {
+:root[data-contrast="high"] .cell {
   background-image: none;
 }
 
@@ -2051,7 +2106,9 @@ body > footer .settings-actions button {
 
   .header-controls {
     width: 100%;
-    margin-left: 0;
+    min-width: 0;
+    max-width: 100%;
+    margin-inline-start: 0;
     overflow-x: auto;
     padding-bottom: 0.2rem;
   }
@@ -2061,6 +2118,8 @@ body > footer .settings-actions button {
   }
 
   .observatory-nav {
+    min-width: 0;
+    max-width: 100%;
     justify-content: flex-start;
     overflow-x: auto;
   }
@@ -2094,9 +2153,20 @@ body > footer .settings-actions button {
     font-size: clamp(3rem, 14vw, 5rem);
   }
 
+  /* Narrow columns wrap the resident answer, temporal line, and guidance onto more lines, so reserve
+     the taller mobile heights to keep the first fill from reflowing the card (see .now-reading). */
+  .now-context,
+  .now-guidance {
+    min-height: 8rem;
+  }
+
+  .now-status {
+    min-height: 4rem;
+  }
+
   .now-find {
     border-top: 1px solid var(--line-strong);
-    border-left: 0;
+    border-inline-start: 0;
   }
 
   .linked-visuals,
@@ -2141,7 +2211,7 @@ body > footer .settings-actions button {
 
   .view-switcher .status {
     width: 100%;
-    text-align: left;
+    text-align: start;
   }
 
   .view-switcher button,
@@ -2168,10 +2238,17 @@ body > footer .settings-actions button {
   }
 
   .overview > p:not(.overview-actions) {
-    border-right: 0;
+    border-inline-end: 0;
   }
 
-  .method-grid > * {
+  /* Collapse every method-grid child to a single column below this breakpoint. The base layout
+     pins `.legend` (span 8) and `.dataset-truth` (span 4) with class selectors, whose specificity
+     outranks a bare `.method-grid > *`; without matching that specificity here the legend and
+     dataset card stay side by side and the 13rem legend columns overflow a 320px viewport
+     (WCAG 1.4.10 Reflow). */
+  .method-grid > *,
+  .method-grid > .legend,
+  .method-grid > .dataset-truth {
     grid-column: 1 / -1;
   }
 

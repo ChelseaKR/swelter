@@ -1,18 +1,15 @@
 """Failure-path tests for the shared source fetch/retry and the three real-data adapters.
 
-No real network: every test stubs ``urllib.request.urlopen`` (or the adapter's ``_get_json``) and
-no-ops ``time.sleep``, so these run offline and deterministically. They cover the resilience the
-live demo depends on — a flaky connection, an HTTP 429 that then succeeds, malformed JSON, an
-empty result, and a non-retryable HTTP error — without ever touching a live service.
+No real network: every test stubs the shared HTTPS request boundary (or an adapter's
+``_get_json``) and no-ops ``time.sleep``, so these run offline and deterministically. They cover
+the resilience the live demo depends on — a flaky connection, an HTTP 429 that then succeeds,
+malformed JSON, an empty result, and a non-retryable HTTP error — without touching a live service.
 """
 
 from __future__ import annotations
 
-import io
+import json
 import time
-import urllib.error
-import urllib.request
-from email.message import Message
 from typing import Any
 
 import pytest
@@ -21,33 +18,11 @@ from swelter.sources import _http, openaq, openmeteo, sensor_community
 from swelter.sources._http import SourceError, get_json
 
 
-class _FakeResp:
-    """A minimal stand-in for an http response context manager."""
-
-    def __init__(self, body: bytes) -> None:
-        self._body = body
-
-    def __enter__(self) -> _FakeResp:
-        return self
-
-    def __exit__(self, *_: object) -> None:
-        return None
-
-    def read(self) -> bytes:
-        return self._body
-
-
-def _http_error(code: int, *, retry_after: str | None = None) -> urllib.error.HTTPError:
-    headers: Message = Message()
+def _http_error(code: int, *, retry_after: str | None = None) -> _http._HTTPStatusError:
+    headers: dict[str, str] = {}
     if retry_after is not None:
         headers["Retry-After"] = retry_after
-    return urllib.error.HTTPError(
-        url="https://example.test",
-        code=code,
-        msg="boom",
-        hdrs=headers,
-        fp=io.BytesIO(b""),
-    )
+    return _http._HTTPStatusError(code, headers)
 
 
 @pytest.fixture(autouse=True)
@@ -60,39 +35,42 @@ def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_get_json_succeeds_first_try(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(urllib.request, "urlopen", lambda *_a, **_k: _FakeResp(b'{"ok": 1}'))
+    monkeypatch.setattr(_http, "_request_json", lambda *_a, **_k: {"ok": 1})
     assert get_json("https://example.test") == {"ok": 1}
 
 
 def test_get_json_retries_on_429_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"n": 0}
 
-    def fake_urlopen(*_a: Any, **_k: Any) -> _FakeResp:
+    def fake_request(*_a: Any, **_k: Any) -> dict[str, int]:
         calls["n"] += 1
         if calls["n"] == 1:
             raise _http_error(429, retry_after="0")  # rate-limited, then it clears
-        return _FakeResp(b'{"ok": 1}')
+        return {"ok": 1}
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(_http, "_request_json", fake_request)
     assert get_json("https://example.test") == {"ok": 1}
     assert calls["n"] == 2  # one 429, then success
 
 
 def test_get_json_retries_on_malformed_json_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:
-    bodies = [b"<html>not json</html>", b'{"ok": 1}']
+    responses: list[object] = [json.JSONDecodeError("not JSON", "<html>", 0), {"ok": 1}]
 
-    def fake_urlopen(*_a: Any, **_k: Any) -> _FakeResp:
-        return _FakeResp(bodies.pop(0))
+    def fake_request(*_a: Any, **_k: Any) -> object:
+        response = responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(_http, "_request_json", fake_request)
     assert get_json("https://example.test") == {"ok": 1}  # bad body retried, good body wins
 
 
 def test_get_json_wraps_network_error_as_source_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_urlopen(*_a: Any, **_k: Any) -> _FakeResp:
+    def fake_request(*_a: Any, **_k: Any) -> object:
         raise TimeoutError("down")
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(_http, "_request_json", fake_request)
     with pytest.raises(SourceError) as exc:
         get_json("https://example.test", retries=2)
     assert isinstance(exc.value.__cause__, TimeoutError)  # original cause preserved
@@ -102,11 +80,11 @@ def test_get_json_wraps_network_error_as_source_error(monkeypatch: pytest.Monkey
 def test_get_json_does_not_retry_non_retryable_http(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"n": 0}
 
-    def fake_urlopen(*_a: Any, **_k: Any) -> _FakeResp:
+    def fake_request(*_a: Any, **_k: Any) -> object:
         calls["n"] += 1
         raise _http_error(404)  # a 404 is a caller error, not transient
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(_http, "_request_json", fake_request)
     with pytest.raises(SourceError):
         get_json("https://example.test", retries=4)
     assert calls["n"] == 1  # raised immediately, no wasted retries
@@ -115,11 +93,11 @@ def test_get_json_does_not_retry_non_retryable_http(monkeypatch: pytest.MonkeyPa
 def test_get_json_exhausts_retries_on_5xx(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = {"n": 0}
 
-    def fake_urlopen(*_a: Any, **_k: Any) -> _FakeResp:
+    def fake_request(*_a: Any, **_k: Any) -> object:
         calls["n"] += 1
         raise _http_error(503)  # server-side, retryable
 
-    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(_http, "_request_json", fake_request)
     with pytest.raises(SourceError):
         get_json("https://example.test", retries=3)
     assert calls["n"] == 3  # tried every attempt before giving up
@@ -187,23 +165,56 @@ def test_openaq_fetch_skips_a_failing_location(monkeypatch: pytest.MonkeyPatch) 
             "id": 1,
             "coordinates": {"latitude": 34.0, "longitude": -118.0},
             "name": "Good Site",
+            "provider": {"id": 7, "name": "Good Provider"},
+            "licenses": [
+                {
+                    "id": 33,
+                    "name": "US Public Domain",
+                    "attribution": {"name": "Good Provider", "url": None},
+                    "dateFrom": "2020-01-01",
+                    "dateTo": None,
+                }
+            ],
             "sensors": [{"id": 10, "parameter": {"name": "pm25"}}],
         },
         {
             "id": 2,
             "coordinates": {"latitude": 34.1, "longitude": -118.1},
             "name": "Bad Site",
+            "provider": {"id": 7, "name": "Good Provider"},
+            "licenses": [
+                {
+                    "id": 33,
+                    "name": "US Public Domain",
+                    "attribution": {"name": "Good Provider", "url": None},
+                }
+            ],
             "sensors": [{"id": 20, "parameter": {"name": "pm25"}}],
         },
     ]
     monkeypatch.setattr(openaq, "_locations", lambda *_a, **_k: locations)
 
     def fake_latest(url: str, api_key: str, **_k: Any) -> Any:
+        if "/licenses/33" in url:
+            return {
+                "results": [
+                    {
+                        "id": 33,
+                        "name": "US Public Domain",
+                        "sourceUrl": "https://www.usa.gov/government-copyright",
+                    }
+                ]
+            }
         if "/locations/2/" in url:
             raise SourceError("site 2 down")  # one flaky location
         return {
             "results": [
-                {"sensorsId": 10, "value": 12.0, "datetime": {"utc": "2026-06-17T23:00:00Z"}}
+                {
+                    "locationsId": 1,
+                    "sensorsId": 10,
+                    "value": 12.0,
+                    "datetime": {"utc": "2026-06-17T23:00:00Z"},
+                }
             ]
         }
 
@@ -219,12 +230,28 @@ def test_openaq_fetch_never_requests_out_of_state_latest(monkeypatch: pytest.Mon
             "id": 1,
             "coordinates": {"latitude": 32.6927, "longitude": -114.6277},
             "name": "Yuma",
+            "provider": {"id": 7, "name": "Provider"},
+            "licenses": [
+                {
+                    "id": 33,
+                    "name": "US Public Domain",
+                    "attribution": {"name": "Provider", "url": None},
+                }
+            ],
             "sensors": [{"id": 10, "parameter": {"name": "pm25"}}],
         },
         {
             "id": 2,
             "coordinates": {"latitude": 34.0522, "longitude": -118.2437},
             "name": "Los Angeles",
+            "provider": {"id": 7, "name": "Provider"},
+            "licenses": [
+                {
+                    "id": 33,
+                    "name": "US Public Domain",
+                    "attribution": {"name": "Provider", "url": None},
+                }
+            ],
             "sensors": [{"id": 20, "parameter": {"name": "pm25"}}],
         },
     ]
@@ -233,9 +260,24 @@ def test_openaq_fetch_never_requests_out_of_state_latest(monkeypatch: pytest.Mon
 
     def fake_latest(url: str, api_key: str, **_kwargs: Any) -> Any:
         requested.append(url)
+        if "/licenses/33" in url:
+            return {
+                "results": [
+                    {
+                        "id": 33,
+                        "name": "US Public Domain",
+                        "sourceUrl": "https://www.usa.gov/government-copyright",
+                    }
+                ]
+            }
         return {
             "results": [
-                {"sensorsId": 20, "value": 12.0, "datetime": {"utc": "2026-06-17T23:00:00Z"}}
+                {
+                    "locationsId": 2,
+                    "sensorsId": 20,
+                    "value": 12.0,
+                    "datetime": {"utc": "2026-06-17T23:00:00Z"},
+                }
             ]
         }
 
@@ -243,7 +285,10 @@ def test_openaq_fetch_never_requests_out_of_state_latest(monkeypatch: pytest.Mon
     observations, nodes = openaq.fetch("key", throttle_s=0.0)
     assert set(nodes) == {"oaq-2"}
     assert observations and {observation.node_id for observation in observations} == {"oaq-2"}
-    assert requested == [f"{openaq.API}/locations/2/latest"]
+    assert requested == [
+        f"{openaq.API}/licenses/33",
+        f"{openaq.API}/locations/2/latest",
+    ]
 
 
 # --- sensor.community: empty + failure --------------------------------------------------------

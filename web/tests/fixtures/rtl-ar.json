@@ -1,0 +1,19 @@
+{
+  "locale": "ar",
+  "messages": {
+    "document-title": "سويلتر — مرصد أدلة الحرارة والهواء في الحي",
+    "language": "اللغة",
+    "nav-now": "الآن",
+    "nav-explore": "استكشاف",
+    "nav-network": "الشبكة",
+    "nav-method": "البيانات والمنهج",
+    "now-heading": "مراقبة الحي",
+    "map-tab": "الخريطة",
+    "list-tab": "القائمة",
+    "table-tab": "الجدول",
+    "map-label": "خريطة تفاعلية لقراءات الحي",
+    "map-instructions": "استخدم مفاتيح الأسهم للتحريك، و+ أو - للتكبير، و0 لإعادة الضبط.",
+    "status": "{$n} مواقع في العرض الحالي.",
+    "braid-selected-status": "{$place} عند {$time}: {$reading}"
+  }
+}

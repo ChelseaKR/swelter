@@ -17,9 +17,9 @@ covers weeks and the heat-island story becomes visible over a season.
 
 **Impact.** Transforms the demo from a snapshot into the actual product promise: block-scale
 exposure *over time*. Researchers/journalists (E-group personas) get a real series; the compound-
-exposure surface (ADR 0009) becomes historically queryable. The store key
-`(node_id, timestamp, parameter, calibration)` with `INSERT OR IGNORE` was built for exactly this
-and is currently unused for it.
+exposure surface (ADR 0009) becomes historically queryable. The source-qualified store key
+`(node_id, timestamp, parameter, source, calibration)` with `INSERT OR IGNORE` was built for exactly
+this and is currently unused for it.
 
 **Shape.** `swelter fetch --accumulate`: open, don't unlink; persist the store between CI runs
 (GitHub Actions cache or a data branch — decide in an ADR; mind repo-size limits with FIX-09's
@@ -67,7 +67,7 @@ worked example.
 serialized only when non-empty (demo registry rebuilds byte-for-byte); `sensor_community.py` now maps
 its known sensor type onto `sensor_model` instead of discarding it; per-model bias section in
 `docs/calibration.md` states plainly that a model-typical prior is never calibration and never promotes
-a node past provisional. See `docs/decisions/0017-sensor-model-calibration-families.md`.
+a node past provisional. See `docs/adr/0017-sensor-model-calibration-families.md`.
 
 **Pitch.** Teach the pipeline what hardware produced a reading: an optional, public-safe
 `sensor_model` in `network.yaml` nodes, and per-model correction lineages (PMS5003 vs SDS011 vs
@@ -165,7 +165,7 @@ this week; every recommendation names its evidence.
 ✅ Implemented 2026-07-02 (`roadmap/exp-06-wet-bulb-globe-temperature-as-a-f`) — `models.wbgt_c()`
 (Stull 2011 wet-bulb approximation + ISO 7243 shade-WBGT form, `models.PARAMETERS["wbgt_c"]`,
 `qc._SPIKE_THRESHOLD`, `aggregate.SURFACE_PARAMETERS`, the dashboard label set (en/es, caveat
-inseparable from the value per R5), and `docs/decisions/0019-estimated-wbgt.md`. Shipped as
+inseparable from the value per R5), and `docs/adr/0019-estimated-wbgt.md`. Shipped as
 metric-plus-caveat only, per the SME gate this item names: **no guidance thresholds/bands** and
 **no black-globe firmware support** — both stay open follow-ups.
 

@@ -10,8 +10,8 @@ Honesty notes, because they matter here:
 * These are **real readings for real places**, current and hourly — not the synthetic demo. But the
   source is an atmospheric **model/reanalysis** (CAMS), **not a physical sensor on each corner**,
   and swelter does **not** calibrate it (CAMS data is already produced and QC'd upstream). Every
-  value carries ``calibration = "copernicus-cams"`` so its provenance travels with it and it is
-  never presented as a swelter-calibrated low-cost-sensor reading.
+  value carries ``source = "openmeteo"`` while calibration remains ``raw`` so its provenance
+  travels independently and it is never presented as a swelter-calibrated sensor reading.
 * The coordinates are real neighborhood centroids; Open-Meteo snaps each to its model grid cell.
 
 Attribution (required by Open-Meteo / Copernicus, and right to show): "Air-quality data from the
@@ -25,15 +25,23 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
+from ..models import (
+    SOURCE_OPENMETEO,
+    Observation,
+    format_timestamp,
+    heat_index_c,
+    parse_timestamp,
+    wbgt_c,
+)
 from ._california_places import CALIFORNIA as _CALIFORNIA_RAW
 from ._http import SourceError, get_json
 
-#: Provenance tag carried in the calibration field of every reading from this source.
-SOURCE = "copernicus-cams"
+#: Stable source identity carried separately from calibration state.
+SOURCE = SOURCE_OPENMETEO
 #: Open-Meteo re-publishes Copernicus CAMS under CC BY 4.0 (open-meteo.com/en/license); the
 #: underlying Copernicus terms are themselves attribution-only, so this is the binding term.
 LICENSE = "CC BY 4.0 (Copernicus CAMS via Open-Meteo)"
+LICENSE_URL = "https://open-meteo.com/en/license"
 ATTRIBUTION = (
     "Real hourly readings for California cities from the Copernicus Atmosphere Monitoring "
     "Service (CAMS) via Open-Meteo — atmospheric model data, not physical sensors, "
@@ -140,7 +148,7 @@ def _emit(
             parameter=parameter,
             value=round(numeric, 2),
             unit=unit,
-            calibration=SOURCE,
+            source=SOURCE,
         )
     )
 

@@ -24,10 +24,10 @@ litigation — recheck quarterly and **before any proposal**. Recheck the demand
 
 ## In one sentence
 
-swelter is the open, community-owned **trust layer** for neighborhood heat-and-air exposure: every
-reading is calibrated against a reference monitor, labeled with its uncertainty and calibration
-state, snapped to a privacy grid, served through open standards, and the collective keeps it. Any
-community can run its own instance: copy one config file
+swelter is an open, community-operated **trust layer** for neighborhood heat-and-air exposure: every
+reading states its source and calibration/QC state, calibrated values carry evidenced uncertainty,
+uncalibrated readings stay provisional, public locations use the privacy policy, and open interfaces
+keep the record portable. Any community can run its own instance: copy one config file
 ([`network.yaml`](../network.yaml)), follow [`ADD-YOUR-NEIGHBORHOOD.md`](ADD-YOUR-NEIGHBORHOOD.md),
 and the collective owns it outright — no account, no hosted service, nothing a funder or a vendor can
 switch off later.
@@ -63,14 +63,16 @@ design below is built to avoid.
   and real co-location take longer. This is the concrete mechanism behind "local ownership": there is
   no code to write, no company in the loop, and the whole store is a copyable folder a departing
   funder's grant cannot strand.
-- **Lean by design.** One runtime dependency (PyYAML); everything else is the Python standard
+- **Lean by design.** Two direct runtime dependencies (PyYAML and structlog); everything else is
+  the Python standard
   library. It runs on a Raspberry-Pi-class host with no cloud at all — cheap to run and durable
   across lean years, hedging the maintenance death-spiral that decays these networks.[^drift]
-- **Calibration is the credibility moat.** Each node is co-located against a reference monitor and
-  gets a per-node correction (humidity-aware PM in the US-EPA PurpleAir lineage, which cuts PM2.5
-  RMSE from ~8 to ~3 µg/m³); the fit, window, and residual error are committed and reproducible, and
-  every reading carries a 1-sigma uncertainty.[^barkjohn] Corrected low-cost data is **non-regulatory**
-  and complements, not replaces, reference monitors — and we say so.[^epa-nonreg]
+- **Calibration is the credibility moat.** Nodes promoted to calibrated state are co-located against
+  a reference monitor and receive an evidenced correction (humidity-aware PM follows the US-EPA
+  PurpleAir lineage); the fit, window, and residual error are recorded and reproducible. Nodes without
+  an applicable correction stay raw/provisional and do not borrow a 1-sigma claim.[^barkjohn]
+  Corrected low-cost data is **non-regulatory** and complements, not replaces, reference monitors —
+  and we say so.[^epa-nonreg]
 - **The fairness commitment is observable, not asserted.** The two-tier-map risk is real: if
   calibrated nodes cluster in one part of the network and raw nodes in another, the map can recreate
   the very inequity it exposes. swelter surfaces the calibrated-vs-raw distribution per published
@@ -109,11 +111,12 @@ design below is built to avoid.
 
 - **Ask:** seed support for hardware, a named local steward, and co-location time at a reference
   monitor (the scarce resource that decides who gets calibrated).
-- **Get:** standing, community-owned, continuous heat-and-air infrastructure that the collective can
-  run itself from a copied config file; open CC0 data with no account; a calibrated,
-  uncertainty-labeled surface a researcher or newsroom can reuse; and a WCAG 2.2 AA,
-  English-and-Spanish dashboard. The collective keeps all of it, and nothing about it depends on
-  swelter's maintainer or any hosted service continuing to exist.
+- **Get:** standing, community-operated heat-and-air infrastructure that the collective can run from
+  a copied config file; no-account, source-aware exports; calibrated values with evidenced uncertainty
+  and visibly provisional raw values; and an English/Spanish dashboard targeting WCAG 2.2 AA with
+  automated gates and equivalent map/table/list outcomes. Current manual assistive-technology and
+  independent Spanish signoff is tracked in issue #106. The collective can keep/fork the code and
+  store without depending on a swelter-hosted account.
 
 ## Honest limits (stated so they cannot be glossed)
 

@@ -203,7 +203,7 @@ def wbgt_c(temp_c: float, humidity_pct: float) -> float:
 
 
 def generate() -> None:
-    rng = random.Random(SEED)  # noqa: S311 -- deterministic synthetic demo data, not crypto/security
+    rng = random.Random(SEED)  # noqa: S311 -- deterministic synthetic demo data, not crypto/security (#107)
     nodes = build_nodes(rng)
     timestamps = [START + timedelta(hours=i) for i in range(HOURS)]
 
@@ -254,7 +254,7 @@ def generate() -> None:
         for node in nodes:
             if not node.calibrated:
                 continue
-            temp, humidity, pm25, pm10 = true_field(t, node)
+            temp, _humidity, pm25, pm10 = true_field(t, node)
             temp_raw, hum_raw, pm25_raw, pm10_raw, _, _ = raw_readings(t, node, rng)
             for parameter, raw, ref in (
                 ("temp_c", temp_raw, round(temp + rng.gauss(0, 0.1), 2)),

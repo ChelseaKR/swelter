@@ -2,16 +2,39 @@
   "name": "swelter-dashboard",
   "private": true,
   "version": "0.0.0",
-  "description": "Dev-only test tooling for the framework-free web/app.js dashboard (FIX-07). Not a runtime dependency of swelter — the dashboard itself ships zero JS dependencies.",
+  "description": "Dashboard runtime localization and conformance test tooling.",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test \"tests/**/*.test.js\""
+    "postinstall": "npm run build:i18n",
+    "test": "npm run test:unit",
+    "build:i18n": "node tests/build-i18n-runtime.cjs",
+    "i18n:extract": "node tests/i18n-extract.cjs --write",
+    "i18n:check": "node tests/i18n-extract.cjs --check",
+    "test:unit": "npm run i18n:check && node --test \"tests/**/*.test.js\"",
+    "test:browser": "playwright test --config playwright.config.cjs",
+    "test:pa11y": "node tests/run-pa11y.cjs",
+    "test:lighthouse": "node tests/run-lighthouse.cjs && node tests/performance-baseline.cjs --check",
+    "performance:baseline": "node tests/performance-baseline.cjs --write",
+    "test:a11y": "npm run test:browser && npm run test:pa11y && npm run test:lighthouse",
+    "verify": "npm run test:unit && npm run test:a11y"
+  },
+  "dependencies": {
+    "messageformat": "4.0.0-11"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.61.1",
     "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1"
+    "ajv-formats": "^3.0.1",
+    "pa11y-ci": "^4.1.1"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0 <23"
+  },
+  "overrides": {
+    "axe-core": "^4.12.1",
+    "tmp": "^0.2.6",
+    "uuid": "^11.1.1"
   }
 }

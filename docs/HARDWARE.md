@@ -137,10 +137,10 @@ sleep, repeat.
    retried in place with bounded exponential backoff; if it still fails, that payload and the rest of
    the backlog stay buffered and the flush stops, to be retried whole next cycle — so one dead link
    never spins the radio for the whole interval.
-4. **Idempotent on the server.** Each payload is idempotent on the ingest store key
-   `(node_id, timestamp, parameter, calibration)` with an `INSERT OR IGNORE` write, so a re-send of a
-   payload the server already stored is a no-op. A flush that overlaps an earlier partial send cannot
-   duplicate.
+4. **Idempotent on the server.** Each first-party payload receives the `native` source marker and is
+   idempotent on `(node_id, timestamp, parameter, source, calibration)` with an
+   `INSERT OR IGNORE` write, so a re-send of a payload the server already stored is a no-op. A flush
+   that overlaps an earlier partial send cannot duplicate.
 
 The result: an outage — network or power — becomes a backfilled gap in the record, not a hole. The
 buffer survives an abrupt reset because appends are flushed before they return and compaction is

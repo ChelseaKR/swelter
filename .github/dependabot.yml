@@ -29,3 +29,16 @@ updates:
       - "github-actions"
     cooldown:
       default-days: 7
+
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+    labels:
+      - "dependencies"
+      - "javascript"
+    cooldown:
+      default-days: 7

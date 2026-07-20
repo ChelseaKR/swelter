@@ -21,13 +21,23 @@ methods and drop in without touching ingest, calibrate, aggregate, or the API.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from .models import RAW, Observation, format_timestamp, parse_timestamp
+from .models import (
+    RAW,
+    SOURCE_NATIVE,
+    SOURCE_OPENAQ,
+    SOURCE_OPENMETEO,
+    SOURCE_SENSOR_COMMUNITY,
+    Observation,
+    format_timestamp,
+    parse_timestamp,
+)
 
 
 @dataclass(frozen=True)
@@ -66,24 +76,36 @@ class Store(Protocol):
     def close(self) -> None: ...
 
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS observations (
+_TABLE_COLUMNS = """
     node_id      TEXT    NOT NULL,
     timestamp    TEXT    NOT NULL,
     parameter    TEXT    NOT NULL,
     value        REAL    NOT NULL,
     unit         TEXT    NOT NULL,
+    source       TEXT    NOT NULL DEFAULT 'native',
     calibration  TEXT    NOT NULL,
     qc           TEXT    NOT NULL,
     uncertainty  REAL,
     content_hash TEXT    NOT NULL,
-    PRIMARY KEY (node_id, timestamp, parameter, calibration)
-);
-CREATE INDEX IF NOT EXISTS ix_obs_param ON observations (parameter, timestamp);
-CREATE INDEX IF NOT EXISTS ix_obs_node  ON observations (node_id, timestamp);
+    PRIMARY KEY (node_id, timestamp, parameter, source, calibration)
 """
 
-_COLUMNS = "node_id, timestamp, parameter, value, unit, calibration, qc, uncertainty, content_hash"
+_CREATE_TABLE = f"CREATE TABLE observations ({_TABLE_COLUMNS})"
+_CREATE_TABLE_IF_MISSING = f"CREATE TABLE IF NOT EXISTS observations ({_TABLE_COLUMNS})"
+_CREATE_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS ix_obs_param ON observations (parameter, timestamp)",
+    "CREATE INDEX IF NOT EXISTS ix_obs_node ON observations (node_id, timestamp)",
+)
+_EXPECTED_PRIMARY_KEY = ("node_id", "timestamp", "parameter", "source", "calibration")
+_LEGACY_TABLE = "observations_before_source_identity"
+_RENAME_LEGACY_TABLE = "ALTER TABLE observations RENAME TO observations_before_source_identity"
+_DROP_LEGACY_TABLE = "DROP TABLE observations_before_source_identity"
+_LEGACY_OPENAQ_NODE = re.compile(r"oaq-\d+\Z")
+_LEGACY_SENSOR_COMMUNITY_NODE = re.compile(r"sc-\d+\Z")
+
+_COLUMNS = (
+    "node_id, timestamp, parameter, value, unit, source, calibration, qc, uncertainty, content_hash"
+)
 
 
 class SqliteStore:
@@ -96,8 +118,150 @@ class SqliteStore:
         # the server is single-threaded (see swelter.server) so access stays serialised.
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
+        try:
+            self._conn.execute(_CREATE_TABLE_IF_MISSING)
+            for statement in _CREATE_INDEXES:
+                self._conn.execute(statement)
+            self._conn.commit()
+            if self._source_identity_migration_required():
+                self._migrate_source_identity_with_integrity_chain()
+        except Exception:
+            self._conn.rollback()
+            self._conn.close()
+            raise
+
+    def _table_info(self) -> list[sqlite3.Row]:
+        return self._conn.execute("PRAGMA table_info(observations)").fetchall()
+
+    def _source_identity_migration_required(self) -> bool:
+        info = self._table_info()
+        columns = {str(row["name"]) for row in info}
+        primary_key = tuple(
+            name
+            for _position, name in sorted(
+                (int(row["pk"]), str(row["name"])) for row in info if int(row["pk"])
+            )
+        )
+        return "source" not in columns or primary_key != _EXPECTED_PRIMARY_KEY
+
+    def _migrate_source_identity_with_integrity_chain(self) -> None:
+        """Migrate rows and any published digest chain as one recoverable operation."""
+        digest_path = self.path.parent / "digests.jsonl"
+        digest_existed = digest_path.is_file()
+        digest_before = digest_path.read_bytes() if digest_existed else None
+        digest_touched = False
+        try:
+            self._conn.execute("BEGIN IMMEDIATE")
+            migrated = self._migrate_source_identity()
+            if migrated and digest_existed:
+                # Local import avoids a module cycle: integrity imports SqliteStore for typing and
+                # traversal, while migration needs its canonical digest serialization at runtime.
+                from . import integrity
+
+                digest_touched = True
+                integrity.write_digests(self.path.parent, integrity.daily_digests(self))
+            self._conn.commit()
+        except Exception:
+            self._conn.rollback()
+            if digest_touched and digest_before is not None:
+                digest_path.write_bytes(digest_before)
+            raise
+
+    def _migrate_source_identity(self) -> bool:
+        """Rebuild old tables without lossy updates or ambiguous prefix matching.
+
+        Pre-source stores overloaded node ids and the ``copernicus-cams`` calibration marker with
+        provenance. Rebuilding lets CAMS become a raw Open-Meteo row while a native raw row with
+        the same node/time/parameter remains distinct under the source-inclusive primary key.
+        """
+        info = self._table_info()
+        columns = {str(row["name"]) for row in info}
+        primary_key = tuple(
+            name
+            for _position, name in sorted(
+                (int(row["pk"]), str(row["name"])) for row in info if int(row["pk"])
+            )
+        )
+        if "source" in columns and primary_key == _EXPECTED_PRIMARY_KEY:
+            return False
+
+        has_source = "source" in columns
+        select_legacy_rows = (
+            "SELECT node_id, timestamp, parameter, value, unit, source, calibration, qc, "
+            "uncertainty FROM observations"
+            if has_source
+            else "SELECT node_id, timestamp, parameter, value, unit, calibration, qc, "
+            "uncertainty FROM observations"
+        )
+        rows = self._conn.execute(select_legacy_rows).fetchall()
+        migrated: list[Observation] = []
+        for row in rows:
+            node_id = str(row["node_id"])
+            calibration = str(row["calibration"])
+            source = str(row["source"]) if has_source else SOURCE_NATIVE
+            if calibration == "copernicus-cams":
+                if not has_source or source in (SOURCE_NATIVE, SOURCE_OPENMETEO):
+                    source = SOURCE_OPENMETEO
+                    calibration = RAW
+                else:
+                    raise ValueError(
+                        "legacy CAMS calibration conflicts with explicit observation source"
+                    )
+            elif not has_source and _LEGACY_OPENAQ_NODE.fullmatch(node_id):
+                source = SOURCE_OPENAQ
+            elif not has_source and _LEGACY_SENSOR_COMMUNITY_NODE.fullmatch(node_id):
+                source = SOURCE_SENSOR_COMMUNITY
+            uncertainty = row["uncertainty"]
+            migrated.append(
+                Observation(
+                    node_id=node_id,
+                    timestamp=str(row["timestamp"]),
+                    parameter=str(row["parameter"]),
+                    value=float(row["value"]),
+                    unit=str(row["unit"]),
+                    source=source,
+                    calibration=calibration,
+                    qc=str(row["qc"]),
+                    uncertainty=None if uncertainty is None else float(uncertainty),
+                )
+            )
+
+        existing_legacy = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (_LEGACY_TABLE,)
+        ).fetchone()
+        if existing_legacy is not None:
+            raise sqlite3.OperationalError(f"stale migration table exists: {_LEGACY_TABLE}")
+        self._conn.execute(_RENAME_LEGACY_TABLE)
+        self._conn.execute(_CREATE_TABLE)
+        self._conn.executemany(
+            "INSERT INTO observations "
+            "(node_id, timestamp, parameter, value, unit, source, calibration, qc, uncertainty, "
+            "content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    observation.node_id,
+                    observation.timestamp,
+                    observation.parameter,
+                    observation.value,
+                    observation.unit,
+                    observation.source,
+                    observation.calibration,
+                    observation.qc,
+                    observation.uncertainty,
+                    observation.content_hash(),
+                )
+                for observation in migrated
+            ],
+        )
+        inserted = int(self._conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0])
+        if inserted != len(rows):
+            raise sqlite3.IntegrityError(
+                f"source identity migration retained {inserted} of {len(rows)} rows"
+            )
+        self._conn.execute(_DROP_LEGACY_TABLE)
+        for statement in _CREATE_INDEXES:
+            self._conn.execute(statement)
+        return True
 
     def write(self, observations: Iterable[Observation]) -> WriteResult:
         rows = [
@@ -107,6 +271,7 @@ class SqliteStore:
                 o.parameter,
                 o.value,
                 o.unit,
+                o.source,
                 o.calibration,
                 o.qc,
                 o.uncertainty,
@@ -119,7 +284,9 @@ class SqliteStore:
         before = self._total_changes()
         # `_COLUMNS` is a fixed module-level constant, not user input; row values are bound via `?`.
         self._conn.executemany(
-            f"INSERT OR IGNORE INTO observations ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",  # noqa: S608
+            "INSERT OR IGNORE INTO observations "
+            "(node_id, timestamp, parameter, value, unit, source, calibration, qc, uncertainty, "
+            "content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         self._conn.commit()
@@ -158,18 +325,19 @@ class SqliteStore:
         # `clauses` are fixed column-name strings from the enumerated kwargs above (never user
         # text); every value is bound via `?` in `params`. `_COLUMNS` is a fixed constant too.
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
-        sql = f"SELECT {_COLUMNS} FROM observations{where} ORDER BY node_id, parameter, timestamp"  # noqa: S608
+        sql = f"SELECT {_COLUMNS} FROM observations{where} ORDER BY node_id, parameter, timestamp"  # noqa: S608 (#107)
         # This is stdlib sqlite3 (no SQLAlchemy in this project at all); `sql` is built from fixed
         # column/clause strings above, never user text, and every value is bound via `?`.
-        # nosemgrep: sqlalchemy-execute-raw-query
+        # nosemgrep: sqlalchemy-execute-raw-query (#107)
         cur = self._conn.execute(sql, params)
         return [_row_to_obs(row) for row in cur.fetchall()]
 
     def all(self) -> Iterator[Observation]:
-        # `_COLUMNS` is a fixed module-level constant, not user input; no values are interpolated.
-        # nosemgrep: formatted-sql-query,sqlalchemy-execute-raw-query
+        # This is a fixed, parameter-free sqlite3 query (not SQLAlchemy or caller-provided SQL).
+        # nosemgrep: sqlalchemy-execute-raw-query (#107)
         cur = self._conn.execute(
-            f"SELECT {_COLUMNS} FROM observations ORDER BY node_id, parameter, timestamp"  # noqa: S608
+            "SELECT node_id, timestamp, parameter, value, unit, source, calibration, qc, "
+            "uncertainty, content_hash FROM observations ORDER BY node_id, parameter, timestamp"
         )
         for row in cur:
             yield _row_to_obs(row)
@@ -185,11 +353,12 @@ class SqliteStore:
         :meth:`all` — deterministic, and lets a caller fold hashes into daily digests in one pass
         without buffering the whole store.
         """
-        # `_COLUMNS` is a fixed module-level constant, not user input; no values are interpolated.
-        # nosemgrep: formatted-sql-query,sqlalchemy-execute-raw-query
+        # This is a fixed, parameter-free sqlite3 query (not SQLAlchemy or caller-provided SQL).
+        # nosemgrep: sqlalchemy-execute-raw-query (#107)
         cur = self._conn.execute(
-            f"SELECT {_COLUMNS} FROM observations "  # noqa: S608
-            "ORDER BY substr(timestamp, 1, 10), node_id, parameter, timestamp"
+            "SELECT node_id, timestamp, parameter, value, unit, source, calibration, qc, "
+            "uncertainty, content_hash FROM observations ORDER BY substr(timestamp, 1, 10), "
+            "node_id, parameter, timestamp"
         )
         for row in cur:
             yield _row_to_obs(row), str(row["content_hash"])
@@ -253,6 +422,7 @@ def _row_to_obs(row: sqlite3.Row) -> Observation:
         parameter=str(row["parameter"]),
         value=float(row["value"]),
         unit=str(row["unit"]),
+        source=str(row["source"]),
         calibration=str(row["calibration"]),
         qc=str(row["qc"]),
         uncertainty=None if uncertainty is None else float(uncertainty),

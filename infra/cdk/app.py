@@ -10,8 +10,7 @@ nothing community-specific is baked into the code:
 
     cdk deploy -c budget_email=alerts@example.org -c monthly_budget_usd=5
 
-Run from this directory with the AWS CDK Toolkit (npm i -g aws-cdk) and the Python deps in
-requirements.txt installed.
+Run from this directory through the root lockfile and the exact CLI version named in the Makefile.
 """
 
 from __future__ import annotations
@@ -37,7 +36,9 @@ SwelterServerlessStack(
         account=None,  # picked up from the deploying credentials
         region=None,  # set CDK_DEFAULT_REGION or pass -c, or leave to the default profile
     ),
-    description="OPTIONAL scale-to-zero copy of the swelter dashboard. Not required to run swelter.",
+    description=(
+        "OPTIONAL scale-to-zero copy of the swelter dashboard. Not required to run swelter."
+    ),
 )
 
 app.synth()

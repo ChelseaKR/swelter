@@ -23,13 +23,22 @@ from __future__ import annotations
 
 import contextlib
 import math
+import re
 import time
-from collections.abc import Callable
-from dataclasses import replace
-from datetime import timedelta
-from typing import Any
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
+from typing import Any, TypeGuard
+from urllib.parse import urlsplit
 
-from ..models import Observation, format_timestamp, heat_index_c, parse_timestamp, wbgt_c
+from ..models import (
+    SOURCE_OPENAQ,
+    Observation,
+    format_timestamp,
+    heat_index_c,
+    parse_timestamp,
+    wbgt_c,
+)
 from . import _california_boundary
 from ._http import SourceError, get_json
 
@@ -37,10 +46,19 @@ API = "https://api.openaq.org/v3"
 #: OpenAQ's terms defer to each original provider's license. Until the export carries the v3
 #: per-location license ledger, this deliberately refuses to assert a blanket CC license.
 LICENSE = "Provider-specific terms (see OpenAQ location metadata)"
+LICENSE_URL = "https://docs.openaq.org/about/terms"
 ATTRIBUTION = (
     "Real readings accessed via OpenAQ; original-provider licenses and attribution vary by "
     "location (docs.openaq.org/about/terms). Uncalibrated, so shown raw / provisional."
 )
+LICENSE_LEDGER_FILENAME = "source-license-ledger.json"
+_NODE_ID = re.compile(r"^oaq-(\d+)$")
+
+
+def _is_positive_id(value: object) -> TypeGuard[int]:
+    """OpenAQ IDs are positive integers; JSON booleans must not pass as ``1``/``0``."""
+    return type(value) is int and value > 0
+
 
 #: California bounding box (west, south, east, north).
 CALIFORNIA_BBOX = (-124.5, 32.5, -114.1, 42.05)
@@ -130,22 +148,536 @@ def _sensor_parameters(locations: list[dict[str, Any]]) -> dict[int, tuple[str, 
                 continue
             name = (sensor.get("parameter") or {}).get("name")
             sid = sensor.get("id")
-            if name in _PARAM and isinstance(sid, int):
+            if name in _PARAM and _is_positive_id(sid):
                 sensor_param[sid] = _PARAM[name]
     return sensor_param
 
 
+def _license_catalog(locations: list[dict[str, Any]], api_key: str) -> dict[int, dict[str, Any]]:
+    """Resolve every referenced location-license ID to its authoritative license resource."""
+    ids: set[int] = set()
+    for location in locations:
+        licenses = location.get("licenses")
+        if not isinstance(licenses, list):
+            continue
+        for license_ref in licenses:
+            if isinstance(license_ref, dict) and _is_positive_id(license_ref.get("id")):
+                ids.add(license_ref["id"])
+
+    catalog: dict[int, dict[str, Any]] = {}
+    for license_id in sorted(ids):
+        payload = _get_json(f"{API}/licenses/{license_id}", api_key)
+        results = payload.get("results", []) if isinstance(payload, dict) else []
+        detail = results[0] if isinstance(results, list) and results else None
+        if (
+            not isinstance(detail, dict)
+            or not _is_positive_id(detail.get("id"))
+            or detail.get("id") != license_id
+        ):
+            raise SourceError(f"OpenAQ license {license_id} metadata is unavailable")
+        if not isinstance(detail.get("name"), str) or not isinstance(detail.get("sourceUrl"), str):
+            raise SourceError(f"OpenAQ license {license_id} lacks a name or source URL")
+        catalog[license_id] = detail
+    return catalog
+
+
+def build_license_ledger(
+    locations: list[dict[str, Any]],
+    catalog: dict[int, dict[str, Any]],
+    *,
+    fetched_at: str | None = None,
+) -> dict[str, Any]:
+    """Build a per-location OpenAQ license/attribution ledger from v3 metadata."""
+    fetched = fetched_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    entries: list[dict[str, Any]] = []
+    excluded: list[dict[str, Any]] = []
+    for location in locations:
+        location_id = location.get("id")
+        if not _is_positive_id(location_id):
+            continue
+        location_name = str(location.get("name") or f"Site {location_id}")
+        provider_raw = location.get("provider")
+        provider = (
+            str(provider_raw.get("name"))
+            if isinstance(provider_raw, dict) and provider_raw.get("name")
+            else ""
+        )
+        license_refs = location.get("licenses")
+        if not isinstance(license_refs, list) or not license_refs:
+            excluded.append(
+                {
+                    "location_id": location_id,
+                    "location_name": location_name,
+                    "reason": "OpenAQ returned no location license metadata",
+                }
+            )
+            continue
+        location_entries = 0
+        for license_ref in license_refs:
+            if not isinstance(license_ref, dict) or not _is_positive_id(license_ref.get("id")):
+                continue
+            detail = catalog.get(license_ref["id"])
+            if detail is None:
+                continue
+            attribution_raw = license_ref.get("attribution")
+            attribution = (
+                str(attribution_raw.get("name"))
+                if isinstance(attribution_raw, dict) and attribution_raw.get("name")
+                else ""
+            )
+            attribution_url = (
+                str(attribution_raw.get("url"))
+                if isinstance(attribution_raw, dict) and attribution_raw.get("url")
+                else ""
+            )
+            unavailable = [
+                field
+                for field, value in (("provider", provider), ("attribution", attribution))
+                if not value
+            ]
+            entries.append(
+                {
+                    "location_id": location_id,
+                    "license_id": license_ref["id"],
+                    "location_name": location_name,
+                    "provider": provider,
+                    "license_name": str(detail["name"]),
+                    "license_url": str(detail["sourceUrl"]),
+                    "attribution": attribution,
+                    "attribution_url": attribution_url,
+                    "valid_from": license_ref.get("dateFrom"),
+                    "valid_to": license_ref.get("dateTo"),
+                    "upstream_url": f"{API}/locations/{location_id}",
+                    "fetched_at": fetched,
+                    "unavailable_fields": unavailable,
+                }
+            )
+            location_entries += 1
+        if not location_entries:
+            excluded.append(
+                {
+                    "location_id": location_id,
+                    "location_name": location_name,
+                    "reason": "OpenAQ license references could not be resolved",
+                }
+            )
+    return {
+        "schema_version": 1,
+        "source": "OpenAQ v3",
+        "generated_at": fetched,
+        "entries": entries,
+        "excluded_locations": excluded,
+    }
+
+
+_LEDGER_FIELDS = frozenset(
+    {"schema_version", "source", "generated_at", "entries", "excluded_locations"}
+)
+_ENTRY_FIELDS = frozenset(
+    {
+        "location_id",
+        "license_id",
+        "location_name",
+        "provider",
+        "license_name",
+        "license_url",
+        "attribution",
+        "attribution_url",
+        "valid_from",
+        "valid_to",
+        "upstream_url",
+        "fetched_at",
+        "unavailable_fields",
+    }
+)
+_EXCLUDED_FIELDS = frozenset({"location_id", "location_name", "reason"})
+_UNAVAILABLE_FIELDS = frozenset({"provider", "attribution"})
+
+
+def _normalized_text(value: object, *, required: bool) -> str:
+    if not isinstance(value, str) or value != value.strip():
+        raise ValueError("OpenAQ ledger text must be a normalized string")
+    if required and not value:
+        raise ValueError("OpenAQ ledger text must not be empty")
+    if any(ord(character) < 32 for character in value):
+        raise ValueError("OpenAQ ledger text must not contain control characters")
+    return value
+
+
+def _normalized_timestamp(value: object) -> str:
+    text = _normalized_text(value, required=True)
+    try:
+        parsed = datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except ValueError as exc:
+        raise ValueError("OpenAQ ledger timestamp must be canonical UTC ISO-8601") from exc
+    if format_timestamp(parsed) != text:
+        raise ValueError("OpenAQ ledger timestamp must be canonical UTC ISO-8601")
+    return text
+
+
+def _normalized_date(value: object) -> str | None:
+    if value is None:
+        return None
+    text = _normalized_text(value, required=True)
+    try:
+        parsed = date.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError("OpenAQ license validity must be an ISO-8601 date") from exc
+    if parsed.isoformat() != text:
+        raise ValueError("OpenAQ license validity must be a normalized ISO-8601 date")
+    return text
+
+
+def _normalized_https_url(value: object, *, required: bool) -> str:
+    text = _normalized_text(value, required=required)
+    if not text and not required:
+        return ""
+    try:
+        parsed = urlsplit(text)
+        hostname = parsed.hostname
+        _port = parsed.port  # validate a supplied port rather than leaving a latent ValueError
+    except ValueError as exc:
+        raise ValueError("OpenAQ ledger URL is malformed") from exc
+    if (
+        parsed.scheme != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("OpenAQ ledger URLs must be absolute credential-free HTTPS URLs")
+    return text
+
+
+@dataclass(frozen=True)
+class _NormalizedEntry:
+    location_id: int
+    license_id: int
+    location_name: str
+    provider: str
+    license_name: str
+    license_url: str
+    attribution: str
+    attribution_url: str
+    valid_from: str | None
+    valid_to: str | None
+    upstream_url: str
+    fetched_at: str
+    unavailable_fields: tuple[str, ...]
+
+    @property
+    def identity(self) -> tuple[object, ...]:
+        return (
+            self.location_id,
+            self.license_id,
+            self.license_name,
+            self.license_url,
+            self.valid_from,
+            self.valid_to,
+            self.provider,
+            self.attribution,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "location_id": self.location_id,
+            "license_id": self.license_id,
+            "location_name": self.location_name,
+            "provider": self.provider,
+            "license_name": self.license_name,
+            "license_url": self.license_url,
+            "attribution": self.attribution,
+            "attribution_url": self.attribution_url,
+            "valid_from": self.valid_from,
+            "valid_to": self.valid_to,
+            "upstream_url": self.upstream_url,
+            "fetched_at": self.fetched_at,
+            "unavailable_fields": list(self.unavailable_fields),
+        }
+
+
+@dataclass(frozen=True)
+class _NormalizedExclusion:
+    location_id: int
+    location_name: str
+    reason: str
+
+    @property
+    def identity(self) -> tuple[int, str, str]:
+        return (self.location_id, self.location_name, self.reason)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "location_id": self.location_id,
+            "location_name": self.location_name,
+            "reason": self.reason,
+        }
+
+
+@dataclass(frozen=True)
+class _NormalizedLedger:
+    generated_at: str
+    entries: tuple[_NormalizedEntry, ...]
+    excluded_locations: tuple[_NormalizedExclusion, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "source": "OpenAQ v3",
+            "generated_at": self.generated_at,
+            "entries": [entry.to_dict() for entry in self.entries],
+            "excluded_locations": [item.to_dict() for item in self.excluded_locations],
+        }
+
+
+def _normalize_entry(raw: dict[str, Any]) -> _NormalizedEntry:
+    if set(raw) != _ENTRY_FIELDS:
+        raise ValueError("OpenAQ ledger entry has an unexpected shape")
+    location_id = raw["location_id"]
+    license_id = raw["license_id"]
+    if not _is_positive_id(location_id) or not _is_positive_id(license_id):
+        raise ValueError("OpenAQ ledger IDs must be positive non-boolean integers")
+
+    provider = _normalized_text(raw["provider"], required=False)
+    attribution = _normalized_text(raw["attribution"], required=False)
+    unavailable_raw = raw["unavailable_fields"]
+    if not isinstance(unavailable_raw, list) or not all(
+        isinstance(field, str) for field in unavailable_raw
+    ):
+        raise ValueError("OpenAQ unavailable_fields must be a string array")
+    unavailable = tuple(sorted(unavailable_raw))
+    if len(unavailable) != len(set(unavailable)) or not set(unavailable) <= _UNAVAILABLE_FIELDS:
+        raise ValueError("OpenAQ unavailable_fields contains duplicates or unknown names")
+    expected_unavailable = {
+        field
+        for field, value in (("provider", provider), ("attribution", attribution))
+        if not value
+    }
+    if set(unavailable) != expected_unavailable or not (provider or attribution):
+        raise ValueError("OpenAQ provider/attribution availability evidence is inconsistent")
+
+    valid_from = _normalized_date(raw["valid_from"])
+    valid_to = _normalized_date(raw["valid_to"])
+    if (
+        valid_from is not None
+        and valid_to is not None
+        and date.fromisoformat(valid_from) > date.fromisoformat(valid_to)
+    ):
+        raise ValueError("OpenAQ license validity starts after it ends")
+
+    return _NormalizedEntry(
+        location_id=location_id,
+        license_id=license_id,
+        location_name=_normalized_text(raw["location_name"], required=True),
+        provider=provider,
+        license_name=_normalized_text(raw["license_name"], required=True),
+        license_url=_normalized_https_url(raw["license_url"], required=True),
+        attribution=attribution,
+        attribution_url=_normalized_https_url(raw["attribution_url"], required=False),
+        valid_from=valid_from,
+        valid_to=valid_to,
+        upstream_url=_normalized_https_url(raw["upstream_url"], required=True),
+        fetched_at=_normalized_timestamp(raw["fetched_at"]),
+        unavailable_fields=unavailable,
+    )
+
+
+def _normalize_exclusion(raw: dict[str, Any]) -> _NormalizedExclusion:
+    if set(raw) != _EXCLUDED_FIELDS or not _is_positive_id(raw.get("location_id")):
+        raise ValueError("OpenAQ excluded location has an unexpected shape or invalid ID")
+    return _NormalizedExclusion(
+        location_id=raw["location_id"],
+        location_name=_normalized_text(raw["location_name"], required=True),
+        reason=_normalized_text(raw["reason"], required=True),
+    )
+
+
+def _normalized_ledger(ledger: object) -> _NormalizedLedger | None:
+    try:
+        if not isinstance(ledger, dict) or set(ledger) != _LEDGER_FIELDS:
+            return None
+        schema_version = ledger["schema_version"]
+        if (
+            type(schema_version) is not int
+            or schema_version != 1
+            or ledger["source"] != "OpenAQ v3"
+        ):
+            return None
+        generated_at = _normalized_timestamp(ledger["generated_at"])
+        entries_raw = ledger["entries"]
+        exclusions_raw = ledger["excluded_locations"]
+        if not isinstance(entries_raw, list) or not entries_raw:
+            return None
+        if not isinstance(exclusions_raw, list):
+            return None
+        if not all(isinstance(item, dict) for item in [*entries_raw, *exclusions_raw]):
+            return None
+        entries = tuple(_normalize_entry(item) for item in entries_raw)
+        exclusions = tuple(_normalize_exclusion(item) for item in exclusions_raw)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    identities = [entry.identity for entry in entries]
+    exclusion_identities = [item.identity for item in exclusions]
+    if len(identities) != len(set(identities)) or len(exclusion_identities) != len(
+        set(exclusion_identities)
+    ):
+        return None
+    generated = datetime.strptime(generated_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    if any(
+        datetime.strptime(entry.fetched_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) > generated
+        for entry in entries
+    ):
+        return None
+    return _NormalizedLedger(generated_at, entries, exclusions)
+
+
+def _validity_boundary(value: object, *, end: bool) -> datetime | None:
+    normalized = _normalized_date(value)
+    if normalized is None:
+        return None
+    parsed = date.fromisoformat(normalized)
+    boundary = datetime(parsed.year, parsed.month, parsed.day, tzinfo=UTC)
+    return boundary + timedelta(days=1) if end else boundary
+
+
+def _entry_covers(entry: dict[str, Any], observation: Observation) -> bool:
+    try:
+        timestamp = parse_timestamp(observation.timestamp)
+        start = _validity_boundary(entry.get("valid_from"), end=False)
+        end = _validity_boundary(entry.get("valid_to"), end=True)
+    except (TypeError, ValueError):
+        return False
+    return (start is None or timestamp >= start) and (end is None or timestamp < end)
+
+
+def _ledger_entries(ledger: object) -> list[dict[str, Any]] | None:
+    normalized = _normalized_ledger(ledger)
+    return None if normalized is None else [entry.to_dict() for entry in normalized.entries]
+
+
+def _observations_have_terms(
+    observations: Iterable[Observation], entries_by_location: dict[int, list[dict[str, Any]]]
+) -> bool:
+    for observation in observations:
+        match = _NODE_ID.fullmatch(observation.node_id)
+        if match is None:
+            return False
+        candidates = entries_by_location.get(int(match.group(1)), [])
+        if not any(_entry_covers(entry, observation) for entry in candidates):
+            return False
+    return True
+
+
+def validate_license_ledger(ledger: object, *, observations: Iterable[Observation] = ()) -> bool:
+    """Return whether a ledger is complete for the OpenAQ observations being released."""
+    normalized = _normalized_ledger(ledger)
+    if normalized is None:
+        return False
+    entries_by_location: dict[int, list[dict[str, Any]]] = {}
+    for normalized_entry in normalized.entries:
+        entry = normalized_entry.to_dict()
+        entries_by_location.setdefault(entry["location_id"], []).append(entry)
+    return _observations_have_terms(observations, entries_by_location)
+
+
+def license_terms_by_observation(
+    ledger: object, observations: Iterable[Observation]
+) -> dict[tuple[str, str, str], dict[str, str]]:
+    """Resolve the exact provider terms covering each exported observation timestamp."""
+    items = list(observations)
+    entries = _ledger_entries(ledger)
+    if entries is None or not validate_license_ledger(ledger, observations=items):
+        raise ValueError("OpenAQ ledger does not cover every observation")
+    entries_by_location: dict[int, list[dict[str, Any]]] = {}
+    for entry in entries:
+        entries_by_location.setdefault(entry["location_id"], []).append(entry)
+
+    resolved: dict[tuple[str, str, str], dict[str, str]] = {}
+    for observation in items:
+        match = _NODE_ID.fullmatch(observation.node_id)
+        if match is None:  # validate_license_ledger already rejects this; keep the boundary local.
+            raise ValueError(f"invalid OpenAQ node identity: {observation.node_id}")
+        covering = [
+            entry
+            for entry in entries_by_location[int(match.group(1))]
+            if _entry_covers(entry, observation)
+        ]
+        licenses = sorted(
+            {f"{entry['license_name']} ({entry['license_url']})" for entry in covering}
+        )
+        attributions = sorted(
+            {
+                str(entry.get("attribution") or entry.get("provider"))
+                for entry in covering
+                if entry.get("attribution") or entry.get("provider")
+            }
+        )
+        resolved[(observation.node_id, observation.timestamp, observation.source)] = {
+            "license": "; ".join(licenses),
+            "attribution": "; ".join(attributions),
+        }
+    return resolved
+
+
+def merge_license_ledgers(previous: object, current: object) -> dict[str, Any]:
+    """Union two strictly valid ledgers without dropping historical terms."""
+    previous_normalized = _normalized_ledger(previous)
+    current_normalized = _normalized_ledger(current)
+    if previous_normalized is None or current_normalized is None:
+        raise ValueError("cannot accumulate an invalid OpenAQ source-license ledger")
+
+    merged_entries: dict[tuple[object, ...], _NormalizedEntry] = {}
+    for entry in [*previous_normalized.entries, *current_normalized.entries]:
+        identity = entry.identity
+        prior = merged_entries.get(identity)
+        if prior is None or entry.fetched_at >= prior.fetched_at:
+            merged_entries[identity] = entry
+
+    exclusions = {
+        item.identity: item
+        for item in [
+            *previous_normalized.excluded_locations,
+            *current_normalized.excluded_locations,
+        ]
+    }
+    merged = {
+        "schema_version": 1,
+        "source": "OpenAQ v3",
+        "generated_at": current_normalized.generated_at,
+        "entries": sorted(
+            (entry.to_dict() for entry in merged_entries.values()),
+            key=lambda entry: (
+                entry["location_id"],
+                str(entry.get("valid_from") or ""),
+                str(entry.get("valid_to") or ""),
+                entry["license_id"],
+                entry["license_name"],
+            ),
+        ),
+        "excluded_locations": [exclusions[key].to_dict() for key in sorted(exclusions)],
+    }
+    if not validate_license_ledger(merged):
+        raise ValueError("merged OpenAQ source-license ledger is invalid")
+    return merged
+
+
 def parse_latest(
-    node_id: str, results: list[Any], sensor_param: dict[int, tuple[str, str]]
+    location_id: int, results: list[Any], sensor_param: dict[int, tuple[str, str]]
 ) -> list[Observation]:
-    """Map a location's /latest results to raw observations (pure — no network)."""
+    """Map one location's `/latest` rows, rejecting records bound to any other location."""
+    if not _is_positive_id(location_id):
+        return []
+    node_id = f"oaq-{location_id}"
     out: list[Observation] = []
     seen: dict[str, tuple[float, str]] = {}
     for row in results:
         if not isinstance(row, dict):
             continue
+        row_location_id = row.get("locationsId")
+        if not _is_positive_id(row_location_id) or row_location_id != location_id:
+            continue
         sid = row.get("sensorsId", row.get("sensorId"))
-        param_unit = sensor_param.get(sid) if isinstance(sid, int) else None
+        param_unit = sensor_param.get(sid) if _is_positive_id(sid) else None
         if not param_unit:
             continue
         parameter, unit = param_unit
@@ -168,6 +700,7 @@ def parse_latest(
                 parameter=parameter,
                 value=round(numeric, 2),
                 unit=unit,
+                source=SOURCE_OPENAQ,
             )
         )
         seen[parameter] = (numeric, ts)
@@ -182,6 +715,7 @@ def parse_latest(
                     parameter="heat_index_c",
                     value=round(hi, 2),
                     unit="degC",
+                    source=SOURCE_OPENAQ,
                 )
             )
         with contextlib.suppress(TypeError, ValueError):
@@ -193,6 +727,7 @@ def parse_latest(
                     parameter="wbgt_c",
                     value=round(wbgt, 2),
                     unit="degC",
+                    source=SOURCE_OPENAQ,
                 )
             )
     return out
@@ -204,6 +739,7 @@ def fetch(
     bbox: tuple[float, float, float, float] = CALIFORNIA_BBOX,
     max_locations: int = 200,
     throttle_s: float = 1.1,
+    license_ledger: dict[str, Any] | None = None,
 ) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
     """Fetch each California sensor location in the bbox (one ``/latest`` call per site).
 
@@ -214,6 +750,12 @@ def fetch(
     """
     locations = _locations(bbox, api_key, max_locations=max_locations, include=_in_california)
     locations = [location for location in locations if _in_california(location)]
+    catalog = _license_catalog(locations, api_key)
+    ledger = build_license_ledger(locations, catalog)
+    eligible_location_ids = {
+        entry["location_id"] for entry in ledger["entries"] if isinstance(entry, dict)
+    }
+    locations = [location for location in locations if location.get("id") in eligible_location_ids]
     sensor_param = _sensor_parameters(locations)
     out: list[Observation] = []
     nodes: dict[str, tuple[str, float, float]] = {}
@@ -223,40 +765,50 @@ def fetch(
         if coordinates is None:
             continue
         lat, lon = coordinates
-        if not isinstance(lid, int):
+        if not _is_positive_id(lid):
             continue
+        location_id = int(lid)
         try:
-            payload = _get_json(f"{API}/locations/{lid}/latest", api_key)
+            payload = _get_json(f"{API}/locations/{location_id}/latest", api_key)
         except (SourceError, OSError, ValueError):
             continue  # skip this site; one flaky location must not sink the run
         results = payload.get("results", []) if isinstance(payload, dict) else []
         if throttle_s:
             time.sleep(throttle_s)
-        node_id = f"oaq-{lid}"
-        emitted = parse_latest(node_id, results if isinstance(results, list) else [], sensor_param)
+        node_id = f"oaq-{location_id}"
+        emitted = parse_latest(
+            location_id, results if isinstance(results, list) else [], sensor_param
+        )
         if emitted:
             out += emitted
             nodes[node_id] = (str(loc.get("name") or f"Site {lid}"), lat, lon)
     out = _to_snapshot(out)
     live = {o.node_id for o in out}
     nodes = {nid: meta for nid, meta in nodes.items() if nid in live}
+    ledger["entries"] = [
+        entry for entry in ledger["entries"] if f"oaq-{entry['location_id']}" in live
+    ]
+    if out and not validate_license_ledger(ledger, observations=out):
+        raise SourceError("OpenAQ readings have no publishable per-location license ledger")
+    if license_ledger is not None:
+        license_ledger.clear()
+        license_ledger.update(ledger)
     return out, nodes
 
 
 def _to_snapshot(observations: list[Observation], *, window_h: float = 6.0) -> list[Observation]:
-    """Collapse "latest" readings to a single most-recent hour. Each sensor reports on its own
-    clock, so otherwise they scatter across hourly buckets and any single hour looks sparse.
-    /latest is a snapshot, so present it as one: drop readings staler than ``window_h`` before the
-    newest, and stamp the rest at the newest hour — the live network at once, like an AQI map."""
+    """Drop stale ``/latest`` rows without rewriting the provider's measurement timestamps.
+
+    The visualization may choose a display window, but stored/exported facts keep their observed
+    time. Re-stamping rows can cross a provider-license validity boundary and would destroy temporal
+    provenance.
+    """
     if not observations:
         return observations
     times = [parse_timestamp(o.timestamp) for o in observations]
     newest = max(times)
     cutoff = newest - timedelta(hours=window_h)
-    snap = format_timestamp(newest.replace(minute=0, second=0, microsecond=0))
-    return [
-        replace(o, timestamp=snap) for o, t in zip(observations, times, strict=True) if t >= cutoff
-    ]
+    return [o for o, timestamp in zip(observations, times, strict=True) if timestamp >= cutoff]
 
 
 def network_doc(
