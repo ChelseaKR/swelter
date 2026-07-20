@@ -206,9 +206,17 @@ def test_pages_rewrites_only_the_route_scoped_cache_release() -> None:
 def test_static_runtime_uses_baked_files_without_api_probes() -> None:
     app = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
 
-    assert "state.demo = await loadDemoContract()" in app
+    # The boot fetches run in parallel (F16): the contract probe starts first and is awaited
+    # before any surface fetch, because it decides whether /api/* may be touched at all.
+    assert "const demoReady = loadDemoContract()" in app
+    assert "state.demo = await demoReady" in app
     assert 'isStaticDeployment() ? null : await fetchJson("api/alerts.json")' in app
-    assert '? await fetchSurface("sample-surface.json")' in app
+    assert (
+        'isStaticDeployment()\n    ? fetchSurface("sample-surface.json")\n'
+        "    : (async () =>\n"
+        '        (await fetchSurface("api/surface.json?hours=1")) ||\n'
+        '        (await fetchSurface("sample-surface.json")))()' in app
+    )
     assert 'isStaticDeployment()\n    ? await fetchSurface("surface-7d.json")' in app
     assert ': await fetchSurface("api/surface.json?hours=168")' in app
 

@@ -421,18 +421,48 @@ test("visible keyboard targets remain at least partly exposed after focus", asyn
   const failures = [];
   for (const tabId of ["tab-map", "tab-list", "tab-table"]) {
     await page.locator(`#${tabId}`).click();
+    // Put the active browser engine in keyboard modality first: :focus-visible propagates from a
+    // keyboard-visible focus to subsequent script focus() moves, so the whole sweep exercises the
+    // same indicator styling a keyboard user sees.
+    await page.keyboard.press("Tab");
     // Disabled controls (e.g. "smaller text" at the minimum size) are intentionally unfocusable, so
-    // they are not keyboard targets and are excluded from the focus-exposure sweep.
-    const targets = page.locator(
-      'a[href]:visible, button:not(:disabled):visible, input:not(:disabled):visible, select:not(:disabled):visible, textarea:not(:disabled):visible, summary:visible, [tabindex]:not([tabindex="-1"]):visible',
-    );
-    for (let index = 0; index < await targets.count(); index += 1) {
-      const target = targets.nth(index);
-      await target.scrollIntoViewIfNeeded();
-      // Put the active browser engine in keyboard modality so traversal exercises :focus-visible.
-      await page.keyboard.press("Tab");
-      await target.focus();
-      const result = await target.evaluate((element) => {
+    // they are not keyboard targets and are excluded from the focus-exposure sweep. The sweep runs
+    // as one in-page pass per view: with ~200 targets per view, per-target protocol round-trips
+    // push slower engines past any workable timeout, without checking anything extra.
+    const results = await page.evaluate(() => {
+      const selector = [
+        "a[href]",
+        "button:not(:disabled)",
+        "input:not(:disabled)",
+        "select:not(:disabled)",
+        "textarea:not(:disabled)",
+        "summary",
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(", ");
+      // Same visibility contract as Playwright's `:visible`: a non-empty bounding box, not
+      // `visibility: hidden`, and not slotted away inside a closed <details> (its summary stays
+      // visible; the rest of its content is not keyboard-reachable until opened).
+      const hiddenInClosedDetails = (element) => {
+        for (
+          let details = element.closest("details");
+          details;
+          details = details.parentElement?.closest("details")
+        ) {
+          if (!details.open) {
+            const summary = details.querySelector(":scope > summary");
+            if (!summary || !summary.contains(element)) return true;
+          }
+        }
+        return false;
+      };
+      const sweep = [];
+      for (const element of document.querySelectorAll(selector)) {
+        const size = element.getBoundingClientRect();
+        if (size.width <= 0 || size.height <= 0) continue;
+        if (getComputedStyle(element).visibility === "hidden") continue;
+        if (hiddenInClosedDetails(element)) continue;
+        element.scrollIntoView({ behavior: "instant", block: "center", inline: "nearest" });
+        element.focus({ preventScroll: true });
         const box = element.getBoundingClientRect();
         const insetX = Math.min(2, box.width / 2);
         const insetY = Math.min(2, box.height / 2);
@@ -452,15 +482,18 @@ test("visible keyboard targets remain at least partly exposed after focus", asyn
         const indicator =
           (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0) ||
           style.boxShadow !== "none";
-        return {
-          exposed,
-          indicator,
-          target: element.id || element.getAttribute("data-cell") || element.textContent?.trim().slice(0, 60),
-          box: { x: box.x, y: box.y, width: box.width, height: box.height },
-        };
-      });
-      if (!result.exposed || !result.indicator) failures.push({ tabId, ...result });
-    }
+        if (!exposed || !indicator) {
+          sweep.push({
+            exposed,
+            indicator,
+            target: element.id || element.getAttribute("data-cell") || element.textContent?.trim().slice(0, 60),
+            box: { x: box.x, y: box.y, width: box.width, height: box.height },
+          });
+        }
+      }
+      return sweep;
+    });
+    failures.push(...results.map((result) => ({ tabId, ...result })));
   }
   expect(failures, JSON.stringify(failures, null, 2)).toEqual([]);
 });
