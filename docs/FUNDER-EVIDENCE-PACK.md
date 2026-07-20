@@ -1,13 +1,12 @@
 # Funder & partner evidence pack
 
-A one-page case a fiscal sponsor, community-based organization, or grant reviewer can read in a
-sitting: what swelter is, the need it answers, the evidence that its design survives, and how a
-funder's money turns into durable, community-owned infrastructure. It assembles evidence that is
+A one-page summary a fiscal sponsor, community-based organization, or funder can read in a sitting:
+what swelter is, the need it answers, and the evidence that its design survives. It assembles evidence that is
 already cited elsewhere in this repo — it adds no new claims. Where a claim is volatile or unproven,
 it says so.
 
-This pack is **descriptive, not a pitch**: every external fact carries a source, the funding
-landscape is dated, and the honest weak spots are stated rather than hidden. It complements
+This pack is **descriptive**: every external fact carries a source, and the honest weak spots are
+stated rather than hidden. It complements
 [`POSITIONING.md`](POSITIONING.md) (the strategy note) and the cited evidence in
 [`RESEARCH-ROADMAP.md`](RESEARCH-ROADMAP.md); the claim-by-claim engineering verification map
 (which CI job enforces which claim, and where a reviewer checks it) is
@@ -17,8 +16,7 @@ bind everything here.
 Author: Chelsea Kelly-Reif, 2026. swelter is an independent personal open-source project,
 unaffiliated with any employer or client; see [`../NOTICE`](../NOTICE).
 
-Last verified: 2026-06-30. Recheck cadence: federal-funding status is volatile under 2025–2026
-litigation — recheck quarterly and **before any proposal**. Recheck the demand examples annually.
+Last verified: 2026-06-30. Recheck cadence: recheck the demand examples annually.
 
 ---
 
@@ -94,34 +92,8 @@ design below is built to avoid.
   question. swelter's append-only raw log, rebuildable calibrated records, versioned calibration ids,
   and uncertainty field answer this directly.[^research-qa][^propublica]
 
-## The funding path (order matters; the 2025 landscape shifted)
-
-1. **Philanthropy first.** The federal environmental-justice pipeline that fit swelter best (EPA
-   Thriving Communities / Community Change Grants; ARP/IRA air-monitoring grants — $53.4M to 132
-   projects in 2022) was largely terminated or rescinded in 2025 and is in active litigation. Treat
-   it as **proof of demand, not live funding.**[^epa-ej][^ira] Target instead Kresge's Climate Change,
-   Health & Equity initiative and RWJF's local-data-for-equity work — both fund community nonprofits
-   using local data for action and reward community ownership and post-grant sustainability.[^kresge][^rwjf]
-2. **Research co-applicant.** NIEHS (as the open-data instrument inside a community-engaged research
-   center) and NSF CIVIC Track A (university plus community partner).[^niehs][^civic]
-3. **Indirect public health.** CDC BRACE / Climate-Ready States & Cities, via a state or local
-   health-department grantee.[^brace]
-
-## What we are asking for, and what a funder gets
-
-- **Ask:** seed support for hardware, a named local steward, and co-location time at a reference
-  monitor (the scarce resource that decides who gets calibrated).
-- **Get:** standing, community-operated heat-and-air infrastructure that the collective can run from
-  a copied config file; no-account, source-aware exports; calibrated values with evidenced uncertainty
-  and visibly provisional raw values; and an English/Spanish dashboard targeting WCAG 2.2 AA with
-  automated gates and equivalent map/table/list outcomes. Current manual assistive-technology and
-  independent Spanish signoff is tracked in issue #106. The collective can keep/fork the code and
-  store without depending on a swelter-hosted account.
-
 ## Honest limits (stated so they cannot be glossed)
 
-- **The weak spot is grant-management track record, not the tool.** Pair swelter with a fiscal
-  sponsor or an established community org as lead applicant.[^positioning]
 - **Demand for *this implementation* is unverified.** The persona panel in
   [`USER-RESEARCH.md`](USER-RESEARCH.md) is synthetic — a hypothesis generator, not evidence that a
   real funder, official, researcher, or resident has asked for this. Validate with real partners
@@ -152,11 +124,4 @@ design below is built to avoid.
 [^cho]: LA Chief Heat Officer expands cooling centers — https://www.esri.com/about/newsroom/blog/los-angeles-chief-heat-officer-expands-cooling-centers
 [^research-qa]: QA considerations for credible low-cost sensor data — https://pmc.ncbi.nlm.nih.gov/articles/PMC11534011/
 [^propublica]: ProPublica, "What's Polluting the Air? Not Even the EPA Can Say" — https://www.propublica.org/article/whats-polluting-the-air-not-even-the-epa-can-say
-[^epa-ej]: EPA EJ grant terminations and litigation (2025) — https://earthjustice.org/press/2025/nonprofits-tribes-and-local-governments-sue-trump-administration-for-terminating-epa-grant-programs
-[^ira]: IRA Section 60201 environmental and climate justice block grants tracker — https://iratracker.org/programs/ira-section-60201-environmental-and-climate-justice-block-grants/
-[^kresge]: Kresge Climate Change, Health & Equity initiative — https://kresge.org/news-views/kresge-launches-next-phase-of-climate-change-health-equity-initiative-with-18-6m-investment/
-[^rwjf]: RWJF grants — https://www.rwjf.org/en/grants.html
-[^niehs]: NIEHS Climate Change and Health Initiative — https://www.niehs.nih.gov/news/factor/2025/1/science-highlights/climate-change-health-report
-[^civic]: NSF Civic Innovation Challenge — https://www.nsf.gov/funding/opportunities/civic-civic-innovation-challenge/505728/nsf24-534
-[^brace]: CDC Climate-Ready States & Cities Initiative — https://www.cdc.gov/climate-health/php/climate_ready/index.html
 [^positioning]: swelter positioning note, competitive scan and claim discipline — [`POSITIONING.md`](POSITIONING.md)

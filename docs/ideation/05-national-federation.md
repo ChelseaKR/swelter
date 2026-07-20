@@ -1,8 +1,7 @@
 # National expansion as federation — a staged plan for model-assisted execution
 
 Author: Chelsea Kelly-Reif. Date: 2026-07-18. Last verified: 2026-07-18. Recheck cadence: whenever a
-real instance count changes, the funding landscape shifts (see `POSITIONING.md`), or a hard rule or
-trust boundary changes.
+real instance count changes, or a hard rule or trust boundary changes.
 
 This document answers one question — *does it make sense to expand swelter nationally?* — and, where
 the answer is yes, decomposes the work into small, verifiable tasks a **less-capable executing model**
@@ -84,22 +83,16 @@ Phases advance only when their gate is met with *real* evidence.
   run for at least a season with a named local steward and an honest written field write-up. Milestone
   **M-A** below is the precondition.
 - **Phase 1 — a handful (3–5).** Tasks NF-03, NF-04, NF-05, NF-10. Gate: two or more real instances
-  federate into one attributed surface; milestones **M-B**, **M-D**.
-- **Phase 2 — regional (5–20).** Tasks NF-06, NF-07, NF-08. Gate: a funded regional steward network;
-  milestones **M-C**, **M-F**.
-- **Phase 3 — national.** Task NF-09 and scale hardening across the earlier tasks. Gate: a national
+  federate into one attributed surface; milestone **M-D**.
+- **Phase 2 — regional (5–20).** Tasks NF-06, NF-07, NF-08. Gate: a regional steward network;
+  milestone **M-F**.
+- **Phase 3 — national.** Scale hardening across the earlier tasks. Gate: a national
   coalition of owned instances with sustainable local stewardship.
 
 **Human-only milestones (a model cannot do these; surface them, do not simulate them):**
 
 - **M-A. Recruit and support the first real community instance** — real hardware, siting, co-location,
   a named steward. Everything else is downstream of this.
-- **M-B. Fiscal sponsor or established community org as lead applicant** — the honest weak spot is
-  grant-management track record, not the tool (`POSITIONING.md`).
-- **M-C. Funding, in the documented order** — philanthropy first (Kresge CCHE, RWJF Local Data), then a
-  research co-applicant (NIEHS community-based participatory research; NSF CIVIC), then indirect public
-  health (CDC BRACE via a state/local grantee). Treat the terminated federal EJ pipeline as proof of
-  demand, not live funding, and recheck its litigation status before any proposal.
 - **M-D. Pro-bono legal review** of the governance/data-trust kit before it is anything but a template.
 - **M-E. The hosted-infrastructure decision.** Default is **none** — stay static and federated to
   preserve scale-to-zero and no-vendor. Any hosted national service is a new ADR, a new trust boundary,
@@ -193,15 +186,6 @@ the **invariants** it must not break. Tasks are additive and reversible; none we
 - **Acceptance.** The kit renders and cross-links; every document states plainly it is a template, not
   legal advice, **until M-D (legal review) is complete**. A model must not remove that caveat.
 - **Invariants.** Consent explicit and revocable; no claim of legal review that has not happened.
-
-### NF-09 — National funder / evidence pack — **[HUMAN-GATE]**
-- **Goal.** Extend the existing funder-evidence pack (E8) to a program level: community-ownership,
-  federation-preserves-ownership, coverage-equity, and sustainability evidence, with the honest
-  funding-landscape caveats and recheck cadence from `POSITIONING.md`.
-- **Files.** `docs/FUNDER-EVIDENCE-PACK.md` (or a national companion), changelog.
-- **Acceptance.** Every claim cites existing repo evidence; volatile funding facts carry a recheck date;
-  no validated-demand claim without M-F.
-- **Invariants.** Claim discipline: say only what the implementation and evidence prove.
 
 ### NF-10 — Member conformance harness
 - **Goal.** `swelter federate --check <url>` validates a candidate instance's SensorThings/surface/license
