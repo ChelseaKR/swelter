@@ -110,8 +110,8 @@ monitoring inequity, compound risk) are cross-checked against ≥2 sources. Shor
   [Just Solutions](https://justsolutionscollective.org/language-justice-in-climate-disasters-state-models-addressing-title-vi-gaps/) ·
   [SEHN](https://www.sehn.org/sehn/2024/7/22/let-me-say-my-word-let-me-understand-yours-language-access-and-translation-for-socio-environmental-justice)
 
-**Volatile / flagged.** Heat-death counts and the federal-funding landscape shift
-year to year (see `POSITIONING.md` recheck cadence); the Hoffman 2020 magnitudes
+**Volatile / flagged.** Heat-death counts shift year to year (see `POSITIONING.md`
+recheck cadence); the Hoffman 2020 magnitudes
 and the Barkjohn RMSE figures are stable and widely replicated; the "no competitor
 does X" claims should stay phrased as "we did not find one" (`POSITIONING.md`).
 

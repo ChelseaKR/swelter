@@ -1,14 +1,14 @@
 # Positioning: where swelter is useful and unique
 
-What swelter is for in a crowded field, who needs it, what to claim, what not to claim, and how a
-free, community-owned instance sustains itself. This is a strategy note, not a spec; the README is
-the source of truth and the hard rules in it bind everything here.
+What swelter is for in a crowded field, who needs it, what to claim, and what not to claim. This is
+a strategy note, not a spec; the README is the source of truth and the hard rules in it bind
+everything here.
 
 Author: Chelsea Kelly-Reif. Year: 2026. Last verified: 2026-07-16.
 
-This note is built from a 2026 scan of the competitive, funding, and demand landscape. External
-facts carry citations inline; the volatile ones (federal funding status especially) carry a recheck
-cadence at the foot of the file. Treat the market claims as dated, not permanent.
+This note is built from a 2026 scan of the competitive and demand landscape. External facts carry
+citations inline, and the volatile ones carry a recheck cadence at the foot of the file. Treat the
+market claims as dated, not permanent.
 
 ## The position, in one sentence
 
@@ -23,8 +23,8 @@ Copy `network.yaml`, register your nodes, your reference monitor, and your co-lo
 exports — in an afternoon with no hardware at all (real sensors take longer). There is no account,
 no hosted service, and no vendor to switch off: the whole thing runs on a Raspberry-Pi-class host and
 scales to zero when it is quiet. This is what turns "trust layer" from a feature claim into a
-survival claim — see the funding-path evidence below (local ownership is the one factor that has
-been shown to outlast a grant cycle) and ADR 0021.
+survival claim: local ownership is the one factor that has been shown to outlast a grant cycle
+(ADR 0021).
 
 The uniqueness is not any single feature — it is the **set**. In the scan, every comparable tool
 held one to three of the properties below; none held all of them.
@@ -124,25 +124,6 @@ only what holds.
   County) did so because equipment ownership transferred to the community.[^imperial] swelter's hard
   rules encode the empirically-supported durability factor.
 
-## Funding path (order matters; the 2025 landscape shifted)
-
-1. **Philanthropy first.** The federal environmental-justice pipeline that fit swelter best — EPA
-   Thriving Communities Grantmaking, Community Change Grants, and the ARP/IRA enhanced air-monitoring
-   grants ($53.4M to 132 projects in 2022) — was largely terminated or rescinded in 2025 and is in
-   active litigation.[^epa-ej][^ira] Treat those as **proof of demand, not live funding**. Target
-   instead Kresge's Climate Change, Health & Equity initiative[^kresge] and RWJF's Local Data for
-   Equitable Communities[^rwjf] — both fund community nonprofits using local data for action and
-   reward community ownership, data sovereignty, and post-grant sustainability.
-2. **Research co-applicant.** NIEHS (as the open-data instrument inside a community-engaged research
-   center; it prefers community-based participatory research)[^niehs] and NSF CIVIC, Track A,
-   climate and environmental instability (needs a university plus community partner).[^civic]
-3. **Indirect public health.** CDC BRACE / Climate-Ready States & Cities, via a state or local
-   health-department grantee.[^brace]
-4. **The honest weak spot** is grant-management track record, not the tool. Pair with a fiscal
-   sponsor or an established community org as lead applicant. swelter's governance model (the
-   collective owns siting, precision, and decisions) is the community-ownership evidence reviewers
-   reward — surface it.
-
 ## Risks and failure modes to design against
 
 - **Drift and maintenance death-spiral** — the dominant decay mechanism for these networks.[^drift]
@@ -167,7 +148,6 @@ number or a hard negative in public material:
 - The current operational status of Array of Things.
 - The SensorThings and full-WCAG-AA "no competitor does this" claims — phrase as "we did not find
   one."
-- Each federal funding program's litigation and appropriations status at application time.
 
 ## Sources
 
@@ -188,17 +168,8 @@ number or a hard negative in public material:
 [^compound]: Compound extreme-heat and air-pollution events — https://www.ou.edu/news/articles/2025/september/extreme-heat-air-pollution-compound-events-increasing
 [^trust]: EPA-convened experts on sensor-data uncertainty and trust — https://pubs.acs.org/doi/10.1021/acsestair.4c00125
 [^imperial]: Imperial County Community Air Monitoring Network — https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7037815/
-[^epa-ej]: EPA EJ grant terminations and litigation (2025) — https://earthjustice.org/press/2025/nonprofits-tribes-and-local-governments-sue-trump-administration-for-terminating-epa-grant-programs
-[^ira]: IRA Section 60201 environmental and climate justice block grants tracker — https://iratracker.org/programs/ira-section-60201-environmental-and-climate-justice-block-grants/
-[^kresge]: Kresge Climate Change, Health & Equity initiative — https://kresge.org/news-views/kresge-launches-next-phase-of-climate-change-health-equity-initiative-with-18-6m-investment/
-[^rwjf]: RWJF grants — https://www.rwjf.org/en/grants.html
-[^niehs]: NIEHS Climate Change and Health Initiative — https://www.niehs.nih.gov/news/factor/2025/1/science-highlights/climate-change-health-report
-[^civic]: NSF Civic Innovation Challenge — https://www.nsf.gov/funding/opportunities/civic-civic-innovation-challenge/505728/nsf24-534
-[^brace]: CDC Climate-Ready States & Cities Initiative — https://www.cdc.gov/climate-health/php/climate_ready/index.html
 [^drift]: Community sensor networks, drift and data discontinuity — https://www.nature.com/articles/s41612-025-01216-4
 [^equity]: Low-cost networks can reduce or worsen information disparities — https://pmc.ncbi.nlm.nih.gov/articles/PMC10329730/
 
-Last verified: 2026-07-16. Recheck cadence: federal funding status (the philanthropy-first ordering
-and the EPA/IRA rows) is volatile under 2025–2026 litigation — recheck quarterly and before any
-proposal. Recheck the competitive table and the demand examples at least annually, and whenever a
-named tool changes its data licence or adds a heat surface.
+Last verified: 2026-07-16. Recheck cadence: recheck the competitive table and the demand examples at
+least annually, and whenever a named tool changes its data licence or adds a heat surface.
