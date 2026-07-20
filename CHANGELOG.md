@@ -7,6 +7,15 @@ All notable changes to swelter are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Event chronicle generator.** `swelter chronicle --from <ISO> --to <ISO>` composes the aggregated
+  surface, `qc.detect_gaps`, and `qc.coverage_equity` into a citable post-event Markdown chronicle:
+  Danger/Extreme-Danger and compound-exposure cell-hours per published cell, the calibrated-vs-
+  provisional coverage share carried in the headline, and an always-present "what the network could
+  not see" section. Descriptive counts only — no health-outcome attribution and no neighborhood
+  ranking ([ADR 0027](docs/adr/0027-event-chronicle.md)).
+
 ### Fixed
 
 - **Dense map markers are accessible targets (WCAG 2.5.8).** On a dense network the map previously
@@ -48,7 +57,8 @@ All notable changes to swelter are recorded here. The format follows
   dense-marker target-size defect it described on the `/sensors/` route is now fixed (see above).
 
 The dated `0.1.0` section is prepared release metadata; it does not assert that a Git tag or GitHub
-Release exists. Publication completes only after the annotated `v0.1.0` tag passes the release workflow.
+Release exists. Publication completes only after the annotated `v0.1.0` tag passes the release
+workflow.
 
 ## [0.1.0] - 2026-07-16
 

@@ -33,6 +33,7 @@ from . import (
     alerts,
     calibrate,
     cards,
+    chronicle,
     context_layers,
     cooling_centers,
     crosswalk,
@@ -448,6 +449,34 @@ def cmd_brief(args: argparse.Namespace) -> int:
             print(briefs[cell_id].to_text())
             print()
     _err(f"swelter: {len(briefs)} area brief(s) built from {len(surface.cells)} cell-hours")
+    return 0
+
+
+def cmd_chronicle(args: argparse.Namespace) -> int:
+    """Build a citable post-event chronicle for a ``[--from, --to]`` UTC window (EXP-10 / F-22).
+
+    Reads the window from the store and composes the aggregated surface, ``qc.detect_gaps``, and
+    ``qc.coverage_equity`` into a descriptive Markdown chronicle: Danger/Extreme-Danger cell-hours,
+    compound-exposure hours, and the calibrated-vs-provisional coverage per published cell, plus a
+    first-class "what the network could not see" section. Counts and hours only — never a
+    health-outcome attribution or a neighborhood ranking (see ADR 0027)."""
+    config = _load_config(args.config)
+    with open_store(args.store) as store:
+        record = chronicle.build_chronicle(
+            store, config, start=args.start, end=args.end, interval_s=args.interval
+        )
+    document = record.to_markdown()
+    if args.out and args.out != "-":
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(document, encoding="utf-8")
+        _err(f"swelter: wrote chronicle for {len(record.cells)} cell(s) → {out}")
+    else:
+        sys.stdout.write(document)
+    _err(
+        f"swelter: chronicle {args.start} → {args.end}: {record.danger_hours} Danger cell-hour(s), "
+        f"{record.compound_hours} compound, {record.provisional_readings} provisional reading(s)"
+    )
     return 0
 
 
@@ -1993,6 +2022,22 @@ def build_parser() -> argparse.ArgumentParser:
     add_store(p_brief)
     add_config(p_brief)
     p_brief.set_defaults(func=cmd_brief)
+
+    p_chron = sub.add_parser(
+        "chronicle",
+        help="citable post-event chronicle for a [--from,--to] window (Danger + compound hours)",
+    )
+    p_chron.add_argument(
+        "--from", dest="start", required=True, help="window start, ISO-8601 UTC (inclusive)"
+    )
+    p_chron.add_argument(
+        "--to", dest="end", required=True, help="window end, ISO-8601 UTC (inclusive)"
+    )
+    p_chron.add_argument("--out", default="", help="Markdown output path (default: stdout)")
+    add_store(p_chron)
+    add_config(p_chron)
+    add_interval(p_chron)
+    p_chron.set_defaults(func=cmd_chronicle)
 
     p_exp = sub.add_parser("export", help="export observations as CSV or JSON to stdout")
     p_exp.add_argument("--format", choices=("csv", "json"), default="csv")
