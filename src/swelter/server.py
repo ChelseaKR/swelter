@@ -21,11 +21,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import aggregate, alerts, api, cooling_centers, export, obs, qc, snapshot
+from . import aggregate, alerts, api, calibrate, cooling_centers, export, obs, qc, snapshot
 from .aggregate import Surface
 from .config import NetworkConfig
 from .models import RAW
-from .store import SqliteStore, Store
+from .store import SqliteStore, Store, store_paths
 
 #: Opt-in request logging (method/path/status/ms only, never IPs — hard rule 1). Off by
 #: default: a community dashboard's request log is operationally uninteresting until someone
@@ -80,6 +80,21 @@ def _resolved_data_terms(ctx: ServerContext) -> snapshot.DataTerms:
         return snapshot.load_data_terms(ctx.store_dir, observations=list(ctx.store.all()))
     except ValueError as exc:
         raise RuntimeError("store data-rights provenance is incomplete") from exc
+
+
+def _load_registry(store_dir: Path | None) -> calibrate.CorrectionRegistry | None:
+    """The correction registry in ``store_dir`` (``corrections.yaml``), else ``None``.
+
+    ``None`` (no store dir, no file, or an empty registry) makes ``/api/health.json`` omit its
+    ``calibration`` drift block, exactly the JSON shape it had before drift surveillance existed.
+    """
+    if store_dir is None:
+        return None
+    path = store_paths(store_dir)["registry"]
+    if not path.is_file():
+        return None
+    registry = calibrate.CorrectionRegistry.from_yaml(path)
+    return registry if len(registry) else None
 
 
 def _store_version(store: Store) -> object:
@@ -412,8 +427,16 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             # calibrated-vs-raw coverage-equity read rides along (needs the full stream + config to
             # know which nodes are calibrated and which published cell each sits in).
             coverage = qc.coverage_equity(ctx.store.all(), aggregate.node_cell_map(ctx.config))
+            # Correction-drift surveillance rides along when the store folder holds a correction
+            # registry (corrections.yaml): each calibrated node/parameter's correction age vs the
+            # latest reading, flagged past the drift horizon. Descriptive only — reads window_end,
+            # changes no value (hard rule #3). Absent when no registry is on disk.
+            registry = _load_registry(ctx.store_dir)
             report = qc.health_report(
-                ctx.store.read(calibration=RAW), coverage=coverage, store_dir=ctx.store_dir
+                ctx.store.read(calibration=RAW),
+                coverage=coverage,
+                store_dir=ctx.store_dir,
+                registry=registry,
             )
             # Name the pipeline run that built the currently-published surface, if one has run
             # against this store (obs.write_manifest, wired into ingest/calibrate/aggregate/demo).

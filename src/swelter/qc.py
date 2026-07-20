@@ -20,6 +20,7 @@ from pathlib import Path
 from statistics import median, pstdev
 
 from . import integrity
+from .calibrate import CorrectionRegistry
 from .config import TwinWindow
 from .models import (
     PARAMETERS,
@@ -294,6 +295,143 @@ def _twin_agreement_json(agreements: list[TwinAgreement]) -> list[dict[str, obje
     ]
 
 
+#: Default drift horizon, in days, past a correction's co-location ``window_end`` after which the
+#: health report flags its output as *aging*. Low-cost sensors drift within months, so a correction
+#: fit from a window that closed over a year ago is stale evidence for a value published today —
+#: see ``docs/RESEARCH-ROADMAP.md`` **[drift]** (long-term low-cost-sensor evaluation; NYC mesonet
+#: network re-calibration; community-network data discontinuity). This is a *descriptive* horizon:
+#: crossing it never changes a calibrated value or demotes it to provisional (hard rule #3) — it
+#: only marks the correction behind that value as due for re-co-location.
+CALIBRATION_DRIFT_HORIZON_DAYS = 365.0
+
+
+@dataclass(frozen=True)
+class CorrectionAge:
+    """How old one node/parameter correction is, measured against the latest observation.
+
+    ``age_days`` is the gap in days between the correction's co-location ``window_end`` and the most
+    recent observation in the data; ``aging`` is True once that gap exceeds the drift horizon. This
+    is drift *surveillance* only — it never touches an :class:`Observation`'s value or its
+    ``calibration`` state (hard rule #3), so a node's readings stay exactly as calibrated (or raw)
+    as they were; it merely reports how old the evidence behind them is.
+    """
+
+    node_id: str
+    parameter: str
+    version: str
+    window_end: str
+    age_days: float
+    aging: bool
+
+
+def correction_ages(
+    observations: Iterable[Observation],
+    registry: CorrectionRegistry,
+    *,
+    horizon_days: float = CALIBRATION_DRIFT_HORIZON_DAYS,
+) -> list[CorrectionAge]:
+    """Report each registered correction's age against the latest observation, flagging drift.
+
+    For every correction in ``registry`` (one per calibrated node/parameter) that carries a
+    co-location ``window_end``, the age is ``latest_observation - window_end`` in days and ``aging``
+    is True when that age exceeds ``horizon_days`` (default :data:`CALIBRATION_DRIFT_HORIZON_DAYS`,
+    365 days, cited to ``docs/RESEARCH-ROADMAP.md`` **[drift]**: low-cost sensors drift within
+    months, so a correction fit long ago is stale evidence for a value published today). Corrections
+    with no recorded ``window_end`` are skipped — there is no anchor to measure their age from.
+
+    Read-side and descriptive only. It finally *consults* ``window_end`` (stored since calibration
+    shipped in Phase 2, never read until now) but changes no value and assigns no calibration state:
+    a correction being ``aging`` does not demote its output to provisional (hard rule #3), and it is
+    never a ranking of neighborhoods — it is a per-correction maintenance signal, ordered by the
+    registry's own sorted node/parameter key. Returns ``[]`` when there is no observation to anchor
+    "how long ago" against.
+    """
+    obs = list(observations)
+    if not obs:
+        return []
+    latest = parse_timestamp(max(o.timestamp for o in obs))
+    ages: list[CorrectionAge] = []
+    for c in registry.all():
+        if not c.window_end:
+            continue
+        age = (latest - parse_timestamp(c.window_end)).total_seconds() / 86400.0
+        ages.append(
+            CorrectionAge(
+                node_id=c.node_id,
+                parameter=c.parameter,
+                version=c.version,
+                window_end=c.window_end,
+                age_days=round(age, 1),
+                aging=age > horizon_days,
+            )
+        )
+    return ages
+
+
+def calibration_block(
+    observations: Iterable[Observation],
+    registry: CorrectionRegistry,
+    *,
+    horizon_days: float = CALIBRATION_DRIFT_HORIZON_DAYS,
+) -> dict[str, object]:
+    """The JSON-able ``calibration`` block of :func:`health_report`: per-correction drift ages.
+
+    Wraps :func:`correction_ages` with a fresh/aging count and the standing "descriptive, never a
+    ranking, never a value change" caveat, so the same block can ride along in the health report and
+    in ``swelter qc --json`` without either surface restating its shape.
+    """
+    ages = correction_ages(observations, registry, horizon_days=horizon_days)
+    aging = sum(1 for a in ages if a.aging)
+    return {
+        "horizon_days": horizon_days,
+        "summary": {"corrections": len(ages), "aging": aging, "fresh": len(ages) - aging},
+        "corrections": [
+            {
+                "node_id": a.node_id,
+                "parameter": a.parameter,
+                "version": a.version,
+                "window_end": a.window_end,
+                "age_days": a.age_days,
+                "aging": a.aging,
+            }
+            for a in ages
+        ],
+        "note": (
+            "Descriptive drift surveillance — the age of each correction's co-location evidence "
+            "against the latest observation. It never changes a calibrated value or its state "
+            "(hard rule #3: a correction being aging does not demote its output to provisional), "
+            "and it is never a ranking of neighborhoods, only a per-correction recalibration "
+            "signal."
+        ),
+    }
+
+
+def _attach_side_blocks(
+    report: dict[str, object],
+    obs: list[Observation],
+    *,
+    coverage: dict[str, object] | None,
+    store_dir: str | Path | None,
+    twins: list[TwinWindow],
+    registry: CorrectionRegistry | None,
+    calibration_horizon_days: float,
+) -> None:
+    """Attach the optional side-reads that ride along in :func:`health_report` when their input is
+    given — coverage-equity, the integrity chain head, twin agreement, and calibration drift. Each
+    is additive and absent by default, so a caller configuring none gets the base health JSON, and
+    both the empty-observations and populated code paths share exactly one attach implementation."""
+    if coverage is not None:
+        report["coverage_equity"] = coverage
+    if store_dir is not None:
+        report["integrity"] = _integrity_block(store_dir)
+    if twins:
+        report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
+    if registry is not None:
+        report["calibration"] = calibration_block(
+            obs, registry, horizon_days=calibration_horizon_days
+        )
+
+
 def health_report(
     observations: Iterable[Observation],
     *,
@@ -302,6 +440,8 @@ def health_report(
     coverage: dict[str, object] | None = None,
     store_dir: str | Path | None = None,
     twin_windows: Iterable[TwinWindow] = (),
+    registry: CorrectionRegistry | None = None,
+    calibration_horizon_days: float = CALIBRATION_DRIFT_HORIZON_DAYS,
 ) -> dict[str, object]:
     """A JSON-able network-health summary — per-node status, a count by status, and the worst gaps.
 
@@ -318,6 +458,16 @@ def health_report(
     given, the cross-checked precision tier (:func:`twin_agreement`) rides along under
     ``twin_agreement``. This is QC/health metadata only: it never touches an observation's value
     (hard rule #3) and it bounds precision, never accuracy — see ``docs/calibration.md``.
+
+    ``registry`` is optional too and defaults to ``None``, so callers that pass no correction
+    registry get the JSON shape they always had — no ``calibration`` key. When a
+    :class:`~swelter.calibrate.CorrectionRegistry` is given, a ``calibration`` block
+    (:func:`calibration_block`) rides along: each calibrated node/parameter's correction version,
+    its co-location ``window_end``, its age in days against the latest observation, and an ``aging``
+    flag once that age passes ``calibration_horizon_days`` (default
+    :data:`CALIBRATION_DRIFT_HORIZON_DAYS`). This is descriptive drift surveillance only — it reads
+    ``window_end`` but changes no value and demotes nothing to provisional (hard rule #3), and it is
+    never a ranking of neighborhoods (see :func:`correction_ages`).
     """
     obs = list(observations)
     twins = list(twin_windows)
@@ -328,12 +478,15 @@ def health_report(
             "nodes": [],
             "gaps": [],
         }
-        if coverage is not None:
-            report["coverage_equity"] = coverage
-        if store_dir is not None:
-            report["integrity"] = _integrity_block(store_dir)
-        if twins:
-            report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
+        _attach_side_blocks(
+            report,
+            obs,
+            coverage=coverage,
+            store_dir=store_dir,
+            twins=twins,
+            registry=registry,
+            calibration_horizon_days=calibration_horizon_days,
+        )
         return report
     latest = max(o.timestamp for o in obs)
     gaps = detect_gaps(obs, expected_interval_s)
@@ -373,12 +526,15 @@ def health_report(
             for g in gaps[:max_gaps]
         ],
     }
-    if coverage is not None:
-        report["coverage_equity"] = coverage
-    if store_dir is not None:
-        report["integrity"] = _integrity_block(store_dir)
-    if twins:
-        report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
+    _attach_side_blocks(
+        report,
+        obs,
+        coverage=coverage,
+        store_dir=store_dir,
+        twins=twins,
+        registry=registry,
+        calibration_horizon_days=calibration_horizon_days,
+    )
     return report
 
 

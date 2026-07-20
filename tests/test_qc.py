@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from swelter import qc
+from swelter.calibrate import Correction, CorrectionRegistry
 from swelter.config import TwinWindow
 from swelter.models import Observation
 
@@ -327,3 +328,98 @@ def test_health_report_surfaces_twin_agreement_for_empty_observations() -> None:
             "window_end": "2026-06-01T23:00:00Z",
         }
     ]
+
+
+# -- correction-drift surveillance (FIX-03, safe subset) ---------------------------------------
+
+
+def _correction(node_id: str, parameter: str, window_end: str) -> Correction:
+    """A minimal fitted correction with a chosen co-location ``window_end`` — the only field the
+    age math consults. The other fields are plausible fixed values; drift surveillance reads none
+    of them, and it never touches an observation's value or state (hard rule #3)."""
+    method = "enclosure-offset"
+    return Correction(
+        version=f"{parameter}.{method}.{node_id}",
+        node_id=node_id,
+        parameter=parameter,
+        method=method,
+        predictors=("raw",),
+        coefficients=(1.0,),
+        intercept=0.0,
+        residual_std=0.5,
+        r2=0.99,
+        n=48,
+        reference="reference-monitor",
+        window_start="2024-01-01T00:00:00Z",
+        window_end=window_end,
+    )
+
+
+def _registry(*corrections: Correction) -> CorrectionRegistry:
+    registry = CorrectionRegistry()
+    for correction in corrections:
+        registry.add(correction)
+    return registry
+
+
+def test_correction_ages_flags_aged_and_fresh() -> None:
+    # Latest reading is 2026-06-08. node-01's correction closed 2+ years earlier (aging);
+    # node-02's closed a few weeks earlier (fresh).
+    obs = [make_obs(node_id="node-01", timestamp="2026-06-08T00:00:00Z")]
+    registry = _registry(
+        _correction("node-01", "temp_c", "2024-01-01T00:00:00Z"),
+        _correction("node-02", "temp_c", "2026-05-01T00:00:00Z"),
+    )
+    ages = {a.node_id: a for a in qc.correction_ages(obs, registry)}
+    assert ages["node-01"].aging is True
+    assert ages["node-01"].age_days > 365
+    assert ages["node-02"].aging is False
+    assert ages["node-02"].age_days < 365
+
+
+def test_correction_ages_horizon_is_a_parameter() -> None:
+    obs = [make_obs(timestamp="2026-06-08T00:00:00Z")]
+    registry = _registry(_correction("node-01", "temp_c", "2026-01-01T00:00:00Z"))  # ~158 days old
+    assert qc.correction_ages(obs, registry)[0].aging is False  # default 365-day horizon
+    tight = qc.correction_ages(obs, registry, horizon_days=90.0)[0]
+    assert tight.aging is True  # same age, tighter horizon → aging
+
+
+def test_correction_ages_empty_without_observations() -> None:
+    registry = _registry(_correction("node-01", "temp_c", "2024-01-01T00:00:00Z"))
+    assert qc.correction_ages([], registry) == []  # no latest reading to anchor "how long ago"
+
+
+def test_correction_ages_skips_correction_without_window_end() -> None:
+    obs = [make_obs(timestamp="2026-06-08T00:00:00Z")]
+    registry = _registry(_correction("node-01", "temp_c", ""))  # no anchor → skipped
+    assert qc.correction_ages(obs, registry) == []
+
+
+def test_health_report_calibration_block_flags_aging() -> None:
+    obs = [make_obs(node_id="node-01", timestamp=f"2026-06-08T{h:02d}:00:00Z") for h in (0, 1, 2)]
+    registry = _registry(
+        _correction("node-01", "temp_c", "2024-01-01T00:00:00Z"),  # aging
+        _correction("node-02", "temp_c", "2026-05-20T00:00:00Z"),  # fresh
+    )
+    report: Any = qc.health_report(obs, registry=registry)
+    block = report["calibration"]
+    assert block["horizon_days"] == qc.CALIBRATION_DRIFT_HORIZON_DAYS
+    assert block["summary"] == {"corrections": 2, "aging": 1, "fresh": 1}
+    flagged = {c["version"]: c["aging"] for c in block["corrections"]}
+    assert flagged["temp_c.enclosure-offset.node-01"] is True
+    assert flagged["temp_c.enclosure-offset.node-02"] is False
+    # The liveness summary shape is untouched by the calibration block riding along.
+    assert set(report["summary"]) == {"total", "ok", "degraded", "offline"}
+
+
+def test_health_report_calibration_absent_without_registry() -> None:
+    report: Any = qc.health_report([make_obs(node_id="node-01")])
+    assert "calibration" not in report
+
+
+def test_health_report_calibration_present_but_empty_when_registry_empty() -> None:
+    # An empty registry is still "supplied" → the block appears with zero corrections, so a reader
+    # can tell "no calibration at all" from "the surveillance was never asked for".
+    report: Any = qc.health_report([make_obs()], registry=CorrectionRegistry())
+    assert report["calibration"]["summary"] == {"corrections": 0, "aging": 0, "fresh": 0}

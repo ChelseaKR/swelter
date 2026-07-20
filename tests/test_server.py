@@ -14,9 +14,10 @@ import pytest
 
 from swelter import aggregate as aggregate_module
 from swelter import snapshot
+from swelter.calibrate import Correction, CorrectionRegistry
 from swelter.config import NetworkConfig, NodeConfig
 from swelter.server import ServerContext, _rights_link_header, make_server
-from swelter.store import SqliteStore
+from swelter.store import SqliteStore, store_paths
 
 from .conftest import make_obs
 from .http_client import request_local
@@ -129,6 +130,55 @@ def test_health_endpoint_returns_summary(base_url: str) -> None:
     assert status == 200
     assert set(payload["summary"]) == {"total", "ok", "degraded", "offline"}
     assert "nodes" in payload and "gaps" in payload
+    # No corrections.yaml behind this server → no calibration drift block (registry unsupplied).
+    assert "calibration" not in payload
+
+
+def test_health_endpoint_surfaces_calibration_drift(tmp_path: Path) -> None:
+    """When the store folder holds a correction registry, `/api/health.json` carries the drift
+    block: each correction's age against the latest reading, flagged past the horizon. Descriptive
+    only — the calibrated value itself is unchanged (hard rule #3)."""
+    db = SqliteStore(tmp_path / "obs.db")
+    db.write([make_obs(node_id="node-01", timestamp="2026-06-08T00:00:00Z")])
+    registry = CorrectionRegistry()
+    registry.add(
+        Correction(
+            version="temp_c.enclosure-offset.node-01",
+            node_id="node-01",
+            parameter="temp_c",
+            method="enclosure-offset",
+            predictors=("raw",),
+            coefficients=(1.0,),
+            intercept=0.0,
+            residual_std=0.5,
+            r2=0.99,
+            n=48,
+            reference="reference-monitor",
+            window_start="2024-01-01T00:00:00Z",
+            window_end="2024-01-03T00:00:00Z",  # closed well over a year before the reading
+        )
+    )
+    registry.to_yaml(store_paths(tmp_path)["registry"])
+    config = NetworkConfig(nodes=(NodeConfig(node_id="node-01", lat=38.58, lon=-121.49),))
+    web = tmp_path / "web"
+    web.mkdir()
+    ctx = ServerContext(store=db, config=config, web_dir=web, store_dir=tmp_path)
+    httpd = make_server(ctx, "127.0.0.1", 0)
+    port = httpd.server_address[1]
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, body = _get(f"http://127.0.0.1:{port}/api/health.json")
+        payload: Any = json.loads(body)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        db.close()
+    assert status == 200
+    block = payload["calibration"]
+    assert block["summary"] == {"corrections": 1, "aging": 1, "fresh": 0}
+    assert block["corrections"][0]["version"] == "temp_c.enclosure-offset.node-01"
+    assert block["corrections"][0]["aging"] is True
 
 
 def test_options_preflight_is_204_with_cors(base_url: str) -> None:

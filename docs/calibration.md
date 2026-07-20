@@ -296,6 +296,16 @@ reversible — not a code edit.
 - **Provenance on every value.** Because each calibrated observation names its correction version, and
   the registry entry for that version carries its window, you can trace any published number back to
   the co-location that justifies it.
+- **Age surveillance in the health report.** `qc.correction_ages()` finally *consults* each
+  correction's `window_end` (recorded since Phase 2, never read until now): for every fitted
+  correction it reports the age in days against the network's latest observation and an `aging` flag
+  once that age passes a documented drift horizon (default 365 days, cited to the `[drift]` literature
+  in [`RESEARCH-ROADMAP.md`](RESEARCH-ROADMAP.md)). It rides along in `qc.health_report`'s JSON under
+  `calibration` (surfaced on `/api/health.json`, in `swelter qc`, and threaded through `swelter
+  status`) when a registry is supplied. This is *descriptive surveillance only* — it makes a stale
+  correction visible but changes no value and does **not** demote an `aging` correction's output to
+  provisional (hard rule #3); enforcing expiry is a deferred part of FIX-03. See
+  [ADR 0028](adr/0028-calibration-drift-surveillance.md).
 
 ### Version id format
 

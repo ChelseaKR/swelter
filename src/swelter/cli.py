@@ -220,8 +220,27 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_calibration_status(calibration: dict[str, Any]) -> None:
+    """Print the correction-drift summary and any aging corrections to stderr (human ``qc``).
+
+    Descriptive only: it reports how old a correction's evidence is, never changing a value or its
+    calibration state (hard rule #3), and never ranking neighborhoods."""
+    summary = cast(dict[str, Any], calibration["summary"])
+    _err(
+        f"swelter: calibration — {summary['aging']}/{summary['corrections']} corrections aging "
+        f"past the {cast(float, calibration['horizon_days']):.0f}-day drift horizon"
+    )
+    for c in cast(list[dict[str, Any]], calibration["corrections"]):
+        if c["aging"]:
+            _err(
+                f"  aging correction  {c['version']}  "
+                f"(window_end {c['window_end']}, {c['age_days']:.0f}d old)"
+            )
+
+
 def cmd_qc(args: argparse.Namespace) -> int:
     config = _load_config(args.config)
+    paths = store_paths(args.store)
     with open_store(args.store) as store:
         raw = store.read(calibration=RAW)
         all_obs = list(store.all())
@@ -238,6 +257,15 @@ def cmd_qc(args: argparse.Namespace) -> int:
     # coverage, not a ranking of neighborhoods (see qc.coverage_equity / docs/RESEARCH-ROADMAP).
     coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
     cov = cast(dict[str, Any], coverage["summary"])
+    # Correction-drift surveillance: each calibrated node/parameter's correction age vs the latest
+    # reading, flagged past the drift horizon (FIX-03). Descriptive only — reads window_end, never
+    # changes a value or a calibration state (hard rule #3). Absent when no registry is on disk.
+    registry = (
+        calibrate.CorrectionRegistry.from_yaml(paths["registry"])
+        if paths["registry"].is_file()
+        else calibrate.CorrectionRegistry()
+    )
+    calibration = qc.calibration_block(raw, registry) if len(registry) else None
     if args.json:
         payload = {
             "nodes": [
@@ -264,6 +292,8 @@ def cmd_qc(args: argparse.Namespace) -> int:
             ],
             "coverage_equity": coverage,
         }
+        if calibration is not None:
+            payload["calibration"] = calibration
         print(json.dumps(payload, indent=2))
         return 0
     not_ok = sum(1 for n in health if n.status != "ok")
@@ -281,6 +311,8 @@ def cmd_qc(args: argparse.Namespace) -> int:
             f"  {node.node_id:>10}  {node.status.upper():<8}  {node.observations:>6} obs  "
             f"{node.completeness * 100:5.1f}% complete  {node.flagged_fraction * 100:5.1f}% flagged"
         )
+    if calibration is not None:
+        _print_calibration_status(calibration)
     _err(
         f"swelter: coverage — {cov['calibrated_nodes']}/{cov['nodes']} nodes calibrated, "
         f"{cov['confirmed_cells']}/{cov['cells']} cells confirmed, "
@@ -316,12 +348,22 @@ def cmd_status(args: argparse.Namespace) -> int:
         return 0
     latest = max(o.timestamp for o in raw)
     coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
-    health = qc.health_report(raw, expected_interval_s=args.interval, coverage=coverage)
 
     if paths["registry"].is_file():
         registry = calibrate.CorrectionRegistry.from_yaml(paths["registry"])
     else:
         registry = calibrate.CorrectionRegistry()
+
+    # The health report carries the correction-drift block when a registry is on disk, so the same
+    # descriptive correction-age signal the steward plan ranks (correction_expired/expiring) also
+    # sits in the health dict the plan is built from. Descriptive only — no value or calibration
+    # state changes (hard rule #3).
+    health = qc.health_report(
+        raw,
+        expected_interval_s=args.interval,
+        coverage=coverage,
+        registry=registry if len(registry) else None,
+    )
 
     result = steward.plan(health, coverage, registry.all(), latest=latest)
 
