@@ -52,3 +52,4 @@ evidence of the collision.
 - [ADR 0030: Derive a "cross-checked" drift smoke-alarm from twin agreement, never a calibration tier](0030-sensor-twin-crosschecked-tier.md)
 - [ADR 0031: Generalize the alert layer into versioned hazard packs, and ship a cold pack](0031-multi-hazard-packs.md)
 - [ADR 0032: Assemble co-location training pairs from a reference-monitor feed](0032-reference-monitor-adapter.md)
+- [ADR 0033: Decide whether evidence requires sensors before planning hardware](0033-purpose-first-project-planner.md)

@@ -23,5 +23,5 @@ module.exports = {
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
     },
   },
-  urls: ["http://127.0.0.1:4173/", "http://127.0.0.1:4173/sensors/"],
+  urls: ["http://127.0.0.1:4173/", "http://127.0.0.1:4173/sensors/", "http://127.0.0.1:4173/planner/"],
 };
