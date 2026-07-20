@@ -10,7 +10,8 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 
 ## What raises an alert
 
-For the most recent hour, every published grid cell is checked against documented danger floors:
+For the most recent hour, every published grid cell is checked against documented danger floors. The
+floors come from the network's **hazard pack** (see below); the default is the **heat pack**:
 
 | Reading | Floor | Source |
 | --- | --- | --- |
@@ -28,6 +29,30 @@ alert_thresholds:
   heat_index_c: 39.4   # NWS "Danger"
   exposure: 3          # combined level "High"
 ```
+
+## Hazard packs
+
+The danger floors above are a **hazard pack** — versioned, cited data ([ADR 0031](adr/0031-multi-hazard-packs.md)),
+not code — that a network selects with `hazard_pack:` in `network.yaml`. The default is `heat`, so a
+network that names no pack behaves exactly as before. A collective serving a place with real winters
+enables the **cold pack** by config alone:
+
+```yaml
+hazard_pack: cold
+```
+
+The cold pack keeps the same EPA PM2.5 floor and swaps the heat floors for wind chill:
+
+| Reading | Floor | Source |
+| --- | --- | --- |
+| PM2.5 AQI | ≥ 101 ("Unhealthy for Sensitive Groups") | US-EPA AQI 2024 breakpoints |
+| Wind chill | ≤ −28.3 °C / −19 °F ("Frostbite in 30 min") | [US-NWS Wind Chill Chart](https://www.weather.gov/safety/cold-wind-chill-chart) |
+
+Cold crosses *downward* — colder is worse — so a reading at or below the floor raises the alert. The
+`wind_chill_c` parameter is the documented NWS/Environment-Canada metric wind-chill index; wind speed
+is not a swelter source parameter, so a node reports wind chill directly. `alert_thresholds` overrides
+a pack's own floor keys (`wind_chill_c` for cold); `swelter doctor` rejects an unknown pack or an
+override key that is not one of the active pack's.
 
 ## The feed
 

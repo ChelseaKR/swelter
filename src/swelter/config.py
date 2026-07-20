@@ -29,6 +29,8 @@ from typing import Any
 
 import yaml
 
+from . import hazard_packs
+
 DEFAULT_GRID_M = 150.0
 _METRES_PER_DEGREE_LAT = 111_320.0
 
@@ -46,6 +48,7 @@ _KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "alert_thresholds",
         "twin_windows",
         "geographic_scope",
+        "hazard_pack",
     }
 )
 _KNOWN_LOCATIONS: frozenset[str] = frozenset({"coarse", "precise"})
@@ -217,9 +220,13 @@ class NetworkConfig:
     #: Co-located twin windows for the cross-checked precision tier (QC metadata only — see
     #: ``qc.twin_agreement``). Empty means no twin pairs are configured; nothing changes.
     twin_windows: tuple[TwinWindow, ...] = field(default_factory=tuple)
-    #: Per-network danger floors for the alerts feed (keys: ``pm25_aqi``, ``heat_index_c``,
-    #: ``exposure``). Empty means "use the documented public-health defaults" (see ``alerts.py``).
+    #: Per-network danger floors for the alerts feed. Valid keys are the active hazard pack's floor
+    #: keys (heat: ``pm25_aqi``, ``heat_index_c``, ``exposure``; cold: ``pm25_aqi``,
+    #: ``wind_chill_c``). Empty means "use the pack's cited defaults" (see ``alerts.py``).
     alert_thresholds: dict[str, float] = field(default_factory=dict)
+    #: The hazard pack this network alerts on (``hazard_packs.PACKS``). ``"heat"`` is the default,
+    #: so an unset value reproduces swelter's original heat/air behaviour exactly (ADR 0031).
+    hazard_pack: str = hazard_packs.DEFAULT_PACK_ID
     #: Optional jurisdiction and boundary identifier used to constrain an imported source.
     geographic_scope: GeographicScope | None = None
 
@@ -360,6 +367,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         twin_windows=twin_windows,
         alert_thresholds=thresholds,
         geographic_scope=geographic_scope,
+        hazard_pack=_as_str(doc.get("hazard_pack"), hazard_packs.DEFAULT_PACK_ID),
     )
 
 
@@ -424,16 +432,29 @@ def config_concerns(config: NetworkConfig, doc: dict[str, Any]) -> tuple[list[st
     raw parsed mapping (before ``parse_config`` drops anything it does not recognize), because
     that is the only place an unknown or misspelled key is still visible.
     """
-    from . import alerts  # deferred: alerts -> aggregate -> config would otherwise cycle
-
     errors: list[str] = []
     warnings: list[str] = []
     _unknown_key_concerns(doc, errors)
     _node_id_concerns(config, errors)
-    _threshold_concerns(config, frozenset(alerts.DEFAULT_THRESHOLDS), errors)
+    _hazard_pack_concerns(config, errors)
+    # Validate override keys against the *active* pack, so a cold network is told ``heat_index_c``
+    # is unknown and a heat network is told ``wind_chill_c`` is — each against the floors it uses.
+    pack_keys = hazard_packs.resolve_pack(config.hazard_pack).threshold_keys()
+    _threshold_concerns(config, pack_keys, errors)
     _node_field_concerns(config, errors, warnings)
     _window_concerns(config, warnings)
     return errors, warnings
+
+
+def _hazard_pack_concerns(config: NetworkConfig, errors: list[str]) -> None:
+    """Reject a ``hazard_pack`` that names no shipped pack — a silent fallback to heat would be a
+    safety surprise (a winter network believing it alerts on cold and not doing so)."""
+    if config.hazard_pack not in hazard_packs.PACKS:
+        hint = _did_you_mean(config.hazard_pack, frozenset(hazard_packs.PACKS))
+        errors.append(
+            f"hazard_pack: unknown pack {config.hazard_pack!r}{hint} — a network must name a "
+            f"shipped hazard pack; recognized packs: {', '.join(sorted(hazard_packs.PACKS))}"
+        )
 
 
 def _unknown_key_concerns(doc: dict[str, Any], errors: list[str]) -> None:

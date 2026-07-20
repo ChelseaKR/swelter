@@ -33,6 +33,10 @@ msgid ""
 msgstr ""
 
 #, python-brace-format
+msgid "{area}: wind chill is {value} °C ({severity}){provisional}{as_of}"
+msgstr ""
+
+#, python-brace-format
 msgid "{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}"
 msgstr ""
 

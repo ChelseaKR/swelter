@@ -81,6 +81,14 @@ _CROSSWALK: dict[str, CrosswalkEntry] = {
         None,
         None,
     ),
+    "wind_chill_c": CrosswalkEntry(
+        # NWS/Environment-Canada wind chill from temp + wind (cold pack, ADR 0031). Neither OpenAQ
+        # nor Sensor.Community publishes a wind-chill index, so there is nothing to map to.
+        "wind_chill_c",
+        "degC",
+        None,
+        None,
+    ),
 }
 
 if set(_CROSSWALK) != set(PARAMETERS):

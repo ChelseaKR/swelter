@@ -38,6 +38,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import NamedTuple
 
+from . import hazard_packs
 from .config import NetworkConfig
 from .models import (
     QC_SUSPICIOUS,
@@ -414,10 +415,17 @@ def aggregate(
     *,
     parameters: tuple[str, ...] = SURFACE_PARAMETERS,
 ) -> Surface:
-    """Roll observations up to (cell, hour, parameter) means, preferring calibrated values."""
+    """Roll observations up to (cell, hour, parameter) means, preferring calibrated values.
+
+    Beyond the requested ``parameters`` (the map surface by default), the network's hazard pack can
+    add the observed parameters it needs to alert on — e.g. the cold pack pulls ``wind_chill_c``
+    into the rollup so ``alerts`` can see it. The heat pack adds nothing already in the surface, so
+    a heat network's output is byte-for-byte unchanged (ADR 0031).
+    """
     locations = config.public_locations()
     labels = _cell_labels(config)
-    wanted = set(parameters)
+    pack = hazard_packs.resolve_pack(config.hazard_pack)
+    wanted = set(parameters) | set(pack.surface_parameters())
     # Provenance lookups for the "show your work" trust view: which reference each node/parameter
     # was calibrated against, and that monitor's human label.
     ref_by_node_param = {(w.node_id, w.parameter): w.reference for w in config.calibration_windows}

@@ -45,6 +45,9 @@ _SPIKE_THRESHOLD: dict[str, float] = {
     "no2_ppb": 200.0,
     "heat_index_c": 10.0,
     "wbgt_c": 10.0,
+    # Wind chill swings with both temperature and gusting wind, so it is more volatile hour-to-hour
+    # than air temperature; a >12 °C jump against clean neighbours still reads as a sensor spike.
+    "wind_chill_c": 12.0,
 }
 
 #: A run of this many identical consecutive values reads as a stuck sensor.

@@ -65,6 +65,7 @@ both tables and with its referenced tests in the same change.
 | F-23 | Calibration-drift surveillance in the health report |
 | F-24 | Event-aware QC keeps suspicious readings visible, provisional, and flagged |
 | F-25 | Sensor-twin cross-checked precision tier |
+| F-26 | EXP-13: multi-hazard packs and a cold pack |
 
 ## Delivery history
 

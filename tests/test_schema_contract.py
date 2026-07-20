@@ -132,6 +132,26 @@ def test_quiet_alert_feed_matches_schema() -> None:
     _validate(feed.to_json(), "alerts.schema.json")
 
 
+def test_cold_pack_alert_feed_matches_schema() -> None:
+    """A non-heat pack's feed carries pack-specific threshold keys (`wind_chill_c`) and parameter
+    values, so the contract must accept them — the schema was widened for it, not silently."""
+    from swelter import hazard_packs
+
+    cold_config = NetworkConfig(grid_resolution_m=150.0, nodes=(_NODE,), hazard_pack="cold")
+    surface = aggregate.aggregate(
+        [make_obs(parameter="wind_chill_c", unit="degC", value=-30.0, calibration="v1")],
+        cold_config,
+    )
+    feed = alerts.build_feed(
+        surface,
+        network="demo",
+        base_url="https://example.org",
+        pack=hazard_packs.resolve_pack(cold_config.hazard_pack),
+    )
+    assert feed.alerts and feed.alerts[0].parameter == "wind_chill_c"
+    _validate(feed.to_json(), "alerts.schema.json")
+
+
 # -- the schemas themselves are well-formed JSON Schema (draft 2020-12) -------------------------
 
 

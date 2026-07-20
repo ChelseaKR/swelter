@@ -18,7 +18,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError, version
 
 from .config import NetworkConfig, haversine_m, load_config, snap_to_grid
-from .models import PARAMETERS, Observation, heat_index_c, pm25_aqi, wbgt_c
+from .models import PARAMETERS, Observation, heat_index_c, pm25_aqi, wbgt_c, wind_chill_c
 from .plan import simulate_add_node
 
 try:
@@ -40,4 +40,5 @@ __all__ = [
     "simulate_add_node",
     "snap_to_grid",
     "wbgt_c",
+    "wind_chill_c",
 ]

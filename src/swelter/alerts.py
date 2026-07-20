@@ -12,11 +12,15 @@ reading has crossed a documented danger threshold, one alert. The result renders
   adding the feed (optionally filtered to one area) to any ordinary RSS/Atom reader. No account, no
   email on file, no PII, no tracking — the subscription lives in the reader's own tooling.
 
-Thresholds are public-health bands, not swelter inventions: the PM2.5 floor is the US-EPA AQI 101
-("Unhealthy for Sensitive Groups") boundary, the heat floor is the NWS heat-index "Danger" tier
-(39.4 °C / 103 °F), and the exposure floor is the level-3 "High" tier of the combined surface
-(ADR 0009). A collective can raise or lower them per network via ``alert_thresholds`` in
-``network.yaml``. Provisional (uncalibrated) readings can still cross a threshold; an alert built
+Thresholds are public-health bands, not swelter inventions, and they are supplied by a **hazard
+pack** (:mod:`swelter.hazard_packs`) — versioned, cited data a network selects with
+``hazard_pack:`` in ``network.yaml``. The default pack is heat, so a network that names none behaves
+exactly as before: the PM2.5 floor is the US-EPA AQI 101 ("Unhealthy for Sensitive Groups")
+boundary, the heat floor is the NWS heat-index "Danger" tier (39.4 °C / 103 °F), and the exposure
+floor is the level-3 "High" tier of the combined surface (ADR 0009). The cold pack swaps heat for
+NWS wind-chill and keeps air quality, so the same pipeline serves winter (ADR 0031). A collective
+can still raise or lower a pack's floors via ``alert_thresholds`` in ``network.yaml``. Provisional
+(uncalibrated) readings can still cross a threshold; an alert built
 from one is published but carries ``provisional: true`` and says so, the same honesty the map
 keeps — suppressing a real danger because the sensor is not yet calibrated would be worse.
 
@@ -32,20 +36,18 @@ from dataclasses import dataclass
 from typing import Final
 from xml.sax.saxutils import escape
 
-from . import i18n_alerts
+from . import hazard_packs, i18n_alerts
 from .aggregate import EXPOSURE, CellReading, Surface
-from .models import EXPOSURE_LEVELS, heat_index_category
+from .models import EXPOSURE_LEVELS, heat_index_category, wind_chill_category
 
-#: Documented danger floors. Keys are the surface fields they test. A reading at or above the floor
-#: raises an alert. Overridable per network via ``network.yaml: alert_thresholds``.
-DEFAULT_THRESHOLDS: Final[Mapping[str, float]] = {
-    "pm25_aqi": 101.0,  # US-EPA AQI 101 = "Unhealthy for Sensitive Groups" boundary
-    "heat_index_c": 39.4,  # NWS heat-index "Danger" tier floor (103 °F)
-    "exposure": 3.0,  # combined-surface level 3 = "High" (ADR 0009)
-}
-
-#: The parameters an alert can be raised on, longest-standing first for stable ordering.
-_ALERTING_PARAMETERS: Final[tuple[str, ...]] = ("pm25_ugm3", "heat_index_c", EXPOSURE)
+#: The default network's documented danger floors — the **heat pack** (``hazard_packs.HEAT_PACK``),
+#: kept under this long-standing name for the callers that import it (``config`` validation,
+#: ``exposure_brief``): they resolve the floors of a network that names no ``hazard_pack``, and that
+#: network is the heat pack, unchanged (``pm25_aqi`` ≥ 101 EPA, ``heat_index_c`` ≥ 39.4 NWS Danger,
+#: ``exposure`` ≥ 3 High). A network on another pack (e.g. ``cold``) resolves *that* pack's cited
+#: floors instead — see :func:`resolve_thresholds` and :func:`build_feed`. Each floor's public
+#: source lives with it in :mod:`swelter.hazard_packs`.
+DEFAULT_THRESHOLDS: Final[Mapping[str, float]] = hazard_packs.HEAT_PACK.default_floors()
 
 
 @dataclass(frozen=True)
@@ -203,23 +205,29 @@ class AlertFeed:
         return "\n".join(lines) + "\n"
 
 
-def resolve_thresholds(overrides: Mapping[str, float] | None) -> dict[str, float]:
-    """Merge network-level `alert_thresholds` overrides onto the public-health defaults.
+def resolve_thresholds(
+    overrides: Mapping[str, float] | None,
+    pack: hazard_packs.HazardPack | None = None,
+) -> dict[str, float]:
+    """Merge network-level `alert_thresholds` overrides onto a hazard pack's cited floors.
 
-    Public so a caller building a *historical* view (e.g. :mod:`swelter.exposure_brief`'s
-    danger-day count) resolves the same per-network floors the live alerts feed uses, instead of
-    re-deriving the override-merge rule.
+    ``pack`` defaults to the heat pack, so an existing caller that passes only ``overrides``
+    (e.g. :mod:`swelter.exposure_brief`'s danger-day count) resolves exactly the floors it always
+    has. A caller on another pack passes it, and the overrides land on that pack's floors instead.
+    Either way the override-merge rule lives in one place, so the live alerts feed and a historical
+    view can never re-derive it differently.
 
     Unknown keys are ignored here on purpose — a build must never crash mid-pipeline on a typo.
     But an ignored key is a silent safety failure (a host who typos ``heat_index_c`` as
     ``heat_index`` believes they lowered the danger floor and did not), so that same mistake is a
     **hard error** at load time: see ``config.config_concerns`` and ``swelter doctor``, which check
-    every ``alert_thresholds`` key against ``DEFAULT_THRESHOLDS`` before a build ever gets here.
+    every ``alert_thresholds`` key against the *active* pack's floors before a build ever gets here.
     """
-    merged = dict(DEFAULT_THRESHOLDS)
+    active = pack or hazard_packs.HEAT_PACK
+    merged = active.default_floors()
     if overrides:
         for key, value in overrides.items():
-            if key in DEFAULT_THRESHOLDS:
+            if key in merged:
                 merged[key] = float(value)
     return merged
 
@@ -230,20 +238,26 @@ def build_feed(
     network: str = "swelter network",
     base_url: str = "http://localhost:8000",
     thresholds: Mapping[str, float] | None = None,
+    pack: hazard_packs.HazardPack | None = None,
 ) -> AlertFeed:
     """Scan the most recent hour of every cell and raise an alert for each danger crossing.
 
     Only the latest reading per (cell, parameter) is considered — an alert is about now, not an hour
     last week. A cell can raise more than one alert (hot *and* smoky); each is its own entry. The
     feed's bucket is the newest hour present in the surface, so the artifact is deterministic.
+
+    ``pack`` selects the hazard pack (:mod:`swelter.hazard_packs`) whose parameters and cited floors
+    are checked; it defaults to the heat pack, so a caller that passes none gets the original
+    heat/air behaviour unchanged. The cold pack, for example, checks wind chill instead of heat.
     """
-    floors = resolve_thresholds(thresholds)
+    active = pack or hazard_packs.HEAT_PACK
+    floors = resolve_thresholds(thresholds, active)
     latest = surface.latest_by_cell()
     alerts: list[Alert] = []
     newest = ""
     for area_id in sorted(latest):
         by_param = latest[area_id]
-        for parameter in _ALERTING_PARAMETERS:
+        for parameter in active.alerting_parameters():
             reading = by_param.get(parameter)
             if reading is None:
                 continue
@@ -311,11 +325,19 @@ def crossing(
             name = category or EXPOSURE_LEVELS[min(level, len(EXPOSURE_LEVELS) - 1)]
             return name, floor
         return None
+    if parameter == "wind_chill_c":
+        # Cold crosses *downward*: colder is worse, so a reading at or below the floor is the
+        # danger, the mirror of the heat/air/exposure tests above. ``.get`` guards the case where a
+        # caller reuses a heat-pack floor table (no ``wind_chill_c`` key) — no crossing, no crash.
+        wind_chill_floor = floors.get("wind_chill_c")
+        if wind_chill_floor is not None and mean <= wind_chill_floor:
+            return wind_chill_category(mean)[1], wind_chill_floor
+        return None
     return None
 
 
 def _unit_for(parameter: str, aqi: int | None) -> str:
-    if parameter == "heat_index_c":
+    if parameter in ("heat_index_c", "wind_chill_c"):
         return "degC"
     if parameter == "pm25_ugm3":
         return "AQI"

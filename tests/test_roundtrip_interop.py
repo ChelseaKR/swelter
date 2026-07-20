@@ -132,6 +132,7 @@ def test_roundtrip_recovers_values_and_maps_to_commons_vocabulary() -> None:
         "pm25_ugm3": {"openaq": ("pm25", "ug/m3"), "sc": ("P2", "ug/m3")},
         "heat_index_c": {"openaq": None, "sc": None},
         "wbgt_c": {"openaq": None, "sc": None},
+        "wind_chill_c": {"openaq": None, "sc": None},
         "pm10_ugm3": {"openaq": ("pm10", "ug/m3"), "sc": ("P1", "ug/m3")},
         "no2_ppb": {"openaq": ("no2", "ppb"), "sc": None},
     }

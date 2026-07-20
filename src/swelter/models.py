@@ -56,6 +56,10 @@ PARAMETERS: Final[dict[str, Parameter]] = {
     "no2_ppb": Parameter("no2_ppb", "ppb", 0.0, 2000.0),
     "heat_index_c": Parameter("heat_index_c", "degC", -40.0, 60.0),  # ~137 °F NWS ceiling
     "wbgt_c": Parameter("wbgt_c", "degC", -40.0, 60.0),
+    # Wind chill runs colder than air temp, so the floor is well below temp_c's; the ceiling
+    # matches temp_c because the estimate passes air temperature through unchanged when wind chill
+    # is not defined (warm or nearly calm — see `wind_chill_c`).
+    "wind_chill_c": Parameter("wind_chill_c", "degC", -100.0, 60.0),
 }
 
 # QC verdicts. A reading is published with exactly one of these, never silently dropped.
@@ -281,6 +285,33 @@ def wbgt_c(temp_c: float, humidity_pct: float) -> float:
     return round(0.7 * tw + 0.3 * temp_c, 2)
 
 
+def wind_chill_c(temp_c: float, wind_kph: float) -> float:
+    """Wind-chill temperature, Celsius in and out, from air temperature and wind speed (km/h).
+
+    This is the standard NWS/Environment-Canada wind-chill index (the 2001 North American revision),
+    metric form: ``WCT = 13.12 + 0.6215*T - 11.37*V^0.16 + 0.3965*T*V^0.16`` with ``T`` in °C and
+    ``V`` the 10-metre wind speed in km/h. It is a **documented approximation of how cold exposed
+    skin feels**, not a measured quantity: it models convective and evaporative heat loss from bare
+    skin for an average adult walking into the wind, and it says nothing about a person's actual
+    core temperature, clothing, sun, or health. Producers must label it "wind chill," never present
+    it as an air temperature.
+
+    The index is only defined for ``temp_c <= 10`` and ``wind_kph > 4.8`` (≈3 mph); outside that
+    domain wind chill is not meaningful, so the air temperature is returned unchanged — the same
+    passthrough convention :func:`heat_index_c` uses below its own floor. NaN inputs propagate to a
+    NaN result rather than raising (a missing reading is a missing derived reading).
+
+    Wind speed is not a parameter any current swelter source adapter supplies, so — unlike
+    :func:`heat_index_c` — this is not auto-derived in the fetch path; it is the reference
+    implementation for a node (or an operator with a wind feed) that reports ``wind_chill_c``
+    directly. See ``docs/adr/0031-multi-hazard-packs.md``.
+    """
+    if temp_c > 10.0 or wind_kph <= 4.8:
+        return round(temp_c, 2)
+    v = math.pow(wind_kph, 0.16)
+    return round(13.12 + 0.6215 * temp_c - 11.37 * v + 0.3965 * temp_c * v, 2)
+
+
 # NWS heat-index categories. The thresholds are the NWS band floors in °C, converted from the
 # published °F values: 80 °F (Caution), 90 °F (Extreme Caution), 103 °F (Danger), 125 °F
 # (Extreme Danger). Below the first floor there is no elevated heat risk.
@@ -318,6 +349,35 @@ def heat_index_category(heat_index_c: float) -> tuple[int, str]:
     name = "None"
     for floor, label in _HEAT_BANDS:
         if heat_index_c >= floor:
+            level += 1
+            name = label
+    return level, name
+
+
+# NWS Wind Chill Chart frostbite-time boundary. The published chart states exactly one frostbite
+# boundary numerically — exposed skin can develop frostbite within 30 minutes at a wind chill of
+# -19 °F (-28.3 °C) — so that is the only band asserted here. The chart's colder 10- and 5-minute
+# frostbite zones are not published as numeric wind-chill cutoffs, so no band is invented for them
+# (a graduated cold scale would need those values sourced first). Ordered warmest-ceiling-first so
+# `wind_chill_category` can extend to colder bands later the way `_HEAT_BANDS` does for hotter ones.
+# https://www.weather.gov/safety/cold-wind-chill-chart
+_WIND_CHILL_BANDS: Final[tuple[tuple[float, str], ...]] = ((-28.3, "Frostbite in 30 min"),)
+
+
+def wind_chill_category(wind_chill_c: float) -> tuple[int, str]:
+    """NWS wind-chill frostbite category as a concern level and its name.
+
+    Colder is worse, so a reading crosses a band by falling **at or below** its ceiling — the
+    mirror of :func:`heat_index_category`. 0 is ``"None"`` (above the documented -28.3 °C / -19 °F
+    frostbite boundary); 1 is the NWS chart's "frostbite in 30 minutes" zone. NaN is rejected so a
+    missing reading cannot pose as a measurement.
+    """
+    if math.isnan(wind_chill_c):
+        raise ValueError("wind chill is NaN")
+    level = 0
+    name = "None"
+    for ceiling, label in _WIND_CHILL_BANDS:
+        if wind_chill_c <= ceiling:
             level += 1
             name = label
     return level, name

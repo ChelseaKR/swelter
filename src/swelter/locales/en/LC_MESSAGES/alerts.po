@@ -34,6 +34,10 @@ msgstr ""
 "°C){provisional}{as_of}"
 
 #, python-brace-format
+msgid "{area}: wind chill is {value} °C ({severity}){provisional}{as_of}"
+msgstr "{area}: wind chill is {value} °C ({severity}){provisional}{as_of}"
+
+#, python-brace-format
 msgid "{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}"
 msgstr "{area}: combined heat-and-air exposure is {severity}{provisional}{as_of}"
 
