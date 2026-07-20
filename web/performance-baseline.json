@@ -1,9 +1,28 @@
 {
-  "evidence_date": null,
-  "max_regression_fraction": 0.1,
-  "method": "Pending first hosted Lighthouse run for the overhauled observatory; release and merge remain blocked until this is replaced by a measured candidate.",
-  "routes": {},
   "schema_version": 1,
-  "source_commit": null,
-  "state": "pending_hosted_measurement"
+  "max_regression_fraction": 0.1,
+  "routes": {
+    "/": {
+      "critical_js_gzip_bytes": 61171,
+      "critical_css_gzip_bytes": 17218,
+      "lcp_ms": 1659.9982,
+      "cls": 0.0275649961813885,
+      "tbt_ms": 30.5,
+      "total_bytes": 194513,
+      "dom_nodes": 1080
+    },
+    "/sensors/": {
+      "critical_js_gzip_bytes": 61171,
+      "critical_css_gzip_bytes": 17218,
+      "lcp_ms": 1552.4435,
+      "cls": 0.04094998659569247,
+      "tbt_ms": 31,
+      "total_bytes": 880267,
+      "dom_nodes": 1061
+    }
+  },
+  "state": "measured",
+  "evidence_date": "2026-07-20",
+  "source_commit": "f837d0ff28e467c0b8cf6f8d87dd8a3613179664",
+  "method": "Median Lighthouse CI route metrics plus deterministic gzip level-9 asset sizes."
 }

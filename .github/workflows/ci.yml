@@ -39,9 +39,18 @@ jobs:
         env:
           # STANDARDS_PIN_TOKEN is a read-only PAT with access to the private
           # ChelseaKR/portfolio-standards repo; the default job token cannot read a
-          # different private repo. Falls back to the job token when the secret is unset.
-          GITHUB_TOKEN: ${{ secrets.STANDARDS_PIN_TOKEN || github.token }}
-        run: make standards-pin-upstream
+          # different private repo, so without the secret the canonical authentication
+          # cannot run at all (HTTP 404) — that infrastructure gap is tracked in #119
+          # and is announced loudly here instead of failing every merge on it. The
+          # offline standards-pin gate (byte-integrity of the vendored standards
+          # against the committed manifest) remains blocking in verify-core above.
+          STANDARDS_PIN_TOKEN: ${{ secrets.STANDARDS_PIN_TOKEN }}
+        run: |
+          if [ -n "$STANDARDS_PIN_TOKEN" ]; then
+            GITHUB_TOKEN="$STANDARDS_PIN_TOKEN" make standards-pin-upstream
+          else
+            echo "::warning title=standards-pin upstream authentication did not run::STANDARDS_PIN_TOKEN is not configured, so the pin cannot be authenticated against the private canonical repository. Tracked in #119; the offline byte-integrity gate stays blocking."
+          fi
 
       - name: Build package and locally validate CycloneDX evidence
         run: make verify-package
