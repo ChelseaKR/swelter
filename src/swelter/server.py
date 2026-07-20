@@ -437,6 +437,7 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
                 coverage=coverage,
                 store_dir=ctx.store_dir,
                 registry=registry,
+                twin_windows=ctx.config.twin_windows,
             )
             # Name the pipeline run that built the currently-published surface, if one has run
             # against this store (obs.write_manifest, wired into ingest/calibrate/aggregate/demo).

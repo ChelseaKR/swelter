@@ -391,6 +391,29 @@ nodes placed side by side (a "sensor twin" pair) for a window, and `qc.twin_agre
 tightly their readings of the same parameter agree — paired by nearest timestamp, the spread
 (population standard deviation) of the residuals `value_a - value_b`, plus how many pairs matched.
 
+### The verdict: a drift smoke-alarm, not a promotion
+
+Each twin window gets a plain three-state verdict (`TwinAgreement.status`), derived by comparing the
+measured spread against a documented **agreement threshold** in the parameter's own unit (°C for
+temperature, µg/m³ for PM):
+
+- **`cross-checked`** — at least `qc.MIN_TWIN_PAIRS` matched pairs *and* a spread within the bar.
+  The twins are consistent with each other this window.
+- **`diverged`** — enough pairs, but the spread is over the bar. This is the smoke-alarm: the twins
+  drifted apart, so something (noise, a fouled optical chamber, a failing element on one node) is
+  worth a steward's look. Watching the spread across successive monthly windows is how a network
+  reads drift over time — "these twins diverged this month" — the same way a rising `residual_std`
+  signals drift for a calibrated node.
+- **`insufficient-data`** — fewer than `MIN_TWIN_PAIRS` matched pairs. There is no basis for a
+  verdict, so the window is *never* given a free `cross-checked` pass on thin evidence.
+
+The default bar is a conservative per-parameter value in `qc.TWIN_AGREEMENT_THRESHOLD`; a pair can
+tighten or loosen it with a `twin_windows[].agreement_threshold` in `network.yaml`. Crucially, the
+verdict changes **nothing** about the reading's trust axis: a `cross-checked` window and a
+`diverged` window both leave every observation `raw`/provisional. `status` is annotation for an
+operator's health read, surfaced in `qc.health_report`'s `twin_agreement` block and by `swelter qc`;
+it is not a value on the calibration axis.
+
 **Read it correctly, or not at all:**
 
 - **Cross-checked bounds precision, never accuracy.** A tight residual spread rules out sensor
@@ -416,10 +439,16 @@ tightly their readings of the same parameter agree — paired by nearest timesta
   reader sees on the map.
 
 Configure a pair in `network.yaml` under `twin_windows` (`node_a`, `node_b`, `parameter`, `start`,
-`end` — see the worked example in the repo root); pass the parsed windows to
-`qc.health_report(..., twin_windows=config.twin_windows)` to have the read ride along under
-`twin_agreement`. Omit `twin_windows` (the default) and the JSON shape is byte-for-byte what it was
+`end`, and the optional `agreement_threshold` bar — see the worked example in the repo root); pass
+the parsed windows to `qc.health_report(..., twin_windows=config.twin_windows)` to have the read ride
+along under `twin_agreement`. The live `/api/health.json`, its static `sample-health.json` mirror,
+and `swelter qc` all carry the same block when a network configures a pair. Omit `twin_windows` (the
+default, and the state of the committed demo network) and the JSON shape is byte-for-byte what it was
 before this section existed.
+
+The `twin_agreement` block reports, per window: `n_pairs`, `residual_spread`, the resolved
+`agreement_threshold`, a `cross_checked` boolean, and the `status` string above — everything a reader
+needs to see *why* a pair passed or fired, and nothing that could be mistaken for a calibrated value.
 
 ---
 

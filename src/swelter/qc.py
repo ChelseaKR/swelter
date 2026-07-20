@@ -50,6 +50,30 @@ _SPIKE_THRESHOLD: dict[str, float] = {
 #: A run of this many identical consecutive values reads as a stuck sensor.
 FLATLINE_RUN = 6
 
+#: Fewest matched twin pairs a window needs before a "cross-checked" verdict is even attempted.
+#: Below this there is no basis for judging agreement — the window reads ``insufficient-data``, not
+#: ``cross-checked``. Mirrors calibration's "at least three pairs" floor (``docs/calibration.md``).
+MIN_TWIN_PAIRS = 3
+
+#: Documented per-parameter "cross-checked" agreement bar, in the parameter's own unit: the largest
+#: residual spread (``value_a - value_b`` population standard deviation) two co-located low-cost
+#: twins may show over a window and still read as *cross-checked* rather than *diverged* (the drift
+#: smoke-alarm). Conservative, illustrative defaults a network tunes per pair via
+#: ``TwinWindow.agreement_threshold``. This bounds **precision** (do the twins agree with each
+#: other?), never **accuracy** (does either read true?) — see ``docs/calibration.md``.
+TWIN_AGREEMENT_THRESHOLD: dict[str, float] = {
+    "temp_c": 1.5,
+    "humidity_pct": 5.0,
+    "pm25_ugm3": 5.0,
+    "pm10_ugm3": 10.0,
+    "no2_ppb": 10.0,
+    "heat_index_c": 2.0,
+    "wbgt_c": 2.0,
+}
+
+#: Fallback bar for a parameter with no registered default above.
+_DEFAULT_TWIN_THRESHOLD = 5.0
+
 
 def range_flag(obs: Observation) -> str:
     """``QC_RANGE`` if the value is outside the parameter's plausible bounds, else ``QC_OK``."""
@@ -160,6 +184,10 @@ class TwinAgreement:
     reads *true* — that needs a reference monitor (``calibrate.py``). QC/health metadata only;
     see ``twin_agreement`` and ``docs/calibration.md`` for the "cross-checked ≠ calibrated"
     framing.
+
+    ``agreement_threshold`` is the resolved "cross-checked" bar for this window (the pair's own
+    :attr:`TwinWindow.agreement_threshold`, or the per-parameter default), against which
+    :attr:`residual_spread` is compared to derive the :attr:`status` drift smoke-alarm.
     """
 
     node_a: str
@@ -168,6 +196,29 @@ class TwinAgreement:
     n_pairs: int
     residual_spread: float
     window: TwinWindow
+    agreement_threshold: float
+
+    @property
+    def cross_checked(self) -> bool:
+        """True when enough pairs matched *and* the residual spread is within the agreement bar.
+
+        A cross-checked window says the twins are consistent *with each other* — precision, never
+        accuracy (:class:`TwinAgreement` docstring, hard rule #3). It never promotes a value past
+        provisional anywhere; it is annotation for an operator's health read only.
+        """
+        return self.n_pairs >= MIN_TWIN_PAIRS and self.residual_spread <= self.agreement_threshold
+
+    @property
+    def status(self) -> str:
+        """``cross-checked`` / ``diverged`` / ``insufficient-data`` — the drift smoke-alarm.
+
+        Too few matched pairs to judge reads ``insufficient-data`` (no verdict, not a pass);
+        enough pairs with a spread over the bar reads ``diverged`` (the twins drifted apart this
+        window — investigate the hardware); within the bar reads ``cross-checked``.
+        """
+        if self.n_pairs < MIN_TWIN_PAIRS:
+            return "insufficient-data"
+        return "cross-checked" if self.residual_spread <= self.agreement_threshold else "diverged"
 
 
 def _window_series(
@@ -215,6 +266,13 @@ def _pair_by_nearest_timestamp(
     return residuals
 
 
+def _resolve_twin_threshold(window: TwinWindow) -> float:
+    """The window's "cross-checked" bar: its own override, else the per-parameter default."""
+    if window.agreement_threshold is not None:
+        return window.agreement_threshold
+    return TWIN_AGREEMENT_THRESHOLD.get(window.parameter, _DEFAULT_TWIN_THRESHOLD)
+
+
 def twin_agreement(
     observations: Iterable[Observation],
     twin_windows: Iterable[TwinWindow],
@@ -226,10 +284,13 @@ def twin_agreement(
     For each configured :class:`TwinWindow`, both nodes' readings of the same parameter within
     ``[start, end]`` are paired by nearest timestamp (within ``tol_s`` seconds) and the spread
     of the paired residuals (``value_a - value_b``) is reported alongside how many pairs
-    matched. A tight spread bounds **precision** — the twins agree with each other — never
-    **accuracy** — whether either twin reads true, which only a reference-monitor co-location
-    (``calibrate.py``) can establish. This is annotation only: no :class:`Observation` value is
-    touched and no calibration version is assigned (hard rule #3 — values stay raw).
+    matched and the resolved agreement bar it is judged against (:func:`_resolve_twin_threshold`).
+    A spread within the bar reads *cross-checked*; over it, *diverged* — a drift smoke-alarm
+    (:attr:`TwinAgreement.status`). A tight spread bounds **precision** — the twins agree with
+    each other — never **accuracy** — whether either twin reads true, which only a
+    reference-monitor co-location (``calibrate.py``) can establish. This is annotation only: no
+    :class:`Observation` value is touched and no calibration version is assigned (hard rule #3 —
+    values stay raw, and a cross-checked pair is never promoted past provisional anywhere).
     """
     obs = list(observations)
     results: list[TwinAgreement] = []
@@ -248,6 +309,7 @@ def twin_agreement(
                 n_pairs=len(residuals),
                 residual_spread=spread,
                 window=window,
+                agreement_threshold=_resolve_twin_threshold(window),
             )
         )
     return results
@@ -280,7 +342,13 @@ class NodeHealth:
         return "ok"
 
 
-def _twin_agreement_json(agreements: list[TwinAgreement]) -> list[dict[str, object]]:
+def twin_agreement_json(agreements: list[TwinAgreement]) -> list[dict[str, object]]:
+    """JSON-able cross-checked read: the spread, the bar it is judged against, and the verdict.
+
+    ``cross_checked``/``status`` are the drift smoke-alarm; ``agreement_threshold`` is the bar so a
+    reader sees *why* a pair passed or fired. Carries no observation value and no calibration
+    version — QC/health metadata only (hard rule #3).
+    """
     return [
         {
             "node_a": a.node_a,
@@ -288,6 +356,9 @@ def _twin_agreement_json(agreements: list[TwinAgreement]) -> list[dict[str, obje
             "parameter": a.parameter,
             "n_pairs": a.n_pairs,
             "residual_spread": a.residual_spread,
+            "agreement_threshold": a.agreement_threshold,
+            "cross_checked": a.cross_checked,
+            "status": a.status,
             "window_start": a.window.start,
             "window_end": a.window.end,
         }
@@ -425,7 +496,7 @@ def _attach_side_blocks(
     if store_dir is not None:
         report["integrity"] = _integrity_block(store_dir)
     if twins:
-        report["twin_agreement"] = _twin_agreement_json(twin_agreement(obs, twins))
+        report["twin_agreement"] = twin_agreement_json(twin_agreement(obs, twins))
     if registry is not None:
         report["calibration"] = calibration_block(
             obs, registry, horizon_days=calibration_horizon_days

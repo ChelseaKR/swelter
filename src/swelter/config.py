@@ -179,6 +179,13 @@ class TwinWindow:
     Unlike :class:`CalibrationWindow`, neither node is a reference monitor — this is a
     precision check (do the twins agree with each other?), not an accuracy check (does either
     twin agree with truth?). See ``qc.twin_agreement`` and ``docs/calibration.md``.
+
+    ``agreement_threshold`` is the optional per-pair "cross-checked" bar, in the parameter's own
+    unit (°C for temperature, µg/m³ for PM): the largest residual spread (``value_a - value_b``
+    population standard deviation) the twins may show over the window and still read as
+    *cross-checked* rather than *diverged* (the drift smoke-alarm). ``None`` — the default —
+    uses ``qc``'s documented per-parameter default. It bounds precision only; it never promotes a
+    value past provisional (hard rule #3).
     """
 
     node_a: str
@@ -186,6 +193,7 @@ class TwinWindow:
     parameter: str
     start: str
     end: str
+    agreement_threshold: float | None = None
 
 
 @dataclass(frozen=True)
@@ -324,6 +332,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
             parameter=_as_str(t.get("parameter")),
             start=_as_str(t.get("start")),
             end=_as_str(t.get("end")),
+            agreement_threshold=_as_float(t.get("agreement_threshold")),
         )
         for t in doc.get("twin_windows", []) or []
     )
