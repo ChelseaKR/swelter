@@ -75,6 +75,11 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **Coverage policy now has one source of truth.** The existing 90% branch
+  floor is recorded in `pyproject.toml` as well as the merge command, so direct
+  pytest/coverage use cannot silently omit the repository's required floor.
+  CI documentation now describes the standards repository as separately
+  permissioned instead of relying on stale visibility language.
 - **Dense map markers are accessible targets (WCAG 2.5.8).** On a dense network the map previously
   reprojected up to ~150 readings on top of one another, so many markers fell below the 24px
   target-size/offset floor — a serious axe violation exposed on the `/sensors/` route and latent on
