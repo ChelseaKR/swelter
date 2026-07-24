@@ -125,6 +125,7 @@ source = ["swelter"]
 omit = ["src/swelter/__main__.py"]
 
 [tool.coverage.report]
+fail_under = 90
 show_missing = true
 # Lines that are structurally unreachable under test: the `__main__` guard and
 # Protocol method stubs (`...` bodies in store.Store) carry no behavior to assert.

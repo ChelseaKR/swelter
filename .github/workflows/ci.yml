@@ -39,7 +39,7 @@ jobs:
         env:
           # STANDARDS_PIN_TOKEN is a read-only PAT with access to the private
           # ChelseaKR/portfolio-standards repo; the default job token cannot read a
-          # different private repo, so without the secret the canonical authentication
+          # separately permissioned repo, so without the secret the canonical authentication
           # cannot run at all (HTTP 404) — that infrastructure gap is tracked in #119
           # and is announced loudly here instead of failing every merge on it. The
           # offline standards-pin gate (byte-integrity of the vendored standards

@@ -128,6 +128,11 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **Coverage policy now has one source of truth.** The existing 90% branch
+  floor is recorded in `pyproject.toml` as well as the merge command, so direct
+  pytest/coverage use cannot silently omit the repository's required floor.
+  CI documentation now describes the standards repository as separately
+  permissioned instead of relying on stale visibility language.
 - **A correction version id now names the fit that produced it ([#149](https://github.com/ChelseaKR/swelter/issues/149)).**
   `version` was a pure function of `(parameter, method, node_id)` — no window, no date, no
   coefficient digest — so two corrections fit from genuinely different co-location evidence, 10 °C
