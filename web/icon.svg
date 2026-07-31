@@ -1,8 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="swelter measured-grid mark">
-  <rect x="12" y="12" width="488" height="488" rx="82" fill="#f4f6f7" stroke="#cbd3d8" stroke-width="12" />
-  <g transform="translate(112 112)">
-    <rect width="288" height="288" fill="none" stroke="#73847c" stroke-width="12" />
-    <path d="M96 0V288 M192 0V288 M0 96H288 M0 192H288" fill="none" stroke="#73847c" stroke-width="8" />
-    <rect x="104" y="104" width="80" height="80" fill="#176785" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="swelter">
+  <rect width="512" height="512" rx="96" fill="#7b2d26" />
+  <circle cx="256" cy="232" r="92" fill="#f2c14e" />
+  <g stroke="#f2c14e" stroke-width="22" stroke-linecap="round">
+    <line x1="256" y1="60" x2="256" y2="104" />
+    <line x1="256" y1="360" x2="256" y2="404" />
+    <line x1="84" y1="232" x2="128" y2="232" />
+    <line x1="384" y1="232" x2="428" y2="232" />
+    <line x1="134" y1="110" x2="165" y2="141" />
+    <line x1="347" y1="323" x2="378" y2="354" />
+    <line x1="378" y1="110" x2="347" y2="141" />
+    <line x1="165" y1="323" x2="134" y2="354" />
   </g>
+  <path d="M150 432 q40 -44 80 0 q40 44 80 0 q40 -44 80 0" fill="none" stroke="#fbf7f2" stroke-width="20" stroke-linecap="round" />
 </svg>

@@ -58,9 +58,8 @@ All notable changes to swelter are recorded here. The format follows
   readings over an empty canvas. Route source, geography, terminology, and reuse terms continue to
   come from the source contract that actually won the Pages build.
 - **Repository presentation and contributor metadata.** The package now reports its Beta status and
-  live project site, contributor templates preserve source-specific data rights, and the app icon,
-  social card, and social metadata use the same basic measured-grid and California-map language as
-  the current interface.
+  live project site, contributor templates preserve source-specific data rights, and the existing
+  sun app icon now carries through to the basic California-map social card and social metadata.
 - **Frontend performance baseline ([PR #130](https://github.com/ChelseaKR/swelter/pull/130)).**
   Snapshot, source-contract, catalogue, and basemap requests start in parallel; the initial map waits
   for the already-running basemap request so readings and geography align on first render. Both

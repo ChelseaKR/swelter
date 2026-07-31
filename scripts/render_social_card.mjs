@@ -91,10 +91,20 @@ const svg = `<?xml version="1.0" encoding="UTF-8"?>
   <rect width="${WIDTH}" height="${HEIGHT}" fill="${COLORS.background}" />
   <line x1="640" y1="48" x2="640" y2="592" stroke="${COLORS.border}" stroke-width="1" />
 
-  <g aria-hidden="true" transform="translate(72 68)">
-    <rect width="64" height="64" fill="none" stroke="${COLORS.mapLine}" stroke-width="2" />
-    <path d="M21.33 0V64 M42.67 0V64 M0 21.33H64 M0 42.67H64" fill="none" stroke="${COLORS.mapLine}" stroke-width="1" />
-    <rect x="22.33" y="22.33" width="19.34" height="19.34" fill="${COLORS.accent}" />
+  <g aria-hidden="true" transform="translate(72 68) scale(0.125)">
+    <rect width="512" height="512" rx="96" fill="#7b2d26" />
+    <circle cx="256" cy="232" r="92" fill="#f2c14e" />
+    <g stroke="#f2c14e" stroke-width="22" stroke-linecap="round">
+      <line x1="256" y1="60" x2="256" y2="104" />
+      <line x1="256" y1="360" x2="256" y2="404" />
+      <line x1="84" y1="232" x2="128" y2="232" />
+      <line x1="384" y1="232" x2="428" y2="232" />
+      <line x1="134" y1="110" x2="165" y2="141" />
+      <line x1="347" y1="323" x2="378" y2="354" />
+      <line x1="378" y1="110" x2="347" y2="141" />
+      <line x1="165" y1="323" x2="134" y2="354" />
+    </g>
+    <path d="M150 432 q40 -44 80 0 q40 44 80 0 q40 -44 80 0" fill="none" stroke="#fbf7f2" stroke-width="20" stroke-linecap="round" />
   </g>
 
   <text x="72" y="224" fill="${COLORS.foreground}" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="82" font-weight="650" letter-spacing="-3">swelter</text>
