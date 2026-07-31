@@ -25,7 +25,7 @@ and at least every 6 months when no release ships.
 | Report date | 2026-07-17 |
 | Product description | A framework-free exposure observatory for neighborhood heat and air quality. A resident-first Now view leads into linked history, distribution, map, sortable table, plain list, and evidence-inspector views of one aggregated surface. Served by `swelter serve`; installable as a PWA; deployable to static hosting. |
 | Contact information | Chelsea Kelly-Reif — github.com/ChelseaKR/swelter |
-| Notes | The shell is plain HTML/CSS/ES modules plus complete 395-key English and Spanish MF2 catalogs. An install step pins `messageformat@4.0.0-11` and generates the local MF2 runtime; there is no bundler, runtime framework, map-tile request, external package request, or external font request. Stable `messageformat@4.0.0` has not been verified. |
+| Notes | The shell is plain HTML/CSS/ES modules plus complete 395-key English and Spanish MF2 catalogs. An install step pins the stable `messageformat@4.0.0` release and generates the local MF2 runtime; there is no bundler, runtime framework, map-tile request, external package request, or external font request. |
 | Evaluation methods used | See below. |
 
 ### Evaluation methods used

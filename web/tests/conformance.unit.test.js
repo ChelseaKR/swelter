@@ -185,13 +185,14 @@ test("critical static assets stay inside the low-bandwidth byte budget", () => {
 test("MessageFormat 2 runtime is exact and integrity-locked", () => {
   const packageJson = JSON.parse(read("package.json"));
   const lock = JSON.parse(read("package-lock.json"));
-  assert.deepEqual(packageJson.dependencies, { messageformat: "4.0.0-11" });
-  assert.equal(lock.packages[""].dependencies.messageformat, "4.0.0-11");
+  assert.deepEqual(packageJson.dependencies, { messageformat: "4.0.0" });
+  assert.equal(lock.packages[""].dependencies.messageformat, "4.0.0");
   assert.deepEqual(lock.packages["node_modules/messageformat"], {
-    version: "4.0.0-11",
-    resolved: "https://registry.npmjs.org/messageformat/-/messageformat-4.0.0-11.tgz",
-    integrity: "sha512-8OZN4+rgXmsRkkjcVGAZtdp91a4USScLHr5fiQrAgIhQGWEY3Ii+VMCfsrw4sWVAwsbTzPIckOtVRKOiv7WPLg==",
+    version: "4.0.0",
+    resolved: "https://registry.npmjs.org/messageformat/-/messageformat-4.0.0.tgz",
+    integrity: "sha512-XKmJ/ffTWToWOlHJzt85ZChQgVGC0LHzNWuNK8zuYpNySsB0nIEmytOdSAOW9ETKtkajAUJf520m5gFHHnrTYg==",
     license: "Apache-2.0",
+    engines: { node: "^20.19 || ^22.12 || >=24" },
   });
 });
 
