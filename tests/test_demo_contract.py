@@ -218,7 +218,7 @@ def test_pages_build_records_each_fallback_winner() -> None:
 def test_pages_builds_and_copies_the_integrity_locked_mf2_runtime() -> None:
     workflow = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
 
-    assert "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0" in workflow
+    assert "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0" in workflow
     assert "node-version-file: web/.nvmrc" in workflow
     assert "npm --prefix web ci" in workflow
     assert "rm -rf web/node_modules" in workflow
