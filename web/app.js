@@ -168,18 +168,28 @@ const state = {
 const firing = new Set();
 let notifyOn = false; // has the reader asked for on-device notifications this session?
 
-const MAX_ZOOM = 14;
+// A statewide projection needs a deep camera range to reach neighborhood-scale readings without
+// replacing the geography. The Sacramento demonstration footprint is about 1/250 of California's
+// width, so a conventional 10–20x cap would make the overview cluster impossible to inspect.
+const MAX_ZOOM = 512;
 const reduceMotionMQL = window.matchMedia("(prefers-reduced-motion: reduce)");
 let mapW = 0; // cached #map pixel size — measured on show/resize, never read per frame
 let mapH = 0;
-let markerFractions = new Map(); // cell_id → decluttered {left, bottom} from the last renderMap
+let markerFractions = new Map(); // cell_id → geographic {left, bottom} from the last renderMap
 let mapVisible = false; // is the Map tab currently shown?
 let mapDirty = true; // does the (lazy) map need a rebuild before it is shown?
-let lastK = 1; // last --k written; a pure pan must not rewrite it (would repaint every marker)
+let lastK = 1; // last zoom applied; cluster visibility changes only when this value changes
 let mapDidDrag = false; // a pan/pinch moved past threshold → suppress the trailing marker click
 let mapWasMultiTouch = false; // a 2-finger gesture happened → suppress a stray tap-select
 let mapRafPending = false; // a transform write is already queued for the next frame
 let mapRafAnimate = false;
+let mapResizePending = false;
+let mapClusterGroups = []; // overview cluster DOM + the camera zoom at which its members are legible
+let mapPositionedElements = []; // marker/overlay DOM paired with fixed projected fractions
+let mapProj = null; // the fixed projection currently shared by geography and reading positions
+let mapLayoutW = 0; // dimensions/text scale used to build the current overview groups
+let mapLayoutH = 0;
+let mapLayoutTextStep = 0;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1442,10 +1452,8 @@ function renderNow(rows) {
     $("#now-mode").textContent = t("now-selected-focus");
     $("#now-place").textContent = placeName(missingSelected);
     $("#now-reading").textContent = t("now-no-reading", { time: fmtBucket(currentBucket()) });
-    $("#now-context").textContent = t("now-gap");
     $("#now-trust").textContent = t("now-no-current");
     $("#now-freshness").textContent = fmtBucket(currentBucket());
-    $("#now-guidance").textContent = "";
     if (card) card.removeAttribute("data-provisional");
     if (card) card.removeAttribute("data-flagged");
     if (open) open.setAttribute("data-cell", state.selected);
@@ -1455,10 +1463,8 @@ function renderNow(rows) {
     $("#now-mode").textContent = t(state.search ? "now-search-focus" : "now-network-focus");
     $("#now-place").textContent = "—";
     $("#now-reading").textContent = t(state.search ? "now-search-empty" : "now-empty");
-    $("#now-context").textContent = "";
     $("#now-trust").textContent = "—";
     $("#now-freshness").textContent = "—";
-    $("#now-guidance").textContent = "";
     if (card) card.removeAttribute("data-provisional");
     if (card) card.removeAttribute("data-flagged");
     if (open) open.removeAttribute("data-cell");
@@ -1471,21 +1477,10 @@ function renderNow(rows) {
   );
   $("#now-place").textContent = placeName(row);
   $("#now-reading").textContent = readingText(row);
-  const temporalContext = temporalContextText(row.bucket);
-  $("#now-context").textContent = [temporalContext, contrastLine(row)].filter(Boolean).join(" ");
   $("#now-trust").textContent = row.provisional
     ? provisionalTag(row)
     : sourceTerm("non_provisional_label", "state-calibrated");
   $("#now-freshness").textContent = `${fmtBucket(row.bucket)} · ${ageText(row.bucket)}`;
-  const guidance = guidanceForRow(row);
-  $("#now-guidance").textContent = [
-    temporalContext ? t("guidance-associated") : "",
-    guidance,
-    row.provisional ? t("now-provisional-note") : "",
-    qcFlagged(row) ? t("qc-flagged-note") : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
   if (card) card.setAttribute("data-provisional", String(row.provisional));
   if (card) card.setAttribute("data-flagged", String(qcFlagged(row)));
   if (open) open.setAttribute("data-cell", row.cell_id);
@@ -2099,6 +2094,8 @@ function renderObservatory(rows, row) {
   renderRangeControls();
   renderExposureBraid(row);
   renderDistribution(rows);
+  const workspace = document.querySelector(".workspace-shell");
+  if (workspace) workspace.dataset.inspector = state.selected ? "active" : "empty";
   const emptyInspector = $("#inspector-empty");
   if (emptyInspector) emptyInspector.hidden = !!state.selected;
 }
@@ -2439,8 +2436,9 @@ function td(text) {
 }
 
 // Equirectangular projection over a bounding box, with a cos(latitude) longitude scale so the
-// shape isn't stretched east-west. When a basemap (e.g. California) is loaded we fit to ITS bbox so
-// the geography stays recognizable however few points there are; otherwise we fit to the data.
+// shape isn't stretched east-west. If a basemap exists, every camera state uses that same fixed
+// geographic projection; interaction changes only the canvas transform. Routes without a basemap
+// retain the data-fit fallback.
 function mapProjection(rows) {
   const bm = state.basemap;
   let minLon, minLat, maxLon, maxLat;
@@ -2464,7 +2462,16 @@ function mapProjection(rows) {
   minLon -= padLon;
   maxLon += padLon;
   const kx = Math.cos((((minLat + maxLat) / 2) * Math.PI) / 180);
-  return { minLon, minLat, maxLon, maxLat, kx, W: (maxLon - minLon) * kx, H: maxLat - minLat };
+  return {
+    minLon,
+    minLat,
+    maxLon,
+    maxLat,
+    kx,
+    W: (maxLon - minLon) * kx,
+    H: maxLat - minLat,
+    basemap: Boolean(bm),
+  };
 }
 
 // The basemap polygons as one decorative, aria-hidden SVG path behind the markers, projected with
@@ -2498,7 +2505,7 @@ function buildBasemap(proj) {
 // projected box edge-to-edge; without one we inset a little so data isn't flush to the border.
 function markerPos(row, proj) {
   const span = (v, lo, hi) => (hi === lo ? 0.5 : (v - lo) / (hi - lo));
-  if (state.basemap) {
+  if (proj.basemap) {
     return { left: span(row.lon, proj.minLon, proj.maxLon), bottom: span(row.lat, proj.minLat, proj.maxLat) };
   }
   return {
@@ -2523,168 +2530,217 @@ function addCoolingOverlay(canvas, proj) {
     mark.textContent = "❄";
     mark.style.left = `${left * 100}%`;
     mark.style.bottom = `${bottom * 100}%`;
+    mark.dataset.mapLeft = String(left);
+    mark.dataset.mapBottom = String(bottom);
+    mapPositionedElements.push({ element: mark, position: { left, bottom } });
     canvas.appendChild(mark);
   }
 }
 
-// Required clear box, in canvas pixels at zoom 1, around each reading marker: the dense-marker box is
-// 28px, so a 30px separation keeps a 2px gap between neighbours. Markers are axis-aligned squares, so
-// the relaxation separates them on whichever axis (x or y) they overlap least — Chebyshev separation,
-// not centre distance — which is what stops one marker from obscuring another below the WCAG 2.5.8
-// target-size floor. Comfortably clears the 24px floor too.
-const MARKER_MIN_SEPARATION = 30;
+const MAP_CLUSTER_REVEAL_ZOOM = 2.25;
+const MAP_CLUSTER_FIT_PADDING = 32;
 
-// Keep a marker centre out of a forbidden rectangle (already padded by the marker half-size) by
-// sliding it to the nearest rectangle edge that still lands inside the map. Used so relaxed markers
-// never end up under the absolutely-positioned zoom/reset controls, which would obscure them below the
-// WCAG 2.5.8 target floor even though no two markers overlap. Mutates and returns the point.
-function pushOutOfRect(point, rect, minX, maxX, minY, maxY) {
-  if (point.x <= rect.left || point.x >= rect.right || point.y <= rect.top || point.y >= rect.bottom) {
-    return point;
+// Group nearby positions into overview clusters without removing any reading from the DOM. Each
+// member still renders as a complete `.cell` for Map/List/Table outcome equivalence; CSS collapses
+// clustered members only at the statewide overview, then reveals them once the reader zooms in.
+// Dense overviews use screen-pixel bins; smaller sets merge only controls that would overlap. A
+// cluster is anchored to the member nearest its center, so coastal groups cannot land in the ocean.
+function markerClusters(
+  layout,
+  width,
+  height,
+  enabled = true,
+  textScale = 1,
+  coarse = true,
+  baseSeparationX = 50,
+  baseSeparationY = baseSeparationX,
+) {
+  if (!enabled || !width || !height || layout.length < 2) {
+    return layout.map((position, index) => ({ indices: [index], position }));
   }
-  const candidates = [
-    { x: rect.left, y: point.y, cost: point.x - rect.left },
-    { x: rect.right, y: point.y, cost: rect.right - point.x },
-    { x: point.x, y: rect.top, cost: point.y - rect.top },
-    { x: point.x, y: rect.bottom, cost: rect.bottom - point.y },
-  ]
-    .filter((c) => c.x >= minX && c.x <= maxX && c.y >= minY && c.y <= maxY)
-    .sort((a, b) => a.cost - b.cost);
-  if (candidates.length) {
-    point.x = candidates[0].x;
-    point.y = candidates[0].y;
-  }
-  return point;
-}
-
-// A dense network can reproject many readings into a tiny extent (e.g. the ~150 Sensor.Community
-// locations packed into a few hundred metres of Stuttgart), stacking markers on top of each other so
-// the lower ones fall below the WCAG 2.5.8 target-size/offset floor. This nudges only the colliding
-// markers apart with a deterministic collision relaxation seeded from their true projected position,
-// so every marker becomes a reachable target while the schematic keeps its overall shape. It never
-// drops or merges a reading: Map, List, and Table stay outcome-equivalent (hard rule 5) and the exact
-// coordinates always remain in the equivalence-locked list and table. Runs in canvas pixels at zoom 1
-// (the geometry the target-size checks measure), keeps markers clear of the overlaid map controls, and
-// returns left/bottom fractions aligned with rows.
-function declutterPositions(rows, proj, mapEl) {
-  const base = rows.map((row) => markerPos(row, proj));
-  const width = mapEl.clientWidth;
-  const height = mapEl.clientHeight;
-  // Hidden/unmeasured map (e.g. built while its tab was off-screen): keep the true positions; renderMap
-  // rebuilds once the tab is shown and the box is measurable.
-  if (!width || !height || base.length < 2) return base;
-  const sep = MARKER_MIN_SEPARATION;
-  const half = sep / 2;
-  const minX = half;
-  const maxX = Math.max(half, width - half);
-  const minY = half;
-  const maxY = Math.max(half, height - half);
-  // Forbidden zones (map-local, y from the top) that would obscure a marker, expanded by the marker
-  // half-size plus a small margin so the marker box — not just its centre — clears them.
-  const pad = half + 2;
-  const obstacles = mapControlObstacles(mapEl).map((rect) => ({
-    left: rect.left - pad,
-    right: rect.right + pad,
-    top: rect.top - pad,
-    bottom: rect.bottom + pad,
-  }));
-  const enforce = (point) => {
-    point.x = Math.min(maxX, Math.max(minX, point.x));
-    point.y = Math.min(maxY, Math.max(minY, point.y));
-    for (const rect of obstacles) pushOutOfRect(point, rect, minX, maxX, minY, maxY);
-    return point;
-  };
-  // Project to pixel centres (bottom fraction runs up from the lower edge). A sub-pixel deterministic
-  // spiral seed gives exactly-coincident markers a stable direction to separate along.
-  const points = base.map((position, index) => {
-    const point = {
-      x: position.left * width + Math.cos(index * 2.399963) * 0.6,
-      y: (1 - position.bottom) * height + Math.sin(index * 2.399963) * 0.6,
-    };
-    return enforce(point);
-  });
-  const count = points.length;
-  for (let iteration = 0; iteration < 400; iteration += 1) {
-    let moved = false;
-    for (let i = 0; i < count; i += 1) {
-      for (let j = i + 1; j < count; j += 1) {
-        const dx = points[j].x - points[i].x;
-        const dy = points[j].y - points[i].y;
-        const overlapX = sep - Math.abs(dx);
-        const overlapY = sep - Math.abs(dy);
-        if (overlapX <= 0 || overlapY <= 0) continue; // boxes already clear on one axis
-        // Separate along the axis of least overlap (smallest nudge). A deterministic per-index sign
-        // breaks ties for coincident markers so the layout is stable across renders.
-        if (overlapX <= overlapY) {
-          const dir = dx || (i % 2 ? 1 : -1);
-          const shift = (overlapX / 2) * Math.sign(dir);
-          points[i].x -= shift;
-          points[j].x += shift;
-        } else {
-          const dir = dy || (i % 2 ? 1 : -1);
-          const shift = (overlapY / 2) * Math.sign(dir);
-          points[i].y -= shift;
-          points[j].y += shift;
-        }
-        moved = true;
-      }
-      enforce(points[i]);
+  // Keep the statewide view intentionally coarse: one screen should communicate coverage and
+  // concentration, not ask the reader to parse dozens of same-weight controls. The first cluster
+  // activation zooms far enough that every underlying reading is restored.
+  let groups;
+  if (coarse) {
+    const binSize = Math.max(96, Math.min(120, width / 7.5));
+    const bins = new Map();
+    for (let index = 0; index < layout.length; index += 1) {
+      const position = layout[index];
+      const key = `${Math.floor((position.left * width) / binSize)}:${Math.floor(
+        ((1 - position.bottom) * height) / binSize,
+      )}`;
+      if (!bins.has(key)) bins.set(key, { indices: [] });
+      bins.get(key).indices.push(index);
     }
-    if (!moved) break;
+    groups = [...bins.values()];
+  } else {
+    groups = layout.map((_position, index) => ({ indices: [index] }));
   }
-  return points.map((point) => ({ left: point.x / width, bottom: 1 - point.y / height }));
+  const anchorFor = (group) => {
+    const center = group.indices.reduce(
+      (total, index) => ({
+        x: total.x + layout[index].left * width,
+        y: total.y + (1 - layout[index].bottom) * height,
+      }),
+      { x: 0, y: 0 },
+    );
+    center.x /= group.indices.length;
+    center.y /= group.indices.length;
+    return group.indices.reduce((best, index) => {
+      const dx = layout[index].left * width - center.x;
+      const dy = (1 - layout[index].bottom) * height - center.y;
+      const distance = dx * dx + dy * dy;
+      return distance < best.distance ? { index, distance } : best;
+    }, { index: group.indices[0], distance: Number.POSITIVE_INFINITY }).index;
+  };
+
+  // Merge overlapping representatives after binning. At 130% text, a cluster target is 62.4px;
+  // 50px × scale leaves a small gap. Axis-aligned checks cover the whole target, not just its circle.
+  const scale = Number.isFinite(textScale) && textScale > 0 ? textScale : 1;
+  const requiredX = baseSeparationX * scale;
+  const requiredY = baseSeparationY * scale;
+  while (groups.length > 1) {
+    const anchors = groups.map(anchorFor);
+    let overlap = null;
+    for (let left = 0; left < groups.length - 1; left += 1) {
+      const a = layout[anchors[left]];
+      for (let right = left + 1; right < groups.length; right += 1) {
+        const b = layout[anchors[right]];
+        const dx = Math.abs(a.left - b.left) * width;
+        const dy = Math.abs(a.bottom - b.bottom) * height;
+        if (dx >= requiredX || dy >= requiredY) continue;
+        const distance = Math.max(dx / requiredX, dy / requiredY);
+        if (!overlap || distance < overlap.distance) overlap = { left, right, distance };
+      }
+    }
+    if (!overlap) break;
+    groups[overlap.left].indices.push(...groups[overlap.right].indices);
+    groups[overlap.left].indices.sort((a, b) => a - b);
+    groups.splice(overlap.right, 1);
+  }
+
+  return groups.map((group) => ({
+    indices: group.indices,
+    position: layout[anchorFor(group)],
+  }));
 }
 
-// The zoom/reset controls sit in an absolutely-positioned overlay above the map's top corner. Return
-// their bounds in map-local pixels (y measured from the top) so declutter can keep markers out from
-// under them. Returns an empty list if the overlay is absent or unmeasured.
-function mapControlObstacles(mapEl) {
-  const wrap = mapEl.closest(".map-wrap");
-  const controls = wrap && wrap.querySelector(".map-controls");
-  if (!controls) return [];
-  const mapRect = mapEl.getBoundingClientRect();
-  const rect = controls.getBoundingClientRect();
-  if (!rect.width || !rect.height) return [];
-  return [
-    {
-      left: rect.left - mapRect.left,
-      right: rect.right - mapRect.left,
-      top: rect.top - mapRect.top,
-      bottom: rect.bottom - mapRect.top,
-    },
-  ];
+// Fit projected member positions by moving the camera over the existing canvas. The returned view
+// does not mutate the positions or projection. The full group remains in view; compact markers and
+// per-group clustering handle density without turning a close pair into an extreme, context-free
+// zoom that hides the rest of the network.
+function fitMapBounds(
+  positions,
+  width,
+  height,
+  padding = MAP_CLUSTER_FIT_PADDING,
+) {
+  const points = positions.filter(
+    (position) => Number.isFinite(position?.left) && Number.isFinite(position?.bottom),
+  );
+  if (!points.length || !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return { zoom: 1, x: 0, y: 0 };
+  }
+  const left = Math.min(...points.map((position) => position.left));
+  const right = Math.max(...points.map((position) => position.left));
+  const bottom = Math.min(...points.map((position) => position.bottom));
+  const top = Math.max(...points.map((position) => position.bottom));
+  const safePadding = Math.max(0, Math.min(padding, width / 2 - 1, height / 2 - 1));
+  const spanX = (right - left) * width;
+  const spanY = (top - bottom) * height;
+  const fitX = spanX > 0 ? (width - 2 * safePadding) / spanX : MAX_ZOOM;
+  const fitY = spanY > 0 ? (height - 2 * safePadding) / spanY : MAX_ZOOM;
+
+  const zoom = Math.min(
+    MAX_ZOOM,
+    Math.max(MAP_CLUSTER_REVEAL_ZOOM + 0.75, Math.min(fitX, fitY)),
+  );
+  const centerLeft = (left + right) / 2;
+  const centerBottom = (bottom + top) / 2;
+  const unclampedX = width / 2 - centerLeft * width * zoom;
+  const unclampedY = height / 2 - (1 - centerBottom) * height * zoom;
+  return {
+    zoom,
+    x: Math.min(0, Math.max(width * (1 - zoom), unclampedX)),
+    y: Math.min(0, Math.max(height * (1 - zoom), unclampedY)),
+  };
 }
 
 function renderMap(rows) {
   const map = $("#map");
+  const wrap = map.closest(".map-wrap");
   const focusedCell = document.activeElement?.closest?.("#map .cell")?.dataset?.cell;
   map.textContent = "";
+  map.classList.remove("markers-expanded");
+  mapClusterGroups = [];
+  mapPositionedElements = [];
   map.classList.toggle("dense", rows.length > 50); // shrink markers on a dense network
-  if (!rows.length) return;
+  if (!rows.length) {
+    mapProj = null;
+    return;
+  }
   const proj = mapProjection(rows);
+  mapProj = proj;
   // Without a basemap the projection is fit to the current rows, so a changed extent (a search
   // filter, a different parameter's coverage) would silently re-anchor a held zoom onto new ground.
   // Refit when that signature changes so the view never drifts onto unrelated geography.
-  const sig = `${state.basemap ? "bm" : "data"}:${proj.minLon},${proj.minLat},${proj.maxLon},${proj.maxLat}`;
-  if (!state.basemap && sig !== state.projSig) state.mapView = { zoom: 1, x: 0, y: 0 };
+  const sig = `${proj.basemap ? "bm" : "data"}:${proj.minLon},${proj.minLat},${proj.maxLon},${proj.maxLat}`;
+  if (!proj.basemap && sig !== state.projSig) state.mapView = { zoom: 1, x: 0, y: 0 };
   state.projSig = sig;
-  if (state.basemap) {
-    // Match the box to the projection so the outline isn't stretched, and cap its height.
+  if (proj.basemap) {
+    // Match the whole map wrapper to the projection so the outline is not stretched and its control
+    // toolbar stays attached to the actual map instead of an empty full-width gutter.
+    const projectedMaxWidth = `${((proj.W / proj.H) * 42).toFixed(2)}rem`;
     map.style.aspectRatio = `${proj.W} / ${proj.H}`;
-    map.style.maxWidth = `${((proj.W / proj.H) * 34).toFixed(2)}rem`;
-    map.style.marginInline = "auto";
+    map.style.height = "auto";
+    map.style.maxWidth = "none";
+    map.style.marginInline = "0";
     map.style.minHeight = "0"; // let the aspect-ratio drive height; don't stretch on narrow screens
+    if (wrap) {
+      wrap.classList.add("statewide-map");
+      wrap.style.setProperty("--statewide-map-width", projectedMaxWidth);
+      wrap.style.removeProperty("max-width");
+      wrap.style.marginInline = "auto";
+    }
   } else {
     map.style.removeProperty("aspect-ratio");
+    map.style.removeProperty("height");
     map.style.removeProperty("max-width");
     map.style.removeProperty("margin-inline");
     map.style.removeProperty("min-height");
+    if (wrap) {
+      wrap.classList.remove("statewide-map");
+      wrap.style.removeProperty("--statewide-map-width");
+      wrap.style.removeProperty("max-width");
+      wrap.style.removeProperty("margin-inline");
+    }
   }
   const canvas = document.createElement("div");
   canvas.className = "map-canvas";
-  if (state.basemap) canvas.appendChild(buildBasemap(proj));
-  const layout = declutterPositions(rows, proj, map);
+  if (proj.basemap) canvas.appendChild(buildBasemap(proj));
+  // Keep every reading on its projected coordinate. The former collision layout made a dense
+  // Sacramento network appear to cover California by pushing markers into empty parts of the state.
+  // Clustering now handles the statewide overview; opening the cluster zooms to the real local grid.
+  const layout = rows.map((row) => markerPos(row, proj));
+  mapLayoutW = map.clientWidth;
+  mapLayoutH = map.clientHeight;
+  mapLayoutTextStep = state.textStep;
+  const clusters = markerClusters(
+    layout,
+    mapLayoutW,
+    mapLayoutH,
+    rows.length > 1,
+    TEXT_STEPS[state.textStep],
+    rows.length > 50,
+    rows.length > 50 ? 50 : 90,
+    rows.length > 50 ? 50 : 42,
+  );
+  const clusteredIndices = new Set(
+    clusters.filter((cluster) => cluster.indices.length > 1).flatMap((cluster) => cluster.indices),
+  );
   markerFractions = new Map();
+  const cellButtons = [];
   let restoreFocus = null;
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
@@ -2707,10 +2763,13 @@ function renderMap(rows) {
     }
     if (row.provisional) btn.classList.add("provisional");
     if (row.cell_id === state.selected) btn.classList.add("selected");
+    if (clusteredIndices.has(index)) btn.classList.add("cluster-member");
     const pos = layout[index];
     markerFractions.set(row.cell_id, pos);
     btn.style.left = `${pos.left * 100}%`;
     btn.style.bottom = `${pos.bottom * 100}%`;
+    btn.dataset.mapLeft = String(pos.left);
+    btn.dataset.mapBottom = String(pos.bottom);
     btn.setAttribute("aria-label", describe(row));
     const value = document.createElement("span");
     value.classList.add("cell-reading");
@@ -2746,10 +2805,62 @@ function renderMap(rows) {
       select(row.cell_id, true); // a marker tap focuses the map on that cell
     });
     if (row.cell_id === focusedCell) restoreFocus = btn;
+    cellButtons.push(btn);
+    mapPositionedElements.push({ element: btn, position: pos });
     canvas.appendChild(btn);
   }
+  for (const cluster of clusters) {
+    if (cluster.indices.length < 2) continue;
+    const members = cluster.indices.map((index) => rows[index]);
+    const magnitudes = members
+      .map((row) => (state.parameter === "pm25_ugm3" ? Number(row.aqi) : magnitudeFor(row)))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    const clusterButton = document.createElement("button");
+    clusterButton.type = "button";
+    clusterButton.className = "map-cluster";
+    clusterButton.style.left = `${cluster.position.left * 100}%`;
+    clusterButton.style.bottom = `${cluster.position.bottom * 100}%`;
+    clusterButton.dataset.mapLeft = String(cluster.position.left);
+    clusterButton.dataset.mapBottom = String(cluster.position.bottom);
+    clusterButton.dataset.memberCells = JSON.stringify(
+      cluster.indices.map((index) => rows[index].cell_id),
+    );
+    clusterButton.textContent = t("map-cluster-short", { n: cluster.indices.length });
+    const low = magnitudes[0];
+    const high = magnitudes[magnitudes.length - 1];
+    const formatClusterValue = (value) =>
+      state.parameter === "pm25_ugm3"
+        ? `AQI ${formatNumber(Math.round(value))}`
+        : formatMagnitude(value);
+    clusterButton.setAttribute(
+      "aria-label",
+      t("map-cluster-label", {
+        n: cluster.indices.length,
+        low: formatClusterValue(low),
+        high: formatClusterValue(high),
+      }),
+    );
+    clusterButton.addEventListener("click", () => {
+      if (mapDidDrag || mapWasMultiTouch) return;
+      zoomToMapBounds(cluster.indices.map((index) => layout[index]), true);
+      map.focus({ preventScroll: true });
+    });
+    mapPositionedElements.push({ element: clusterButton, position: cluster.position });
+    canvas.appendChild(clusterButton);
+    const view = fitMapBounds(
+      cluster.indices.map((index) => layout[index]),
+      map.clientWidth,
+      map.clientHeight,
+    );
+    mapClusterGroups.push({
+      button: clusterButton,
+      members: cluster.indices.map((index) => cellButtons[index]),
+      revealZoom: view.zoom,
+    });
+  }
   if (state.coolingVisible && state.coolingCenters) addCoolingOverlay(canvas, proj);
-  lastK = -1; // force the next applyMapTransform to (re)write --k onto the fresh canvas
+  lastK = -1; // force cluster visibility to sync onto the fresh canvas
   map.appendChild(canvas);
   applyMapTransform(false);
   if (state.pendingFocus) {
@@ -2770,6 +2881,20 @@ function measureMap() {
   }
 }
 
+function mapCameraCenter() {
+  const view = state.mapView;
+  return {
+    left: mapW ? (mapW / 2 - view.x) / (mapW * view.zoom) : 0.5,
+    top: mapH ? (mapH / 2 - view.y) / (mapH * view.zoom) : 0.5,
+  };
+}
+
+function restoreMapCameraCenter(center) {
+  const view = state.mapView;
+  view.x = mapW / 2 - center.left * mapW * view.zoom;
+  view.y = mapH / 2 - center.top * mapH * view.zoom;
+}
+
 function clampMapView() {
   const v = state.mapView;
   v.zoom = Math.min(MAX_ZOOM, Math.max(1, v.zoom));
@@ -2779,19 +2904,49 @@ function clampMapView() {
   v.y = Math.min(0, Math.max(mapH * (1 - v.zoom), v.y));
 }
 
+function cameraViewBox(proj, view) {
+  const width = proj.W / view.zoom;
+  const height = proj.H / view.zoom;
+  const x = (-view.x / (mapW * view.zoom)) * proj.W;
+  const y = (-view.y / (mapH * view.zoom)) * proj.H;
+  return `${x} ${y} ${width} ${height}`;
+}
+
 function applyMapTransform(animate) {
   if (!mapVisible) return; // tab hidden / unmeasurable — the transform is applied when it is shown
   const canvas = $("#map .map-canvas");
   if (!canvas) return;
+  if (!mapW || !mapH) measureMap();
   clampMapView();
   const v = state.mapView;
+  const map = $("#map");
   canvas.classList.toggle("animate", !!animate && !reduceMotionMQL.matches);
   if (v.zoom !== lastK) {
-    // Only touch --k on a real zoom change; a pan must not repaint all the counter-scaled markers.
-    canvas.style.setProperty("--k", v.zoom);
+    let expandedGroups = 0;
+    for (const group of mapClusterGroups) {
+      const expanded = v.zoom >= group.revealZoom;
+      group.button.hidden = expanded;
+      group.button.setAttribute("aria-expanded", String(expanded));
+      for (const member of group.members) member.classList.toggle("cluster-visible", expanded);
+      if (expanded) expandedGroups += 1;
+    }
+    map?.classList.toggle("markers-expanded", expandedGroups > 0);
     lastK = v.zoom;
   }
-  canvas.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.zoom})`;
+  const camera = `translate(${v.x}px, ${v.y}px) scale(${v.zoom})`;
+  canvas.dataset.camera = camera;
+  // Transforming an SVG root by ~200x magnifies county strokes into hundred-pixel bands in Chromium,
+  // while transforming the whole canvas paint-culls fixed-size descendants in multiple engines.
+  // Change the SVG camera through its viewBox and place each target in screen pixels instead. Both
+  // are derived from the same fixed projection, so geography and readings remain exactly aligned.
+  const basemap = canvas.querySelector(".basemap");
+  if (basemap && mapProj) basemap.setAttribute("viewBox", cameraViewBox(mapProj, v));
+  for (const { element, position } of mapPositionedElements) {
+    const screenX = v.x + position.left * mapW * v.zoom;
+    const screenY = v.y + (1 - position.bottom) * mapH * v.zoom;
+    element.style.left = `${screenX}px`;
+    element.style.bottom = `${mapH - screenY}px`;
+  }
 }
 
 // Coalesce high-frequency input (wheel, drag, pinch) into one transform write per animation frame.
@@ -2830,6 +2985,12 @@ function resetMapView() {
   applyMapTransform(true);
 }
 
+function zoomToMapBounds(positions, animate) {
+  if (!mapVisible || !mapW) return;
+  state.mapView = fitMapBounds(positions, mapW, mapH);
+  applyMapTransform(animate);
+}
+
 // Center the map on a cell and zoom in. Defer if the map isn't measurable yet (hidden tab); if the
 // target was filtered out (e.g. a search changed), keep a coherent view instead of going blank.
 function zoomToCell(cellId, animate) {
@@ -2843,10 +3004,12 @@ function zoomToCell(cellId, animate) {
     applyMapTransform(animate);
     return;
   }
-  // Center on the marker's actual (decluttered) position so zoom-to-cell lands on the drawn dot, not
-  // its pre-nudge projection; fall back to the raw projection if the cache is cold.
+  // Center on the marker's geographic position; fall back to a fresh projection if the cache is cold.
   const pos = markerFractions.get(cellId) || markerPos(row, mapProjection(rows));
-  const k = Math.min(MAX_ZOOM, Math.max(state.mapView.zoom, 6));
+  const cluster = mapClusterGroups.find((group) =>
+    group.members.some((member) => member.dataset.cell === cellId),
+  );
+  const k = Math.min(MAX_ZOOM, Math.max(state.mapView.zoom, cluster?.revealZoom || 6));
   const px = pos.left * mapW; // marker x in canvas px at scale 1
   const py = (1 - pos.bottom) * mapH; // bottom fraction → top-down px
   state.mapView.zoom = k;
@@ -2881,7 +3044,6 @@ function wireMap() {
   );
 
   map.addEventListener("pointerdown", (e) => {
-    map.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, local(e));
     mapDidDrag = false;
     if (pointers.size === 1) {
@@ -2890,6 +3052,15 @@ function wireMap() {
       map.classList.add("dragging");
     } else if (pointers.size === 2) {
       mapWasMultiTouch = true;
+      // A tap must retain its button target so native click activation reaches markers and clusters.
+      // Capture only once the gesture is unambiguously a pinch (or, below, a drag).
+      for (const pointerId of pointers.keys()) {
+        try {
+          map.setPointerCapture(pointerId);
+        } catch {
+          /* A browser may have already ended one pointer between the two events. */
+        }
+      }
       const [a, b] = [...pointers.values()];
       pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
       drag = null;
@@ -2914,7 +3085,16 @@ function wireMap() {
     } else if (drag) {
       const dx = e.clientX - drag.cx;
       const dy = e.clientY - drag.cy;
-      if (Math.abs(dx) + Math.abs(dy) > 4) mapDidDrag = true;
+      if (Math.abs(dx) + Math.abs(dy) > 4) {
+        mapDidDrag = true;
+        if (!map.hasPointerCapture(e.pointerId)) {
+          try {
+            map.setPointerCapture(e.pointerId);
+          } catch {
+            /* Pointer capture is an enhancement; document-level pointer delivery may already own it. */
+          }
+        }
+      }
       state.mapView.x = drag.x + dx;
       state.mapView.y = drag.y + dy;
       scheduleTransform(false);
@@ -2985,12 +3165,27 @@ function wireMap() {
   $("#map-reset").addEventListener("click", resetMapView);
 
   if (window.ResizeObserver) {
-    // Re-measure + reapply when the map box changes size (incl. becoming visible, or a viewport
-    // resize) so clamping and centering use the true dimensions without per-frame reads.
+    // Rebuild overview groups when the map box changes size (including responsive reflow). Their
+    // hit targets stay a fixed physical size while geographic distances shrink, so merely moving
+    // the old groups would let controls overlap after a resize.
     new ResizeObserver(() => {
-      if (!mapVisible) return;
-      measureMap();
-      applyMapTransform(false);
+      if (!mapVisible || mapResizePending) return;
+      mapResizePending = true;
+      requestAnimationFrame(() => {
+        mapResizePending = false;
+        const center = mapCameraCenter();
+        measureMap();
+        const geometryChanged =
+          Math.abs(mapW - mapLayoutW) > 1 ||
+          Math.abs(mapH - mapLayoutH) > 1 ||
+          state.textStep !== mapLayoutTextStep;
+        if (geometryChanged && current().length) {
+          restoreMapCameraCenter(center);
+          renderMap(current());
+        } else {
+          applyMapTransform(false);
+        }
+      });
     }).observe(map);
   }
 }
@@ -3355,7 +3550,12 @@ function renderAlerts() {
     go.className = "linklike";
     go.dataset.alertKey = key;
     go.textContent = t("alert-go");
-    go.addEventListener("click", () => showAlertObservation(row.cell_id, row.parameter, row.bucket));
+    go.addEventListener("click", () => {
+      showAlertObservation(row.cell_id, row.parameter, row.bucket);
+      [...list.querySelectorAll("button")].find(
+        (button) => button.dataset.alertKey === key,
+      )?.focus({ preventScroll: true });
+    });
     if (key === focusedKey) restoreFocus = go;
     li.append(text, document.createTextNode(" "), go);
     list.appendChild(li);
@@ -4013,6 +4213,10 @@ function renderActiveRepresentation(rows) {
 function select(cellId, focusMap = false) {
   if (cellId !== state.selected) $("#watch-status").textContent = ""; // a new pick clears stale feedback
   state.selected = cellId;
+  // Selecting can change the inspector grid and therefore the map's measured width. Remember the
+  // requested focus so the newly rendered map refits the location using its final dimensions; the
+  // immediate zoom below keeps the interaction responsive in the meantime.
+  if (focusMap) state.pendingFocus = cellId;
   // A shareable, bookmarkable deep link — the measurement, hour, and location together, something a
   // generic weather app's single regional view can't give.
   if (cellId) {
@@ -4292,8 +4496,16 @@ function applyTextScale(step) {
 }
 
 function setTextStep(step) {
+  const center = mapVisible ? mapCameraCenter() : null;
   applyTextScale(step);
   savePref("textStep", state.textStep);
+  if (mapVisible && current().length) {
+    measureMap();
+    restoreMapCameraCenter(center);
+    renderMap(current());
+  } else {
+    mapDirty = true;
+  }
 }
 
 function setContrast(on) {
@@ -4642,9 +4854,8 @@ async function init() {
   wireMap();
   // Phones/touch keep the low-friction List; larger screens open the linked map-first workspace.
   setView(smallScreen() ? "tab-list" : "tab-map");
-  // Await the snapshot and the basemap (both already in flight) before the first render, so the
-  // basemap-fit map box is sized to the geography on the first paint with no late reflow. The basemap
-  // is smaller than the surface, so on the basemap route it never extends the critical path.
+  // Await the snapshot and basemap (both already in flight) before the first render, so the map box
+  // is sized to the statewide geography on first paint with no late reflow.
   const snapshot = await snapshotReady;
   await basemapReady;
   if (!snapshot) {

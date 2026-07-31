@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:georss="http://www.georss.org/georss" xml:lang="es">
-  <title>swelter demo network (downtown) — alertas de calor y calidad del aire</title>
+  <title>Swelter statewide synthetic preview — alertas de calor y calidad del aire</title>
   <id>/api/alerts.es.xml</id>
   <link rel="self" href="/api/alerts.es.xml"/>
   <link rel="alternate" hreflang="en" href="/api/alerts.xml"/>

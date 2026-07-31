@@ -115,9 +115,9 @@ PROFILES: dict[str, dict[str, Any]] = {
         ),
         "calibration": _text(
             "Upstream atmospheric model output, not a Swelter-calibrated sensor network. "
-            "The baked surface is not marked provisional.",
+            "Every displayed reading is provisional.",
             "Datos de un modelo atmosférico externo, no de una red de sensores calibrada por "
-            "Swelter. La superficie publicada no se marca como provisional.",
+            "Swelter. Cada lectura mostrada es provisional.",
         ),
         "uncertainty": _text(
             "No Swelter calibration uncertainty is published for this upstream model surface.",
@@ -137,10 +137,8 @@ PROFILES: dict[str, dict[str, Any]] = {
                 "Datos del modelo externo CAMS; no son una calibración de sensores de Swelter.",
             ),
             "overview_counts": _text(
-                "{$n} locations — {$confirmed} with upstream model output, {$provisional} "
-                "provisional.",
-                "{$n} ubicaciones — {$confirmed} con datos de un modelo externo, {$provisional} "
-                "provisionales.",
+                "{$n} locations — {$provisional} provisional upstream model readings.",
+                "{$n} ubicaciones — {$provisional} lecturas provisionales del modelo externo.",
             ),
             "headline_worst": _text(
                 "Highest modeled air right now: {$place} — AQI {$aqi}, {$category}.",
@@ -156,7 +154,7 @@ PROFILES: dict[str, dict[str, Any]] = {
             ),
             "overview_worst_label": _text("Highest modeled now:", "Mayor valor modelado ahora:"),
         },
-        "expected_mode": "all_confirmed",
+        "expected_mode": "all_provisional",
         "license": {
             "summary": _text(
                 "Copernicus CAMS data via Open-Meteo is reused under CC BY 4.0 with attribution.",
@@ -257,9 +255,9 @@ PROFILES: dict[str, dict[str, Any]] = {
             "Un ejemplo reproducible de calibración — no son condiciones actuales reales.",
         ),
         "geography": _text(
-            "A synthetic Sacramento-area grid. Locations and conditions are illustrative.",
-            "Una cuadrícula sintética del área de Sacramento. Los lugares y las condiciones "
-            "son ilustrativos.",
+            "A statewide California preview at public place centroids. All readings are synthetic.",
+            "Una vista previa estatal de California en centroides de lugares públicos. Todas las "
+            "lecturas son sintéticas.",
         ),
         "calibration": _text(
             "A synthetic worked example containing both calibrated and provisional readings. "
@@ -274,8 +272,10 @@ PROFILES: dict[str, dict[str, Any]] = {
             "las provisionales no.",
         ),
         "location": _text(
-            "Illustrative locations snap to a roughly 150 m grid.",
-            "Las ubicaciones ilustrativas se ajustan a una cuadrícula de aproximadamente 150 m.",
+            "The static preview maps the worked-example records to public California place "
+            "centroids; it does not report conditions at those places.",
+            "La vista previa estática asigna los registros del ejemplo a centroides de lugares "
+            "públicos de California; no informa condiciones en esos lugares.",
         ),
         "expected_mode": "mixed",
         "license": {

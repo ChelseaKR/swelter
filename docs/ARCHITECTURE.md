@@ -4,7 +4,7 @@ swelter is a local-first environmental-data pipeline with two deliberately separ
 surfaces: an authenticated node ingest listener and a public read-only data server. The same store
 can also be baked into a fully static artifact for Pages, object storage, or another CDN.
 
-Author/owner: Chelsea Kelly-Reif. Last verified: 2026-07-16. Recheck cadence: every release and any
+Author/owner: Chelsea Kelly-Reif. Last verified: 2026-07-31. Recheck cadence: every release and any
 change to trust boundaries, store layout, public routes, publication artifacts, or source adapters.
 
 Related: [API reference](api.md), [calibration](calibration.md), [data cards](data-cards/README.md),
@@ -23,7 +23,7 @@ flowchart LR
   Pipeline --> Store["Copyable store\nSQLite + generated files"]
   Store --> Read["Public GET-only server\nSensorThings · JSON · CSV"]
   Store --> Publish["Static publisher\nmanifest + source/license artifacts"]
-  Read --> Browser["Now + Explore observatory"]
+  Read --> Browser["Current reading + Readings"]
   Publish --> Pages["Pages / CDN"]
   Pages --> Browser
 ```
@@ -97,9 +97,14 @@ data dictionary, JSON/CSV, health, surface, alert, context, and static routes do
 invalidation, ETags, and conditional responses, but remains a small stdlib reference server rather
 than an Internet-facing application server.
 
-`swelter publish` writes the static site and generated data artifacts plus a content manifest. A live
-provider build includes the correct source/license evidence and refuses unsafe fallback. Static Pages
-does not expose ingest and is only as current as the last successful publication.
+`swelter publish` writes the static site and generated data artifacts plus a content manifest. The
+initial `sample-surface.json` contains only the newest bucket for first paint;
+`surface-24h.json` and `surface-7d.json` retain their full publication windows for background history
+enrichment. A live-provider build includes the correct source/license evidence and refuses unsafe
+fallback. Each static route's `demo.json` names the source that actually won that route's configured
+fallback chain, including its geography, terminology, calibration posture, and reuse terms. A route
+that falls back to the California surface retains the California basemap. Static Pages does not expose
+ingest and is only as current as the last successful publication.
 
 `snapshot.py` freezes citable observation/correction/surface artifacts with hashes and dataset citation
 metadata. The snapshot's license describes its actual source set; the software `CITATION.cff` is not a
@@ -135,10 +140,15 @@ The observatory is plain HTML, CSS, and ES modules. It reads live JSON from the 
 available and static generated JSON on Pages. A service worker caches the route-scoped same-origin
 shell/data and purges obsolete release caches.
 
-- **Now:** compact current conditions, freshness, source, status, guidance context, and the path into
-  deeper analysis.
-- **Explore:** a linked SVG history braid, location distribution, evidence inspector, map, table, and
-  list. Filter/time/location state coordinates the views.
+- **Current reading:** compact current conditions, freshness, source, status, guidance context, and
+  the path into deeper analysis.
+- **Readings:** a linked SVG history braid, location distribution, evidence inspector, map, table,
+  and list. Filter/time/location state coordinates the views.
+- **Geographic map:** California routes use one projection derived from the committed basemap for the
+  state geometry and all reading coordinates. Overview groups are anchored to real mapped members;
+  group activation, pan, zoom, and reset change only the camera. Every reading remains in the Map DOM,
+  and List/Table expose the full equivalent record set at every camera state
+  ([ADR 0033](adr/0033-statewide-geographic-map-clustering.md)).
 - **Accessibility:** native controls, semantic table/list equivalents, visible focus, keyboard
   operation, reduced motion, text/pattern status, and live announcements. Automation does not stand in
   for current NVDA/VoiceOver review; see issue #106.

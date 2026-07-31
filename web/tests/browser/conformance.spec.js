@@ -3,9 +3,22 @@
 const { test, expect } = require("@playwright/test");
 const AxeBuilder = require("@axe-core/playwright").default;
 const rtlFixture = require("../fixtures/rtl-ar.json");
+const rootSurface = require("../../sample-surface.json");
 
 const ROUTES = ["/", "/sensors/"];
 const VIEWS = ["tab-map", "tab-list", "tab-table"];
+const ROOT_BUCKET = rootSurface.buckets.at(-1);
+const ROOT_ROWS = rootSurface.cells.filter(
+  (cell) =>
+    cell.bucket === ROOT_BUCKET &&
+    cell.parameter === "pm25_ugm3" &&
+    (!cell.aqi_window || cell.aqi_window === "hourly-mean"),
+);
+const ROOT_LOCATION = ROOT_ROWS.find((candidate) => {
+  const query = candidate.label.toLocaleLowerCase("en");
+  return ROOT_ROWS.filter((cell) => cell.label.toLocaleLowerCase("en").includes(query)).length === 1;
+});
+if (!ROOT_LOCATION) throw new Error("The root surface needs a uniquely searchable current-hour location");
 
 async function ready(page, route = "/") {
   await page.goto(route, { waitUntil: "domcontentloaded" });
@@ -20,7 +33,7 @@ async function selectView(page, tabId) {
   const panel = page.locator(`#${await page.locator(`#${tabId}`).getAttribute("aria-controls")}`);
   await expect(panel).toBeVisible();
   const rows = {
-    "tab-map": "#map .cell",
+    "tab-map": "#map .map-cluster, #map .cell:not(.cluster-member)",
     "tab-list": "#data-list > li",
     "tab-table": "#data-table-body > tr",
   };
@@ -96,7 +109,7 @@ for (const route of ROUTES) {
           await page.locator("#lang-select").selectOption("es");
           await expect(page.locator("html")).toHaveAttribute("lang", "es");
           // Confirm the catalog actually re-rendered in Spanish (the Now heading is a stable anchor).
-          await expect(page.locator("#now-heading")).toHaveText("Observación del vecindario");
+          await expect(page.locator("#now-heading")).toHaveText("Lectura actual");
           await expect(page.locator("html")).toHaveAttribute("data-render-ready", "true");
         }
         for (const tabId of VIEWS) {
@@ -118,7 +131,7 @@ test("published routes expose distinct source, license, navigation, and data fix
       route: "/",
       current: "#switch-cams",
       source: "Synthetic demonstration",
-      geography: "Demonstration grid",
+      geography: "Statewide California preview",
       license: "Public-domain demonstration data.",
       attribution: "Synthetic demonstration data",
       labelPrefix: "Stuttgart ",
@@ -155,6 +168,17 @@ test("published routes expose distinct source, license, navigation, and data fix
     expect(await page.locator('#parameter-select option[value="exposure"]').isDisabled())
       .toBe(!expected.exposureAvailable);
   }
+});
+
+test("generated sensor data uses production-like compression", async ({ request }) => {
+  const response = await request.get("/sensors/sample-surface.json", {
+    headers: { "Accept-Encoding": "gzip" },
+  });
+
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-encoding"]).toBe("gzip");
+  expect(response.headers().vary).toContain("accept-encoding");
+  expect((await response.json()).cells.length).toBeGreaterThan(0);
 });
 
 test("patterned visualization text has an independently verified 4.5:1 contrast pair", async ({ page }) => {
@@ -216,8 +240,9 @@ test("primary tasks work by keyboard and focus stays visible", async ({ page }) 
 
   await page.keyboard.press("/");
   await expect(page.locator("#place-search")).toBeFocused();
-  await page.keyboard.type("Laurel");
-  await expect(page.locator("#status")).toContainText("1");
+  await page.keyboard.type(ROOT_LOCATION.label);
+  await expect(page.locator("#map .cell")).toHaveCount(1);
+  await expect(page.locator(`#map .cell[data-cell="${ROOT_LOCATION.cell_id}"]`)).toBeVisible();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.press("Backspace");
 
@@ -281,25 +306,220 @@ test("map keyboard pan, zoom, reset, selection, and equivalent views change real
   const canvas = page.locator("#map .map-canvas");
   await map.focus();
 
-  const initial = await canvas.evaluate((element) => element.style.transform);
+  const initial = await canvas.evaluate((element) => element.dataset.camera);
   await page.keyboard.press("+");
-  await expect.poll(() => canvas.evaluate((element) => element.style.transform)).not.toBe(initial);
-  const zoomed = await canvas.evaluate((element) => element.style.transform);
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera)).not.toBe(initial);
+  const zoomed = await canvas.evaluate((element) => element.dataset.camera);
   expect(zoomed).toContain("scale(1.4");
 
   await page.keyboard.press("ArrowRight");
-  await expect.poll(() => canvas.evaluate((element) => element.style.transform)).not.toBe(zoomed);
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera)).not.toBe(zoomed);
   await page.keyboard.press("0");
-  // Reset returns the canvas to the identity transform. Firefox serialises `translate(0px, 0px)` as
-  // the shorter `translate(0px)`, so match either spelling of the zero translation plus unit scale.
-  await expect.poll(() => canvas.evaluate((element) => element.style.transform))
-    .toMatch(/translate\(0px(?:,\s*0px)?\)\s+scale\(1\)/);
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera))
+    .toBe("translate(0px, 0px) scale(1)");
 
-  const marker = page.locator("#map .cell").first();
+  const sceneBefore = await page.evaluate(async () => {
+    const map = document.querySelector("#map");
+    const basemap = document.querySelector("#map .basemap");
+    const response = await fetch("basemap.geojson");
+    if (!response.ok) throw new Error(`Could not load basemap.geojson: ${response.status}`);
+    const geojson = await response.json();
+    let minLon = Infinity;
+    let minLat = Infinity;
+    let maxLon = -Infinity;
+    let maxLat = -Infinity;
+    const addRing = (ring) => {
+      for (const point of ring) {
+        const lon = Number(point[0]);
+        const lat = Number(point[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        minLon = Math.min(minLon, lon);
+        minLat = Math.min(minLat, lat);
+        maxLon = Math.max(maxLon, lon);
+        maxLat = Math.max(maxLat, lat);
+      }
+    };
+    for (const feature of geojson.features || []) {
+      const geometry = feature.geometry || {};
+      if (geometry.type === "Polygon") geometry.coordinates.forEach(addRing);
+      if (geometry.type === "MultiPolygon") {
+        geometry.coordinates.forEach((polygon) => polygon.forEach(addRing));
+      }
+    }
+    if (![minLon, minLat, maxLon, maxLat].every(Number.isFinite)) {
+      throw new Error("The California basemap has no finite bounds");
+    }
+    const lonPad = (maxLon - minLon || 1) * 0.04;
+    const latPad = (maxLat - minLat || 1) * 0.04;
+    minLon -= lonPad;
+    maxLon += lonPad;
+    minLat -= latPad;
+    maxLat += latPad;
+    const mapWidth = map.clientWidth;
+    const mapHeight = map.clientHeight;
+    const markers = [...document.querySelectorAll("#map .cell")].map((cell) => {
+      const record = JSON.parse(cell.dataset.recordKey);
+      const style = getComputedStyle(cell);
+      return {
+        id: cell.dataset.cell,
+        left: Number(cell.dataset.mapLeft),
+        bottom: Number(cell.dataset.mapBottom),
+        expectedLeft: (Number(record.lon) - minLon) / (maxLon - minLon),
+        expectedBottom: (Number(record.lat) - minLat) / (maxLat - minLat),
+        cssLeft: parseFloat(style.left) / mapWidth,
+        cssBottom: parseFloat(style.bottom) / mapHeight,
+      };
+    });
+    const clusters = [...document.querySelectorAll("#map .map-cluster")].map((cluster) => ({
+      members: JSON.parse(cluster.dataset.memberCells),
+      hidden: cluster.hidden,
+    }));
+    const representatives = [
+      ...document.querySelectorAll("#map .map-cluster:not([hidden]), #map .cell:not(.cluster-member)"),
+    ].filter((element) => getComputedStyle(element).display !== "none" && element.getClientRects().length);
+    return {
+      path: document.querySelector("#map .basemap-land")?.getAttribute("d"),
+      viewBox: basemap?.getAttribute("viewBox"),
+      mapWidth,
+      mapHeight,
+      markers,
+      clusters,
+      representativeCount: representatives.length,
+      leftSpan: Math.max(...markers.map((marker) => marker.left)) - Math.min(...markers.map((marker) => marker.left)),
+      bottomSpan: Math.max(...markers.map((marker) => marker.bottom)) - Math.min(...markers.map((marker) => marker.bottom)),
+    };
+  });
+  expect(sceneBefore.markers).toHaveLength(150);
+  for (const markerPosition of sceneBefore.markers) {
+    expect(markerPosition.left, `${markerPosition.id} projected x`).toBeCloseTo(markerPosition.expectedLeft, 8);
+    expect(markerPosition.bottom, `${markerPosition.id} projected y`).toBeCloseTo(markerPosition.expectedBottom, 8);
+    expect(markerPosition.cssLeft, `${markerPosition.id} overview CSS x`).toBeCloseTo(markerPosition.expectedLeft, 4);
+    expect(markerPosition.cssBottom, `${markerPosition.id} overview CSS y`).toBeCloseTo(markerPosition.expectedBottom, 4);
+  }
+  expect(sceneBefore.leftSpan).toBeGreaterThan(0.75);
+  expect(sceneBefore.bottomSpan).toBeGreaterThan(0.75);
+  expect(sceneBefore.representativeCount).toBeGreaterThanOrEqual(10);
+  expect(Math.max(...sceneBefore.clusters.map((item) => item.members.length)))
+    .toBeLessThan(sceneBefore.markers.length * 0.3);
+  await expect(page.locator("#map .map-cluster", { hasText: /^150$/ })).toHaveCount(0);
+
+  // Keep a stable DOM locator: a `:visible` selector would retarget the next cluster as soon as the
+  // activated control hides itself.
+  const cluster = page.locator("#map .map-cluster").first();
+  await expect(cluster).toBeVisible();
+  const clusterSize = Number(await cluster.textContent());
+  const memberCells = JSON.parse(await cluster.getAttribute("data-member-cells"));
+  expect(clusterSize).toBeGreaterThan(1);
+  expect(clusterSize).toBeLessThan(150);
+  expect(memberCells).toHaveLength(clusterSize);
+  expect(new Set(memberCells).size).toBe(memberCells.length);
+  await expect(cluster).toHaveAttribute("aria-expanded", "false");
+  await cluster.focus();
+  await page.keyboard.press("Enter");
+  await expect(map).toBeFocused();
+  await expect(page.locator("#map .basemap")).toBeVisible();
+  await expect(cluster).toHaveAttribute("aria-expanded", "true");
+  await expect(cluster).toBeHidden();
+  for (const cellId of memberCells) {
+    const member = page.locator(`#map .cell[data-cell="${cellId}"]`);
+    await expect(member).toHaveClass(/cluster-visible/);
+    await expect(member).toBeVisible();
+  }
+  const sceneAfter = await page.evaluate(({ initialViewBox, memberCells: selectedMembers }) => {
+    const map = document.querySelector("#map");
+    const canvas = document.querySelector("#map .map-canvas");
+    const transform = canvas.dataset.camera;
+    const camera = transform.match(
+      /translate\(([-+\d.e]+)px,\s*([-+\d.e]+)px\)\s+scale\(([-+\d.e]+)\)/i,
+    );
+    if (!camera) throw new Error(`Could not parse map camera: ${transform}`);
+    const x = Number(camera[1]);
+    const y = Number(camera[2]);
+    const scale = Number(camera[3]);
+    const mapWidth = map.clientWidth;
+    const mapHeight = map.clientHeight;
+    const [, , projectionWidth, projectionHeight] = initialViewBox.split(/\s+/).map(Number);
+    const viewBox = document.querySelector("#map .basemap")?.getAttribute("viewBox");
+    const actualViewBox = viewBox.split(/\s+/).map(Number);
+    const expectedViewBox = [
+      (-x / (mapWidth * scale)) * projectionWidth,
+      (-y / (mapHeight * scale)) * projectionHeight,
+      projectionWidth / scale,
+      projectionHeight / scale,
+    ];
+    const markers = [...document.querySelectorAll("#map .cell")].map((cell) => {
+      const left = Number(cell.dataset.mapLeft);
+      const bottom = Number(cell.dataset.mapBottom);
+      return {
+        id: cell.dataset.cell,
+        left,
+        bottom,
+        actualLeft: parseFloat(cell.style.left),
+        actualBottom: parseFloat(cell.style.bottom),
+        expectedLeft: x + left * mapWidth * scale,
+        expectedBottom: mapHeight - (y + (1 - bottom) * mapHeight * scale),
+      };
+    });
+    const mapRect = map.getBoundingClientRect();
+    const memberCenters = selectedMembers.map((cellId) => {
+      const cell = [...document.querySelectorAll("#map .cell")].find(
+        (candidate) => candidate.dataset.cell === cellId,
+      );
+      const box = cell.getBoundingClientRect();
+      return {
+        id: cellId,
+        x: box.left + box.width / 2 - mapRect.left,
+        y: box.top + box.height / 2 - mapRect.top,
+      };
+    });
+    return {
+      path: document.querySelector("#map .basemap-land")?.getAttribute("d"),
+      viewBox,
+      actualViewBox,
+      expectedViewBox,
+      markers,
+      memberCenters,
+      mapWidth,
+      mapHeight,
+      transform,
+      scale,
+    };
+  }, { initialViewBox: sceneBefore.viewBox, memberCells });
+  expect(sceneAfter.path).toBe(sceneBefore.path);
+  expect(sceneAfter.viewBox).not.toBe(sceneBefore.viewBox);
+  expect(sceneAfter.scale).toBeGreaterThan(1);
+  for (let index = 0; index < sceneAfter.actualViewBox.length; index += 1) {
+    expect(sceneAfter.actualViewBox[index], `SVG viewBox component ${index}`)
+      .toBeCloseTo(sceneAfter.expectedViewBox[index], 8);
+  }
+  for (const markerPosition of sceneAfter.markers) {
+    const before = sceneBefore.markers.find((candidate) => candidate.id === markerPosition.id);
+    expect(markerPosition.left, `${markerPosition.id} fixed projected x`).toBe(before.left);
+    expect(markerPosition.bottom, `${markerPosition.id} fixed projected y`).toBe(before.bottom);
+    expect(Math.abs(markerPosition.actualLeft - markerPosition.expectedLeft), `${markerPosition.id} camera x`)
+      .toBeLessThan(0.05);
+    expect(Math.abs(markerPosition.actualBottom - markerPosition.expectedBottom), `${markerPosition.id} camera y`)
+      .toBeLessThan(0.05);
+  }
+  for (const center of sceneAfter.memberCenters) {
+    expect(center.x, `${center.id} fitted x`).toBeGreaterThanOrEqual(31);
+    expect(center.x, `${center.id} fitted x`).toBeLessThanOrEqual(sceneAfter.mapWidth - 31);
+    expect(center.y, `${center.id} fitted y`).toBeGreaterThanOrEqual(31);
+    expect(center.y, `${center.id} fitted y`).toBeLessThanOrEqual(sceneAfter.mapHeight - 31);
+  }
+
+  await page.locator("#map-reset").click();
+  await expect(cluster).toBeVisible();
+  await expect(cluster).toHaveAttribute("aria-expanded", "false");
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera))
+    .toBe("translate(0px, 0px) scale(1)");
+  await expect(page.locator("#map .basemap")).toBeVisible();
+  await expect(page.locator("#map .basemap")).toHaveAttribute("viewBox", sceneBefore.viewBox);
+  const marker = page.locator("#map .cell:visible").first();
   const cellId = await marker.getAttribute("data-cell");
   await marker.focus();
   await page.keyboard.press("Enter");
-  await expect(marker).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(`#map .cell[data-cell="${cellId}"]`)).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("#detail")).toBeVisible();
 
   // The row and its select control both carry data-cell (the row needs it for the record-set
@@ -308,6 +528,129 @@ test("map keyboard pan, zoom, reset, selection, and equivalent views change real
   await expect(page.locator(`#data-list .row-select[data-cell="${cellId}"]`)).toHaveAttribute("aria-pressed", "true");
   await page.locator("#tab-table").click();
   await expect(page.locator(`#data-table-body .row-select[data-cell="${cellId}"]`)).toHaveAttribute("aria-pressed", "true");
+});
+
+test("larger text preserves the map center and keeps a selected overview singleton clear", async ({ page }) => {
+  await ready(page);
+  const map = page.locator("#map");
+  const canvas = page.locator("#map .map-canvas");
+  const cameraState = () =>
+    page.evaluate(() => {
+      const mapElement = document.querySelector("#map");
+      const cameraText = document.querySelector("#map .map-canvas")?.dataset.camera || "";
+      const camera = cameraText.match(
+        /translate\(([-+\d.e]+)px,\s*([-+\d.e]+)px\)\s+scale\(([-+\d.e]+)\)/i,
+      );
+      if (!camera) throw new Error(`Could not parse map camera: ${cameraText}`);
+      const x = Number(camera[1]);
+      const y = Number(camera[2]);
+      const scale = Number(camera[3]);
+      const width = mapElement.clientWidth;
+      const height = mapElement.clientHeight;
+      return {
+        x,
+        y,
+        scale,
+        width,
+        height,
+        centerLeft: (width / 2 - x) / (width * scale),
+        centerTop: (height / 2 - y) / (height * scale),
+      };
+    });
+
+  await map.focus();
+  await page.keyboard.press("+");
+  const zoomed = await canvas.evaluate((element) => element.dataset.camera);
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera)).not.toBe(zoomed);
+  const beforeScale = await cameraState();
+  expect(beforeScale.scale).toBeGreaterThan(1);
+  expect(beforeScale.x).not.toBe(0);
+  expect(beforeScale.y).not.toBe(0);
+
+  for (const textScale of ["1.15", "1.3"]) {
+    await page.locator("#text-bigger").click();
+    await expect.poll(() =>
+      page.locator("html").evaluate((root) => root.style.getPropertyValue("--text-scale")),
+    ).toBe(textScale);
+    const afterScale = await cameraState();
+    expect(afterScale.scale, `${textScale} camera zoom`).toBe(beforeScale.scale);
+    expect(afterScale.centerLeft, `${textScale} geographic center x`)
+      .toBeCloseTo(beforeScale.centerLeft, 7);
+    expect(afterScale.centerTop, `${textScale} geographic center y`)
+      .toBeCloseTo(beforeScale.centerTop, 7);
+  }
+
+  await page.locator("#map-reset").click();
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera))
+    .toBe("translate(0px, 0px) scale(1)");
+
+  // Turn on the inspector from List first, then discover a singleton using the map's final selected
+  // layout. Selecting that same data-derived ID from List leaves the camera at the overview.
+  await selectView(page, "tab-list");
+  await page.locator("#data-list .row-select").first().click();
+  await selectView(page, "tab-map");
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera))
+    .toBe("translate(0px, 0px) scale(1)");
+  const singletonId = await page.locator("#map .cell:not(.cluster-member):visible").first().getAttribute("data-cell");
+  expect(singletonId).toBeTruthy();
+
+  await selectView(page, "tab-list");
+  await page.locator(`#data-list .row-select[data-cell="${singletonId}"]`).click();
+  await selectView(page, "tab-map");
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera))
+    .toBe("translate(0px, 0px) scale(1)");
+  const selectedSingleton = page.locator(`#map .cell[data-cell="${singletonId}"]`);
+  await expect(selectedSingleton).toBeVisible();
+  await expect(selectedSingleton).toHaveAttribute("aria-pressed", "true");
+  await expect(selectedSingleton).not.toHaveClass(/cluster-member/);
+
+  const collisionReport = await page.evaluate((selectedId) => {
+    const visible = (element) => {
+      const style = getComputedStyle(element);
+      return !element.hidden && style.display !== "none" && style.visibility !== "hidden" &&
+        element.getClientRects().length > 0;
+    };
+    const visualBox = (element) => {
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      const outline = style.outlineStyle === "none"
+        ? 0
+        : Math.max(0, (parseFloat(style.outlineWidth) || 0) + (parseFloat(style.outlineOffset) || 0));
+      return {
+        left: box.left - outline,
+        right: box.right + outline,
+        top: box.top - outline,
+        bottom: box.bottom + outline,
+      };
+    };
+    const representatives = [
+      ...document.querySelectorAll("#map .map-cluster:not([hidden]), #map .cell:not(.cluster-member)"),
+    ].filter(visible);
+    const selected = representatives.find((element) => element.dataset.cell === selectedId);
+    if (!selected) throw new Error(`Selected singleton ${selectedId} is not an overview representative`);
+    const selectedBox = visualBox(selected);
+    const overlaps = representatives
+      .filter((element) => element !== selected)
+      .map((element) => {
+        const box = visualBox(element);
+        return {
+          id: element.dataset.cell || element.dataset.memberCells,
+          horizontal: Math.min(selectedBox.right, box.right) - Math.max(selectedBox.left, box.left),
+          vertical: Math.min(selectedBox.bottom, box.bottom) - Math.max(selectedBox.top, box.top),
+        };
+      })
+      .filter(({ horizontal, vertical }) => horizontal > 0 && vertical > 0);
+    return {
+      textScale: getComputedStyle(document.documentElement).getPropertyValue("--text-scale").trim(),
+      representativeCount: representatives.length,
+      overlaps,
+    };
+  }, singletonId);
+  expect(collisionReport.textScale).toBe("1.3");
+  expect(collisionReport.representativeCount).toBeGreaterThan(1);
+  expect(collisionReport.overlaps, JSON.stringify(collisionReport.overlaps, null, 2)).toEqual([]);
 });
 
 test("Map, List, and Table expose the same complete record set on both routes", async ({ page }) => {
@@ -527,6 +870,52 @@ test("every data view reflows at 320px without page-level horizontal scroll", as
     });
     expect(widths.body, `${tabId}: ${JSON.stringify(widths)}`).toBeLessThanOrEqual(widths.viewport + 1);
   }
+});
+
+test("tablet layout keeps the selected location beside a bounded map", async ({ page }) => {
+  await page.setViewportSize({ width: 931, height: 819 });
+  await ready(
+    page,
+    `/#p=pm25_ugm3&t=${encodeURIComponent(ROOT_BUCKET)}&l=${encodeURIComponent(ROOT_LOCATION.cell_id)}`,
+  );
+  await expect(page.locator("#detail")).toBeVisible();
+  await expect(page.locator("#detail-heading")).toHaveText(ROOT_LOCATION.label);
+  const measure = () =>
+    page.evaluate(() => {
+      const mainElement = document.querySelector(".workspace-main");
+      const inspectorElement = document.querySelector(".workspace-inspector");
+      const main = mainElement.getBoundingClientRect();
+      const inspector = inspectorElement.getBoundingClientRect();
+      const map = document.querySelector("#map").getBoundingClientRect();
+      return {
+        mainRight: main.right,
+        mainTop: main.top,
+        mainBottom: main.bottom,
+        inspectorLeft: inspector.left,
+        inspectorTop: inspector.top,
+        inspectorClientWidth: inspectorElement.clientWidth,
+        inspectorScrollWidth: inspectorElement.scrollWidth,
+        mapHeight: map.height,
+        viewportHeight: window.innerHeight,
+        pageWidth: document.body.scrollWidth,
+        viewportWidth: document.documentElement.clientWidth,
+      };
+    });
+  for (const width of [931, 768]) {
+    await page.setViewportSize({ width, height: 819 });
+    const layout = await measure();
+    expect(layout.inspectorLeft, JSON.stringify(layout)).toBeGreaterThanOrEqual(layout.mainRight);
+    expect(Math.abs(layout.inspectorTop - layout.mainTop), JSON.stringify(layout)).toBeLessThan(2);
+    expect(layout.inspectorScrollWidth, JSON.stringify(layout))
+      .toBeLessThanOrEqual(layout.inspectorClientWidth + 1);
+    expect(layout.mapHeight, JSON.stringify(layout)).toBeLessThan(layout.viewportHeight * 0.75);
+    expect(layout.pageWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewportWidth + 1);
+  }
+  await page.setViewportSize({ width: 720, height: 819 });
+  const stacked = await measure();
+  expect(stacked.inspectorTop, JSON.stringify(stacked)).toBeGreaterThanOrEqual(stacked.mainBottom);
+  expect(stacked.mapHeight, JSON.stringify(stacked)).toBeLessThan(500);
+  expect(stacked.pageWidth, JSON.stringify(stacked)).toBeLessThanOrEqual(stacked.viewportWidth + 1);
 });
 
 test("reduced-motion preference suppresses authored motion", async ({ page }) => {

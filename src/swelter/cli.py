@@ -51,6 +51,7 @@ from . import (
     redlining_layer,
     snapshot,
     steward,
+    web_preview,
 )
 from .config import (
     NetworkConfig,
@@ -947,7 +948,8 @@ def cmd_demo(args: argparse.Namespace) -> int:
                 f"swelter demo: fit {len(registry)} corrections, wrote {len(calibrated)} calibrated"
             )
 
-        surface = aggregate.aggregate(store.all(), config)
+        all_obs = list(store.all())
+        surface = aggregate.aggregate(all_obs, config)
         manifest.record(
             "aggregate",
             "demo replay surface built",
@@ -962,13 +964,17 @@ def cmd_demo(args: argparse.Namespace) -> int:
             snapshot.DEFAULT_DATA_LICENSE,
             "Synthetic demonstration data — no real sensors (gen_demo_data.py).",
         )
+        # Keep the worked-example store and live API on their dense calibration grid. Only the
+        # baked public preview uses its configured presentation coordinates.
+        published_config = web_preview.config_for_web(config)
+        published_surface = aggregate.aggregate(all_obs, published_config)
         _write_web_sample(
             Path(args.web),
-            surface,
+            published_surface,
             attribution=demo_terms.attribution,
             data_terms=demo_terms,
         )
-        _coverage = qc.coverage_equity(store.all(), aggregate.node_cell_map(config))
+        _coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(published_config))
         _write_web_health(
             Path(args.web),
             store.read(calibration=RAW),
@@ -978,9 +984,10 @@ def cmd_demo(args: argparse.Namespace) -> int:
             data_terms=demo_terms,
             twin_windows=config.twin_windows,
         )
-        _write_web_alerts(Path(args.web), surface, config, data_terms=demo_terms)
+        _write_web_alerts(
+            Path(args.web), published_surface, published_config, data_terms=demo_terms
+        )
         _write_web_cooling_centers(Path(args.web), Path(args.cooling_centers))
-        all_obs = list(store.all())
         gaps = qc.detect_gaps(store.read(calibration=RAW), args.interval)
         _err(export.summarize(all_obs, gaps=gaps))
 
@@ -1050,27 +1057,19 @@ def _write_web_sample(
     surface: aggregate.Surface,
     *,
     attribution: str = "",
-    max_cells: int = 4000,
     data_terms: snapshot.DataTerms | None = None,
 ) -> None:
-    """Refresh the dashboard's offline fallback if web/ exists, capped to keep the static payload
-    light on a host like GitHub Pages — the most recent hourly buckets up to ~``max_cells`` cells,
-    so a large network does not bloat the committed sample (the live API has the full history)."""
+    """Refresh the dashboard's compact, newest-hour snapshot if ``web/`` exists.
+
+    Static publishes carry longer history in ``surface-24h.json`` and ``surface-7d.json``. Keeping
+    only the latest bucket here lets the page paint its first answer without downloading and parsing
+    several redundant hours before those background history slices load.
+    """
     if not web_dir.is_dir():
         return
-    per_bucket: dict[str, int] = {}
-    for cell in surface.cells:
-        per_bucket[cell.bucket] = per_bucket.get(cell.bucket, 0) + 1
-    chosen: list[str] = []
-    total = 0
-    for bucket in sorted(per_bucket, reverse=True):  # newest first
-        if chosen and total + per_bucket[bucket] > max_cells:
-            break
-        chosen.append(bucket)
-        total += per_bucket[bucket]
-    keep = set(chosen)
-    buckets = sorted(keep)
-    records = [c.as_record() for c in surface.cells if c.bucket in keep]
+    latest = max((cell.bucket for cell in surface.cells), default=None)
+    buckets = [latest] if latest is not None else []
+    records = [cell.as_record() for cell in surface.cells if cell.bucket == latest]
     payload = {
         "interval": surface.interval,
         "attribution": attribution,
@@ -1735,6 +1734,7 @@ _PUBLISH_FILES = (
     "sample-health.json",
     "alerts.json",
     "alerts.xml",
+    "alerts.es.xml",
     "cooling-centers.geojson",
     "surface-24h.json",
     "surface-7d.json",
@@ -1834,8 +1834,9 @@ def cmd_publish(args: argparse.Namespace) -> int:
         except ValueError as exc:
             _err(f"swelter publish: {exc}; refusing")
             return 1
-        surface = aggregate.aggregate(all_obs, config)
-        coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(config))
+        published_config = web_preview.config_for_web(config)
+        surface = aggregate.aggregate(all_obs, published_config)
+        coverage = qc.coverage_equity(all_obs, aggregate.node_cell_map(published_config))
 
         _write_web_sample(
             web_dir,
@@ -1867,7 +1868,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
             data_terms=terms,
             twin_windows=config.twin_windows,
         )
-        _write_web_alerts(web_dir, surface, config, data_terms=terms)
+        _write_web_alerts(web_dir, surface, published_config, data_terms=terms)
         _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
         (web_dir / "export.csv").write_text(
             export.to_csv(

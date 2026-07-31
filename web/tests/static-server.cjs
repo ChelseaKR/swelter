@@ -44,7 +44,10 @@ const PRIMARY_DEMO = testDemo({
     en: "Synthetic demonstration data — no real sensors.",
     es: "Datos sintéticos de demostración; no son sensores reales.",
   },
-  geography: { en: "Demonstration grid", es: "Cuadrícula de demostración" },
+  geography: {
+    en: "Statewide California preview",
+    es: "Vista previa estatal de California",
+  },
   calibration: {
     en: "Mixed confirmed and provisional demonstration records.",
     es: "Registros de demostración confirmados y provisionales.",
@@ -54,8 +57,8 @@ const PRIMARY_DEMO = testDemo({
     es: "La incertidumbre publicada se muestra con cada registro.",
   },
   location: {
-    en: "Coordinates are fictional demonstration locations.",
-    es: "Las coordenadas son ubicaciones ficticias de demostración.",
+    en: "Public California place centroids; readings remain synthetic.",
+    es: "Centroides de lugares públicos de California; las lecturas siguen siendo sintéticas.",
   },
   tagline: {
     en: "A fast, local audit of the complete observatory.",
@@ -108,24 +111,50 @@ const SENSOR_DEMO = testDemo({
   },
 }, SENSOR_ATTRIBUTION, SENSOR_PARAMETERS);
 
-const SENSOR_SAMPLE = Buffer.from(JSON.stringify({
+const sensorSample = {
   ...sample,
   attribution: SENSOR_ATTRIBUTION,
   cells: sample.cells
     .filter((cell) => SENSOR_PARAMETERS.includes(cell.parameter))
-    .map((cell) => ({
-      ...cell,
-      cell_id: `stuttgart-${cell.cell_id}`,
-      label: `Stuttgart ${cell.label}`,
-      lat: 48.72 + (cell.lat - 38.5) * 0.1,
-      lon: 9.12 + (cell.lon + 121.5) * 0.1,
-      nodes: (cell.nodes || []).map((node) => `sc-${node}`),
-      provisional: true,
-      uncertainty: null,
-      mean_member_sigma: null,
-      uncertainty_note: null,
-    })),
-}));
+    .map((cell) => {
+      const nodeNumber = Number(String(cell.nodes?.[0] || "").match(/\d+$/)?.[0]) || 1;
+      const index = nodeNumber - 1;
+      const lat = 48.7758 + (Math.floor(index / 15) - 4.5) * 0.002;
+      const lon = 9.1829 + ((index % 15) - 7) * 0.002;
+      return {
+        ...cell,
+        cell_id: `${lat.toFixed(6)},${lon.toFixed(6)}`,
+        label: `Stuttgart sensor ${String(nodeNumber).padStart(3, "0")}`,
+        lat,
+        lon,
+        nodes: (cell.nodes || []).map((node) => `sc-${node}`),
+        provisional: true,
+        uncertainty: null,
+        mean_member_sigma: null,
+        uncertainty_note: null,
+      };
+    }),
+};
+const SENSOR_SAMPLE = Buffer.from(JSON.stringify(sensorSample));
+const SENSOR_SAMPLE_GZIP = zlib.gzipSync(SENSOR_SAMPLE);
+
+function historyFixture(surface) {
+  const latest = surface.buckets.at(-1);
+  const earlier = new Date(Date.parse(latest) - 60 * 60 * 1000).toISOString().replace(".000Z", "Z");
+  return Buffer.from(JSON.stringify({
+    ...surface,
+    buckets: [earlier, latest],
+    cells: [
+      ...surface.cells.map((cell) => ({ ...cell, bucket: earlier })),
+      ...surface.cells,
+    ],
+  }));
+}
+
+const PRIMARY_HISTORY = historyFixture(sample);
+const PRIMARY_HISTORY_GZIP = zlib.gzipSync(PRIMARY_HISTORY);
+const SENSOR_HISTORY = historyFixture(sensorSample);
+const SENSOR_HISTORY_GZIP = zlib.gzipSync(SENSOR_HISTORY);
 
 const ROUTE_FIXTURES = {
   primary: { demo: PRIMARY_DEMO, surface: null },
@@ -182,21 +211,27 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (pathname === "/sample-surface.json" && route.fixture.surface) {
+    const gzip = request.method !== "HEAD" &&
+      /(?:^|,)\s*gzip\s*(?:,|$)/i.test(request.headers["accept-encoding"] || "");
     response.writeHead(200, {
       "cache-control": "public, max-age=300",
+      ...(gzip ? { "content-encoding": "gzip", vary: "accept-encoding" } : {}),
       "content-type": TYPES[".json"],
     });
-    response.end(request.method === "HEAD" ? undefined : route.fixture.surface);
+    response.end(request.method === "HEAD" ? undefined : gzip ? SENSOR_SAMPLE_GZIP : route.fixture.surface);
     return;
   }
-  // The production build may omit extended history. A successful empty object models that optional
-  // capability without generating a console error or replacing the fast snapshot.
   if (pathname === "/surface-7d.json") {
+    const body = route.sensors ? SENSOR_HISTORY : PRIMARY_HISTORY;
+    const compressed = route.sensors ? SENSOR_HISTORY_GZIP : PRIMARY_HISTORY_GZIP;
+    const gzip = request.method !== "HEAD" &&
+      /(?:^|,)\s*gzip\s*(?:,|$)/i.test(request.headers["accept-encoding"] || "");
     response.writeHead(200, {
       "cache-control": "public, max-age=300",
+      ...(gzip ? { "content-encoding": "gzip", vary: "accept-encoding" } : {}),
       "content-type": TYPES[".json"],
     });
-    response.end(request.method === "HEAD" ? undefined : "{}");
+    response.end(request.method === "HEAD" ? undefined : gzip ? compressed : body);
     return;
   }
 

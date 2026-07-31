@@ -1,25 +1,23 @@
 # swelter
 
-Community-owned heat and air-quality sensing, with calibration provenance and an accessible public
-observatory.
+Community-owned heat and air-quality sensing, with calibration records and an accessible public map
+and data explorer.
 
 [![CI](https://github.com/ChelseaKR/swelter/actions/workflows/ci.yml/badge.svg)](https://github.com/ChelseaKR/swelter/actions/workflows/ci.yml)
 [![code: Apache-2.0](https://img.shields.io/badge/code-Apache--2.0-blue.svg)](LICENSE)
 [![data terms: source-specific](https://img.shields.io/badge/data%20terms-source--specific-5b5bd6.svg)](DATA-LICENSE)
 [![accessibility: WCAG 2.2 AA target](https://img.shields.io/badge/accessibility-WCAG%202.2%20AA-176b3a.svg)](docs/accessibility/ACR.md)
 
-**[Open the live observatory](https://chelseakr.github.io/swelter/)** ·
-[California model surface](https://chelseakr.github.io/swelter/) ·
-[Stuttgart community sensors](https://chelseakr.github.io/swelter/sensors/)
+**[Open the live California map](https://chelseakr.github.io/swelter/)** ·
+[Additional data view](https://chelseakr.github.io/swelter/sensors/)
 
 **Status:** Beta — maintained pre-1.0 reference implementation.
 
 swelter turns environmental readings into a public record that shows its work. The pipeline
 validates and quarantines payloads, keeps raw observations immutable, applies versioned calibration
 corrections, and publishes uncertainty, QC, time-window, source, and calibration state with every
-surface. The interface pairs a resident-first **Now** view with an analytical **Explore** workspace:
-linked history, location distribution, and evidence inspection sit alongside equivalent map, table,
-and list representations.
+surface. The interface shows a **Current reading** and a **Readings** workspace. History, location
+distribution, and evidence details sit alongside equivalent map, table, and list representations.
 
 This is an independent, pre-1.0 reference implementation by Chelsea Kelly-Reif. It is not a medical
 device, regulatory monitor, emergency-alert service, or government system. It contains no employer,
@@ -33,9 +31,9 @@ client, or proprietary material.
 - **Calibration as evidence:** per-node corrections are fitted from recorded co-location windows and
   stored as versioned YAML. Raw and calibrated rows remain distinct; uncalibrated data stays visibly
   provisional.
-- **Deep visual exploration:** Now summarizes present conditions; Explore links an SVG history braid,
-  location distribution, persistent evidence inspector, map, sortable table, and plain list. Missing
-  buckets remain gaps and uncertainty/provisional state travel with the mark.
+- **Readings with evidence:** Current reading summarizes the selected place; Readings links history,
+  location distribution, evidence details, a map, a sortable table, and a plain list. Missing buckets
+  remain gaps, and uncertainty and provisional state stay attached to each value.
 - **Open interfaces:** CSV and JSON exports, static publication, citable snapshots, and a read-only OGC
   SensorThings 1.1 subset. The default store is one copyable SQLite-and-files directory.
 - **Community portability:** copy `network.yaml` to register another network. No hosted account or
@@ -63,12 +61,14 @@ contract; `make web-test` remains the focused JavaScript command used while iter
 Useful commands:
 
 ```console
-swelter fetch --source openmeteo --store store
-swelter fetch --source sensor-community --store store
-swelter fetch --source openaq --api-key "$OPENAQ_API_KEY" --store store
-swelter publish --store store --web dist
-swelter serve --store store
-swelter snapshot --store store --out dist/snapshot
+uv run swelter init --config my-network.yaml --name "My neighborhood heat and air network"
+uv run swelter doctor --config my-network.yaml
+uv run swelter fetch --source openmeteo --store store
+uv run swelter fetch --source sensor-community --store store
+uv run swelter fetch --source openaq --api-key "$OPENAQ_API_KEY" --store store
+uv run swelter publish --store store --web dist
+uv run swelter serve --store store
+uv run swelter snapshot --store store --out dist/snapshot
 ```
 
 Run `uv run swelter --help` before relying on an example in automation; pre-1.0 command and schema
@@ -108,7 +108,7 @@ validate → quarantine or append raw observation → QC → calibrate → aggre
               SensorThings · CSV · JSON                    Pages/CDN · source/license ledger
                            └───────────────────────────┬────────────────────┘
                                                        ▼
-                           Now · Explore · map · table · list · export
+                    Current reading · Readings · map · table · list · export
 ```
 
 The current store is SQLite plus generated files; a Parquet/Arrow backend is only an extension seam,
@@ -150,7 +150,7 @@ reporting is in [`SECURITY.md`](SECURITY.md).
 
 ## Standards Conformance
 
-This ledger uses the repository-standard two-column schema and was swept on **2026-07-16**. An
+This ledger uses the repository-standard two-column schema and was swept on **2026-07-31**. An
 `Applies` state means the relevant automated, review, release, documentation, or operational evidence
 is linked from the repository. Open work is never hidden inside a passing state.
 
