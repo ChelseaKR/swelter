@@ -23,7 +23,7 @@ evidence of the collision.
 - [ADR 0001: Store observations in a copyable SQLite-and-files folder, not a database cluster](0001-sqlite-and-files-store.md) — identity posture superseded by ADR 0024; dependency-count posture superseded by ADR 0025
 - [ADR 0002: Keep calibration corrections as versioned data with an audit trail, not as code](0002-calibration-as-versioned-data.md)
 - [ADR 0003: Publish grid-snapped locations by default; precise coordinates are opt-in](0003-grid-snapped-public-locations.md)
-- [ADR 0004: Ship a framework-free dashboard with three equal views, targeting WCAG 2.2 AA](0004-framework-free-accessible-dashboard.md) — build/runtime-dependency posture superseded by ADR 0026
+- [ADR 0004: Ship a framework-free dashboard with three equal views, targeting WCAG 2.2 AA](0004-framework-free-accessible-dashboard.md) — build/runtime-dependency posture superseded by ADR 0026; schematic/collision-relaxation map posture superseded by ADR 0033
 - [ADR 0005: Serve over a single-threaded, GET-only stdlib HTTP server](0005-read-only-stdlib-server.md) — dependency-count posture superseded by ADR 0025
 - [ADR 0006: License code under Apache-2.0 and observations under CC0-1.0](0006-apache-code-cc0-data.md) — superseded by ADR 0024
 - [ADR 0007: Expose a read-only OGC SensorThings 1.1 subset for interoperability](0007-ogc-sensorthings-export.md)
@@ -52,3 +52,4 @@ evidence of the collision.
 - [ADR 0030: Derive a "cross-checked" drift smoke-alarm from twin agreement, never a calibration tier](0030-sensor-twin-crosschecked-tier.md)
 - [ADR 0031: Generalize the alert layer into versioned hazard packs, and ship a cold pack](0031-multi-hazard-packs.md)
 - [ADR 0032: Assemble co-location training pairs from a reference-monitor feed](0032-reference-monitor-adapter.md)
+- [ADR 0033: Preserve statewide geography and cluster only the overview](0033-statewide-geographic-map-clustering.md)

@@ -2,12 +2,12 @@ cff-version: 1.2.0
 message: "If you use swelter, please cite it using this metadata. Cite published data separately using the snapshot's DATA-CITATION.cff."
 title: "swelter"
 abstract: >-
-  An open-source, community-operated heat and air-quality sensing pipeline and
-  public observatory. swelter validates and quarantines node payloads, keeps raw
-  measurements immutable, applies versioned calibration corrections, and
-  publishes QC, uncertainty, source, freshness, time-window, and calibration
-  provenance through an accessible bilingual interface. Its Now and Explore
-  workspaces link history, distribution, evidence, map, table, list, and export
+  An open-source, community-operated heat and air-quality sensing pipeline with
+  an accessible public map and data explorer. swelter validates and quarantines
+  node payloads, keeps raw measurements immutable, applies versioned calibration
+  corrections, and publishes QC, uncertainty, source, freshness, time-window,
+  and calibration provenance through a bilingual interface. Current reading and
+  Readings link history, distribution, evidence, map, table, list, and export
   views. The software is Apache-2.0; environmental data retains source-specific
   terms, with CC0 used only for project-authored synthetic data or authorized
   first-party observations.

@@ -47,6 +47,40 @@ All notable changes to swelter are recorded here. The format follows
   conformance suite all move to `4.0.0`. The vendoring decision in
   [ADR 0026](docs/adr/0026-vendored-messageformat-runtime.md) is unchanged; only the pinned version
   differs. No catalog, message, or placeholder changed.
+- **Statewide geographic map and minimalist observatory ([PR #130](https://github.com/ChelseaKR/swelter/pull/130)).**
+  The default California view now places every reading with one basemap-aligned geographic
+  projection. Nearby readings collapse into numbered overview groups anchored to real places;
+  choosing a group moves and zooms the camera without changing any coordinate. The full record set
+  remains available in the Map DOM and in the equivalent List and Table. The surrounding interface
+  was reduced to a basic, space-efficient visual system with less repeated instructional copy. See
+  [ADR 0033](docs/adr/0033-statewide-geographic-map-clustering.md).
+- **Fast static first paint without discarding history ([PR #130](https://github.com/ChelseaKR/swelter/pull/130)).**
+  `sample-surface.json` now contains only the newest bucket used for the initial render, while
+  `surface-24h.json` and `surface-7d.json` retain their complete publication windows and the browser
+  enriches the linked history views in the background. The canonical 150-node synthetic demo keeps
+  its compact calibration fixture in the store but publishes a deterministic statewide California
+  preview at validated public place centroids; custom community networks are never remapped.
+- **Source-aware static fallback corrections.**
+  The CAMS/Open-Meteo demo contract now matches the route's provisional upstream-model posture, and
+  a California fallback on `/sensors/` retains the state basemap instead of publishing California
+  readings over an empty canvas. Route source, geography, terminology, and reuse terms continue to
+  come from the source contract that actually won the Pages build.
+- **Repository presentation and contributor metadata.** The package now reports its Beta status and
+  live project site, contributor templates preserve source-specific data rights, and the existing
+  sun app icon now carries through to the basic California-map social card and social metadata.
+- **Frontend performance baseline ([PR #130](https://github.com/ChelseaKR/swelter/pull/130)).**
+  Snapshot, source-contract, catalogue, and basemap requests start in parallel; the initial map waits
+  for the already-running basemap request so readings and geography align on first render. Both
+  published routes pass the committed Lighthouse regression budget with measured LCP at or below
+  2.5 seconds.
+- **Browser accessibility gate.** The Playwright conformance suite allowlists only patterned-severity
+  `color-contrast` *incomplete* results (map cells, braid labels, and severity chips) and the known
+  axe `target-size` engine error on grid cells — never a real violation — and independently verifies a
+  severity chip's 4.5:1 contrast pair. Cross-browser and copy-drift test fixes track the current
+  Spanish catalog, preserve published labels in record-set comparisons, target pressable selection
+  controls, exclude disabled controls from focus-exposure checks, and accept Firefox's
+  `translate(0px)` reset serialisation. See
+  [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md).
 - **Data schema version 2 (was 1).** The observation export gains a `qc_flags` field: an array in the
   JSON export and a new `qc_flags` column in `/export.csv`. Because adding a CSV column is a break for
   positional parsers under [`docs/VERSIONING.md`](docs/VERSIONING.md), `data_schema_version` moves to
@@ -83,15 +117,12 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
-- **Dense map markers are accessible targets (WCAG 2.5.8).** On a dense network the map previously
-  reprojected up to ~150 readings on top of one another, so many markers fell below the 24px
-  target-size/offset floor — a serious axe violation exposed on the `/sensors/` route and latent on
-  `/`. `renderMap` now runs a deterministic collision relaxation that separates overlapping markers on
-  their axis of least overlap until every 28px marker box clears its neighbours, keeps each marker near
-  its true cell, and routes them clear of the overlaid zoom/reset controls. No reading is dropped,
-  merged, or hidden: the map still exposes the complete record set and the equivalence-locked List and
-  Table keep exact coordinates. See
-  [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md).
+- **Dense maps no longer trade geographic truth for target spacing.** The former collision relaxation
+  moved readings away from their projected coordinates and could make a compact network appear to
+  cover empty parts of California. Overview clustering now preserves every geographic position,
+  anchors each group control to a mapped member, keeps representative controls clear at normal and
+  enlarged text sizes, and reveals the underlying reading controls after camera zoom. List and Table
+  continue to expose every reading without requiring map interaction.
 - **`/sensors/` layout stability (WCAG-adjacent, CLS).** The resident-facing Now card filled from short
   HTML placeholders a frame late, shoving the blocks below it (Lighthouse CLS 0.133). Its answer,
   temporal line, guidance, and status now reserve their heights, the card paints in the first
@@ -108,18 +139,6 @@ All notable changes to swelter are recorded here. The format follows
   13rem legend columns no longer overflow a 320px viewport (WCAG 1.4.10).
 - **Skip link visible on focus.** The skip link uses fixed positioning and reveals instantly (no slide
   transition), so it is exposed at the viewport top when focused regardless of scroll.
-
-### Changed
-
-- **Browser accessibility gate.** The Playwright conformance suite allowlists only patterned-severity
-  `color-contrast` *incomplete* results (map cells, braid labels, and severity chips) and the known
-  axe `target-size` engine error on grid cells — never a real violation — and independently verifies a
-  severity chip's 4.5:1 contrast pair. Cross-browser and copy-drift test fixes: the Now heading assertion
-  tracks the current Spanish catalog, the record-set check keeps the published `label`, selection
-  assertions target the pressable control, disabled controls are excluded from the focus-exposure sweep,
-  and the map-reset transform assertion accepts Firefox's `translate(0px)` serialisation. See
-  [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md) for the rationale; the
-  dense-marker target-size defect it described on the `/sensors/` route is now fixed (see above).
 
 The dated `0.1.0` section is prepared release metadata; it does not assert that a Git tag or GitHub
 Release exists. Publication completes only after the annotated `v0.1.0` tag passes the release

@@ -40,16 +40,29 @@ can move on to your own network.
 
 ## Step 1 — Copy `network.yaml`
 
-`network.yaml` at the repo root is the worked example (a downtown network whose size is set by the
-`SWELTER_DEMO_NODES` knob). It is the one file a community edits to become its own network. Copy it
-so you keep the example to refer to:
+`network.yaml` at the repo root is the worked example (currently 150 synthetic nodes; its size is
+set by the `SWELTER_DEMO_NODES` knob). It is the one file a community edits to become its own
+network. Copy it so you keep the example to refer to:
 
 ```console
 $ cp network.yaml my-network.yaml
 ```
 
-Open `my-network.yaml`. Every command below takes `--config my-network.yaml`; if you would rather
-just edit `network.yaml` in place, you can, and the commands' defaults will pick it up.
+Open `my-network.yaml` and remove this demo-only presentation directive before making any other
+changes:
+
+```yaml
+web_preview: statewide-california
+```
+
+That directive belongs only to the exact generated synthetic fixture. It substitutes public
+California place centroids while baking the fixture's static web preview; it must never reposition a
+real or community-authored network. Your map will use the locations under `nodes:`. Remove the
+directive whether you edit a copy or `network.yaml` in place, then run
+`uv run swelter doctor --config my-network.yaml` before deploying.
+
+Every command below takes `--config my-network.yaml`; if you edit `network.yaml` in place instead,
+the commands' defaults pick it up.
 
 Set the network's identity at the top:
 
@@ -105,8 +118,9 @@ nodes:
   that needs the host's recorded consent — see [`governance.md`](governance.md) §4 before you ever
   set it.** Doing nothing leaves a node `coarse`, which is correct for almost every node.
 
-Aim for overlapping coverage so one node dropping offline does not blind a block. The demo uses 18
-nodes on a ~150 m grid with deliberate overlap; copy that instinct at your own scale.
+Aim for overlapping coverage so one node dropping offline does not blind a block. The current demo
+uses 150 synthetic nodes on a roughly 150 m grid; use the coverage principle, not that fixture's
+node count, when choosing a scale for your network.
 
 ## Step 4 — Register your reference monitor(s)
 
