@@ -21,9 +21,11 @@ Two privacy rules are enforced *here*, before any value reaches the map:
 from __future__ import annotations
 
 import difflib
+import hashlib
+import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +35,9 @@ from . import hazard_packs
 
 DEFAULT_GRID_M = 150.0
 _METRES_PER_DEGREE_LAT = 111_320.0
+WEB_PREVIEW_STATEWIDE_CALIFORNIA = "statewide-california"
+_BUILTIN_DEMO_CONFIG_SHA256 = "7f2f45192a8da95c1070a070a47bb865df3480e6f521065d670781fd056ba1f9"
+_KNOWN_WEB_PREVIEWS: frozenset[str] = frozenset({"", WEB_PREVIEW_STATEWIDE_CALIFORNIA})
 
 #: The only keys `network.yaml` may have at the top level. Anything else is almost always a typo
 #: (`language:` for `languages:`) or a stale field copied from another template —
@@ -49,6 +54,7 @@ _KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "twin_windows",
         "geographic_scope",
         "hazard_pack",
+        "web_preview",
     }
 )
 _KNOWN_LOCATIONS: frozenset[str] = frozenset({"coarse", "precise"})
@@ -229,6 +235,9 @@ class NetworkConfig:
     hazard_pack: str = hazard_packs.DEFAULT_PACK_ID
     #: Optional jurisdiction and boundary identifier used to constrain an imported source.
     geographic_scope: GeographicScope | None = None
+    #: Coordinate presentation reserved for the generated worked example's baked web artifacts.
+    #: The stored fixture, live API, and host-facing node previews continue to use ``nodes``.
+    web_preview: str = ""
 
     def node(self, node_id: str) -> NodeConfig | None:
         return next((n for n in self.nodes if n.node_id == node_id), None)
@@ -241,6 +250,21 @@ class NetworkConfig:
             if loc is not None:
                 out[node.node_id] = loc
         return out
+
+
+def is_builtin_demo_web_preview(config: NetworkConfig) -> bool:
+    """True only for the exact generated fixture authorized to use the synthetic remap.
+
+    ``network.yaml`` is intentionally copyable. A name or opt-in flag alone is therefore unsafe:
+    someone could edit real nodes while leaving both behind. Fingerprinting every typed field except
+    the presentation marker makes any copied or modified network fail closed onto its own locations.
+    """
+    if config.web_preview != WEB_PREVIEW_STATEWIDE_CALIFORNIA:
+        return False
+    payload = asdict(config)
+    payload.pop("web_preview", None)
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest() == _BUILTIN_DEMO_CONFIG_SHA256
 
 
 def snap_to_grid(lat: float, lon: float, grid_m: float) -> tuple[float, float]:
@@ -368,6 +392,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         alert_thresholds=thresholds,
         geographic_scope=geographic_scope,
         hazard_pack=_as_str(doc.get("hazard_pack"), hazard_packs.DEFAULT_PACK_ID),
+        web_preview=_as_str(doc.get("web_preview")),
     )
 
 
@@ -437,6 +462,7 @@ def config_concerns(config: NetworkConfig, doc: dict[str, Any]) -> tuple[list[st
     _unknown_key_concerns(doc, errors)
     _node_id_concerns(config, errors)
     _hazard_pack_concerns(config, errors)
+    _web_preview_concerns(config, errors)
     # Validate override keys against the *active* pack, so a cold network is told ``heat_index_c``
     # is unknown and a heat network is told ``wind_chill_c`` is — each against the floors it uses.
     pack_keys = hazard_packs.resolve_pack(config.hazard_pack).threshold_keys()
@@ -454,6 +480,24 @@ def _hazard_pack_concerns(config: NetworkConfig, errors: list[str]) -> None:
         errors.append(
             f"hazard_pack: unknown pack {config.hazard_pack!r}{hint} — a network must name a "
             f"shipped hazard pack; recognized packs: {', '.join(sorted(hazard_packs.PACKS))}"
+        )
+
+
+def _web_preview_concerns(config: NetworkConfig, errors: list[str]) -> None:
+    """Reject a misspelled preview mode instead of silently publishing the source coordinates."""
+    if config.web_preview not in _KNOWN_WEB_PREVIEWS:
+        hint = _did_you_mean(config.web_preview, _KNOWN_WEB_PREVIEWS)
+        recognized = ", ".join(repr(value) for value in sorted(_KNOWN_WEB_PREVIEWS))
+        errors.append(
+            f"web_preview: unknown mode {config.web_preview!r}{hint} — recognized modes: "
+            f"{recognized}"
+        )
+    if config.web_preview == WEB_PREVIEW_STATEWIDE_CALIFORNIA and not is_builtin_demo_web_preview(
+        config
+    ):
+        errors.append(
+            "web_preview does not match the exact generated synthetic fixture — remove it from a "
+            "copied or modified community network configuration"
         )
 
 

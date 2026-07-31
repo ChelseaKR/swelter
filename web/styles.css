@@ -393,20 +393,9 @@ input[type="range"][aria-disabled="true"] {
 .map-canvas {
   position: absolute;
   inset: 0;
-  transform-origin: 0 0;
 }
-/* Promote to a compositor layer only while actively dragging, not for the whole session. */
-.map.dragging .map-canvas {
-  will-change: transform;
-}
-.map-canvas.animate {
-  transition: transform 0.22s ease;
-}
-@media (prefers-reduced-motion: reduce) {
-  .map-canvas.animate {
-    transition: none;
-  }
-}
+/* Camera updates are deliberately immediate. The SVG geography and fixed-size HTML targets use
+   different rendering primitives; animating only one would briefly detach readings from the map. */
 
 /* Zoom / reset controls, overlaid top-right of the map. */
 .map-controls {
@@ -458,9 +447,7 @@ input[type="range"][aria-disabled="true"] {
 .cell {
   position: absolute;
   z-index: 1;
-  /* Counter-scale by the map zoom (--k) so markers keep a constant on-screen size while the
-     geography under them grows; the dot still moves with its point. */
-  transform: translate(-50%, 50%) scale(calc(1 / var(--k, 1)));
+  transform: translate(-50%, 50%);
   min-width: 3.6rem;
   min-height: 2.6rem;
   padding: 0.3rem 0.45rem;
@@ -836,7 +823,7 @@ td .tag {
 .cool-center {
   position: absolute;
   z-index: 2;
-  transform: translate(-50%, 50%) scale(calc(1 / var(--k, 1)));
+  transform: translate(-50%, 50%);
   font-size: 1.1rem;
   line-height: 1;
   color: #0b5cad;

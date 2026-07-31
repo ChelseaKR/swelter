@@ -59,7 +59,7 @@ def _surface(
     [
         ("openaq", [True], "all_provisional"),
         ("sensor-community", [True], "all_provisional"),
-        ("openmeteo", [False], "all_confirmed"),
+        ("openmeteo", [True], "all_provisional"),
         ("synthetic", [True, False], "mixed"),
     ],
 )
@@ -84,10 +84,37 @@ def test_each_source_profile_agrees_with_its_surface(
     assert contract["source"]["license"]["links"]
 
 
+def test_synthetic_contract_describes_the_statewide_public_centroid_preview() -> None:
+    contract = build_contract("synthetic", _surface([True, False], source="synthetic"))
+    source = contract["source"]
+
+    assert "statewide California" in source["geography"]["en"]
+    assert "public place centroids" in source["geography"]["en"]
+    assert "does not report conditions" in source["location"]["en"]
+    assert "Sacramento" not in source["geography"]["en"]
+    assert "150 m grid" not in source["location"]["en"]
+
+
+def test_stuttgart_fixture_identity_does_not_reuse_california_labels_or_ids() -> None:
+    server = (ROOT / "web" / "tests" / "static-server.cjs").read_text(encoding="utf-8")
+
+    assert "cell_id: `stuttgart-${cell.cell_id}`" not in server
+    assert "label: `Stuttgart ${cell.label}`" not in server
+    assert "cell_id: `${lat.toFixed(6)},${lon.toFixed(6)}`" in server
+    assert 'label: `Stuttgart sensor ${String(nodeNumber).padStart(3, "0")}`' in server
+
+
 def test_cams_uses_model_terminology_instead_of_claiming_sensor_calibration() -> None:
-    contract = build_contract("openmeteo", _surface([False], source="openmeteo"))
+    contract = build_contract("openmeteo", _surface([True], source="openmeteo"))
+    source = contract["source"]
     terms = contract["source"]["terminology"]
 
+    assert "not a Swelter-calibrated sensor network" in source["calibration"]["en"]
+    assert "Every displayed reading is provisional" in source["calibration"]["en"]
+    assert terms["overview_counts"] == {
+        "en": "{$n} locations — {$provisional} provisional upstream model readings.",
+        "es": "{$n} ubicaciones — {$provisional} lecturas provisionales del modelo externo.",
+    }
     assert terms["non_provisional_label"] == {"en": "Upstream model", "es": "Modelo externo"}
     assert "not a Swelter sensor calibration" in terms["non_provisional_explanation"]["en"]
 
@@ -97,7 +124,7 @@ def test_source_terms_match_current_primary_policies() -> None:
     sensor_community = build_contract(
         "sensor-community", _surface([True], source="sensor-community")
     )["source"]["license"]
-    openmeteo = build_contract("openmeteo", _surface([False], source="openmeteo"))["source"][
+    openmeteo = build_contract("openmeteo", _surface([True], source="openmeteo"))["source"][
         "license"
     ]
 
@@ -130,14 +157,17 @@ def test_contract_accepts_estimated_wbgt_supported_by_the_current_dashboard() ->
     assert contract["surface"]["parameters"] == ["wbgt_c"]
 
 
-def test_fallback_route_names_the_source_it_is_actually_showing() -> None:
+def test_openmeteo_fallback_accepts_its_raw_all_provisional_surface() -> None:
     contract = build_contract(
         "openmeteo",
-        _surface([False], source="openmeteo"),
+        _surface([True, True], source="openmeteo"),
         fallback_for="sensor-community",
     )
 
     assert contract["source"]["id"] == "openmeteo"
+    assert contract["surface"]["calibration_mode"] == "all_provisional"
+    assert contract["surface"]["provisional_records"] == 2
+    assert contract["surface"]["confirmed_records"] == 0
     assert contract["fallback"]["requested_source"] == "sensor-community"
     assert contract["fallback"]["message"]["en"]
     assert contract["fallback"]["message"]["es"]
@@ -224,7 +254,7 @@ def test_static_runtime_uses_baked_files_without_api_probes() -> None:
 def test_offline_shell_caches_the_contract_when_present_without_requiring_it() -> None:
     worker = (ROOT / "web" / "sw.js").read_text(encoding="utf-8")
 
-    assert 'const OPTIONAL_SHELL = ["demo.json"]' in worker
+    assert 'const OPTIONAL_SHELL = ["demo.json", "basemap.geojson"]' in worker
     assert "Promise.allSettled" in worker
 
 
@@ -287,6 +317,19 @@ def test_installed_dashboard_does_not_lock_screen_orientation() -> None:
     # WCAG 1.3.4: residents must be able to use the installed field station in portrait or
     # landscape; there is no essential orientation-specific interaction in this dashboard.
     assert manifest.get("orientation", "any") == "any"
+
+
+def test_committed_web_preview_uses_validated_statewide_places() -> None:
+    surface = json.loads((ROOT / "web" / "sample-surface.json").read_text(encoding="utf-8"))
+    locations = {
+        (str(cell["label"]), float(cell["lat"]), float(cell["lon"])) for cell in surface["cells"]
+    }
+    validated = {(place.name, place.lat, place.lon) for place in openmeteo.CALIFORNIA}
+
+    assert len(locations) == 150
+    assert locations <= validated
+    assert max(lat for _, lat, _ in locations) - min(lat for _, lat, _ in locations) > 9
+    assert max(lon for _, _, lon in locations) - min(lon for _, _, lon in locations) > 9
 
 
 def test_large_text_reflow_does_not_force_a_page_wide_minimum_width() -> None:

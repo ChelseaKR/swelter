@@ -138,8 +138,8 @@ test("cache owner encodes the complete registration pathname", async () => {
   const second = literalRoot.dispatchFetch();
   await Promise.all([first.response, second.response, ...first.waits, ...second.waits]);
 
-  assert.equal(originRoot.opened[0], "swelter-shell-%2F::v6");
-  assert.equal(literalRoot.opened[0], "swelter-shell-%2Froot%2F::v6");
+  assert.equal(originRoot.opened[0], "swelter-shell-%2F::v7");
+  assert.equal(literalRoot.opened[0], "swelter-shell-%2Froot%2F::v7");
   assert.notEqual(originRoot.opened[0], literalRoot.opened[0]);
 });
 

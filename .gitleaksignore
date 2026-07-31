@@ -28,6 +28,11 @@
 # main's history (line 285). Plain English in a validation-error list, not a
 # credential — identical triage to PR #81/#78.
 7b2e0b17a4420569a1a35a176de15d0617359e58:docs/ideation/02-large-scale-fixes.md:generic-api-key:285
+# Additional historical branch commits containing that exact prose. Each is
+# scoped to its original commit and line; future findings remain blocking.
+a97f842a9132f4f397be300953bf3c5a4530cc41:docs/ideation/02-large-scale-fixes.md:generic-api-key:285
+f32e834a2f2af647343df86dc54414935fdbb1c5:docs/ideation/02-large-scale-fixes.md:generic-api-key:295
+1958276ea4060b213ecde3958124eaaa548e66a3:docs/ideation/02-large-scale-fixes.md:generic-api-key:290
 # Deterministic test HMAC/signing keys in the firmware-signing and authenticated-
 # ingest unit tests. These are literal fixtures used to exercise the signature and
 # node-auth paths offline; they are not live credentials, sign nothing outside the
