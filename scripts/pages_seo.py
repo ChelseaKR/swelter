@@ -455,6 +455,8 @@ def _metadata_block(
     canonical = canonical_url(base, route)
     spec = source_spec or SOURCE_SPECS[source]
     icon = f"{base}icon-512.png"
+    social_image = f"{base}social-card.png"
+    social_alt = "swelter beside a California county map with one measured grid cell"
     graph = structured_data(
         base_url=base,
         route=route,
@@ -481,15 +483,15 @@ def _metadata_block(
             f'    <meta property="og:url" content="{attr(canonical)}" />',
             f'    <meta property="og:title" content="{attr(spec.page_title)}" />',
             f'    <meta property="og:description" content="{attr(spec.page_description)}" />',
-            f'    <meta property="og:image" content="{attr(icon)}" />',
-            '    <meta property="og:image:width" content="512" />',
-            '    <meta property="og:image:height" content="512" />',
-            '    <meta property="og:image:alt" content="swelter sun and heat-wave logo" />',
-            '    <meta name="twitter:card" content="summary" />',
+            f'    <meta property="og:image" content="{attr(social_image)}" />',
+            '    <meta property="og:image:width" content="1280" />',
+            '    <meta property="og:image:height" content="640" />',
+            f'    <meta property="og:image:alt" content="{attr(social_alt)}" />',
+            '    <meta name="twitter:card" content="summary_large_image" />',
             f'    <meta name="twitter:title" content="{attr(spec.page_title)}" />',
             f'    <meta name="twitter:description" content="{attr(spec.page_description)}" />',
-            f'    <meta name="twitter:image" content="{attr(icon)}" />',
-            '    <meta name="twitter:image:alt" content="swelter sun and heat-wave logo" />',
+            f'    <meta name="twitter:image" content="{attr(social_image)}" />',
+            f'    <meta name="twitter:image:alt" content="{attr(social_alt)}" />',
             '    <script type="application/ld+json">',
             indented_json,
             "    </script>",

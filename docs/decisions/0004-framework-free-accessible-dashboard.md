@@ -1,6 +1,8 @@
 # ADR 0004: Ship a framework-free dashboard with three equal views, held to WCAG 2.2 AA
 
-Date: 2026-06-16. Status: accepted. Amended 2026-07-16.
+Date: 2026-06-16. Status: accepted; map layout and clustering partially superseded by
+[ADR 0033](../adr/0033-statewide-geographic-map-clustering.md). Amended 2026-07-16 and
+2026-07-18.
 
 ## Decision
 
@@ -29,6 +31,12 @@ published uncertainty and provisional state directly. Desktop opens Map first;
 narrow screens retain the lower-friction List default. The extra stylesheet is a
 progressive visual layer; there are still no runtime dependencies or build output.
 
+The 2026-07-18 collision-relaxation amendment is retained in the authoritative
+[ADR 0004](../adr/0004-framework-free-accessible-dashboard.md) as decision history. It is not the
+current map contract: ADR 0033 replaces that mechanism with one California-basemap projection,
+overview groups anchored to real mapped members, and camera-only zoom. Every reading remains in the
+Map record set, while List and Table always expose the complete equivalent dataset.
+
 ## Why
 
 The people this tool is for open it on an old phone on a slow connection at a
@@ -51,7 +59,7 @@ views must each be kept in sync with the surface shape by hand; there is no
 component model to lean on as the UI grows. The structural `a11y_check.py` gate
 catches a structural floor only — it is not a full audit, so an advisory axe/pa11y
 pass and manual NVDA/VoiceOver review are recorded separately
-(`docs/accessibility/ACR.md`). The map is a schematic positional layout, not map
-tiles, which keeps the page dependency-free and honest but means it is not a
-geographic basemap. The committed `web/sample-surface.json` fallback can go stale;
-`make demo` regenerates it.
+(`docs/accessibility/ACR.md`). The current California map uses committed geographic geometry rather
+than map tiles, preserving the dependency-free/offline posture while aligning readings to the state
+outline. The initial `web/sample-surface.json` contains only the newest bucket and can go stale;
+`make demo` regenerates it, while the separate history artifacts retain their publication windows.

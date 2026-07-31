@@ -22,7 +22,7 @@ checks are supporting evidence; they do not replace these runs.
 
 ## Task script
 
-1. Enter through the skip link; identify the page, Now, Explore, Network, and Data & method regions.
+1. Enter through the skip link; identify the page, Current reading, Readings, Network, and Data & method regions.
 2. Change English to Spanish and back. Confirm the document language, names, dates, numbers, units,
    statuses, and errors are announced in the active language.
 3. Search for a place, clear the search, and use the locate control without granting permission.
@@ -30,7 +30,7 @@ checks are supporting evidence; they do not replace these runs.
 4. Change measurement and time. Play, pause, and stop playback by changing the time manually.
 5. Focus the exposure braid. Use Left/Right Arrow and Home/End; then change both native history
    range controls. Confirm the selection status, summary, uncertainty, provisional count, and gaps.
-6. Select a network-distribution row. Confirm the same place updates in Now, the active data view,
+6. Select a network-distribution row. Confirm the same place updates in Current reading, the active data view,
    evidence inspector, and shareable state without an unexpected focus jump.
 7. Switch Map → List → Table with Tab and arrow-key tab navigation. Pan/zoom/reset the map without
    dragging, select a marker, read a full List item, sort both Table columns, and return to Map.
@@ -38,7 +38,7 @@ checks are supporting evidence; they do not replace these runs.
    download controls. Confirm success/failure status messages are announced once.
 9. Review network health, alerts, cooling-center text alternatives, source/calibration/uncertainty,
    license, offline copy, accessibility statement, and settings reset.
-10. At 200% zoom and on iOS portrait/landscape, repeat the primary Now → braid → List/Table → evidence
+10. At 200% zoom and on iOS portrait/landscape, repeat the primary Current reading → braid → List/Table → evidence
     path with no lost content, clipped focus, two-dimensional page scrolling, or gesture-only task.
 
 ## Result record

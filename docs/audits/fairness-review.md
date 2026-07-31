@@ -2,7 +2,7 @@
 
 Status: implementation analysis current for the exposure observatory; named-human REVIEW-GATE
 signoff pending. Accountable owner: Chelsea Kelly-Reif. Machine-assisted analysis: OpenAI Codex,
-2026-07-17; this is not human review. Independent Spanish-language and assistive-technology review
+2026-07-31; this is not human review. Independent Spanish-language and assistive-technology review
 is also pending in [issue #106](https://github.com/ChelseaKR/swelter/issues/106).
 
 ## Segments that matter
@@ -21,18 +21,17 @@ they do not classify people.
 
 ## Current evidence
 
-The committed synthetic surface has 150 public locations: 100 have at least one confirmed record
-and 50 are entirely provisional. Its records include 2,100 confirmed and 1,650 provisional rows in
-the checked snapshot; all 600 estimated-WBGT rows are provisional. Those figures describe the
-deterministic test fixture, not production population coverage or equity.
+The committed one-bucket synthetic surface has 150 public locations: 100 have at least one confirmed
+record and 50 are entirely provisional. Its 1,050 rows include 600 confirmed and 450 provisional
+records; all 150 estimated-WBGT rows are provisional. Those figures describe the deterministic test
+fixture's initial snapshot, not production population coverage or equity.
 
-The EN and ES catalogs have equal key sets (**395 each** at review time), and the MF2 extraction and
-placeholder checks are configured to gate structural parity. Their final local execution is pending
-because the exact npm dependency was unavailable; CI is authoritative. Even a passing parity gate
-would prove catalog completeness, not translation quality, cultural clarity, or equal task success.
-No independent Spanish reviewer has signed the observatory copy. Likewise, automated keyboard,
-Arabic RTL, focus-obscuration, and target-geometry assertions do not substitute for the open
-NVDA/VoiceOver/zoom/reflow release review.
+The EN and ES catalogs have equal key sets (**400 each** at review time), and the MF2 extraction,
+parsing, placeholder, and JavaScript unit checks pass locally and in CI. This mechanical parity proves
+catalog completeness, not translation quality, cultural clarity, or equal task success. No
+independent Spanish reviewer has signed the observatory copy. Likewise, the passing automated
+keyboard, Arabic RTL, focus-obscuration, target-geometry, and cross-browser assertions do not
+substitute for the open NVDA/VoiceOver/iOS/zoom/reflow release review.
 
 ## Findings and mitigations
 
@@ -54,5 +53,5 @@ calibrated/raw/missing counts per segment, and review allocation consequences be
 for siting or resources. The observatory may ship as an evidence browser only with those limits
 visible and issue #106 completed for formal accessibility/translation signoff.
 
-Last verified: 2026-07-17. Recheck cadence: every release, source/coverage/ranking/context change,
+Last verified: 2026-07-31. Recheck cadence: every release, source/coverage/ranking/context change,
 and after real partner research.

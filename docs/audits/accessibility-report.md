@@ -1,6 +1,6 @@
 # Accessibility report
 
-Last verified: 2026-07-18. Final MF2 browser execution: pending in CI.
+Last verified: 2026-07-31. Automated MF2 and browser suites: passing in CI and locally.
 Recheck cadence: each release, and on any change under `web/`.
 
 This is the committed accessibility report that audit E in
@@ -72,7 +72,9 @@ separately.
 
 ## Current automated evidence
 
-- `scripts/a11y_check.py`: 12/12 structural checks passed on 2026-07-18.
+- `scripts/a11y_check.py`: 12/12 structural checks passed on 2026-07-31.
+- The equal 400-key English and Spanish MF2 catalogs passed extraction, parsing, placeholder, and
+  unit contracts; the full JavaScript unit suite passed 117/117 checks.
 - The Playwright source enumerates visible keyboard targets across Map, List, and Table and samples
   `elementsFromPoint` to reject full focus obscuration.
 - The RTL assertion uses an actual Arabic fixture and checks direction, mirroring, overflow, and
@@ -80,9 +82,10 @@ separately.
 - The target-size assertion enumerates native controls plus focusable/pointer composite surfaces in
   every Map/List/Table view at desktop and 320 CSS pixels, and allows only the WCAG 2.5.8 inline-text
   and 24 CSS-pixel-spacing exceptions.
-- Final MF2 JavaScript unit, Playwright, Axe, Pa11y, and Lighthouse execution is pending in a clean
-  Node 22 environment. CI is the authoritative blocking run; this report does not convert an
-  unexecuted local run into passing evidence.
+- The browser suite passed 57/57 checks across Chromium, Firefox, and WebKit, including the Axe,
+  keyboard, reflow, RTL, focus-obscuration, target-size, and equivalent-view assertions. Pa11y
+  passed 2/2 route checks. Lighthouse passed both route budgets, including LCP at or below 2.5s.
+  These automated results do not replace the pending manual assistive-technology and zoom review.
 
 ## Contrast on patterned severity surfaces
 
@@ -108,32 +111,32 @@ Two supporting fixes make that allowlist honest rather than a silencer:
 
 The `target-size` engine error that axe throws on overlapping grid cells ("Reduce of empty array") is
 allowlisted as an engine error on any `.cell` (not only provisional cells); WCAG 2.5.8 geometry is
-proven directly by the dedicated 2.5.8 test. With markers now declustered (below) the allowlist is a
-defensive safety net rather than a mask over crowding.
+proven directly by the dedicated 2.5.8 test. With the statewide overview exposing non-overlapping
+cluster controls and singleton markers, the allowlist is a defensive safety net rather than a mask
+over crowding.
 
-## Dense marker target size — resolved
+## Statewide geography and dense marker targets — resolved
 
-On the `/sensors/` route fixture (a Stuttgart-shaped cluster of ~150 provisional locations reprojected
-into a small extent) the map markers previously reprojected on top of one another, so many
-`#map .cell` buttons fell below the WCAG 2.5.8 24px target-size/offset floor and axe reported serious
-`target-size`/`target-offset` on that route's Map view. The `/` route masked the same crowding by
-stacking every marker in one corner of the state outline (axe skips fully obscured targets), so both
-routes carried the defect.
+The former collision-relaxation layout moved dense Sacramento readings away from their coordinates,
+making a local network appear to cover unrelated parts of California. The current map uses one fixed
+geographic projection for the California basemap and every reading. Pan, zoom, text scaling, and
+cluster activation change only the camera; they do not rewrite projected positions.
 
-`renderMap` now runs a deterministic collision relaxation (`declutterPositions`) over the projected
-marker positions. It separates overlapping markers on their axis of least overlap until every 28px
-marker box clears its neighbours by at least 2px — each becomes an unobscured ≥24px WCAG 2.5.8 target —
-while keeping every marker near its true cell and treating the overlaid zoom/reset controls as a no-go
-rectangle so a marker is never obscured by them. No reading is dropped, merged, or hidden: `#map .cell`
-still enumerates the complete record set on both routes, and the equivalence-locked List and Table keep
-the exact coordinates (hard rule 5). Because the fix is geometric it holds in both colour schemes and at
-both viewport widths.
+At the fitted statewide view, nearby readings are represented by native overview cluster buttons
+anchored to a real member position. Each button's accessible name states its reading count and value
+range. It begins with `aria-expanded="false"`; Enter or Space activates the native button, fits the
+camera around that geographic group, sets `aria-expanded="true"`, hides the overview control, and
+reveals the member reading buttons at their original projected coordinates. Reset returns to the
+statewide fit and restores the collapsed cluster state. List and Table always expose the complete
+active dataset, including readings hidden behind an overview cluster.
 
-- **Evidence.** The `axe across views` gate clears `target-size`/`target-offset` on both routes' Map
-  view in light and dark. The dedicated `all rendered views meet WCAG 2.5.8 geometry at desktop and
-  320px` test passes. The `Map, List, and Table expose the same complete record set on both routes`
-  test still matches every published cell per route, so declustering did not thin the map. Verified on
-  Node 22.12 across Chromium and Firefox.
+- **Evidence.** The browser regression checks the statewide outline and reading span, rejects a
+  single synthetic 150-reading cluster, activates a cluster with Enter, verifies its
+  `aria-expanded` transition and focus return to the named map group, and proves every marker keeps
+  the same projected fractions before and after the camera change. The Axe and dedicated WCAG 2.5.8
+  gates pass for visible overview controls and revealed markers at desktop and 320 CSS pixels. The
+  Map/List/Table equivalence test still matches every published record on both routes. The full
+  browser suite passed across Chromium, Firefox, and WebKit on 2026-07-31.
 
 ## Render-shift and load — /sensors/ CLS resolved
 
@@ -142,25 +145,20 @@ The cause was the resident-facing **Now** card filling from its short HTML place
 and shoving the blocks below it. The card's answer, temporal line, guidance, and status now reserve
 their rendered heights, and the Now card is painted in the first synchronous render pass rather than in
 the deferred workspace pass; the boot fetches (catalogue, demo contract, basemap, first snapshot) also
-run in parallel to shorten the path to that paint. Measured CLS drops to <0.06 on `/sensors/` and stays
-<0.02 on `/`, both inside the 0.1 budget, and the observed largest-contentful paint (the Now answer)
-lands well within the 2.5s budget under a 4× CPU throttle. Lighthouse's Lantern LCP *simulation* is
-sensitive to the CPU load on the measuring host and should be read from an unloaded runner. The `/`
-route's Lantern LCP nonetheless stays over the 2.5s lab budget (its LCP element is JS-rendered); per
-a maintainer decision the strict budget is kept rather than relaxed, so the `a11y-advisory`
-Lighthouse step remains red on `/` until the above-the-fold render is optimised without abandoning
-the single-file architecture (ADR 0004) — tracked in
-[#117](https://github.com/ChelseaKR/swelter/issues/117). Every accessibility check (axe, pa11y,
-WCAG 2.5.8 target-size, contrast) passes on both routes; this residual is a lab-performance item,
-not an accessibility defect.
+run in parallel to shorten the path to that paint. Measured CLS drops to <0.06 on `/sensors/` and
+stays <0.02 on `/`, both inside the 0.1 budget. The 2026-07-31 local and CI Lighthouse runs passed
+both route budgets, with largest-contentful paint at or below 2.5s under the configured throttle. PR
+[#130](https://github.com/ChelseaKR/swelter/pull/130) resolved the above-the-fold work tracked in
+[#117](https://github.com/ChelseaKR/swelter/issues/117); the advisory is no longer red. Axe, Pa11y,
+WCAG 2.5.8 target-size, and contrast checks also pass on both routes.
 
 ## Regenerating this report
 
-Run `make a11y` and `make verify-web` (which installs all three locked browser engines), then complete the matrix in
-`MANUAL-AT-WALKTHROUGH.md` for a formal release signoff. Update the evidence dates and findings in
-this report and the ACR. A report whose verification date predates a `web/` change is itself a
-finding.
+Run `make a11y` and `make verify-web` (which installs all three locked browser engines), then
+complete the matrix in `MANUAL-AT-WALKTHROUGH.md` for a formal release signoff. Update the evidence
+dates and findings in this report and the ACR. A report whose verification date predates a `web/`
+change is itself a finding.
 
 ---
-Test-coverage documentation refreshed by OpenAI Codex, 2026-07-17; baseline human review by Chelsea
+Test-coverage documentation refreshed by OpenAI Codex, 2026-07-31; baseline human review by Chelsea
 Kelly-Reif, 2026-06-16. swelter is an independent personal open-source project; see NOTICE.

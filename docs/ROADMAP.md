@@ -19,7 +19,7 @@ The reference implementation now includes:
 - source adapters for OpenAQ, CAMS/Open-Meteo, and Sensor.Community with source-specific licensing;
 - compound exposure, alerts, context/action layers, static publication, citable snapshots, and an
   OGC SensorThings subset;
-- a bilingual Now + Explore observatory with linked history, distribution, evidence, map, table,
+- bilingual Current reading and Readings views with linked history, distribution, evidence, map, table,
   list, and export paths;
 - automated quality/accessibility/language/security/release gates and dated responsible-technology,
   operational, DORA, standards-pin, and source-data evidence.
@@ -87,8 +87,8 @@ precision, never accuracy — that stays QC/health metadata and never promotes a
 ### Phase 3 — public observatory and interfaces: complete
 
 Publish equivalent map/table/list outcomes, read-only SensorThings/CSV/JSON, English/Spanish UI, and
-installable static delivery. The 2026-07-16 overhaul adds resident-first Now and analytical Explore
-workspaces with linked history, location distribution, and persistent evidence inspection.
+installable static delivery. The current interface links Current reading and Readings with history,
+location distribution, and persistent evidence inspection.
 
 ### Phase 4 — community portability: complete as a reference implementation
 
@@ -131,7 +131,7 @@ never a person-level vulnerability score or individualized safety direction.
 - Create the annotated `v0.1.0` tag from the verified merge commit.
 - Let the release workflow rebuild from that tag, generate SBOM/provenance/signatures/checksums, and
   run consumer verification before publication.
-- Deploy the static site from the verified source/license artifact; smoke-test primary Now, Explore,
+- Deploy the static site from the verified source/license artifact; smoke-test Current reading, Readings,
   table/list, language, export, freshness, and source attribution paths.
 - Record release/deploy evidence and rollback readiness. If a verification fails, stop publication or
   roll back using [`runbooks/operations.md`](runbooks/operations.md).
@@ -157,7 +157,7 @@ describe the desired outcome; passing a proxy is not relabelled as the outcome i
 | Source-license integrity | Every published source has accurate terms/attribution; OpenAQ never publishes without a valid per-location ledger | Source truth/license/manifest tests plus data-card review | AUTO + REVIEW + RELEASE | Data steward |
 | Jurisdiction and provenance | Public counts/surfaces match the named source and geographic scope | Boundary/source adapter tests, generated source artifact, publish smoke | AUTO + RELEASE | Data steward |
 | Accessibility automation | Structural and browser checks pass; map outcomes remain available in semantic table/list paths | `make a11y`, web tests, real-browser accessibility job | AUTO | Maintainer |
-| Accessibility human outcome | A keyboard, NVDA, and VoiceOver user can complete Now/Explore/filter/evidence/export tasks without the visual map | Dated named review artifact and ACR update | REVIEW + RELEASE | Accessibility reviewer |
+| Accessibility human outcome | A keyboard, NVDA, and VoiceOver user can complete Current reading/Readings/filter/evidence/export tasks without the visual map | Dated named review artifact and ACR update | REVIEW + RELEASE | Accessibility reviewer |
 | Spanish completeness | Every English UI key has a Spanish value with valid encoding/tagging | i18n parity, UTF-8, BCP-47, CLDR gates | AUTO | Maintainer |
 | Spanish clarity | Independent reviewer finds critical safety/source/caveat copy accurate and understandable | Dated bilingual review artifact | REVIEW + RELEASE | Language reviewer |
 | Privacy/location | No person-shaped field or logged secret; coarse publication remains default; raw browser geolocation is not retained | Schema/log-safety/location tests, DPIA/threat review | AUTO + REVIEW | Privacy owner |

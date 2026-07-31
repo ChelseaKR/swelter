@@ -20,16 +20,16 @@ What the README or docs led you to expect instead.
 2.
 3.
 
-If it involves the pipeline, include the exact `swelter` subcommand
-(ingest / qc / calibrate / aggregate / export / serve / demo / rebuild) and,
-where possible, a minimal payload or `swelter demo` run that shows it.
+If it involves the command line, include the exact `uv run swelter ...` command and,
+where possible, a minimal payload or `uv run swelter demo` run that shows it. Run
+`uv run swelter --help` to confirm the current subcommands rather than paraphrasing the command.
 
 ## Environment
 
-- swelter version (`swelter version`):
+- swelter version (`uv run swelter version`):
 - Python version (`python --version`):
 - OS:
-- Install method (uv sync / wheel):
+- Install method (`uv sync`, wheel, or other):
 
 ## Hard-rules check
 

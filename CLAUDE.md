@@ -32,7 +32,7 @@ value is not a colorful map; it is a traceable path from measurement to claim.
 - `src/swelter/`: models, validation/ingest, QC, calibration, aggregation, adapters, exports, API,
   authenticated ingest listener, public server, and CLI.
 - `web/`: dependency-light HTML/CSS/ES modules, English/Spanish catalogs, service worker, and web
-  tests. The Now/Explore observatory links history, distribution, evidence, map, table, and list.
+  tests. Current reading and Readings link history, distribution, evidence, map, table, and list.
 - `firmware/`: reference sampling, buffering, and request signing. Signed/staged OTA is not
   implemented; never imply otherwise.
 - `data/`: deterministic demo, calibration inputs, and explicitly labelled contextual/reference
@@ -107,5 +107,5 @@ The intentionally excluded repository/Pages-governance block is tracked in
 retirement and code-quality follow-up is tracked in
 [#107](https://github.com/ChelseaKR/swelter/issues/107).
 
-Last verified: 2026-07-16. Recheck cadence: every release and whenever architecture, quality gates,
+Last verified: 2026-07-31. Recheck cadence: every release and whenever architecture, quality gates,
 trust boundaries, or product rules change.

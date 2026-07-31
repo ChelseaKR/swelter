@@ -1,6 +1,7 @@
 # Security policy
 
-Last verified: 2026-07-16. Recheck cadence: each release and whenever ingest, source fetching,
+Last verified: 2026-07-31, after reviewing publication workflows, browser storage, and route-scoped
+service-worker caching. Recheck cadence: each release and whenever ingest, source fetching,
 publication, browser storage, service-worker caching, or release infrastructure changes.
 
 ## Supported versions
