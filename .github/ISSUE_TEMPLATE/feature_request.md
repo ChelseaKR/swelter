@@ -13,9 +13,9 @@ situation, not just the feature.
 
 ## Proposed change
 
-What you would like to see. If it touches the pipeline, say which stage
-(nodes -> ingest -> qc -> calibrate -> aggregate -> serve/export) and which
-module(s) under `src/swelter/`.
+What you would like to see. If it touches the pipeline, identify the affected path
+(source/fetch -> ingest/store -> QC/calibration -> aggregate -> publish/serve/export)
+and, if known, the module(s) under `src/swelter/`.
 
 ## Alternatives considered
 
@@ -33,7 +33,9 @@ be declined; please confirm the proposal holds them:
       into `precise`.
 - [ ] Calibrated vs raw stay distinguishable; uncalibrated values stay marked
       provisional.
-- [ ] Open and portable: keeps data CC0 and the export path first-class.
+- [ ] Open and portable: keeps export first-class and preserves each source's license and
+      attribution. CC0 is used only for project-authored synthetic data or first-party data the
+      publishing collective has authority to dedicate.
 
 ## Additional context
 

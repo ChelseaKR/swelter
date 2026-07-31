@@ -319,6 +319,13 @@ def test_installed_dashboard_does_not_lock_screen_orientation() -> None:
     assert manifest.get("orientation", "any") == "any"
 
 
+def test_document_and_install_manifest_share_the_same_theme_color() -> None:
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    manifest = json.loads((ROOT / "web" / "manifest.webmanifest").read_text(encoding="utf-8"))
+
+    assert f'<meta name="theme-color" content="{manifest["theme_color"]}" />' in html
+
+
 def test_committed_web_preview_uses_validated_statewide_places() -> None:
     surface = json.loads((ROOT / "web" / "sample-surface.json").read_text(encoding="utf-8"))
     locations = {

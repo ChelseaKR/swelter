@@ -17,7 +17,7 @@ Title II web rule. The legal context and public-entity deadline categories are m
 its ADA coordinator or counsel confirm which deadline and exceptions apply.
 
 The dashboard is designed so the map is never the only route to an outcome. The same filtered surface
-is available through semantic table and plain-list representations, and the Now/Explore analytical
+is available through semantic table and plain-list representations, and the Current reading/Readings
 workspace retains keyboard operation, visible focus, reduced motion, text/pattern state, and data/text
 equivalents for visualizations.
 

@@ -120,10 +120,10 @@ def test_root_metadata_is_absolute_source_aware_and_valid_json_ld(tmp_path: Path
         f"{canonical}icon-512.png"
     ]
     assert {meta.get("content") for meta in parser.metas if meta.get("property") == "og:image"} == {
-        f"{canonical}icon-512.png"
+        f"{canonical}social-card.png"
     }
     assert {meta.get("content") for meta in parser.metas if meta.get("name") == "twitter:card"} == {
-        "summary"
+        "summary_large_image"
     }
 
     assert document["@context"] == "https://schema.org"
@@ -293,6 +293,13 @@ def test_raster_icon_has_the_declared_dimensions() -> None:
     image = (ROOT / "web" / "icon-512.png").read_bytes()
     assert image[:8] == b"\x89PNG\r\n\x1a\n"
     assert struct.unpack(">II", image[16:24]) == (512, 512)
+
+
+def test_social_card_has_the_declared_dimensions() -> None:
+    image = (ROOT / "web" / "social-card.png").read_bytes()
+    assert image[:8] == b"\x89PNG\r\n\x1a\n"
+    assert struct.unpack(">II", image[16:24]) == (1280, 640)
+    assert len(image) < 1_000_000
 
 
 def test_unknown_route_and_non_https_base_are_rejected() -> None:

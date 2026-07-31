@@ -1,8 +1,8 @@
 # Accessibility
 
-Implementation/test-coverage review: 2026-07-17. Final MF2 browser execution: pending in CI. Last
-full manual screen-reader baseline: 2026-06-16. Recheck cadence: each release, and at least every 6
-months otherwise.
+Implementation/test-coverage review: 2026-07-31. Automated MF2 and browser suites: passing in CI and
+locally. Last full manual screen-reader baseline: 2026-06-16. Recheck cadence: each release, and at
+least every 6 months otherwise.
 
 swelter targets **WCAG 2.2 Level AA** for the `web/` dashboard and documents conformance with the
 **Revised Section 508 Standards** (36 CFR Part 1194). A community-run dashboard is not federal
@@ -40,8 +40,8 @@ Three layers, from cheapest to most thorough:
    focus indicator. A regression on any of the twelve fails the build. They all currently pass.
    The gate cannot judge computed color contrast or live ARIA semantics — that is what the next
    two layers are for.
-2. **Browser and localization gates — merge-blocking in CI.** `npm --prefix web run verify` is
-   configured to run the MF2/unit contract, Playwright plus Axe, Pa11y, and Lighthouse. Assertions
+2. **Browser and localization gates — merge-blocking in CI.** `npm --prefix web run verify` runs
+   the MF2/unit contract, Playwright plus Axe, Pa11y, and Lighthouse. Assertions
    cover both published routes with distinct source/data fixtures; Chromium, Firefox, and WebKit;
    light and dark schemes; Axe scans of every Map/List/Table view in English and Spanish; primary
    keyboard tasks; `elementsFromPoint` focus non-obscuration; all-view 320 CSS-pixel reflow; reduced
@@ -50,13 +50,15 @@ Three layers, from cheapest to most thorough:
    desktop and 320 CSS pixels, with only the WCAG 2.5.8 inline-text and 24px-spacing exceptions. The
    unit contract blocks EN/ES key or placeholder drift,
    invalid MF2/count selection, unmarked public HTML copy, natural-language JavaScript UI sinks,
-   physical CSS direction, duplicate semantic tokens, and static-asset budget regressions. The final
-   MF2 unit/browser suite remains pending in a clean Node 22 environment; CI is authoritative.
+   physical CSS direction, duplicate semantic tokens, and static-asset budget regressions. On
+   2026-07-31, the equal 400-key EN/ES catalogs and JavaScript unit suite passed 117/117 checks;
+   Playwright passed 57/57 checks across Chromium, Firefox, and WebKit; Pa11y passed both routes;
+   and Lighthouse passed both route budgets with LCP at or below 2.5s.
 3. **Manual assistive-technology, zoom, and reflow review.** Automation does not prove usability.
    The 2026-06-16 NVDA/VoiceOver and 200% zoom baseline predates the expanded linked visualization
-   sequence. A new dated walkthrough on NVDA/Windows, VoiceOver/macOS, VoiceOver/iOS, 200% zoom, and
-   reflow remains required before formal signoff; this is stated in the ACR and public statement
-   rather than inferred from automation.
+   and statewide cluster sequence. A new dated walkthrough on NVDA/Windows, VoiceOver/macOS,
+   VoiceOver/iOS, 200% zoom, and reflow remains required before formal signoff; this is stated in the
+   ACR and public statement rather than inferred from automation.
 
 ## Maintenance
 

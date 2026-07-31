@@ -8,15 +8,23 @@ reproducible without hardware or a live provider.
 ## Composition
 
 `data/demo/observations.jsonl`, co-location pairs, corrections, and generated web surfaces describe
-a fictional network. The default generator produces a mixture of calibrated and raw/provisional
-nodes, a deliberate offline gap, a range spike, and a flatline so the pipeline's failure states are
-visible. Counts vary by generator configuration and are not documentation claims.
+a fictional network. The current default generator creates 150 nodes with a mixture of calibrated
+and raw/provisional readings, a deliberate offline gap, a range spike, and a flatline so the
+pipeline's failure states are visible. Custom generator configurations may use another count.
+
+For the exact default fixture only, `web_preview: statewide-california` changes an in-memory copy of
+the network while baking static web artifacts. It assigns the synthetic nodes deterministically to
+public California place names and centroids so the statewide map has geographic context. It does not
+rewrite `network.yaml`, the observation store, or the calibration evidence. Copied or edited network
+configs must remove this directive and use their own node coordinates.
 
 ## Collection and preprocessing
 
 The records are generated deterministically by `scripts/gen_demo_data.py`; no people, homes, live
-sensors, provider APIs, or real jurisdiction facts are sampled. Co-location fits and surfaces are
-derived through the same code paths as an operator deployment.
+sensors, provider measurements, or environmental conditions are sampled. Public California place
+centroids are geographic reference points for the default static presentation only. The synthetic
+values do not describe conditions at those places and do not claim a real statewide pattern.
+Co-location fits and surfaces are derived through the same code paths as an operator deployment.
 
 ## Uses
 
@@ -36,5 +44,5 @@ Schema and generator changes update the fixture, expected outputs, acceptance-te
 card together. Public fallback use must keep the synthetic label in the truth contract, UI, export,
 and generated `DATA-LICENSE`.
 
-Owner: maintainer. Last verified: 2026-07-16. Recheck cadence: each generator/schema change and
+Owner: maintainer. Last verified: 2026-07-31. Recheck cadence: each generator/schema change and
 release.
