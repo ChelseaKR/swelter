@@ -34,6 +34,7 @@ from swelter.server import ServerContext
 from swelter.sources import openaq, openmeteo, sensor_community
 from swelter.sources._http import SourceError
 from swelter.store import SqliteStore, WriteResult, open_store, store_paths
+from swelter.web_preview import WEB_PREVIEW_NETWORK_NAME, WEB_PREVIEW_REFERENCE_LABEL
 
 from .conftest import DEMO, ROOT, make_obs
 
@@ -59,6 +60,38 @@ def _demo_into(store_dir: Path, web: Path) -> None:
         ]
     )
     assert rc == 0
+
+
+def test_demo_bakes_statewide_preview_without_moving_the_worked_example_store(
+    tmp_path: Path,
+) -> None:
+    store_dir = tmp_path / "store"
+    web = tmp_path / "web"
+    web.mkdir()
+    _demo_into(store_dir, web)
+
+    sample = json.loads((web / "sample-surface.json").read_text(encoding="utf-8"))
+    sample_lats = [float(cell["lat"]) for cell in sample["cells"]]
+    sample_lons = [float(cell["lon"]) for cell in sample["cells"]]
+    assert max(sample_lats) - min(sample_lats) > 9
+    assert max(sample_lons) - min(sample_lons) > 9
+    references = {str(cell["reference"]) for cell in sample["cells"] if "reference" in cell}
+    assert references == {WEB_PREVIEW_REFERENCE_LABEL}
+    alerts = json.loads((web / "alerts.json").read_text(encoding="utf-8"))
+    assert alerts["network"] == WEB_PREVIEW_NETWORK_NAME
+    for filename in (
+        "sample-surface.json",
+        "sample-health.json",
+        "alerts.json",
+        "alerts.xml",
+        "alerts.es.xml",
+    ):
+        assert "downtown" not in (web / filename).read_text(encoding="utf-8").casefold()
+
+    stored = json.loads(store_paths(store_dir)["aggregate"].read_text(encoding="utf-8"))
+    stored_coords = [feature["geometry"]["coordinates"] for feature in stored["features"]]
+    assert max(point[1] for point in stored_coords) - min(point[1] for point in stored_coords) < 0.1
+    assert max(point[0] for point in stored_coords) - min(point[0] for point in stored_coords) < 0.1
 
 
 @pytest.fixture(scope="module")
@@ -1564,11 +1597,10 @@ def test_fetch_accumulate_does_not_restore_nodes_from_an_older_scope(tmp_path: P
     assert {node["node_id"] for node in accumulated["nodes"]} == {"oaq-sac", "oaq-la"}
 
 
-# -- the static-payload cap (keeps the committed sample light) ---------------
+# -- the compact static snapshot (keeps first paint light) -------------------
 
 
-def test_web_sample_cap_drops_older_buckets(demo_store: Path, tmp_path: Path) -> None:
-    """``_write_web_sample`` caps the offline sample to the newest buckets under ``max_cells``."""
+def test_web_sample_keeps_only_the_newest_bucket(demo_store: Path, tmp_path: Path) -> None:
     web = tmp_path / "web"
     web.mkdir()
     store = open_store(demo_store)
@@ -1579,10 +1611,9 @@ def test_web_sample_cap_drops_older_buckets(demo_store: Path, tmp_path: Path) ->
     all_buckets = {c.bucket for c in surface.cells}
     assert len(all_buckets) > 1, "demo spans many hourly buckets"
 
-    _write_web_sample(web, surface, attribution="x", max_cells=1)
+    _write_web_sample(web, surface, attribution="x")
     sample = json.loads((web / "sample-surface.json").read_text(encoding="utf-8"))
-    # With max_cells=1 only the single newest bucket survives the cap.
-    assert len(sample["buckets"]) < len(all_buckets)
     assert sample["buckets"] == [max(all_buckets)]
+    assert {cell["bucket"] for cell in sample["cells"]} == {max(all_buckets)}
     assert sample["rights"]["attribution"] == "x"
     assert sample["rights"]["links"] == [{"rel": "license", "href": "DATA-LICENSE"}]

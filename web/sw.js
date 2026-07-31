@@ -10,7 +10,7 @@
 const CACHE_SCOPE = encodeURIComponent(new URL(self.registration.scope).pathname);
 // The terminator is part of the ownership boundary and keeps release names out of the scope key.
 const CACHE_PREFIX = `swelter-shell-${CACHE_SCOPE}::`;
-const CACHE_RELEASE = "v6";
+const CACHE_RELEASE = "v7";
 const CACHE = `${CACHE_PREFIX}${CACHE_RELEASE}`;
 const SHELL = [
   ".",
@@ -30,7 +30,7 @@ const RUNTIME_MANIFEST = "vendor/messageformat/asset-manifest.json";
 // Static Pages builds add demo.json; live/local deployments may omit it. Cache
 // the truth contract when present without letting a 404 abort installation of
 // the core offline shell.
-const OPTIONAL_SHELL = ["demo.json"];
+const OPTIONAL_SHELL = ["demo.json", "basemap.geojson"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

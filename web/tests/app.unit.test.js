@@ -1281,6 +1281,122 @@ test("dense map rendering keeps semantic exposure categories visible", () => {
   assert.doesNotMatch(source, /isExposure\(\)\s*\? `\$\{Math\.round\(row\.mean\)\}`/);
 });
 
+test("markerClusters groups only nearby overview positions and preserves every index", async () => {
+  const app = await freshApp();
+  const layout = [
+    { left: 0.1, bottom: 0.9 },
+    { left: 0.12, bottom: 0.88 },
+    { left: 0.8, bottom: 0.2 },
+  ];
+  const clusters = app.markerClusters(layout, 800, 600, true);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(clusters.map((cluster) => cluster.indices))),
+    [[0, 1], [2]],
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(app.markerClusters(layout, 800, 600, false).map((cluster) => cluster.indices))),
+    [[0], [1], [2]],
+  );
+});
+
+test("markerClusters anchors groups to real places and merges overlapping adjacent-bin controls", async () => {
+  const app = await freshApp();
+  const width = 800;
+  const height = 600;
+  const layout = [
+    { left: 0.13, bottom: 0.72 },
+    { left: 0.14, bottom: 0.72 },
+    { left: 0.7, bottom: 0.25 },
+  ];
+  const clusters = app.markerClusters(layout, width, height, true);
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(clusters.map((cluster) => cluster.indices))),
+    [[0, 1], [2]],
+  );
+  for (const cluster of clusters) {
+    assert.ok(
+      cluster.indices.some((index) => layout[index] === cluster.position),
+      "each cluster must remain anchored to one of its mapped members",
+    );
+  }
+  for (let left = 0; left < clusters.length - 1; left += 1) {
+    for (let right = left + 1; right < clusters.length; right += 1) {
+      const dx = (clusters[left].position.left - clusters[right].position.left) * width;
+      const dy = (clusters[left].position.bottom - clusters[right].position.bottom) * height;
+      assert.ok(Math.hypot(dx, dy) >= 56);
+    }
+  }
+});
+
+test("markerClusters recomputes target clearance for large text and narrow maps", async () => {
+  const app = await freshApp();
+  const layout = [
+    { left: 0.125, bottom: 0.83 },
+    { left: 0.1275, bottom: 0.83 },
+    { left: 0.2, bottom: 0.83 },
+    { left: 0.2025, bottom: 0.83 },
+  ];
+  assert.equal(app.markerClusters(layout, 800, 600, true, 1).length, 2);
+  assert.equal(app.markerClusters(layout, 800, 600, true, 1.3).length, 1);
+  assert.equal(app.markerClusters(layout, 580, 600, true, 1).length, 1);
+});
+
+test("markerClusters protects nearby targets in a small mapped dataset without coarse grouping", async () => {
+  const app = await freshApp();
+  const layout = [
+    { left: 0.1, bottom: 0.7 },
+    { left: 0.15, bottom: 0.7 },
+    { left: 0.8, bottom: 0.2 },
+  ];
+  const clusters = app.markerClusters(layout, 800, 600, true, 1, false, 60);
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(clusters.map((cluster) => cluster.indices))),
+    [[0, 1], [2]],
+  );
+});
+
+test("fitMapBounds zooms the camera without changing projected marker positions", async () => {
+  const app = await freshApp();
+  const positions = [
+    { left: 0.251, bottom: 0.612 },
+    { left: 0.255, bottom: 0.615 },
+    { left: 0.253, bottom: 0.613 },
+  ];
+  const before = JSON.parse(JSON.stringify(positions));
+  const width = 800;
+  const height = 600;
+  const view = app.fitMapBounds(positions, width, height, 50);
+
+  assert.ok(view.zoom > 100, `expected a neighborhood-scale camera, got ${view.zoom}`);
+  assert.ok(view.zoom <= 512);
+  assert.ok(view.x <= 0 && view.x >= width * (1 - view.zoom));
+  assert.ok(view.y <= 0 && view.y >= height * (1 - view.zoom));
+  for (const position of positions) {
+    const x = view.x + position.left * width * view.zoom;
+    const y = view.y + (1 - position.bottom) * height * view.zoom;
+    assert.ok(x >= 49 && x <= width - 49, `x=${x}`);
+    assert.ok(y >= 49 && y <= height - 49, `y=${y}`);
+  }
+  assert.deepEqual(JSON.parse(JSON.stringify(positions)), before);
+});
+
+test("the California overview keeps one projection while a cluster changes only the camera", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const source = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+  assert.match(source, /const layout = rows\.map\(\(row\) => markerPos\(row, proj\)\)/);
+  assert.doesNotMatch(source, /const layout = declutterPositions\(/);
+  assert.match(source, /const proj = mapProjection\(rows\)/);
+  assert.match(
+    source,
+    /markerClusters\(\s*layout,\s*mapLayoutW,\s*mapLayoutH,\s*rows\.length > 1,/,
+  );
+  assert.match(source, /zoomToMapBounds\(cluster\.indices\.map/);
+  assert.doesNotMatch(source, /mapLocal/);
+});
+
 test("braidSelectionText — an unknown saved location degrades to an empty observation status", async () => {
   const app = await freshApp();
   const bucket = "2026-06-01T00:00:00Z";

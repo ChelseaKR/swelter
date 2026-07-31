@@ -20,7 +20,9 @@ from swelter.cli import main
 from swelter.config import load_config
 from swelter.models import Observation
 from swelter.sources import openaq, sensor_community
+from swelter.sources._california_places import CALIFORNIA
 from swelter.store import SqliteStore, open_store
+from swelter.web_preview import WEB_PREVIEW_NETWORK_NAME, WEB_PREVIEW_REFERENCE_LABEL
 
 from .conftest import DEMO, ROOT, make_obs
 
@@ -74,6 +76,7 @@ EXPECTED_FILES = (
     "sample-health.json",
     "alerts.json",
     "alerts.xml",
+    "alerts.es.xml",
     "surface-24h.json",
     "surface-7d.json",
     "export.csv",
@@ -117,6 +120,70 @@ def test_publish_surface_slices_are_windowed_subsets(demo_store: Path, tmp_path:
     cells_24h = {(c["cell_id"], c["bucket"], c["parameter"]) for c in slice_24h["cells"]}
     cells_7d = {(c["cell_id"], c["bucket"], c["parameter"]) for c in slice_7d["cells"]}
     assert cells_24h <= cells_7d
+
+
+def test_publish_uses_one_statewide_mapping_across_location_artifacts_and_manifest(
+    demo_store: Path, tmp_path: Path
+) -> None:
+    web = tmp_path / "web"
+    assert _publish(demo_store, web) == 0
+
+    def locations(filename: str) -> dict[str, tuple[str, str, float, float]]:
+        payload = json.loads((web / filename).read_text(encoding="utf-8"))
+        by_node: dict[str, tuple[str, str, float, float]] = {}
+        for cell in payload["cells"]:
+            assert len(cell["nodes"]) == 1
+            node_id = str(cell["nodes"][0])
+            location = (
+                str(cell["cell_id"]),
+                str(cell["label"]),
+                float(cell["lat"]),
+                float(cell["lon"]),
+            )
+            assert by_node.setdefault(node_id, location) == location
+        return by_node
+
+    sample = locations("sample-surface.json")
+    assert sample == locations("surface-24h.json") == locations("surface-7d.json")
+    assert len(sample) == 150
+    validated = set(CALIFORNIA)
+    assert {(label, lat, lon) for _cell_id, label, lat, lon in sample.values()} <= validated
+    sample_payload = json.loads((web / "sample-surface.json").read_text(encoding="utf-8"))
+    references = {str(cell["reference"]) for cell in sample_payload["cells"] if "reference" in cell}
+    assert references == {WEB_PREVIEW_REFERENCE_LABEL}
+
+    health = json.loads((web / "sample-health.json").read_text(encoding="utf-8"))
+    expected_coverage = {(cell_id, label) for cell_id, label, _lat, _lon in sample.values()}
+    actual_coverage = {
+        (str(cell["cell_id"]), str(cell["label"])) for cell in health["coverage_equity"]["cells"]
+    }
+    assert actual_coverage == expected_coverage
+
+    alerts = json.loads((web / "alerts.json").read_text(encoding="utf-8"))
+    assert alerts["network"] == WEB_PREVIEW_NETWORK_NAME
+    for name in (
+        "sample-surface.json",
+        "sample-health.json",
+        "alerts.json",
+        "alerts.xml",
+        "alerts.es.xml",
+    ):
+        assert "downtown" not in (web / name).read_text(encoding="utf-8").casefold()
+
+    manifest = json.loads((web / "publish-manifest.json").read_text(encoding="utf-8"))
+    listed = {entry["path"]: entry for entry in manifest["files"]}
+    for name in (
+        "sample-surface.json",
+        "surface-24h.json",
+        "surface-7d.json",
+        "sample-health.json",
+        "alerts.json",
+        "alerts.xml",
+        "alerts.es.xml",
+    ):
+        data = (web / name).read_bytes()
+        assert listed[name]["bytes"] == len(data)
+        assert listed[name]["sha256"] == hashlib.sha256(data).hexdigest()
 
 
 def test_publish_export_matches_export_to_csv(demo_store: Path, tmp_path: Path) -> None:
