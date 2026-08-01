@@ -11,9 +11,9 @@ from __future__ import annotations
 import json
 import math
 from functools import lru_cache
-from importlib.resources import (  # nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2  # noqa: E501 (#107)
-    files,
-)
+
+# nosemgrep: python.lang.compatibility.python37.python37-compatibility-importlib2 (#107)
+from importlib.resources import files
 
 from ._geometry import MultiPolygon, contains_point, decode_multipolygon
 
