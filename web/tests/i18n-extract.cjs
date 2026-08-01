@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const WEB = path.join(__dirname, "..");
 const MANIFEST = path.join(WEB, "i18n", "messages.manifest.json");
-const EXPECTED_RUNTIME_VERSION = "4.0.0-11";
+const EXPECTED_RUNTIME_VERSION = "4.0.0";
 const read = (name) => fs.readFileSync(path.join(WEB, name), "utf8");
 const catalog = (locale) => JSON.parse(read(`i18n/${locale}.json`));
 

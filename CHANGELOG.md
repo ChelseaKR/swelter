@@ -39,6 +39,14 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **MessageFormat 2 runtime graduated to the stable `messageformat@4.0.0` release.** The dashboard
+  vendored the `4.0.0-11` prerelease only because no networked install could resolve the stable
+  tarball; that upgrade trigger, documented in [`docs/I18N.md`](docs/I18N.md), has now fired. The npm
+  lock, the generated `web/vendor/messageformat/` runtime, the i18n manifest syntax stamp, and the
+  runtime-exactness assertions in the install generator, extraction check, and JavaScript
+  conformance suite all move to `4.0.0`. The vendoring decision in
+  [ADR 0026](docs/adr/0026-vendored-messageformat-runtime.md) is unchanged; only the pinned version
+  differs. No catalog, message, or placeholder changed.
 - **Statewide geographic map and minimalist observatory ([PR #130](https://github.com/ChelseaKR/swelter/pull/130)).**
   The default California view now places every reading with one basemap-aligned geographic
   projection. Nearby readings collapse into numbered overview groups anchored to real places;

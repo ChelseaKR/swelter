@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const WEB = path.join(__dirname, "..");
-const EXPECTED_VERSION = "4.0.0-11";
+const EXPECTED_VERSION = "4.0.0";
 const entry = fs.realpathSync(require.resolve("messageformat"));
 const source = path.dirname(entry);
 const packageRoot = path.dirname(source);
