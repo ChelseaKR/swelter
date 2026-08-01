@@ -39,6 +39,17 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **The suppression hygiene gate now ratchets (CQ-34/CQ-35, [#107](https://github.com/ChelseaKR/swelter/issues/107)).**
+  `scripts/hygiene_check.py` already required every `noqa`/`type: ignore`/`nosemgrep` to be coded
+  and issue-linked, which makes a suppression *legible* but does nothing to make it *temporary* —
+  the inventory could grow without limit while the gate stayed green. It now counts tracked
+  suppressions against a committed `SUPPRESSION_CEILING` and fails both when the count rises (a new
+  suppression costs a visible, reviewable edit) and when it falls without the ceiling being lowered
+  (a ceiling left high hands the retirement straight back). The gate prints the per-file inventory
+  so #107 has something concrete to review. One waiver retired in the same change: the
+  `python37-compatibility-importlib2` Semgrep waiver in `sources/_california_boundary.py` moved to
+  the line above the import, which fits the line-length limit and so no longer needs its companion
+  `E501` `noqa`. 30 tracked suppressions to 29.
 - **MessageFormat 2 runtime graduated to the stable `messageformat@4.0.0` release.** The dashboard
   vendored the `4.0.0-11` prerelease only because no networked install could resolve the stable
   tarball; that upgrade trigger, documented in [`docs/I18N.md`](docs/I18N.md), has now fired. The npm

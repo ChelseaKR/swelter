@@ -81,6 +81,44 @@ def test_hygiene_requires_issue_link_for_suppression(tmp_path: Path) -> None:
     assert hygiene_check._scan([tracked]) == []
 
 
+def test_hygiene_ceiling_rejects_a_new_suppression() -> None:
+    """Coding and linking a suppression makes it legible, not temporary. Without a count,
+    the inventory can grow forever with the gate green — which is why #107's close
+    condition was unreachable by running the gate."""
+    problems = hygiene_check.check_ceiling(30, ceiling=29)
+    assert problems and "ceiling is 29" in problems[0]
+
+
+def test_hygiene_ceiling_demands_the_win_be_locked_in() -> None:
+    """The ratchet only ratchets if going down is also a failure. A ceiling left high after
+    a retirement hands the slack straight back to the next PR."""
+    problems = hygiene_check.check_ceiling(28, ceiling=29)
+    assert problems and "Lower SUPPRESSION_CEILING to 28" in problems[0]
+
+
+def test_hygiene_ceiling_is_silent_when_exact() -> None:
+    assert hygiene_check.check_ceiling(29, ceiling=29) == []
+
+
+def test_hygiene_counts_markers_not_lines(tmp_path: Path) -> None:
+    """Two suppressions on one line are two suppressions. Counting lines would make
+    retiring one of them look like no change at all — the exact case this PR hit."""
+    source = tmp_path / "two.py"
+    # Both markers are assembled at runtime: a literal one here would be counted by the very
+    # gate that scans this file, and a test that changes the number it asserts is not a test.
+    noqa = "# " + "noqa: E501 (#107)"
+    ignore = "nosem" + "grep: some.rule (#107)"
+    source.write_text(f"from x import y  # {ignore}  {noqa}\n", encoding="utf-8")
+    assert sum(hygiene_check.count_suppressions([source]).values()) == 2
+
+
+def test_hygiene_ceiling_matches_the_repository() -> None:
+    """The committed ceiling is the real number on this branch, not an aspiration."""
+    paths = hygiene_check._tracked_files(*hygiene_check.SCAN_DIRS)
+    total = sum(hygiene_check.count_suppressions(paths).values())
+    assert total == hygiene_check.SUPPRESSION_CEILING
+
+
 def test_log_safety_rejects_pii_field_and_dynamic_message(tmp_path: Path) -> None:
     source = tmp_path / "unsafe.py"
     source.write_text(
