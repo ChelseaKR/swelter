@@ -61,3 +61,4 @@ evidence of the collision.
 - [ADR 0039: A forecast hour is not an observation](0039-a-forecast-hour-is-not-an-observation.md)
 - [ADR 0040: A public place is not a host, and the consent check should not pretend otherwise](0040-a-public-place-is-not-a-host.md)
 - [ADR 0041: A derived reading is only as real as its inputs](0041-a-derived-reading-is-only-as-real-as-its-inputs.md)
+- [ADR 0044: Decide whether evidence requires sensors before planning hardware](0044-purpose-first-project-planner.md)
