@@ -58,3 +58,4 @@ evidence of the collision.
 - [ADR 0036: Publish the absence when an area stops reporting, instead of going quiet about it](0036-published-absence-for-areas-that-stop-reporting.md)
 - [ADR 0037: Absence is never published as a number, and never narrows an interval](0037-absence-is-never-published-as-a-number.md)
 - [ADR 0038: A correction version that names its fit](0038-a-correction-version-that-names-its-fit.md)
+- [ADR 0039: Decide whether evidence requires sensors before planning hardware](0039-purpose-first-project-planner.md)

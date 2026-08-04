@@ -1,6 +1,22 @@
-# ADR 0023: Decide whether evidence requires sensors before planning hardware
+# ADR 0039: Decide whether evidence requires sensors before planning hardware
 
-Date: 2026-07-09. Status: accepted.
+- Status: Accepted
+- Date: 2026-07-09
+- Deciders: Chelsea Kelly-Reif
+
+## Context
+
+Sensor projects often begin with procurement and discover the actual decision, consent process,
+maintenance load, and evidence limits later. That sequence creates abandoned hardware and claims
+that outlive their calibration. swelter's strongest product boundary is its trust discipline, so
+the first planning tool should be able to say that existing public data is enough, that an urgent
+decision cannot wait for a study, or that hardware is inappropriate until a community mandate and
+steward exist.
+
+A declarative rule table keeps that safety posture reviewable. Tests enumerate every possible input
+combination, confirm that each reaches a complete outcome, and assert that missing governance,
+missing stewardship, urgent timelines, and raw uncalibrated readings cannot unlock network-scale
+deployment.
 
 ## Decision
 
@@ -21,21 +37,7 @@ free-text, identity, contact, or location field. It makes no network request, cr
 uses no browser storage, and transmits nothing. Copy and print are explicit local actions. Public
 locations remain coarse by default, and no recommendation can promote raw readings to trustworthy.
 
-## Why
-
-Sensor projects often begin with procurement and discover the actual decision, consent process,
-maintenance load, and evidence limits later. That sequence creates abandoned hardware and claims
-that outlive their calibration. swelter's strongest product boundary is its trust discipline, so
-the first planning tool should be able to say that existing public data is enough, that an urgent
-decision cannot wait for a study, or that hardware is inappropriate until a community mandate and
-steward exist.
-
-A declarative rule table keeps that safety posture reviewable. Tests enumerate every possible input
-combination, confirm that each reaches a complete outcome, and assert that missing governance,
-missing stewardship, urgent timelines, and raw uncalibrated readings cannot unlock network-scale
-deployment.
-
-## Known weakness / Consequences
+## Consequences
 
 The planner is decision support, not community consent or a substitute for public-health,
 calibration, legal, or research-method review. Closed choices improve privacy and make the rule
