@@ -8,9 +8,10 @@ malformed JSON, an empty result, and a non-retryable HTTP error — without touc
 
 from __future__ import annotations
 
+import http.client
 import json
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -301,10 +302,17 @@ def test_sensor_community_fetch_empty_area(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_sensor_community_fetch_non_list_payload(monkeypatch: pytest.MonkeyPatch) -> None:
-    # A malformed top-level payload (object instead of the expected array) yields nothing, no crash.
+    """A malformed top-level payload raises rather than becoming an empty area.
+
+    This test used to assert the opposite — that ``{"error": ...}`` "yields nothing, no crash" —
+    and that guarantee is what let a refused fetch pass as thin coverage for seven weeks. Note
+    that the payload it chose to prove tolerance with was itself an error document. Swallowing a
+    crash and swallowing a refusal look identical from inside the adapter; only the caller can
+    tell them apart, and only if we let it.
+    """
     monkeypatch.setattr(sensor_community, "_get_json", lambda *_a, **_k: {"error": "rate limited"})
-    obs, nodes = sensor_community.fetch()
-    assert obs == [] and nodes == {}
+    with pytest.raises(SourceError):
+        sensor_community.fetch()
 
 
 def test_sensor_community_fetch_propagates_source_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -375,3 +383,93 @@ def test_openmeteo_to_observations_tolerates_short_arrays() -> None:
     # Both hours of PM emit; only the first hour has temp/humidity/heat-index.
     assert sum(o.parameter == "pm25_ugm3" for o in obs) == 2
     assert sum(o.parameter == "temp_c" for o in obs) == 1
+
+
+# --- identifying ourselves, and hearing a refusal -------------------------------------------
+#
+# These two cover the failure that took Sensor.Community offline for swelter between 2026-06-19
+# and 2026-08-06 without a single red run. Note where they have to sit: the tests above stub
+# `_request_json`, which is where the header is built, so no test above this line can see whether
+# a request carries a User-Agent at all. That is precisely why the regression survived.
+
+
+class _CapturingConnection:
+    """Stand-in for ``http.client.HTTPSConnection`` that records the request it was handed."""
+
+    sent: ClassVar[dict[str, str]] = {}
+
+    def __init__(self, *_a: Any, **_k: Any) -> None:
+        self._body = b"[]"
+
+    def request(self, _method: str, _target: str, headers: dict[str, str]) -> None:
+        type(self).sent = dict(headers)
+
+    def getresponse(self) -> Any:
+        body = self._body
+
+        class _Response:
+            status = 200
+
+            @staticmethod
+            def read() -> bytes:
+                return body
+
+            @staticmethod
+            def getheaders() -> list[tuple[str, str]]:
+                return []
+
+        return _Response()
+
+    def close(self) -> None:
+        return None
+
+
+def test_every_request_identifies_swelter(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A fetch must carry a non-empty User-Agent.
+
+    Sensor.Community declines an anonymous client with HTTP 200 and a JSON error document, so an
+    unidentified request is not a loud failure — it is a quiet empty map.
+    """
+    monkeypatch.setattr(http.client, "HTTPSConnection", _CapturingConnection)
+    get_json("https://example.test/data")
+    agent = _CapturingConnection.sent.get("User-Agent", "")
+    assert agent.strip(), "requests must identify swelter; an anonymous fetch is silently refused"
+    assert "swelter" in agent.lower()
+
+
+def test_caller_may_override_the_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(http.client, "HTTPSConnection", _CapturingConnection)
+    get_json("https://example.test/data", headers={"User-Agent": "custom/1.0"})
+    assert _CapturingConnection.sent["User-Agent"] == "custom/1.0"
+
+
+def test_expect_records_keeps_an_empty_area_as_a_real_answer() -> None:
+    # Zero sensors in an area is a measurement, not a fault. It must stay quiet.
+    assert _http.expect_records([], source="Sensor.Community") == []
+
+
+def test_expect_records_raises_on_a_200_error_document() -> None:
+    """The exact payload Sensor.Community serves an anonymous client."""
+    payload = ['"error": "empty user agent not allowed"']
+    with pytest.raises(SourceError) as caught:
+        _http.expect_records(payload, source="Sensor.Community")
+    # The operator gets to see what actually arrived, not a guess about coverage.
+    assert "empty user agent not allowed" in str(caught.value)
+
+
+def test_expect_records_raises_when_the_payload_is_not_a_list() -> None:
+    with pytest.raises(SourceError):
+        _http.expect_records({"error": "nope"}, source="Sensor.Community")
+
+
+def test_sensor_community_fetch_refuses_to_report_a_refusal_as_no_sensors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end through the adapter: a refusal raises instead of returning zero observations."""
+    monkeypatch.setattr(
+        sensor_community,
+        "_get_json",
+        lambda *_a, **_k: ['"error": "empty user agent not allowed"'],
+    )
+    with pytest.raises(SourceError):
+        sensor_community.fetch(sensor_community.STUTTGART)
