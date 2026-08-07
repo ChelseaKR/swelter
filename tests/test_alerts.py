@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import cast
 
 from swelter import aggregate, alerts
+from swelter.alerts import DEFAULT_THRESHOLDS, crossing
 from swelter.config import NetworkConfig, NodeConfig
 from swelter.models import Observation
 
@@ -16,6 +17,13 @@ _NODE = NodeConfig(
     node_id="node-01", label="Oak & 4th", lat=38.5816, lon=-121.4944, location="precise"
 )
 _CONFIG = NetworkConfig(grid_resolution_m=150.0, nodes=(_NODE,))
+
+# A second, distinctly-located node (well outside a 150m grid cell of `_NODE`) for the dead-node
+# staleness tests below: one node keeps reporting, one goes dark.
+_NODE_CURRENT = NodeConfig(
+    node_id="node-02", label="Elm & 9th", lat=38.6100, lon=-121.4600, location="precise"
+)
+_CONFIG_TWO_NODES = NetworkConfig(grid_resolution_m=150.0, nodes=(_NODE, _NODE_CURRENT))
 
 
 def _feed(*obs: Observation, thresholds: Mapping[str, float] | None = None) -> alerts.AlertFeed:
@@ -56,6 +64,59 @@ def test_heat_index_below_danger_is_quiet() -> None:
     # 35 °C heat index is "Extreme Caution" — concerning, but below the published Danger floor.
     feed = _feed(make_obs(parameter="heat_index_c", value=35.0, calibration="v1"))
     assert feed.alerts == ()
+
+
+def test_dead_node_stale_reading_does_not_raise_an_alert() -> None:
+    # Issue #148: node-01's last-ever reading was a Danger-severity heat index three months before
+    # node-02's newest hour, then node-01 went dark. `latest_by_cell()` still returns that reading
+    # forever (it is genuinely the *latest* one node-01 ever sent) — build_feed must not turn it
+    # into a standing alert once a newer bucket exists anywhere on the surface. node-02 is currently
+    # reporting a real Danger crossing in that newest bucket, and its alert must still fire.
+    surface = aggregate.aggregate(
+        [
+            make_obs(
+                node_id="node-01",
+                parameter="heat_index_c",
+                value=45.0,
+                calibration="v1",
+                timestamp="2026-06-01T12:00:00Z",  # three months stale relative to node-02
+            ),
+            make_obs(
+                node_id="node-02",
+                parameter="heat_index_c",
+                value=41.0,
+                calibration="v1",
+                timestamp="2026-09-01T12:00:00Z",  # the surface's newest bucket
+            ),
+        ],
+        _CONFIG_TWO_NODES,
+    )
+
+    # Confirm the fixture actually reproduces the bug's precondition: node-01's stale reading is a
+    # real, genuine Danger crossing (not a low value that would fail to alert for an unrelated
+    # reason), so a passing assertion below is not vacuous.
+    stale_by_cell = surface.latest_by_cell()
+    stale_area_id, stale_reading = next(
+        (area_id, by_param["heat_index_c"])
+        for area_id, by_param in stale_by_cell.items()
+        if by_param.get("heat_index_c") is not None
+        and by_param["heat_index_c"].bucket == "2026-06-01T12:00:00Z"
+    )
+    assert crossing("heat_index_c", stale_reading, DEFAULT_THRESHOLDS) is not None
+
+    feed = alerts.build_feed(surface, network="demo", base_url="https://example.org")
+
+    # The feed's own "updated" is the surface's newest bucket — node-02's hour, not node-01's.
+    assert feed.bucket == "2026-09-01T12:00:00Z"
+    # Only the currently-reporting node's Danger crossing is published.
+    assert len(feed.alerts) == 1
+    alert = feed.alerts[0]
+    assert alert.area == "Elm & 9th"
+    assert alert.bucket == "2026-09-01T12:00:00Z"
+    assert alert.severity == "Danger"
+    # The dead node's stale cell raised nothing.
+    assert stale_area_id not in {a.area_id for a in feed.alerts}
+    assert all(a.area != "Oak & 4th" for a in feed.alerts)
 
 
 def test_provisional_reading_alerts_but_is_flagged() -> None:

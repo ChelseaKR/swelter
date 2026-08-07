@@ -140,6 +140,17 @@ All notable changes to swelter are recorded here. The format follows
   observations from 615 live nodes ([ADR 0034](docs/adr/0034-a-refused-fetch-is-not-an-empty-area.md),
   [#146](https://github.com/ChelseaKR/swelter/issues/146)). The refresh workflow still swallows an
   empty result, which is tracked in that issue and not closed here.
+- **A dead node can no longer keep broadcasting a stale Danger alert ([#148](https://github.com/ChelseaKR/swelter/issues/148)).**
+  `alerts.build_feed` scanned `Surface.latest_by_cell()` with no bound on how old "latest" was, so a
+  node that stopped reporting kept its last reading's alert active in every subsequent feed, stamped
+  `provisional: false`, inside a feed whose own "updated" timestamp was current — while `web/app.js`'s
+  map correctly dropped it as stale. `build_feed` now only raises an alert for a cell/parameter whose
+  latest reading's bucket equals the surface's newest bucket (`Surface.newest_bucket()`, a new method
+  also now shared by the static web-snapshot and publish-manifest code that already computed this
+  value inline), the same reference instant the map's `latestBucket()` uses — so the feed and the map
+  agree by construction. No wall clock is introduced;
+  `test_feed_timestamp_is_data_derived_not_wallclock` still holds
+  ([ADR 0035](docs/adr/0035-alerts-bound-to-the-surfaces-newest-bucket.md)).
 - **Dense maps no longer trade geographic truth for target spacing.** The former collision relaxation
   moved readings away from their projected coordinates and could make a compact network appear to
   cover empty parts of California. Overview clustering now preserves every geographic position,

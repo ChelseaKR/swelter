@@ -240,11 +240,19 @@ def build_feed(
     thresholds: Mapping[str, float] | None = None,
     pack: hazard_packs.HazardPack | None = None,
 ) -> AlertFeed:
-    """Scan the most recent hour of every cell and raise an alert for each danger crossing.
+    """Scan the surface's newest bucket and raise an alert for each danger crossing in it.
 
-    Only the latest reading per (cell, parameter) is considered — an alert is about now, not an hour
-    last week. A cell can raise more than one alert (hot *and* smoky); each is its own entry. The
-    feed's bucket is the newest hour present in the surface, so the artifact is deterministic.
+    An alert is about now, not an hour last week: a cell/parameter's *latest* reading only raises an
+    alert if that reading's bucket equals the surface's newest bucket
+    (:meth:`~swelter.aggregate.Surface.newest_bucket`) — the same reference instant
+    ``web/app.js``'s ``latestBucket()`` uses to decide what counts as current on the map. A node
+    that stops reporting keeps its last reading in ``latest_by_cell()``, but once a newer bucket
+    exists anywhere on the surface, that stale reading no longer clears the bound and cannot raise
+    an alert — it can no longer broadcast a danger crossing from before the node went dark. This
+    needs no wall clock: "now" is derived entirely from the data present, so the artifact stays
+    reproducible. A cell can raise more than one alert (hot *and* smoky); each is its own entry. The
+    feed's bucket is the newest hour present in the surface, so an empty feed still carries a
+    meaningful, data-derived timestamp.
 
     ``pack`` selects the hazard pack (:mod:`swelter.hazard_packs`) whose parameters and cited floors
     are checked; it defaults to the heat pack, so a caller that passes none gets the original
@@ -253,17 +261,20 @@ def build_feed(
     active = pack or hazard_packs.HEAT_PACK
     floors = resolve_thresholds(thresholds, active)
     latest = surface.latest_by_cell()
+    newest = surface.newest_bucket() or ""
     alerts: list[Alert] = []
-    newest = ""
     for area_id in sorted(latest):
         by_param = latest[area_id]
         for parameter in active.alerting_parameters():
             reading = by_param.get(parameter)
             if reading is None:
                 continue
-            # The feed's "updated" is the latest hour the surface covers, even on a calm day with no
-            # crossings, so an empty feed still has a meaningful, data-derived timestamp.
-            newest = max(newest, reading.bucket)
+            if reading.bucket != newest:
+                # This cell's latest reading for this parameter predates the surface's newest
+                # bucket — the node behind it has gone quiet (or was never this recent). Its last
+                # reading stays visible to anyone browsing history, but it does not get to keep
+                # broadcasting a danger crossing into a feed stamped as current (issue #148).
+                continue
             crossed = crossing(parameter, reading, floors)
             if crossed is None:
                 continue
