@@ -128,6 +128,18 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **Sensor.Community readings, dark since 2026-06-19, and the silence that hid it.** swelter sent no
+  `User-Agent`; the network declines an anonymous client with `HTTP 200` and a JSON error document
+  rather than a 4xx, that document is itself a list, and `fetch` coerced it to an empty result. Seven
+  weeks of live surfaces served CAMS model data with zero physical community sensors while the daily
+  refresh ran green and the CLI reported the network as "sparse outside Europe". Every request now
+  identifies swelter (`sources/_http.USER_AGENT`), and a new shared `sources/_http.expect_records`
+  boundary refuses to read a non-record payload as records: an empty area stays a quiet, legitimate
+  `[]`, but a refusal raises `SourceError` quoting what actually arrived. The CLI now reports what it
+  observed instead of naming a cause it has not established. First run after the fix: 1,718
+  observations from 615 live nodes ([ADR 0034](docs/adr/0034-a-refused-fetch-is-not-an-empty-area.md),
+  [#146](https://github.com/ChelseaKR/swelter/issues/146)). The refresh workflow still swallows an
+  empty result, which is tracked in that issue and not closed here.
 - **Dense maps no longer trade geographic truth for target spacing.** The former collision relaxation
   moved readings away from their projected coordinates and could make a compact network appear to
   cover empty parts of California. Overview clustering now preserves every geographic position,

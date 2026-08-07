@@ -30,7 +30,7 @@ from ..models import (
     parse_timestamp,
     wbgt_c,
 )
-from ._http import get_json
+from ._http import expect_records, get_json
 
 AREA_URL = "https://data.sensor.community/airrohr/v1/filter/area="
 #: Sensor.Community's stated terms for database contents (sensor.community/en/docs/).
@@ -104,9 +104,14 @@ def _emit(
 def fetch(
     area: Area = STUTTGART,
 ) -> tuple[list[Observation], dict[str, tuple[str, float, float, str]]]:
-    """Fetch each sensor's latest reading in the area. Returns (observations, node metadata)."""
+    """Fetch each sensor's latest reading in the area. Returns (observations, node metadata).
+
+    Raises :class:`~swelter.sources._http.SourceError` if the network answers with something that
+    is not a list of measurement records. It answers ``HTTP 200`` when it declines a request, so
+    that check is the only thing standing between a refusal and an empty map.
+    """
     rows = _get_json(f"{AREA_URL}{area.lat},{area.lon},{area.radius_km}")
-    return parse_measurements(rows if isinstance(rows, list) else [])
+    return parse_measurements(expect_records(rows, source="Sensor.Community"))
 
 
 def _sensor_model(sensor: dict[str, Any]) -> str:

@@ -1360,7 +1360,16 @@ def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
         _err(f"swelter: fetch failed ({exc}); check your network connection")
         return 1
     if not observations:
-        _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
+        # State the fact; do not name a cause we have not established. The adapter now raises
+        # rather than returning empty when the network refuses us, so reaching here means the
+        # request was served and the area really is unmonitored — but "unmonitored" still has
+        # more than one explanation, and picking one for the operator is how a seven-week
+        # outage read as a coverage caveat.
+        _err(
+            f"swelter: Sensor.Community served the request and reported no sensors within "
+            f"{area.radius_km:g} km of {area.name}. Coverage is densest in Europe; try a "
+            f"larger radius or a different area."
+        )
         return 1
     network = sensor_community.network_doc(area.name, nodes)
     return (
