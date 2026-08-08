@@ -11,6 +11,12 @@ from swelter.models import RAW, SOURCE_NATIVE, Observation
 from swelter.store import SqliteStore
 
 ROOT = Path(__file__).resolve().parents[1]
+# Under mutmut the tests are copied into `mutants/`, so parents[1] lands on the
+# sandbox rather than the repository. Only source and the selected tests are
+# copied there, never `data/`, so committed fixtures have to be read from the
+# real root or the mutation gate cannot run at all.
+if ROOT.name == "mutants":
+    ROOT = ROOT.parent
 DEMO = ROOT / "data" / "demo"
 
 
