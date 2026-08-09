@@ -38,7 +38,7 @@ now discloses it too. Commit signing is expected to resume for everything after 
 **1. Immediate (done same-day, 2026-07-05, no GitHub admin action required):**
 
 - The red gate itself is fixed — see the Standards conformance table in `README.md` and the
-  Execution Log in `audit-2026-07-05/swelter-REMEDIATION.md`. `make verify` is green again.
+  2026-07-05 remediation record. `make verify` is green again.
 - `.github/CODEOWNERS` is committed, naming the maintainer as owner of the whole tree and
   explicitly of `.github/workflows/`, `src/swelter/ingest_server.py` (the authenticated write
   path this incident touched), and `scripts/` (the gate scripts) — so a ruleset that requires

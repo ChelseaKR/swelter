@@ -88,7 +88,7 @@ Do not convert planned workflow behavior into evidence that the release occurred
 - [Acceptance-test map](ACCEPTANCE-TEST-MAP.md) — executable one-to-one
   feature/criterion/test-symbol/review/ISO mapping.
 - [Standards pin](STANDARDS-PIN.md) — offline byte integrity plus CI authentication against the
-  canonical v1.0.1 release, tag, commit, and blobs.
+  canonical v2.0.0 release, tag, commit, and blobs.
 - [Architecture decisions](adr/README.md) — MADR-compatible source of record with legacy links kept.
 - [Source data cards](data-cards/README.md) — purpose, provenance, limitations, rights, and refresh.
 - [Responsible-technology audit](RESPONSIBLE-TECH-AUDITS.md) — current A–F review in the four-question
