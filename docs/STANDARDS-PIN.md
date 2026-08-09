@@ -1,12 +1,12 @@
 # Portfolio standards pin and provenance
 
-Swelter vendors the released portfolio standards tag **v1.0.1**. The canonical source is
+Swelter vendors the released portfolio standards tag **v2.0.0**. The canonical source is
 <https://github.com/ChelseaKR/portfolio-standards>; the tag resolves to commit
-`cc5465ca1a55ab3545ed1485f9e90db160ce33ea`.
+`e9cddffff4e9f685642f4ac2c90ddbca12bcebf3`.
 
 The vendored subset is under [`docs/standards/`](standards/), and the declared release is recorded
-in [`docs/standards/.standards-version`](standards/.standards-version). On 2026-07-17 every vendored
-Markdown file was byte-compared to the same path at `v1.0.1`; all twelve matched. The local checkout
+in [`docs/standards/.standards-version`](standards/.standards-version). On 2026-08-09 every vendored
+Markdown file was byte-compared to the same path at `v2.0.0`; all sixteen matched. The local checkout
 of a future or dirty standards branch is not policy and is never used as the comparison target.
 
 The verification contract is:
@@ -24,4 +24,4 @@ GitHub repository, fetches the exact tag from its canonical Git remote, checks t
 every tagged blob, and enforces the one-minor currency window. A release API or Git failure fails the
 upstream gate; it never silently falls back to the local assertion.
 
-Last verified: 2026-07-17. Recheck cadence: on every standards-version change and quarterly.
+Last verified: 2026-08-09. Recheck cadence: on every standards-version change and quarterly.

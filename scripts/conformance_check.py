@@ -31,8 +31,12 @@ REQUIRED_STANDARDS = (
     "Observability",
     "Accessibility",
     "Internationalization",
+    "AI Development Measurement",
     "AI Evaluation",
+    "Data Governance",
     "Documentation",
+    "Incident Response",
+    "Performance",
     "Quality & Metrics",
     "Release & Versioning",
 )
