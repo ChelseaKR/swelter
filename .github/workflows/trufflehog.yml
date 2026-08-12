@@ -25,8 +25,19 @@ jobs:
 
       # Verified findings are confirmed active. Unknown findings could not be checked against a
       # provider and must also fail closed; otherwise an API outage would silently weaken the gate.
-      # No `base`/`head` is given, so this scans the full repository (not just a commit range).
+      #
+      # `path` is what makes this a whole-repository scan. Omitting `base`/`head` does NOT fall
+      # back to scanning everything, which is what the note here used to claim: with all three
+      # unset the action resolves base and head to the same commit and exits 1 on its own guard,
+      # "BASE and HEAD commits are the same. TruffleHog won't scan anything." Every scheduled run
+      # since this workflow was added failed that way, reporting failure while covering zero
+      # commits, which is the worst state for a gate to be in: loud and empty.
+      #
+      # `--fail` is not passed here. The action's baked-in command already includes it, and
+      # repeating it is a CLI error ("flag 'fail' cannot be repeated"), so this would have failed
+      # a second time on the first run that got past the guard above.
       - name: TruffleHog (full history)
         uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
         with:
-          extra_args: --object-discovery --results=verified,unknown --fail
+          path: ./
+          extra_args: --object-discovery --results=verified,unknown
