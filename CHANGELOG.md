@@ -128,6 +128,52 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **A correction version id now names the fit that produced it ([#149](https://github.com/ChelseaKR/swelter/issues/149)).**
+  `version` was a pure function of `(parameter, method, node_id)` — no window, no date, no
+  coefficient digest — so two corrections fit from genuinely different co-location evidence, 10 °C
+  apart in what they publish for the same raw reading, shared one identifier, one store primary key,
+  and one `calibration` value in every export. Two datasets downloaded a year apart both said
+  `temp_c.enclosure-offset.node-01` and both said `trustworthy: true`; the audit trail existed only
+  in the git history of `corrections.yaml`, which does not travel with the data. The id is now
+  `{parameter}.{method}.{node_id}@{window_end}-{digest}` (e.g.
+  `temp_c.enclosure-offset.node-01@20260602T230000Z-36672bc8`), where the suffix is the compact end
+  of the fit's co-location window plus a SHA-256 digest over its predictors, coefficients, intercept,
+  `residual_std`, `r2`, `n`, `reference`, window, and sensor model. A derived heat index carries the
+  fit id of the *temperature* correction it was computed from. Everything before `@` is unchanged and
+  the fit id contains no dot, so the two positional readers (`aggregate`'s published `method`,
+  `export`'s correction family) are unaffected
+  ([ADR 0035](docs/adr/0035-a-correction-version-that-names-its-fit.md)).
+
+  **Breaking, as `docs/VERSIONING.md` already declared a version-id format change to be.** The
+  committed `data/demo/corrections.yaml` is regenerated — every coefficient, error, window, and `n`
+  in it is byte-identical; only the ids gained their suffix. Stored `calibration` values change, so
+  calibrated rows' `content_hash` changes; raw rows are untouched and `swelter rebuild` re-derives
+  the calibrated ones. A consumer that matched a version id exactly against a stored string must
+  re-read it after a re-fit, which is the point.
+
+- **`swelter demo` reported corrections it attempted, not corrections it wrote
+  ([#149](https://github.com/ChelseaKR/swelter/issues/149)).** `cmd_demo`'s run manifest and stdout
+  line used `len(calibrated)` — rows *attempted* — while `cmd_calibrate` correctly reported
+  `written.written` — rows *inserted*. A run whose writes were partly ignored would have claimed
+  full effect. Both now report rows written.
+- **The demo generator's copies of `heat_index_c`/`wbgt_c` are now checked against `models`
+  ([#149](https://github.com/ChelseaKR/swelter/issues/149)).** `calibrate`'s docstring says `apply`
+  uses "the same NWS Rothfusz function the demo generator uses"; it is a verbatim copy, and no test
+  asserted the two agree. The copy is kept deliberately — an independent implementation is what
+  makes the committed fixture evidence rather than a restatement of the code under test — and a new
+  test asserts the two agree across a 70-point temperature/humidity grid, so "the same function" is
+  a verified claim instead of a comment.
+- **The synthetic co-location fixture's limit is now stated where it is claimed
+  ([#149](https://github.com/ChelseaKR/swelter/issues/149)).** `read_colocation`'s docstring called
+  the committed file "the recorded evidence a calibration is fit from … auditable by anyone", but
+  `scripts/gen_demo_data.py` draws each co-location `raw` independently of the observation published
+  for the same node and instant, so only 0.5% of committed pairs match the stored reading. The fit
+  is reproducible from the file either way (a CI gate proves it); what it does not support is
+  cross-checking against `observations.jsonl`, the way a real deployment's evidence would. Said
+  plainly in the docstring, at the generator, and in the synthetic-demo data card. Making the pairs
+  reuse the observation stream's own draws would regenerate every value in the fixture and every
+  worked example that quotes one, so it stays its own change.
+
 - **Sensor.Community readings, dark since 2026-06-19, and the silence that hid it.** swelter sent no
   `User-Agent`; the network declines an anonymous client with `HTTP 200` and a JSON error document
   rather than a 4xx, that document is itself a list, and `fetch` coerced it to an empty result. Seven

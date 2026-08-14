@@ -128,7 +128,9 @@ Non-breaking (MINOR or PATCH):
 ### Correction-registry format
 
 `corrections.yaml` / `CorrectionRegistry` (`src/swelter/calibrate.py`): a top-level `version` and a
-list of corrections, each with a `version` id of the form `{parameter}.{method}.{node_id}`,
+list of corrections, each with a `version` id of the form
+`{parameter}.{method}.{node_id}@{window_end}-{digest}` (the suffix identifies the fit — see
+[ADR 0035](adr/0035-a-correction-version-that-names-its-fit.md)),
 `node_id`, `parameter`, `method` (`epa-humidity`, `enclosure-offset`, `linear`), `predictors`,
 `coefficients` (rounded to 6 dp), `intercept`, `residual_std`, `r2`, `n`, `reference`,
 `window_start`, `window_end`.
@@ -138,7 +140,12 @@ Breaking (MAJOR):
 - Bumping the registry's top-level `version` integer — that is the format version, and an increment
   signals a format a previous loader cannot read.
 - Removing or renaming a per-correction field, or changing the version-id format
-  (`{parameter}.{method}.{node_id}`).
+  (`{parameter}.{method}.{node_id}@{window_end}-{digest}`). This last happened in the pre-1.0
+  `0.1.0` line: the fit-identifying `@` suffix was added because the id before it could not
+  distinguish two fits of the same node/parameter, so no published record could name the fit behind
+  its numbers (ADR 0035, issue #149). Everything before `@` is unchanged, so a consumer parsing the
+  three dot-separated segments still reads what it always did; a consumer matching the id *exactly*
+  against a stored string must re-read it after a re-fit, which is the point.
 - Changing how coefficients are rounded (6 dp), since byte-for-byte reproducibility of the committed
   registry is a published guarantee and a CI gate; a rounding change re-writes every committed
   registry.

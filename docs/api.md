@@ -297,7 +297,10 @@ Pass `dedupe=false` to keep both the raw *and* the calibrated rows (this roughly
 ```
 
 `calibration` is either `raw` or a correction version id of the form
-`{parameter}.{method}.{node_id}`. A raw reading carries `calibration: "raw"`, a null `uncertainty`,
+`{parameter}.{method}.{node_id}@{window_end}-{digest}` — the part after `@` identifies the fit
+itself, so two datasets downloaded a year apart name different fits when the correction behind them
+was re-fitted ([ADR 0035](adr/0035-a-correction-version-that-names-its-fit.md)). A raw reading
+carries `calibration: "raw"`, a null `uncertainty`,
 and `trustworthy: false`; it is shown provisional. A calibrated, QC-clean reading is `trustworthy:
 true`. Calibrated and raw are always distinguishable here.
 
@@ -307,7 +310,7 @@ and `trustworthy`:
 ```
 GET /v1.1/Observations?parameter=temp_c&node=node-01&dedupe=false
   → "raw"  → {"qc": "ok", "uncertainty": null, "trustworthy": false}
-  → "temp_c.enclosure-offset.node-01" → {"qc": "ok", "uncertainty": 0.476025, "trustworthy": true}
+  → "temp_c.enclosure-offset.node-01@20260602T230000Z-36672bc8" → {"qc": "ok", "uncertainty": 0.476025, "trustworthy": true}
 ```
 
 Example (page through PM2.5 for one node, 500 at a time):
@@ -615,7 +618,7 @@ it without a second request.
       "type": "string",
       "unit": null,
       "nullable": false,
-      "description": "Calibration provenance. Never empty: it is either the RAW sentinel ('raw', an uncorrected reading) or a correction version id of the form '{parameter}.{method}.{node_id}' ..."
+      "description": "Calibration provenance. Never empty: it is either the RAW sentinel ('raw', an uncorrected reading) or a correction version id of the form '{parameter}.{method}.{node_id}@{window_end}-{digest}' ..."
     }
   ],
   "csv_columns": ["node_id", "timestamp", "parameter", "value", "unit", "source", "calibration", "qc", "uncertainty", "trustworthy", "data_license", "data_attribution"],
@@ -628,7 +631,7 @@ it without a second request.
   ],
   "calibration": {
     "raw_sentinel": "raw",
-    "correction_version_format": "{parameter}.{method}.{node_id}",
+    "correction_version_format": "{parameter}.{method}.{node_id}@{window_end}-{digest}",
     "description": "A value's `calibration` field is either the raw sentinel above (uncorrected) or a correction version id in the format shown ..."
   }
 }

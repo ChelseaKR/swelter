@@ -427,8 +427,11 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     paths = store_paths(args.store)
     registry.to_yaml(paths["registry"])
     _err(f"swelter: fit {len(registry)} corrections → {paths['registry']}")
+    width = max((len(c.version) for c in registry.all()), default=0)
     for c in registry.all():
-        _err(f"  {c.version:<28} n={c.n:<4} R²={c.r2:.3f}  ±{c.residual_std} {c.parameter}")
+        # The version now carries the fit's identity after "@", so it is longer than the old
+        # fixed 28-character column could hold; align on the widest one actually being printed.
+        _err(f"  {c.version:<{width}} n={c.n:<4} R²={c.r2:.3f}  ±{c.residual_std} {c.parameter}")
     manifest = obs.RunManifest()
     if not args.fit_only:
         with open_store(args.store) as store:
@@ -937,15 +940,19 @@ def cmd_demo(args: argparse.Namespace) -> int:
             registry.to_yaml(paths["registry"])
             raw = store.read(calibration=RAW)
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
-            store.write(calibrated)
+            written = store.write(calibrated)
             manifest.record(
                 "calibrate",
                 "demo replay calibrated",
-                corrections_applied=len(calibrated),
+                # Rows actually inserted, not rows attempted: `cmd_calibrate` already reports
+                # `written.written` and this counter reported `len(calibrated)`, which measures
+                # intent. A run whose writes were partly ignored would have claimed full effect
+                # (issue #149).
+                corrections_applied=written.written,
                 corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
             )
             _err(
-                f"swelter demo: fit {len(registry)} corrections, wrote {len(calibrated)} calibrated"
+                f"swelter demo: fit {len(registry)} corrections, wrote {written.written} calibrated"
             )
 
         all_obs = list(store.all())

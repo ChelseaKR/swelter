@@ -286,10 +286,13 @@ Recalibrating a node is a data change — a diff against the committed registry,
 reversible — not a code edit.
 
 - **Periodic re-co-location.** A node is brought back beside a reference monitor on a cadence, or after
-  service, and re-fit. The new correction replaces the old entry for that node/parameter; the version
-  id stays stable (it identifies the node/parameter/method, not the run) while the coefficients,
-  window timestamps, residual_std, and R-squared update. The timestamps make the registry an audit
-  trail: you can always see when a node was last grounded against truth.
+  service, and re-fit. The new correction replaces the old entry for that node/parameter, and **the
+  version id changes with it**: everything before `@` still identifies the node/parameter/method,
+  and the fit id after `@` changes whenever the evidence or the resulting coefficients do. That is
+  what makes the audit trail reach the published data — a value calibrated by the old fit and one
+  calibrated by the new fit carry different `calibration` strings, so a downloaded dataset names the
+  fit behind its numbers instead of only the node
+  ([ADR 0035](adr/0035-a-correction-version-that-names-its-fit.md)).
 - **Widening residuals as a service signal.** Drift shows up as a `residual_std` that grows from one
   co-location to the next. A node whose residuals widen past the network's bound is flagged for service
   before its data is trusted, rather than quietly publishing a correction that has stopped being true.
@@ -312,13 +315,32 @@ reversible — not a code edit.
 A correction version id is:
 
 ```
-{parameter}.{method}.{node_id}
+{parameter}.{method}.{node_id}@{window_end}-{digest}
 ```
 
-For example `temp_c.enclosure-offset.node-01` or `pm25_ugm3.epa-humidity.node-07`. It names what was
-corrected (parameter), how (method), and for whom (node) — enough to find the registry entry and read
-its coefficients, window, and error. It is the string stored in each observation's `calibration` field,
-which is how the rest of the pipeline tells a calibrated reading from a raw one.
+For example `temp_c.enclosure-offset.node-01@20260602T230000Z-2a954353`. The part before `@` names
+what was corrected (parameter), how (method), and for whom (node) — enough to find the registry entry
+and read its coefficients, window, and error. The part after `@` names **which fit**: the compact end
+of its co-location window, then the first 8 hex of a SHA-256 over the fit's predictors, coefficients,
+intercept, `residual_std`, `r2`, `n`, `reference`, `window_start`, `window_end`, and sensor model.
+
+The suffix is what makes "calibration as versioned data" true of the *published record* and not just
+of the registry's git history. Without it, two corrections fit from different co-location evidence —
+10 °C apart in what they publish for the same raw reading — shared one identifier, one store primary
+key, and one `calibration` value in every export; a dataset downloaded a year later said
+`trustworthy: true` under the same string with different numbers behind it. See
+[ADR 0035](adr/0035-a-correction-version-that-names-its-fit.md) and issue #149.
+
+It is reproducible: coefficients are rounded to a fixed precision before the digest is taken, so
+re-running the fit on the committed co-location data reproduces the same ids byte for byte. The
+three dot-separated segments before `@` are unchanged, and the fit id contains no dot, so readers
+that parse the id positionally (the surface's `method`, the export banner's correction family) see
+exactly what they saw before.
+
+It is the string stored in each observation's `calibration` field, which is how the rest of the
+pipeline tells a calibrated reading from a raw one. A derived heat index (ADR 0014) carries the fit
+id of the *temperature* correction it was computed from, because that is the fit its value depends
+on.
 
 ---
 
@@ -329,7 +351,7 @@ which is how the rest of the pipeline tells a calibrated reading from a raw one.
 ```yaml
 version: 1                       # registry schema version (integer)
 corrections:                     # list, one entry per fitted node/parameter
-  - version: string              # "{parameter}.{method}.{node_id}"
+  - version: string              # "{parameter}.{method}.{node_id}@{window_end}-{digest}"
     node_id: string              # the node this correction belongs to
     parameter: string            # one of the PARAMETERS names (e.g. temp_c, pm25_ugm3)
     method: string               # epa-humidity | enclosure-offset | linear
@@ -458,7 +480,8 @@ Every observation is one of two things, and the dashboard, the export, and the A
 them.
 
 - **Calibrated, with uncertainty.** Its `calibration` field holds a correction version id (for example
-  `temp_c.enclosure-offset.node-01`) and its `uncertainty` field holds the `residual_std` for that
+  `temp_c.enclosure-offset.node-01@20260602T230000Z-36672bc8`, which names both the correction and the
+  fit that produced it) and its `uncertainty` field holds the `residual_std` for that
   correction, in the value's unit. Read it as "the air was about this, give or take roughly one sigma."
   A calibrated value that also passes QC is what the README calls *publishable*: it is the only kind of
   value the map presents as fact.
@@ -483,7 +506,7 @@ raw temperature with an intercept: `corrected = a·raw + c`.
 `swelter calibrate` fits and writes this entry to `data/demo/corrections.yaml`:
 
 ```yaml
-- version: temp_c.enclosure-offset.node-01
+- version: temp_c.enclosure-offset.node-01@20260602T230000Z-36672bc8
   node_id: node-01
   parameter: temp_c
   method: enclosure-offset
@@ -518,8 +541,9 @@ Applying it to a single raw reading: a raw `27.0 °C` from this node co-located 
 reference's `26.89 °C`, which is the fit doing its job.
 
 To reproduce this entry, run `swelter calibrate` against `data/demo/colocation.jsonl` and compare the
-`temp_c.enclosure-offset.node-01` block to the committed `data/demo/corrections.yaml`. They match to
-the byte. That is the whole promise: you do not have to trust the half-degree error bar, you can
+`temp_c.enclosure-offset.node-01@…` block to the committed `data/demo/corrections.yaml`. They match to
+the byte, fit id included — the id is derived from the fit's own numbers, so reproducing the fit
+reproduces the id. That is the whole promise: you do not have to trust the half-degree error bar, you can
 re-derive it.
 
 ---

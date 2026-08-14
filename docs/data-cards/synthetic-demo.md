@@ -26,6 +26,14 @@ centroids are geographic reference points for the default static presentation on
 values do not describe conditions at those places and do not claim a real statewide pattern.
 Co-location fits and surfaces are derived through the same code paths as an operator deployment.
 
+**Known limit of the co-location pairs.** The generator draws each co-location `raw` value
+independently of the observation it publishes for the same node and instant, so only 0.5% of the
+committed pairs match the corresponding stored observation. Re-running the fit over
+`data/demo/colocation.jsonl` reproduces the published registry byte for byte (that is a CI gate),
+but the committed fit cannot be cross-checked against `data/demo/observations.jsonl` the way it could
+in a real deployment, where a co-location `raw` *is* the node's recorded reading. Tracked in
+[#149](https://github.com/ChelseaKR/swelter/issues/149).
+
 ## Uses
 
 Appropriate for tests, onboarding, screenshots explicitly labelled synthetic, and local demos. It
