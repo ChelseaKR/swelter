@@ -81,6 +81,39 @@ def test_freshly_aggregated_surface_matches_schema() -> None:
     _validate(payload, "sample-surface.schema.json")
 
 
+def test_surface_with_an_uncertainty_note_matches_schema() -> None:
+    """A cell that publishes no numeric uncertainty carries `uncertainty_note` saying why — on any
+    parameter, not just `exposure` (ADR 0035). The fresh emitter output must still validate, so the
+    field stays inside the shared Python↔JS contract (FIX-07). The JS side of this same assertion
+    is `web/tests/schema-contract.test.js`."""
+    surface = aggregate.aggregate(
+        [
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                timestamp=f"2026-06-01T0{hour}:00:00Z",
+                value=value,
+                calibration="v1",
+                uncertainty=0.8,
+            )
+            for hour, value in enumerate([8.0, 10.0, 12.0])
+        ],
+        _CONFIG,
+    )
+    records = surface.to_records()
+    nowcast = [r for r in records if r.get("aqi_window") == "nowcast"]
+    assert nowcast, "fixture must exercise a NowCast record"
+    assert nowcast[0]["uncertainty"] is None
+    assert nowcast[0]["uncertainty_note"], "a null uncertainty must say why"
+    payload = {
+        "interval": surface.interval,
+        "attribution": "swelter demo network",
+        "buckets": sorted({c.bucket for c in surface.cells}),
+        "cells": records,
+    }
+    _validate(payload, "sample-surface.schema.json")
+
+
 def test_surface_with_qc_flags_matches_schema() -> None:
     """A suspicious-only cell emits `qc_flags` (ADR 0029); the fresh emitter output must still
     validate, so the new field stays inside the shared Python↔JS contract (FIX-07). The JS side of

@@ -79,6 +79,13 @@ The `Observation` record (`src/swelter/models.py`): `node_id`, `timestamp` (ISO-
 `(node_id, timestamp, parameter, source, calibration)`; `content_hash()` is a SHA-256 over the
 value-bearing fields, including `source`.
 
+`uncertainty` is null **only** on a raw row. A calibrated observation must carry a 1-sigma, and one
+without is refused at construction and on store read (ADR 0035): a correction is fitted with a
+`residual_std`, so an absent uncertainty on a calibrated row is a broken row, not a zero-uncertainty
+one, and reading it as zero published a *narrower* error bar than the evidence supported. Relaxing
+this — allowing a calibrated row with a null uncertainty again — would be breaking (MAJOR), because
+a consumer may now rely on a calibrated row having an error bar.
+
 The 0.1.0 release candidate is the first public contract with source-qualified identity. Opening a
 pre-contract SQLite store runs one transactional migration: strict legacy markers infer only known
 native, OpenAQ, Sensor.Community, or CAMS sources; ambiguous or conflicting rows fail closed; the

@@ -20,6 +20,7 @@ from .export import _CSV_FIELDS
 from .models import (
     KNOWN_SOURCES,
     PARAMETERS,
+    QC_EMITTED,
     QC_FLATLINE,
     QC_MISSING,
     QC_OK,
@@ -40,15 +41,24 @@ DATA_SCHEMA_VERSION: int = 2
 _UNRESOLVED_DATA_SOURCE = "Source-specific; resolve from the serving store."
 _UNRESOLVED_DATA_LICENSE = "Source-specific; see the serving store's rights envelope."
 
-#: Every QC verdict, in the order the pipeline can produce it, paired with a human note. Kept as a
-#: tuple of (name, description) so :func:`build_data_dictionary` can compute the `rejected` flag
-#: from the single source of truth (`QC_REJECTED`) rather than restating it per entry.
+#: Every QC verdict a published row can carry, paired with a human note. Kept as a tuple of
+#: (name, description) so :func:`build_data_dictionary` can compute the `rejected` and `emitted`
+#: flags from the single sources of truth (`QC_REJECTED`, `QC_EMITTED`) rather than restating them
+#: per entry. `missing` is published here with `emitted: false`: it is a defined verdict nothing in
+#: the shipped pipeline writes, and a consumer needs to be told that rather than write a branch on
+#: it that can never run (issue #147).
 _QC_VERDICTS: tuple[tuple[str, str], ...] = (
     (QC_OK, "The reading passed every QC check: in-range, not a spike, not a flatline."),
     (QC_RANGE, "The value fell outside the parameter's physically plausible range."),
     (QC_SPIKE, "The value jumped implausibly relative to the node's recent readings."),
     (QC_FLATLINE, "The node reported an implausibly constant value for too long."),
-    (QC_MISSING, "An expected reading was absent for the interval (a gap, not a bad value)."),
+    (
+        QC_MISSING,
+        "An expected reading was absent for the interval (a gap, not a bad value). Reserved: no "
+        "shipped swelter code path emits this verdict. Absence is represented by the absence of a "
+        "row, and gaps are reported separately by `swelter qc` (see the `gaps` block), computed "
+        'from the timestamps that are present. Do not wait for a row with qc="missing".',
+    ),
 )
 
 #: Field-by-field description of :class:`swelter.models.Observation`, drawn from its docstring and
@@ -172,7 +182,14 @@ def _parameters() -> list[dict[str, object]]:
 
 def _qc_verdicts() -> list[dict[str, object]]:
     return [
-        {"name": name, "description": description, "rejected": name in QC_REJECTED}
+        {
+            "name": name,
+            "description": description,
+            "rejected": name in QC_REJECTED,
+            # False means "defined, but nothing in the shipped pipeline writes it" — a published
+            # vocabulary should say which of its terms can actually appear (issue #147).
+            "emitted": name in QC_EMITTED,
+        }
         for name, description in _QC_VERDICTS
     ]
 

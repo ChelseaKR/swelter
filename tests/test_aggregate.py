@@ -277,6 +277,93 @@ def test_cell_standard_error_is_reproducible_from_member_sigmas() -> None:
     assert record["uncertainty"] == round(expected_cell_se, 3)
 
 
+def test_an_unknown_member_sigma_never_shrinks_the_published_error_bar() -> None:
+    """Issue #147: absence must not enter the arithmetic as zero, and must never *narrow* an
+    interval. Reading a missing 1-sigma as 0.0 treated an unmeasured member as a perfect
+    instrument: adding one to a cell whose single known member had 0.8 halved `mean_member_sigma`
+    to 0.4 and pulled the cell standard error to 0.400 — below the 0.800 of the one member actually
+    measured. Less knowledge, tighter error bar, on a cell still published `provisional: false`."""
+    both_known = aggregate.combine_member_sigmas([0.8, 0.8])
+    assert both_known.mean_member_sigma == pytest.approx(0.8)
+    assert both_known.uncertainty == pytest.approx(math.sqrt(0.8**2 + 0.8**2) / 2)
+    assert both_known.note is None
+
+    one_known = aggregate.combine_member_sigmas([0.8])
+    mixed = aggregate.combine_member_sigmas([0.8, None])
+
+    # No number at all, rather than a number computed as if the unknown member were perfect.
+    assert mixed.uncertainty is None
+    assert mixed.mean_member_sigma is None
+    # The specific wrong answers this bug produced, named so a regression cannot pass quietly.
+    assert mixed.mean_member_sigma != pytest.approx(0.4)
+    assert mixed.uncertainty != pytest.approx(0.4)
+    # And the general property: an unknown member can never leave the cell looking *more* certain
+    # than the evidence that is actually there.
+    assert one_known.uncertainty is not None
+    assert not (mixed.uncertainty is not None and mixed.uncertainty < one_known.uncertainty)
+    assert mixed.note is not None
+    assert "1 of 2" in mixed.note
+
+    none_known = aggregate.combine_member_sigmas([None, None])
+    assert none_known.uncertainty is None
+    assert none_known.mean_member_sigma is None
+    assert none_known.note is not None and "2 of 2" in none_known.note
+
+    # A measured zero is a measurement, not an absence: `any(uncs)` could not tell these apart, so
+    # a genuinely perfect fit published `uncertainty: null` (unknown) where the truth was 0.0.
+    perfect = aggregate.combine_member_sigmas([0.0, 0.0])
+    assert perfect.uncertainty == 0.0
+    assert perfect.mean_member_sigma == 0.0
+    assert perfect.note is None
+
+    empty = aggregate.combine_member_sigmas([])
+    assert (empty.uncertainty, empty.mean_member_sigma, empty.note) == (None, None, None)
+
+
+def test_a_cell_with_an_unknown_member_sigma_publishes_no_number_and_says_why() -> None:
+    # The rollup's own defence, tested where the bug lived. `Observation` now refuses a calibrated
+    # row with no uncertainty, so this state cannot be reached from the shipped pipeline; it is
+    # simulated here at the accumulator to prove the rollup still refuses to invent an error bar if
+    # some future writer, import path, or restored archive gets one past that boundary (#147).
+    buckets = aggregate._bucket_observations(
+        [
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=10.0,
+                calibration="v1",
+                uncertainty=0.8,
+                timestamp="2026-06-01T00:00:00Z",
+            ),
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=12.0,
+                calibration="v1",
+                uncertainty=0.8,
+                timestamp="2026-06-01T00:30:00Z",
+            ),
+        ],
+        {"node-01": (38.5816, -121.4944)},
+        {"pm25_ugm3"},
+        {},
+        {},
+    )
+    key = next(iter(buckets.trusted_unc))
+    buckets.trusted_unc[key][1] = None  # one member's 1-sigma is unknown
+
+    cell = aggregate._build_cells(buckets, {})[0]
+    assert cell.provisional is False  # still calibrated: this is not a provisional-ness question
+    assert cell.uncertainty is None
+    assert cell.mean_member_sigma is None
+    assert cell.uncertainty_note is not None and "1 of 2" in cell.uncertainty_note
+    record = cell.as_record()
+    assert record["uncertainty"] is None
+    assert record["mean_member_sigma"] is None
+    # The null carries its reason onto every surface, so it is never read as "nothing to report".
+    assert record["uncertainty_note"] == cell.uncertainty_note
+
+
 def test_provisional_cell_has_no_sigma_of_either_kind() -> None:
     surface = aggregate.aggregate(
         [make_obs(parameter="pm25_ugm3", unit="ug/m3", value=12.0)], _CONFIG
@@ -322,19 +409,49 @@ def test_exposure_note_names_air_with_numeric_uncertainty_when_air_bounds() -> N
     assert "cell standard error" in cell.uncertainty_note
 
 
-def test_exposure_note_names_heat_confirmed_without_numeric_uncertainty() -> None:
-    surface = aggregate.aggregate(
-        [
-            make_obs(parameter="heat_index_c", value=45.0, calibration="v1"),  # Danger, level 3
-            make_obs(parameter="pm25_ugm3", unit="ug/m3", value=5.0, calibration="v2"),  # Good, 0
-        ],
-        _CONFIG,
+def test_exposure_note_relays_why_a_confirmed_component_has_no_numeric_uncertainty() -> None:
+    # A confirmed (non-provisional) component with no numeric sigma no longer arrives from an
+    # observation — `Observation` refuses a calibrated row without one (#147) — but it is still
+    # reachable from a cell whose members' sigmas were not all known, so the branch stays and is
+    # tested at the cell level. The exposure note must relay the component's own stated reason, not
+    # flatten it to a bare "no numeric uncertainty" the reader has to go chase.
+    heat = aggregate.CellReading(
+        cell_id="c1",
+        label="Oak & 4th",
+        lat=38.58,
+        lon=-121.49,
+        parameter="heat_index_c",
+        bucket="2026-06-01T00:00:00Z",
+        mean=45.0,  # Danger, level 3 — heat bounds the exposure level
+        n=2,
+        provisional=False,
+        uncertainty=None,
+        mean_member_sigma=None,
+        uncertainty_note=(
+            "no combined error bar: 1 of 2 calibrated member(s) published no uncertainty"
+        ),
     )
-    cell = _exposure(surface)[0]
+    air = aggregate.CellReading(
+        cell_id="c1",
+        label="Oak & 4th",
+        lat=38.58,
+        lon=-121.49,
+        parameter="pm25_ugm3",
+        bucket="2026-06-01T00:00:00Z",
+        mean=5.0,
+        n=1,
+        provisional=False,
+        uncertainty=0.4,
+        mean_member_sigma=0.4,
+        aqi=21,
+        category="Good",
+        aqi_window=aggregate.AQI_WINDOW,
+    )
+    cell = aggregate._exposure_cells([heat, air])[0]
     assert cell.uncertainty_note is not None
     assert cell.uncertainty_note.startswith("bounded by heat")
-    assert "no numeric uncertainty" in cell.uncertainty_note
-    assert "provisional" not in cell.uncertainty_note  # confirmed, no numeric sigma to report
+    assert "1 of 2 calibrated member(s) published no uncertainty" in cell.uncertainty_note
+    assert "provisional" not in cell.uncertainty_note  # confirmed, just without a number
 
 
 def test_exposure_note_names_heat_when_provisional_heat_bounds() -> None:
@@ -396,6 +513,49 @@ def test_hourly_mean_and_nowcast_never_share_an_aqi_window_tag() -> None:
     latest = surface.latest_by_cell()
     cell_id = pm25_cells[0].cell_id
     assert latest[cell_id]["pm25_ugm3"].aqi_window == "hourly-mean"
+
+
+def test_nowcast_record_states_that_it_has_no_error_bar() -> None:
+    # Issue #147: NowCast is the reading a person is most likely to act on, because it is the one
+    # that tracks a smoke plume — and it shipped `provisional: false` with `uncertainty: null` and
+    # nothing attached, so the missing error bar had to be noticed rather than being stated. The
+    # hourly-mean record for the same bucket keeps its number; the NowCast record says why it has
+    # none (invariant 4: the caveat travels with the value).
+    obs = [
+        make_obs(
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            timestamp=f"2026-06-01T0{h}:00:00Z",
+            value=v,
+            calibration="v1",
+            uncertainty=0.8,
+        )
+        for h, v in enumerate([8.0, 10.0, 12.0])
+    ]
+    surface = aggregate.aggregate(obs, _CONFIG)
+    pm25 = [c for c in surface.cells if c.parameter == "pm25_ugm3"]
+    nowcast = next(c for c in pm25 if c.aqi_window == "nowcast")
+    hourly = next(c for c in pm25 if c.aqi_window == "hourly-mean" and c.bucket == nowcast.bucket)
+
+    assert nowcast.uncertainty is None
+    assert nowcast.mean_member_sigma is None
+    assert nowcast.uncertainty_note is not None
+    assert "no error bar" in nowcast.uncertainty_note
+    record = nowcast.as_record()
+    assert record["uncertainty"] is None
+    assert record["uncertainty_note"] == nowcast.uncertainty_note
+
+    # The sibling hourly-mean record is unchanged and still carries its number, so the note is
+    # about the NowCast blend specifically, not a blanket retreat from publishing uncertainty.
+    assert hourly.uncertainty is not None
+    assert hourly.as_record().get("uncertainty_note") is None
+
+    geojson: Any = json.loads(json.dumps(surface.snapshot_geojson()))
+    props = geojson["features"][0]["properties"]
+    # The map snapshot shows the hourly mean (never NowCast), so it keeps its number and needs no
+    # note — the NowCast caveat travels with the NowCast record, in `to_records`.
+    assert props["pm25_ugm3_uncertainty"] is not None
+    assert "pm25_ugm3_uncertainty_note" not in props
 
 
 def test_nowcast_absent_with_fewer_than_three_hours() -> None:

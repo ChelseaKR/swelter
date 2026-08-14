@@ -734,6 +734,10 @@ function provenanceText(row) {
         u: formatNumber(round1(u), { maximumFractionDigits: 1 }),
         unit: unitLabel(),
       }));
+    } else if (!isExposure() && row.uncertainty_note) {
+      // Confirmed, but with no error bar: say why instead of saying nothing, so a missing number
+      // is never read as "nothing to report" (ADR 0035, invariant 4).
+      parts.push(row.uncertainty_note);
     }
     if (row.method && row.reference) {
       parts.push(t("prov-method", { method: row.method, reference: row.reference }));
@@ -786,6 +790,9 @@ function renderProvenance(row) {
           unit: unitLabel(),
         }),
       );
+    } else if (!isExposure() && row.uncertainty_note) {
+      // Same rule as provenanceText(): a confirmed cell with no number states its reason.
+      addRow("prov-uncertainty-label", row.uncertainty_note, "en");
     }
     if (row.method && row.reference) {
       addRow("prov-calibration-label", row.method);
