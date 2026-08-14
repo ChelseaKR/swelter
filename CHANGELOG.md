@@ -151,6 +151,23 @@ All notable changes to swelter are recorded here. The format follows
   agree by construction. No wall clock is introduced;
   `test_feed_timestamp_is_data_derived_not_wallclock` still holds
   ([ADR 0035](docs/adr/0035-alerts-bound-to-the-surfaces-newest-bucket.md)).
+- **An area that stops reporting is now published as an explicit "no current reading", not dropped
+  into silence ([#148](https://github.com/ChelseaKR/swelter/issues/148)).** Suppressing the dead
+  node's stale crossing (above) left the feed saying nothing at all about that block, and in an
+  alerts feed nothing reads as an all-clear — the same "standing all-clear" failure #148 identified
+  as the worse half, now applied to every dark cell. `alerts.build_feed` publishes a `stale` array
+  beside `alerts`: one record per cell/parameter whose latest reading predates the feed's bucket,
+  carrying `status: "no-current-reading"`, `last_bucket`, `hours_since_last_reading` (`null`, never
+  `0`, when the gap's size is not computable), `withdrawn`, and a plain-language headline saying
+  swelter cannot tell whether that block is dangerous now. It deliberately carries **no** `value`,
+  `severity`, `unit`, or `aqi`: the last reading is not a measurement of now. In Atom each record is
+  an entry tagged `<category term="no-current-reading"/>`, published under the same `<id>` as the
+  alert it supersedes and stamped with the feed's own `<updated>`, so a subscriber's reader replaces
+  a standing Danger headline with the withdrawal instead of leaving it as the last word on that
+  block. `AlertFeed.for_area` narrows `stale` too, `schemas/alerts.schema.json` requires
+  `stale`/`stale_count`, and the dashboard's neighborhood-alerts panel names the unseen areas in its
+  status line and lists them without a value or a "go to this reading" button
+  ([ADR 0036](docs/adr/0036-published-absence-for-areas-that-stop-reporting.md)).
 - **Dense maps no longer trade geographic truth for target spacing.** The former collision relaxation
   moved readings away from their projected coordinates and could make a compact network appear to
   cover empty parts of California. Overview clustering now preserves every geographic position,

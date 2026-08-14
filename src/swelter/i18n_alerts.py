@@ -51,6 +51,25 @@ class _AlertLike(Protocol):
     def aqi(self) -> int | None: ...
 
 
+class _StaleLike(Protocol):
+    """Read-only stale-area fields needed to render a localized "no current reading" line."""
+
+    @property
+    def area(self) -> str: ...
+
+    @property
+    def parameter(self) -> str: ...
+
+    @property
+    def last_bucket(self) -> str: ...
+
+    @property
+    def hours_since_last_reading(self) -> int | None: ...
+
+    @property
+    def withdrawn(self) -> bool: ...
+
+
 @lru_cache(maxsize=len(LANGUAGES))
 def get_translation(lang: str) -> gettext.NullTranslations:
     """Return the compiled translation for ``lang``, with a safe English fallback."""
@@ -105,6 +124,62 @@ def headline(alert: _AlertLike, lang: str = "en") -> str:
         severity=alert.severity,
         provisional=provisional,
         as_of=as_of,
+    )
+
+
+def stale_headline(area: _StaleLike, lang: str = "en") -> str:
+    """Return one stale area's "no current reading" line in ``lang`` (English by default).
+
+    Deliberately states the gap and stops. There is no value in the sentence because there is no
+    current measurement to report, and the last one is not a measurement of now.
+    """
+
+    _ = get_translation(lang).gettext
+    if area.hours_since_last_reading is None:
+        # The gap's size is unknown; say only when it last reported, never "0 h ago".
+        age = _(" (last reported {bucket})").format(bucket=area.last_bucket)
+    else:
+        age = _(" (last reported {bucket}, {hours} h before this feed)").format(
+            bucket=area.last_bucket, hours=area.hours_since_last_reading
+        )
+    withdrawn = (
+        _(
+            " The danger alert published for this area is withdrawn, not cleared: swelter has no "
+            "current reading there."
+        )
+        if area.withdrawn
+        else ""
+    )
+    if area.parameter == "pm25_ugm3":
+        template = _(
+            "{area}: no current air-quality reading{age}. swelter cannot tell whether the air "
+            "there is dangerous now.{withdrawn}"
+        )
+    elif area.parameter == "heat_index_c":
+        template = _(
+            "{area}: no current heat-index reading{age}. swelter cannot tell whether the heat "
+            "there is dangerous now.{withdrawn}"
+        )
+    elif area.parameter == "wind_chill_c":
+        template = _(
+            "{area}: no current wind-chill reading{age}. swelter cannot tell whether the cold "
+            "there is dangerous now.{withdrawn}"
+        )
+    else:
+        template = _(
+            "{area}: no current heat-and-air exposure reading{age}. swelter cannot tell whether "
+            "the exposure there is dangerous now.{withdrawn}"
+        )
+    return template.format(area=area.area, age=age, withdrawn=withdrawn)
+
+
+def stale_note(lang: str = "en") -> str:
+    """Return the JSON feed's note about what the ``stale`` list means, in ``lang``."""
+
+    return get_translation(lang).gettext(
+        "Areas listed under 'stale' have stopped reporting: swelter cannot tell whether they are "
+        "safe. An empty 'alerts' list means no currently reporting area crossed a danger floor, "
+        "not that every area is fine."
     )
 
 

@@ -55,3 +55,4 @@ evidence of the collision.
 - [ADR 0033: Preserve statewide geography and cluster only the overview](0033-statewide-geographic-map-clustering.md)
 - [ADR 0034: A refused fetch is not an empty area](0034-a-refused-fetch-is-not-an-empty-area.md)
 - [ADR 0035: Bind alerts to the surface's newest bucket, not an unbounded latest-per-cell scan](0035-alerts-bound-to-the-surfaces-newest-bucket.md)
+- [ADR 0036: Publish the absence when an area stops reporting, instead of going quiet about it](0036-published-absence-for-areas-that-stop-reporting.md)
