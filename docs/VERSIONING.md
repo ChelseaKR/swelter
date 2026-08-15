@@ -80,7 +80,7 @@ The `Observation` record (`src/swelter/models.py`): `node_id`, `timestamp` (ISO-
 value-bearing fields, including `source`.
 
 `uncertainty` is null **only** on a raw row. A calibrated observation must carry a 1-sigma, and one
-without is refused at construction and on store read (ADR 0035): a correction is fitted with a
+without is refused at construction and on store read (ADR 0037): a correction is fitted with a
 `residual_std`, so an absent uncertainty on a calibrated row is a broken row, not a zero-uncertainty
 one, and reading it as zero published a *narrower* error bar than the evidence supported. Relaxing
 this — allowing a calibrated row with a null uncertainty again — would be breaking (MAJOR), because

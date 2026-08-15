@@ -144,7 +144,7 @@ All notable changes to swelter are recorded here. The format follows
   the remedy (`swelter rebuild`) rather than repairing a row it cannot stand behind. `uncertainty_note`
   is no longer exposure-only: any cell publishing a null uncertainty carries its reason to the
   record, the map GeoJSON, and the dashboard's provenance panel
-  ([ADR 0035](docs/adr/0035-absence-is-never-published-as-a-number.md)).
+  ([ADR 0037](docs/adr/0037-absence-is-never-published-as-a-number.md)).
 - **A NowCast PM2.5 record now states that it has no error bar ([#147](https://github.com/ChelseaKR/swelter/issues/147)).**
   Every NowCast cell shipped `uncertainty: null` with no note — 100 of them stamped
   `provisional: false` in the committed `web/sample-surface.json` — which made the reading a person
@@ -173,6 +173,34 @@ All notable changes to swelter are recorded here. The format follows
   observations from 615 live nodes ([ADR 0034](docs/adr/0034-a-refused-fetch-is-not-an-empty-area.md),
   [#146](https://github.com/ChelseaKR/swelter/issues/146)). The refresh workflow still swallows an
   empty result, which is tracked in that issue and not closed here.
+- **A dead node can no longer keep broadcasting a stale Danger alert ([#148](https://github.com/ChelseaKR/swelter/issues/148)).**
+  `alerts.build_feed` scanned `Surface.latest_by_cell()` with no bound on how old "latest" was, so a
+  node that stopped reporting kept its last reading's alert active in every subsequent feed, stamped
+  `provisional: false`, inside a feed whose own "updated" timestamp was current — while `web/app.js`'s
+  map correctly dropped it as stale. `build_feed` now only raises an alert for a cell/parameter whose
+  latest reading's bucket equals the surface's newest bucket (`Surface.newest_bucket()`, a new method
+  also now shared by the static web-snapshot and publish-manifest code that already computed this
+  value inline), the same reference instant the map's `latestBucket()` uses — so the feed and the map
+  agree by construction. No wall clock is introduced;
+  `test_feed_timestamp_is_data_derived_not_wallclock` still holds
+  ([ADR 0035](docs/adr/0035-alerts-bound-to-the-surfaces-newest-bucket.md)).
+- **An area that stops reporting is now published as an explicit "no current reading", not dropped
+  into silence ([#148](https://github.com/ChelseaKR/swelter/issues/148)).** Suppressing the dead
+  node's stale crossing (above) left the feed saying nothing at all about that block, and in an
+  alerts feed nothing reads as an all-clear — the same "standing all-clear" failure #148 identified
+  as the worse half, now applied to every dark cell. `alerts.build_feed` publishes a `stale` array
+  beside `alerts`: one record per cell/parameter whose latest reading predates the feed's bucket,
+  carrying `status: "no-current-reading"`, `last_bucket`, `hours_since_last_reading` (`null`, never
+  `0`, when the gap's size is not computable), `withdrawn`, and a plain-language headline saying
+  swelter cannot tell whether that block is dangerous now. It deliberately carries **no** `value`,
+  `severity`, `unit`, or `aqi`: the last reading is not a measurement of now. In Atom each record is
+  an entry tagged `<category term="no-current-reading"/>`, published under the same `<id>` as the
+  alert it supersedes and stamped with the feed's own `<updated>`, so a subscriber's reader replaces
+  a standing Danger headline with the withdrawal instead of leaving it as the last word on that
+  block. `AlertFeed.for_area` narrows `stale` too, `schemas/alerts.schema.json` requires
+  `stale`/`stale_count`, and the dashboard's neighborhood-alerts panel names the unseen areas in its
+  status line and lists them without a value or a "go to this reading" button
+  ([ADR 0036](docs/adr/0036-published-absence-for-areas-that-stop-reporting.md)).
 - **Dense maps no longer trade geographic truth for target spacing.** The former collision relaxation
   moved readings away from their projected coordinates and could make a compact network appear to
   cover empty parts of California. Overview clustering now preserves every geographic position,

@@ -24,6 +24,13 @@ can still raise or lower a pack's floors via ``alert_thresholds`` in ``network.y
 from one is published but carries ``provisional: true`` and says so, the same honesty the map
 keeps — suppressing a real danger because the sensor is not yet calibrated would be worse.
 
+An alert is only ever about *now*: a cell's latest reading raises one only if it lands in the
+surface's newest bucket (ADR 0035), so a node that has gone dark cannot keep broadcasting the danger
+crossing it was in when it stopped. Because an alerts feed that goes quiet about a block would be
+read as an all-clear for that block, the blocks swelter can no longer see are published too, as
+:class:`StaleArea` records carrying no value — "no current reading here, last heard from at T"
+(ADR 0036). The feed says what it does not know instead of leaving it to be inferred from silence.
+
 Everything here is derived from the data: the feed's timestamps come from the surface's hour
 buckets, never the wall clock, so re-running the pipeline on the same store reproduces the same feed
 byte for byte (the static demo artifact stays deterministic).
@@ -33,6 +40,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Final
 from xml.sax.saxutils import escape
 
@@ -48,6 +56,10 @@ from .models import EXPOSURE_LEVELS, heat_index_category, wind_chill_category
 #: floors instead — see :func:`resolve_thresholds` and :func:`build_feed`. Each floor's public
 #: source lives with it in :mod:`swelter.hazard_packs`.
 DEFAULT_THRESHOLDS: Final[Mapping[str, float]] = hazard_packs.HEAT_PACK.default_floors()
+
+#: The Atom ``<category term=...>`` that marks an entry as a "no current reading" record rather than
+#: a danger crossing, so a reader or a bridge can filter the two apart without parsing the title.
+STALE_CATEGORY: Final[str] = "no-current-reading"
 
 
 @dataclass(frozen=True)
@@ -115,24 +127,112 @@ class Alert:
 
 
 @dataclass(frozen=True)
+class StaleArea:
+    """One published cell/parameter that has stopped reporting: an explicit "we cannot tell".
+
+    ADR 0035 stopped a dead node from broadcasting its last danger crossing forever. Suppression
+    alone, though, leaves the feed *silent* about that block, and silence in an alerts feed reads
+    as an all-clear — the reassuring answer, which is exactly the one swelter must not give when
+    it does not know. ADR 0036 therefore publishes the absence itself: for every cell/parameter
+    whose latest reading predates the feed's bucket, one of these records, saying when the block
+    last reported and that swelter has no current reading for it.
+
+    Deliberately carries **no value**. The last reading is not a measurement of now, so
+    republishing it — even labelled — would hand a consumer a number to plot in the "current"
+    column. What travels instead is when it was last heard from (``last_bucket``,
+    ``hours_since_last_reading``) and whether an alert published from that last reading is being
+    withdrawn (``withdrawn``).
+
+    Like :class:`Alert`, this is aggregate and public: a cell id, a centroid, a host-assigned area
+    label, and the node id(s) feeding the cell. No field can name or locate a person.
+    """
+
+    area_id: str  # the published grid-cell id (lat,lon of the cell centre)
+    area: str  # the host-assigned place name, or the cell id when a cell is unlabelled
+    lat: float
+    lon: float
+    parameter: str
+    last_bucket: str  # the newest hour this cell/parameter did report (ISO-8601 UTC)
+    # Whole hours from `last_bucket` to the feed's bucket. ``None`` only when a bucket is not
+    # parseable as a timestamp — the gap is then reported without a size, never as zero.
+    hours_since_last_reading: int | None
+    # True when this cell's last reading *did* cross a danger floor. The alert built from it is no
+    # longer published (ADR 0035), so this record is a withdrawal, not a clearance: swelter is not
+    # saying the danger passed, it is saying it can no longer see.
+    withdrawn: bool
+    nodes: tuple[str, ...] = ()
+
+    @property
+    def id(self) -> str:
+        """The same area+parameter identity an :class:`Alert` for this cell would carry.
+
+        Deliberate: an Atom reader keys entries by id, so publishing this record under the id of
+        the alert it supersedes *updates* the entry a subscriber is already looking at. A Danger
+        headline from a node that has since gone dark is replaced in the reader by the withdrawal,
+        instead of sitting there as the last thing the feed ever said about that block.
+        """
+        return f"{self.area_id}|{self.parameter}"
+
+    def headline(self, lang: str = "en") -> str:
+        """A plain-language "no current reading" line for the feed body, in ``lang``."""
+        return i18n_alerts.stale_headline(self, lang)
+
+    @property
+    def headline_es(self) -> str:
+        """The Spanish headline — machine-drafted, see :mod:`swelter.i18n_alerts`."""
+        return self.headline("es")
+
+    def as_record(self) -> dict[str, object]:
+        record: dict[str, object] = {
+            "id": self.id,
+            "area_id": self.area_id,
+            "area": self.area,
+            "lat": self.lat,
+            "lon": self.lon,
+            "parameter": self.parameter,
+            # Self-describing, so a consumer that flattens the feed's arrays can never mistake one
+            # of these for a reading: there is no `value` key to read.
+            "status": "no-current-reading",
+            "last_bucket": self.last_bucket,
+            "hours_since_last_reading": self.hours_since_last_reading,
+            "withdrawn": self.withdrawn,
+            "headline": self.headline(),
+            "headline_es": self.headline_es,
+        }
+        if self.nodes:
+            record["nodes"] = list(self.nodes)
+        return record
+
+
+@dataclass(frozen=True)
 class AlertFeed:
-    """The set of currently-active alerts, plus the metadata a feed needs."""
+    """The set of currently-active alerts, the areas that have gone quiet, and the feed metadata."""
 
     network: str
     bucket: str  # the latest hour the surface covers; the feed's "updated"
     thresholds: Mapping[str, float]
     alerts: tuple[Alert, ...]
     base_url: str = "http://localhost:8000"
+    # Cells that reported before but not in `bucket` — published so absence is stated, not implied
+    # by an empty `alerts` list (ADR 0036).
+    stale: tuple[StaleArea, ...] = ()
 
     def for_area(self, area_id: str) -> AlertFeed:
-        """A feed narrowed to one published cell — the per-neighborhood subscription view."""
+        """A feed narrowed to one published cell — the per-neighborhood subscription view.
+
+        Narrows the stale records too. A resident who subscribes to one block must still be told
+        when that block stops reporting; handing them an empty feed instead would be the same silent
+        all-clear at the level of a single subscription.
+        """
         kept = tuple(a for a in self.alerts if a.area_id == area_id)
+        kept_stale = tuple(s for s in self.stale if s.area_id == area_id)
         return AlertFeed(
             network=self.network,
             bucket=self.bucket,
             thresholds=self.thresholds,
             alerts=kept,
             base_url=self.base_url,
+            stale=kept_stale,
         )
 
     def to_json(self) -> dict[str, object]:
@@ -143,6 +243,13 @@ class AlertFeed:
             "thresholds": dict(self.thresholds),
             "count": len(self.alerts),
             "alerts": [a.as_record() for a in self.alerts],
+            # `count`/`alerts` are crossings only. An empty `alerts` list does not mean every block
+            # is fine — it means no *currently reporting* block crossed a floor. `stale` is where
+            # the blocks swelter cannot currently see are named (ADR 0036).
+            "stale_count": len(self.stale),
+            "stale": [s.as_record() for s in self.stale],
+            "stale_note": i18n_alerts.stale_note("en"),
+            "stale_note_es": i18n_alerts.stale_note("es"),
             "note": i18n_alerts.note("en"),
             # headline_es (above, per alert) and note_es are machine-drafted, not human-reviewed —
             # labeled here so a consumer never mistakes ES output for a vetted translation.
@@ -157,6 +264,11 @@ class AlertFeed:
         ``lang="es"`` renders entry titles/summaries and the feed title/subtitle in Spanish via the
         :mod:`swelter.i18n_alerts` catalog; that Spanish text is machine-drafted, so the feed root
         carries a ``<generator>`` note saying so — never presented as a reviewed translation.
+
+        Every stale area (:class:`StaleArea`) is rendered as an entry too, under the same ``id`` the
+        alert for that cell/parameter would use and stamped with the *feed's* bucket, so a reader
+        updates the entry in place: a Danger headline from a node that has since gone dark is
+        replaced by the withdrawal rather than left standing as the feed's last word on that block.
         """
         base = self.base_url.rstrip("/")
         self_path = "/api/alerts.xml" if lang == "en" else "/api/alerts.es.xml"
@@ -201,6 +313,26 @@ class AlertFeed:
                     "  </entry>",
                 ]
             )
+        for area in self.stale:
+            entry_id = (
+                f"{self_url}#{area.id}"  # the id an alert for this cell would use, on purpose
+            )
+            headline = area.headline(lang)
+            lines.extend(
+                [
+                    "  <entry>",
+                    f"    <title>{escape(headline)}</title>",
+                    f"    <id>{escape(entry_id)}</id>",
+                    # The *feed's* bucket, not the block's last one: a reader ignores an update
+                    # stamped older than the entry it already holds, and this entry has to land.
+                    f"    <updated>{escape(updated)}</updated>",
+                    f'    <category term="{escape(area.parameter)}"/>',
+                    f'    <category term="{escape(STALE_CATEGORY)}"/>',
+                    f"    <summary>{escape(headline)}</summary>",
+                    f"    <georss:point>{area.lat} {area.lon}</georss:point>",
+                    "  </entry>",
+                ]
+            )
         lines.append("</feed>")
         return "\n".join(lines) + "\n"
 
@@ -240,11 +372,26 @@ def build_feed(
     thresholds: Mapping[str, float] | None = None,
     pack: hazard_packs.HazardPack | None = None,
 ) -> AlertFeed:
-    """Scan the most recent hour of every cell and raise an alert for each danger crossing.
+    """Scan the surface's newest bucket and raise an alert for each danger crossing in it.
 
-    Only the latest reading per (cell, parameter) is considered — an alert is about now, not an hour
-    last week. A cell can raise more than one alert (hot *and* smoky); each is its own entry. The
-    feed's bucket is the newest hour present in the surface, so the artifact is deterministic.
+    An alert is about now, not an hour last week: a cell/parameter's *latest* reading only raises an
+    alert if that reading's bucket equals the surface's newest bucket
+    (:meth:`~swelter.aggregate.Surface.newest_bucket`) — the same reference instant
+    ``web/app.js``'s ``latestBucket()`` uses to decide what counts as current on the map. A node
+    that stops reporting keeps its last reading in ``latest_by_cell()``, but once a newer bucket
+    exists anywhere on the surface, that stale reading no longer clears the bound and cannot raise
+    an alert — it can no longer broadcast a danger crossing from before the node went dark. This
+    needs no wall clock: "now" is derived entirely from the data present, so the artifact stays
+    reproducible. A cell can raise more than one alert (hot *and* smoky); each is its own entry. The
+    feed's bucket is the newest hour present in the surface, so an empty feed still carries a
+    meaningful, data-derived timestamp.
+
+    Suppressing the stale crossing is only half of it. An alerts feed that simply stops mentioning a
+    block reads as an all-clear for that block, and "no alert" is the reassuring answer — the one
+    swelter must never give by default when it cannot see. So every cell/parameter whose latest
+    reading predates the newest bucket is published as a :class:`StaleArea` in ``feed.stale``: no
+    value, an explicit "no current reading", when the block last reported, and whether an alert
+    built from that last reading is being withdrawn (ADR 0036). Absence is stated, never implied.
 
     ``pack`` selects the hazard pack (:mod:`swelter.hazard_packs`) whose parameters and cited floors
     are checked; it defaults to the heat pack, so a caller that passes none gets the original
@@ -253,17 +400,36 @@ def build_feed(
     active = pack or hazard_packs.HEAT_PACK
     floors = resolve_thresholds(thresholds, active)
     latest = surface.latest_by_cell()
+    newest = surface.newest_bucket() or ""
     alerts: list[Alert] = []
-    newest = ""
+    stale: list[StaleArea] = []
     for area_id in sorted(latest):
         by_param = latest[area_id]
         for parameter in active.alerting_parameters():
             reading = by_param.get(parameter)
             if reading is None:
                 continue
-            # The feed's "updated" is the latest hour the surface covers, even on a calm day with no
-            # crossings, so an empty feed still has a meaningful, data-derived timestamp.
-            newest = max(newest, reading.bucket)
+            if reading.bucket != newest:
+                # This cell's latest reading for this parameter predates the surface's newest
+                # bucket — the node behind it has gone quiet (or was never this recent). Its last
+                # reading stays visible to anyone browsing history, but it does not get to keep
+                # broadcasting a danger crossing into a feed stamped as current (issue #148). It is
+                # published as an absence instead, so the block is not silently dropped from the
+                # feed: `withdrawn` records whether the alert it would have raised is being pulled.
+                stale.append(
+                    StaleArea(
+                        area_id=area_id,
+                        area=reading.label or area_id,
+                        lat=reading.lat,
+                        lon=reading.lon,
+                        parameter=parameter,
+                        last_bucket=reading.bucket,
+                        hours_since_last_reading=_hours_between(reading.bucket, newest),
+                        withdrawn=crossing(parameter, reading, floors) is not None,
+                        nodes=reading.nodes,
+                    )
+                )
+                continue
             crossed = crossing(parameter, reading, floors)
             if crossed is None:
                 continue
@@ -291,8 +457,24 @@ def build_feed(
         bucket=newest,
         thresholds=floors,
         alerts=tuple(alerts),
+        stale=tuple(stale),
         base_url=base_url,
     )
+
+
+def _hours_between(earlier: str, later: str) -> int | None:
+    """Whole hours from ``earlier`` to ``later``, or ``None`` when either is not a timestamp.
+
+    Both arguments are surface hour buckets, so this stays data-derived — no wall clock. ``None``
+    means "the size of this gap is unknown": an unparseable bucket must not be reported as a gap of
+    zero hours, which would read as "it reported just now".
+    """
+    try:
+        start = datetime.fromisoformat(earlier.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(later.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return int((end - start).total_seconds() // 3600)
 
 
 def crossing(

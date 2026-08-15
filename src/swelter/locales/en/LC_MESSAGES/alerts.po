@@ -60,3 +60,33 @@ msgid ""
 msgstr ""
 "Areas where heat or air quality has crossed a public-health danger "
 "threshold. Aggregate environmental data, no PII."
+
+#, python-brace-format
+msgid " (last reported {bucket})"
+msgstr " (last reported {bucket})"
+
+#, python-brace-format
+msgid " (last reported {bucket}, {hours} h before this feed)"
+msgstr " (last reported {bucket}, {hours} h before this feed)"
+
+msgid " The danger alert published for this area is withdrawn, not cleared: swelter has no current reading there."
+msgstr " The danger alert published for this area is withdrawn, not cleared: swelter has no current reading there."
+
+#, python-brace-format
+msgid "{area}: no current air-quality reading{age}. swelter cannot tell whether the air there is dangerous now.{withdrawn}"
+msgstr "{area}: no current air-quality reading{age}. swelter cannot tell whether the air there is dangerous now.{withdrawn}"
+
+#, python-brace-format
+msgid "{area}: no current heat-index reading{age}. swelter cannot tell whether the heat there is dangerous now.{withdrawn}"
+msgstr "{area}: no current heat-index reading{age}. swelter cannot tell whether the heat there is dangerous now.{withdrawn}"
+
+#, python-brace-format
+msgid "{area}: no current wind-chill reading{age}. swelter cannot tell whether the cold there is dangerous now.{withdrawn}"
+msgstr "{area}: no current wind-chill reading{age}. swelter cannot tell whether the cold there is dangerous now.{withdrawn}"
+
+#, python-brace-format
+msgid "{area}: no current heat-and-air exposure reading{age}. swelter cannot tell whether the exposure there is dangerous now.{withdrawn}"
+msgstr "{area}: no current heat-and-air exposure reading{age}. swelter cannot tell whether the exposure there is dangerous now.{withdrawn}"
+
+msgid "Areas listed under 'stale' have stopped reporting: swelter cannot tell whether they are safe. An empty 'alerts' list means no currently reporting area crossed a danger floor, not that every area is fine."
+msgstr "Areas listed under 'stale' have stopped reporting: swelter cannot tell whether they are safe. An empty 'alerts' list means no currently reporting area crossed a danger floor, not that every area is fine."

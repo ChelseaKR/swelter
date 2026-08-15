@@ -43,6 +43,35 @@ def test_unplaced_node_is_excluded() -> None:
     assert surface.cells == ()
 
 
+def test_newest_bucket_is_the_max_across_every_cell_and_parameter() -> None:
+    # `newest_bucket()` is the one reference instant every "now"-derived artifact (alerts, the web
+    # snapshot, the publish manifest) shares, so it must consider every parameter on the surface —
+    # not just whichever ones a caller happens to alert on. A later `temp_c` bucket (outside any
+    # hazard pack's alerting parameters) must still win.
+    surface = aggregate.aggregate(
+        [
+            make_obs(
+                parameter="pm25_ugm3",
+                unit="ug/m3",
+                value=10.0,
+                calibration="v1",
+                timestamp="2026-06-01T00:00:00Z",
+            ),
+            make_obs(
+                parameter="temp_c", value=25.0, calibration="v1", timestamp="2026-06-01T03:00:00Z"
+            ),
+        ],
+        _CONFIG,
+    )
+    assert surface.newest_bucket() == "2026-06-01T03:00:00Z"
+
+
+def test_newest_bucket_is_none_for_an_empty_surface() -> None:
+    surface = aggregate.aggregate([], _CONFIG)
+    assert surface.cells == ()
+    assert surface.newest_bucket() is None
+
+
 def test_suspicious_only_cell_is_visible_provisional_and_flagged() -> None:
     # A spike-flagged reading is the only evidence for the cell: it must still appear (not blank),
     # provisional and carrying its QC verdict, so a smoke front is never dropped (ADR 0029).

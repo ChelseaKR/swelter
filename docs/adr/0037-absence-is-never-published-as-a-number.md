@@ -1,4 +1,4 @@
-# ADR 0035: Absence is never published as a number, and never narrows an interval
+# ADR 0037: Absence is never published as a number, and never narrows an interval
 
 - Status: Accepted
 - Date: 2026-08-14

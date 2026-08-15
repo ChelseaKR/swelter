@@ -53,4 +53,7 @@ evidence of the collision.
 - [ADR 0031: Generalize the alert layer into versioned hazard packs, and ship a cold pack](0031-multi-hazard-packs.md)
 - [ADR 0032: Assemble co-location training pairs from a reference-monitor feed](0032-reference-monitor-adapter.md)
 - [ADR 0033: Preserve statewide geography and cluster only the overview](0033-statewide-geographic-map-clustering.md)
-- [ADR 0035: Absence is never published as a number, and never narrows an interval](0035-absence-is-never-published-as-a-number.md)
+- [ADR 0034: A refused fetch is not an empty area](0034-a-refused-fetch-is-not-an-empty-area.md)
+- [ADR 0035: Bind alerts to the surface's newest bucket, not an unbounded latest-per-cell scan](0035-alerts-bound-to-the-surfaces-newest-bucket.md)
+- [ADR 0036: Publish the absence when an area stops reporting, instead of going quiet about it](0036-published-absence-for-areas-that-stop-reporting.md)
+- [ADR 0037: Absence is never published as a number, and never narrows an interval](0037-absence-is-never-published-as-a-number.md)

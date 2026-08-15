@@ -342,7 +342,7 @@ Averaging over the known members only would still quote an interval for a cell w
 partly unmeasured. A member sigma of exactly `0.0` is a measurement (a fit whose residual standard
 deviation rounded to zero), not an absence, so a cell whose members are all `0.0` publishes `0.0` —
 which is a different published fact from `null`
-([ADR 0035](adr/0035-absence-is-never-published-as-a-number.md)).
+([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
 
 **A `null` uncertainty says why.** `uncertainty_note` is not exposure-only: any cell that publishes
 no number carries the reason — which axis bounds an `exposure` level, how many member sigmas were
@@ -544,7 +544,7 @@ the NowCast record carries an `uncertainty_note` saying it has no error bar and 
 hourly-mean record for the same bucket, which does carry one. It stays `provisional: false`: it is
 derived from calibrated hourly means, so calling it provisional would say "uncalibrated", which is
 not true. What it lacks is an error bar, and it now says so
-([ADR 0035](adr/0035-absence-is-never-published-as-a-number.md)).
+([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
 
 ### `GET /api/health.json`
 
@@ -619,7 +619,7 @@ shipped pipeline can actually put this verdict on a reading). `missing` is publi
 `emitted: false` — it is a defined verdict nothing writes. swelter represents an absent reading by
 the absence of a row, and reports gaps separately in `swelter qc` / `/api/health.json`, so a client
 must not wait for a row with `qc: "missing"`
-([ADR 0035](adr/0035-absence-is-never-published-as-a-number.md)).
+([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
 
 `data_schema_version` is the pin target: an integer, starting at `1`, that only moves when a change
 to the observation fields, the CSV column set/order, or a QC verdict's meaning crosses the line
@@ -663,15 +663,28 @@ it without a second request.
 
 ### `GET /api/alerts.json` and `GET /api/alerts.xml`
 
-The neighborhood heat/AQI alerts feed: every published cell whose latest-hour reading has crossed a
-documented danger floor (US-EPA AQI 101, US-NWS heat-index "Danger", or exposure "High"). The JSON
-form carries the active `thresholds`, a data-derived `generated` time, and an `alerts` array; the XML
-form is a standards **Atom 1.0** feed (a GeoRSS point per entry) so a resident subscribes in any
-RSS/Atom reader. `?area=<area_id>` narrows either form to one published cell. Floors are overridable
-per network via `alert_thresholds` in `network.yaml`. Alerts carry only public, aggregate fields — a
-cell id, centroid, area label, node ids, and the reading — and provisional readings are flagged, not
-hidden. Full reference: [`docs/alerts.md`](alerts.md). `swelter demo`/`fetch` bake `alerts.json` +
-`alerts.xml` for the static site.
+The neighborhood heat/AQI alerts feed: every published cell whose reading **in the surface's newest
+bucket** has crossed a documented danger floor (US-EPA AQI 101, US-NWS heat-index "Danger", or
+exposure "High"). The JSON form carries the active `thresholds`, a data-derived `generated` time, an
+`alerts` array, and a `stale` array; the XML form is a standards **Atom 1.0** feed (a GeoRSS point
+per entry) so a resident subscribes in any RSS/Atom reader. `?area=<area_id>` narrows either form to
+one published cell. Floors are overridable per network via `alert_thresholds` in `network.yaml`.
+Alerts carry only public, aggregate fields — a cell id, centroid, area label, node ids, and the
+reading — and provisional readings are flagged, not hidden. Full reference:
+[`docs/alerts.md`](alerts.md). `swelter demo`/`fetch` bake `alerts.json` + `alerts.xml` for the
+static site.
+
+A cell whose latest reading predates that newest bucket cannot raise an alert
+([ADR 0035](adr/0035-alerts-bound-to-the-surfaces-newest-bucket.md)) and is published in `stale`
+instead ([ADR 0036](adr/0036-published-absence-for-areas-that-stop-reporting.md)). **`count: 0` does
+not mean every area is safe** — it means no currently reporting area crossed a floor. `stale_count`
+is the number of areas the feed cannot see. Each `stale` record carries `status:
+"no-current-reading"`, `last_bucket`, `hours_since_last_reading` (`null` when the gap's size is not
+computable — never `0` as a stand-in), and `withdrawn`, and it deliberately carries **no** `value`,
+`severity`, `unit`, or `aqi`: the last reading is not a measurement of now. In Atom, a stale record
+is an entry with `<category term="no-current-reading"/>`, published under the same `id` as the alert
+it supersedes and stamped with the feed's own `updated`, so a reader replaces the standing Danger
+headline with the withdrawal rather than leaving it as the last word on that block.
 
 ### `GET /api/cooling-centers.geojson`
 

@@ -59,6 +59,67 @@ test("web/alerts.json matches the schema", () => {
   assertValid(validate, payload, "web/alerts.json");
 });
 
+test("an alerts feed carrying a stale area validates, and one without `stale` does not", () => {
+  // ADR 0036: `stale` is part of the contract, not an optional extra. A feed that omits it is not
+  // saying "nothing is unseen" — it is not answering the question, and must not pass as complete.
+  const { validate } = validatorFor("alerts.schema.json");
+  const payload = readJson(WEB, "alerts.json");
+  payload.stale_count = 1;
+  payload.stale = [
+    {
+      id: "38.5681,-121.4945|heat_index_c",
+      area_id: "38.5681,-121.4945",
+      area: "Walnut & 3rd",
+      lat: 38.5681,
+      lon: -121.4945,
+      parameter: "heat_index_c",
+      status: "no-current-reading",
+      last_bucket: "2026-06-01T12:00:00Z",
+      hours_since_last_reading: 2208,
+      withdrawn: true,
+      headline: "Walnut & 3rd: no current heat-index reading.",
+    },
+  ];
+  assertValid(validate, payload, "alerts feed with a stale area");
+
+  const unknownGap = JSON.parse(JSON.stringify(payload));
+  unknownGap.stale[0].hours_since_last_reading = null; // unknown gap size stays expressible
+  assertValid(validate, unknownGap, "alerts feed with an unmeasured gap");
+
+  delete payload.stale;
+  assert.equal(validate(payload), false, "schema should reject a feed with no `stale` array");
+});
+
+test("a stale record that reports a value or a severity fails validation", () => {
+  // A "no current reading" record must not carry something a consumer could plot as the current
+  // condition — a last-known value standing in for the missing one is the defect this record type
+  // exists to prevent.
+  const { validate } = validatorFor("alerts.schema.json");
+  const staleSchema = readJson(SCHEMAS, "alerts.schema.json").$defs.staleArea;
+  assert.equal(staleSchema.properties.value, undefined, "`value` must not be a stale-record field");
+  assert.equal(staleSchema.properties.severity, undefined, "`severity` must not be one either");
+  assert.equal(staleSchema.properties.status.const, "no-current-reading");
+
+  const payload = readJson(WEB, "alerts.json");
+  payload.stale_count = 1;
+  payload.stale = [
+    {
+      id: "c1|heat_index_c",
+      area_id: "c1",
+      area: "Walnut & 3rd",
+      lat: 38.5681,
+      lon: -121.4945,
+      parameter: "heat_index_c",
+      status: "stale-but-fine", // not the one permitted status
+      last_bucket: "2026-06-01T12:00:00Z",
+      hours_since_last_reading: 2208,
+      withdrawn: false,
+      headline: "…",
+    },
+  ];
+  assert.equal(validate(payload), false, "schema should reject an off-contract stale `status`");
+});
+
 test("a surface payload missing a required top-level field fails validation", () => {
   const { validate } = validatorFor("sample-surface.schema.json");
   const payload = readJson(WEB, "sample-surface.json");
@@ -74,7 +135,7 @@ test("a cell record with the wrong type for `provisional` fails validation", () 
 });
 
 test("a cell that publishes no uncertainty carries a note saying why, and validates", () => {
-  // ADR 0035: a null `uncertainty` must never be a bare null a reader takes for "nothing to
+  // ADR 0037: a null `uncertainty` must never be a bare null a reader takes for "nothing to
   // report". `uncertainty_note` is not exposure-only any more, so the surface schema has to accept
   // it on any parameter. This is the JS half of
   // `tests/test_schema_contract.py::test_surface_with_an_uncertainty_note_matches_schema`.

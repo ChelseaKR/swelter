@@ -4,7 +4,17 @@
   "title": "swelter alerts feed payload",
   "description": "The Python↔JS contract for `/api/alerts.json` and `web/alerts.json` — public, aggregate danger-threshold crossings, no PII. Emitted by `alerts.AlertFeed.to_json` (src/swelter/alerts.py); consumed by `web/app.js` `activeAlerts()` / `renderAlerts()`. A deliberate field change on either side must edit this schema and both validating tests in the same PR (FIX-07).",
   "type": "object",
-  "required": ["network", "generated", "self", "thresholds", "count", "alerts", "note"],
+  "required": [
+    "network",
+    "generated",
+    "self",
+    "thresholds",
+    "count",
+    "alerts",
+    "stale_count",
+    "stale",
+    "note"
+  ],
   "additionalProperties": true,
   "properties": {
     "network": { "type": "string" },
@@ -25,6 +35,12 @@
     "alerts": {
       "type": "array",
       "items": { "$ref": "#/$defs/alert" }
+    },
+    "stale_count": { "type": "integer", "minimum": 0 },
+    "stale": {
+      "type": "array",
+      "description": "Published cells that have stopped reporting: swelter cannot tell whether they are currently safe. An empty `alerts` array means no *currently reporting* cell crossed a floor, not that every cell is fine — these are the cells it cannot see (ADR 0035).",
+      "items": { "$ref": "#/$defs/staleArea" }
     },
     "note": { "type": "string" }
   },
@@ -65,6 +81,48 @@
         "provisional": { "type": "boolean" },
         "headline": { "type": "string", "minLength": 1 },
         "aqi": { "type": "integer" },
+        "nodes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "staleArea": {
+      "type": "object",
+      "description": "One cell/parameter with no reading in the feed's bucket. Carries no value on purpose: the last reading is not a measurement of now, so there is no `value`, `severity`, or `aqi` field a consumer could read as the current condition.",
+      "required": [
+        "id",
+        "area_id",
+        "area",
+        "lat",
+        "lon",
+        "parameter",
+        "status",
+        "last_bucket",
+        "hours_since_last_reading",
+        "withdrawn",
+        "headline"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "area_id": { "type": "string", "minLength": 1 },
+        "area": { "type": "string" },
+        "lat": { "type": "number" },
+        "lon": { "type": "number" },
+        "parameter": {
+          "type": "string",
+          "enum": ["pm25_ugm3", "heat_index_c", "exposure", "wind_chill_c"]
+        },
+        "status": { "const": "no-current-reading" },
+        "last_bucket": { "type": "string", "minLength": 1 },
+        "hours_since_last_reading": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Whole hours from `last_bucket` to the feed's `generated`. Null when the gap's size could not be computed — never 0 as a stand-in for unknown."
+        },
+        "withdrawn": {
+          "type": "boolean",
+          "description": "True when this cell's last reading did cross a danger floor. The alert built from it is no longer published, so this record withdraws it; it does not report that the danger passed."
+        },
+        "headline": { "type": "string", "minLength": 1 },
         "nodes": { "type": "array", "items": { "type": "string" } }
       }
     }

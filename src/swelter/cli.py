@@ -1067,7 +1067,7 @@ def _write_web_sample(
     """
     if not web_dir.is_dir():
         return
-    latest = max((cell.bucket for cell in surface.cells), default=None)
+    latest = surface.newest_bucket()
     buckets = [latest] if latest is not None else []
     records = [cell.as_record() for cell in surface.cells if cell.bucket == latest]
     payload = {
@@ -1891,7 +1891,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
     _write_publish_license_files(web_dir, terms, attribution)
 
-    data_hour = max((cell.bucket for cell in surface.cells), default="")
+    data_hour = surface.newest_bucket() or ""
     written = _write_publish_manifest(
         web_dir, _PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
     )

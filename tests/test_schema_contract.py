@@ -83,7 +83,7 @@ def test_freshly_aggregated_surface_matches_schema() -> None:
 
 def test_surface_with_an_uncertainty_note_matches_schema() -> None:
     """A cell that publishes no numeric uncertainty carries `uncertainty_note` saying why — on any
-    parameter, not just `exposure` (ADR 0035). The fresh emitter output must still validate, so the
+    parameter, not just `exposure` (ADR 0037). The fresh emitter output must still validate, so the
     field stays inside the shared Python↔JS contract (FIX-07). The JS side of this same assertion
     is `web/tests/schema-contract.test.js`."""
     surface = aggregate.aggregate(
