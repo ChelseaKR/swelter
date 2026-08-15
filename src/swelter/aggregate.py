@@ -191,6 +191,20 @@ class Surface:
     def to_records(self) -> list[dict[str, object]]:
         return [c.as_record() for c in self.cells]
 
+    def newest_bucket(self) -> str | None:
+        """The most recent hour bucket present anywhere in the surface, across every parameter.
+
+        This is the one reference instant "now" means for a data-derived artifact: the same
+        ``max(cell.bucket for cell in surface.cells)`` idiom ``cli.py``'s static publish steps
+        already use to pick a snapshot's newest hour and a build's `data_hour`, and — because those
+        are exactly the records the dashboard loads into ``state.cells`` — the same value the
+        browser computes client-side as ``latestBucket()`` (``web/app.js``). Centralizing it here
+        means a cell/parameter with no reading in this bucket is unambiguously stale, and every
+        surface that reads "now" this way (the map, the alerts feed, the publish manifest) reads the
+        same "now". ``None`` only when the surface has no cells at all.
+        """
+        return max((cell.bucket for cell in self.cells), default=None)
+
     def latest_by_cell(self) -> dict[str, dict[str, CellReading]]:
         """cell_id → parameter → the most recent hourly reading, for the map snapshot.
 
