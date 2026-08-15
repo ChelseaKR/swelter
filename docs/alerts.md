@@ -11,7 +11,10 @@ Author: Chelsea Kelly-Reif. Year: 2026.
 ## What raises an alert
 
 For the most recent hour, every published grid cell is checked against documented danger floors. The
-floors come from the network's **hazard pack** (see below); the default is the **heat pack**:
+"most recent hour" is the newest hour bucket present anywhere in the surface, not each cell's own
+last hour: a cell that stopped reporting cannot raise an alert from the reading it stopped on
+([ADR 0035](adr/0035-alerts-bound-to-the-surfaces-newest-bucket.md)). The floors come from the
+network's **hazard pack** (see below); the default is the **heat pack**:
 
 | Reading | Floor | Source |
 | --- | --- | --- |
@@ -29,6 +32,52 @@ alert_thresholds:
   heat_index_c: 39.4   # NWS "Danger"
   exposure: 3          # combined level "High"
 ```
+
+## What an area that stopped reporting looks like
+
+An alerts feed that simply stops mentioning a block is read as an all-clear for that block. So the
+feed publishes the absence instead of leaving it to be inferred from silence
+([ADR 0036](adr/0036-published-absence-for-areas-that-stop-reporting.md)).
+
+Every cell whose latest reading predates the feed's `generated` hour appears in a `stale` array:
+
+```json
+{
+  "id": "38.5681,-121.4945|heat_index_c",
+  "area_id": "38.5681,-121.4945",
+  "area": "Walnut & 3rd",
+  "lat": 38.5681, "lon": -121.4945,
+  "parameter": "heat_index_c",
+  "status": "no-current-reading",
+  "last_bucket": "2026-06-01T12:00:00Z",
+  "hours_since_last_reading": 2208,
+  "withdrawn": true,
+  "headline": "Walnut & 3rd: no current heat-index reading (last reported 2026-06-01T12:00:00Z, 2208 h before this feed). swelter cannot tell whether the heat there is dangerous now. The danger alert published for this area is withdrawn, not cleared: swelter has no current reading there."
+}
+```
+
+Read it this way:
+
+- **There is no value in the record.** No `value`, `severity`, `unit`, or `aqi`. The last reading is
+  not a measurement of now, and republishing it — even labelled — would hand you a number to put in
+  a "current conditions" column.
+- **`withdrawn: true`** means the block's last reading *did* cross a danger floor, so an alert for it
+  was published before the node went quiet. This record retracts that alert. It does not say the
+  danger passed; it says swelter can no longer see.
+- **`hours_since_last_reading`** is whole hours to the feed's own `generated` time. It is `null`, not
+  `0`, when the gap's size cannot be computed.
+- **`count: 0` is not an all-clear.** It means no *currently reporting* area crossed a floor.
+  `stale_count` is how many areas the feed cannot see at all.
+
+In Atom, each of these is an entry carrying `<category term="no-current-reading"/>`, published under
+the same `<id>` as the alert it supersedes and stamped with the feed's own `<updated>` — so a reader
+updates the entry in place and the last thing a subscriber sees about a block that went dark is the
+withdrawal, not a Danger headline frozen at the hour the sensor died. A bridge that reposts alerts
+should treat a `no-current-reading` entry as a retraction, not as a new hazard.
+
+The dashboard's "Neighborhood alerts" panel says the same thing: the status line names how many areas
+have no current reading, and each one is listed without a value and without a "go to this reading"
+button.
 
 ## Hazard packs
 
@@ -86,6 +135,8 @@ $ curl -s http://localhost:8000/api/alerts.json
   "generated": "2026-06-08T00:00:00Z",
   "thresholds": {"pm25_aqi": 101.0, "heat_index_c": 39.4, "exposure": 3.0},
   "count": 1,
+  "stale_count": 0,
+  "stale": [],
   "alerts": [
     {
       "id": "38.5681,-121.4945|pm25_ugm3",
@@ -155,6 +206,12 @@ jobs:
                   --data "$(jq -n --arg t "$line" '{text:$t}')" "$WEBHOOK_URL"
               done
 ```
+
+Note what this minimal form does *not* do: it reads `.alerts[]` only, so a block that goes dark
+silently drops out of the channel. If the collective wants the withdrawal posted too — recommended,
+since the channel's last word on that block would otherwise be its Danger headline — add a second
+pass over `.stale[]`, whose `headline` already says the reading is gone and whether an alert is being
+withdrawn.
 
 This minimal form is fine for a low-traffic team chat, but it reposts **every** non-provisional alert
 on **every** run — an alert that is still active an hour later gets re-sent hourly. That is noisy but

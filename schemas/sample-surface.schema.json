@@ -50,6 +50,11 @@
         "n": { "type": "integer", "minimum": 0 },
         "provisional": { "type": "boolean" },
         "uncertainty": { "type": ["number", "null"] },
+        "mean_member_sigma": { "type": ["number", "null"] },
+        "uncertainty_note": {
+          "type": ["string", "null"],
+          "description": "Why this cell publishes no numeric `uncertainty`, when there is a reason to carry: which axis bounds an `exposure` level, how many calibrated member 1-sigmas were unknown, or that a NowCast record blends unevenly-weighted hours. Absent on a cell that simply has a number. A null `uncertainty` is never a claim that there is nothing to report (ADR 0035)."
+        },
         "aqi": { "type": ["integer", "null"] },
         "category": { "type": ["string", "null"] },
         "nodes": { "type": "array", "items": { "type": "string" } },

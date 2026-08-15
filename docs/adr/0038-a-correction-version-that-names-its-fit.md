@@ -1,4 +1,4 @@
-# ADR 0035: A correction version that names its fit
+# ADR 0038: A correction version that names its fit
 
 - Status: Accepted
 - Date: 2026-08-14

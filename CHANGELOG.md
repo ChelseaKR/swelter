@@ -142,7 +142,7 @@ All notable changes to swelter are recorded here. The format follows
   fit id of the *temperature* correction it was computed from. Everything before `@` is unchanged and
   the fit id contains no dot, so the two positional readers (`aggregate`'s published `method`,
   `export`'s correction family) are unaffected
-  ([ADR 0035](docs/adr/0035-a-correction-version-that-names-its-fit.md)).
+  ([ADR 0038](docs/adr/0038-a-correction-version-that-names-its-fit.md)).
 
   **Breaking, as `docs/VERSIONING.md` already declared a version-id format change to be.** The
   committed `data/demo/corrections.yaml` is regenerated — every coefficient, error, window, and `n`
@@ -173,6 +173,38 @@ All notable changes to swelter are recorded here. The format follows
   plainly in the docstring, at the generator, and in the synthetic-demo data card. Making the pairs
   reuse the observation stream's own draws would regenerate every value in the fixture and every
   worked example that quotes one, so it stays its own change.
+- **A missing 1-sigma no longer shrinks the published error bar ([#147](https://github.com/ChelseaKR/swelter/issues/147)).**
+  `aggregate._bucket_observations` read a calibrated member's absent uncertainty as `0.0`, so an
+  *unknown* 1-sigma entered the cell's arithmetic as a **perfect instrument**: adding one member
+  with an unknown sigma to a cell whose known member had 0.8 halved `mean_member_sigma` to 0.4 and
+  pulled the cell standard error to 0.400, below the 0.800 of the one member actually measured —
+  the error bar tightening because swelter knew *less*, on a cell still published
+  `provisional: false`. A new `aggregate.combine_member_sigmas` is now the one place member sigmas
+  are combined: any unknown sigma means the cell publishes **no** numeric `uncertainty` or
+  `mean_member_sigma` at all, plus an `uncertainty_note` saying how many were unknown; an explicit
+  `is not None` test replaces `any(uncs)`, so a genuine `0.0` (a fit whose residual standard
+  deviation rounded to zero) stays `0.0` instead of being published as unknown. `Observation` now
+  refuses a calibrated row with no uncertainty at construction — the boundary every writer, adapter,
+  import path, and store read passes through — and `store._row_to_obs` re-raises naming the row and
+  the remedy (`swelter rebuild`) rather than repairing a row it cannot stand behind. `uncertainty_note`
+  is no longer exposure-only: any cell publishing a null uncertainty carries its reason to the
+  record, the map GeoJSON, and the dashboard's provenance panel
+  ([ADR 0037](docs/adr/0037-absence-is-never-published-as-a-number.md)).
+- **A NowCast PM2.5 record now states that it has no error bar ([#147](https://github.com/ChelseaKR/swelter/issues/147)).**
+  Every NowCast cell shipped `uncertainty: null` with no note — 100 of them stamped
+  `provisional: false` in the committed `web/sample-surface.json` — which made the reading a person
+  is most likely to act on (the one that tracks a smoke plume) the one that shipped as fact with
+  nothing attached. NowCast cells now carry an `uncertainty_note` saying the blend has no derivable
+  combined sigma and pointing at the hourly-mean record for the same bucket, which does carry one.
+  They stay `provisional: false`: they are derived from calibrated hourly means, so calling them
+  provisional would say "uncalibrated", which is not true. `docs/api.md` documents this.
+- **The published data dictionary no longer advertises a QC verdict nothing writes ([#147](https://github.com/ChelseaKR/swelter/issues/147)).**
+  `qc: "missing"` is defined in `models.py` and published in `/api/schema.json`, and no code path in
+  the repository ever sets it — a consumer writing `if row.qc == "missing"` got dead code and a
+  false sense that gaps arrive in-band. Each published verdict now carries an `emitted` flag
+  (`missing` is `false`), computed from the new `models.QC_EMITTED`, and the verdict's description
+  says where absence actually lives: the absence of a row, plus the separately reported `gaps`. The
+  constant is kept so `QC_UNMAPPABLE` still rejects the verdict if an ingest path ever sends one.
 
 - **Sensor.Community readings, dark since 2026-06-19, and the silence that hid it.** swelter sent no
   `User-Agent`; the network declines an anonymous client with `HTTP 200` and a JSON error document
@@ -186,6 +218,34 @@ All notable changes to swelter are recorded here. The format follows
   observations from 615 live nodes ([ADR 0034](docs/adr/0034-a-refused-fetch-is-not-an-empty-area.md),
   [#146](https://github.com/ChelseaKR/swelter/issues/146)). The refresh workflow still swallows an
   empty result, which is tracked in that issue and not closed here.
+- **A dead node can no longer keep broadcasting a stale Danger alert ([#148](https://github.com/ChelseaKR/swelter/issues/148)).**
+  `alerts.build_feed` scanned `Surface.latest_by_cell()` with no bound on how old "latest" was, so a
+  node that stopped reporting kept its last reading's alert active in every subsequent feed, stamped
+  `provisional: false`, inside a feed whose own "updated" timestamp was current — while `web/app.js`'s
+  map correctly dropped it as stale. `build_feed` now only raises an alert for a cell/parameter whose
+  latest reading's bucket equals the surface's newest bucket (`Surface.newest_bucket()`, a new method
+  also now shared by the static web-snapshot and publish-manifest code that already computed this
+  value inline), the same reference instant the map's `latestBucket()` uses — so the feed and the map
+  agree by construction. No wall clock is introduced;
+  `test_feed_timestamp_is_data_derived_not_wallclock` still holds
+  ([ADR 0035](docs/adr/0035-alerts-bound-to-the-surfaces-newest-bucket.md)).
+- **An area that stops reporting is now published as an explicit "no current reading", not dropped
+  into silence ([#148](https://github.com/ChelseaKR/swelter/issues/148)).** Suppressing the dead
+  node's stale crossing (above) left the feed saying nothing at all about that block, and in an
+  alerts feed nothing reads as an all-clear — the same "standing all-clear" failure #148 identified
+  as the worse half, now applied to every dark cell. `alerts.build_feed` publishes a `stale` array
+  beside `alerts`: one record per cell/parameter whose latest reading predates the feed's bucket,
+  carrying `status: "no-current-reading"`, `last_bucket`, `hours_since_last_reading` (`null`, never
+  `0`, when the gap's size is not computable), `withdrawn`, and a plain-language headline saying
+  swelter cannot tell whether that block is dangerous now. It deliberately carries **no** `value`,
+  `severity`, `unit`, or `aqi`: the last reading is not a measurement of now. In Atom each record is
+  an entry tagged `<category term="no-current-reading"/>`, published under the same `<id>` as the
+  alert it supersedes and stamped with the feed's own `<updated>`, so a subscriber's reader replaces
+  a standing Danger headline with the withdrawal instead of leaving it as the last word on that
+  block. `AlertFeed.for_area` narrows `stale` too, `schemas/alerts.schema.json` requires
+  `stale`/`stale_count`, and the dashboard's neighborhood-alerts panel names the unseen areas in its
+  status line and lists them without a value or a "go to this reading" button
+  ([ADR 0036](docs/adr/0036-published-absence-for-areas-that-stop-reporting.md)).
 - **Dense maps no longer trade geographic truth for target spacing.** The former collision relaxation
   moved readings away from their projected coordinates and could make a compact network appear to
   cover empty parts of California. Overview clustering now preserves every geographic position,

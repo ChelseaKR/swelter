@@ -746,6 +746,62 @@ test("area alert copy — zero-alert stale feeds name their publication time and
   assert.doesNotMatch(line, /right now/i);
 });
 
+test("area alert copy — an area the feed cannot see is said out loud, not left to an empty list", async () => {
+  // ADR 0036. "No alerts as of T" on its own reads as "everywhere is fine". When the feed reports
+  // an area it has stopped hearing from, the status line has to say so in the same breath.
+  const app = await freshApp();
+  app.state.strings = {
+    "aa-none": "No published alerts as of {$time}.",
+    "aa-unseen": "{$n} area has no current reading. We cannot tell if it is safe.",
+  };
+  const feed = {
+    generated: "2026-09-01T12:00:00Z",
+    alerts: [],
+    stale: [
+      {
+        id: "c1|heat_index_c",
+        area_id: "c1",
+        area: "Oak & 4th",
+        parameter: "heat_index_c",
+        status: "no-current-reading",
+        last_bucket: "2026-06-01T12:00:00Z",
+        hours_since_last_reading: 2208,
+        withdrawn: true,
+      },
+    ],
+  };
+  const line = app.areaAlertStatus(feed, [], app.scopedUnseen(feed));
+  assert.match(line, /No published alerts as of/);
+  assert.match(line, /no current reading/);
+  assert.match(line, /cannot tell/i);
+  // A feed with nothing unseen must not gain the sentence.
+  assert.doesNotMatch(
+    app.areaAlertStatus({ generated: "2026-09-01T12:00:00Z", alerts: [], stale: [] }, [], []),
+    /cannot tell/i,
+  );
+});
+
+test("scopedUnseen — narrows to the selected area and tolerates a feed with no stale list", async () => {
+  const app = await freshApp();
+  const feed = {
+    alerts: [],
+    stale: [
+      { area_id: "c1", area: "Oak & 4th", parameter: "heat_index_c" },
+      { area_id: "c2", area: "Elm & 9th", parameter: "heat_index_c" },
+    ],
+  };
+  app.state.areaSelected = "";
+  assert.equal(app.scopedUnseen(feed).length, 2);
+  app.state.areaSelected = "c2";
+  assert.deepEqual(
+    app.scopedUnseen(feed).map((s) => s.area),
+    ["Elm & 9th"],
+  );
+  // A feed baked before this field existed simply has nothing to add here — and must not throw.
+  assert.equal(app.scopedUnseen({ alerts: [] }).length, 0);
+  app.state.areaSelected = "";
+});
+
 test("showAlertObservation — an absent feed bucket never opens an unrelated observation", async () => {
   const app = await freshApp();
   const loaded = "2026-06-02T00:00:00Z";
@@ -1431,4 +1487,34 @@ test("linked selectors expose selection state and dynamic action lists restore f
   assert.match(source, /closest\?\.\("#overview-worst button"\)/);
   assert.match(source, /closest\?\.\("#alerts-list button"\)/);
   assert.match(source, /closest\?\.\("#area-alerts-list button"\)/);
+});
+
+test("provenanceText — a confirmed cell with no error bar says why instead of saying nothing", async () => {
+  // ADR 0037: a missing uncertainty must never read as "nothing to report". The number is absent
+  // because something about it is unknown, and the reason travels to the UI (invariant 4).
+  const app = await freshApp();
+  app.state.parameter = "pm25_ugm3";
+  app.state.strings = {
+    "prov-confirmed": "Confirmed.",
+    "prov-uncertainty": "Give or take {$u} {$unit}.",
+    "prov-readings": "{$n} readings.",
+  };
+  const withNumber = app.provenanceText({
+    parameter: "pm25_ugm3",
+    provisional: false,
+    uncertainty: 0.8,
+    n: 2,
+  });
+  assert.match(withNumber, /Give or take/);
+
+  const withoutNumber = app.provenanceText({
+    parameter: "pm25_ugm3",
+    provisional: false,
+    uncertainty: null,
+    uncertainty_note: "no combined error bar: 1 of 2 calibrated member(s) published no uncertainty",
+    n: 2,
+  });
+  assert.doesNotMatch(withoutNumber, /Give or take/);
+  assert.match(withoutNumber, /no combined error bar/);
+  assert.match(withoutNumber, /1 of 2/);
 });

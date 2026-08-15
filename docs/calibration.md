@@ -292,7 +292,7 @@ reversible — not a code edit.
   what makes the audit trail reach the published data — a value calibrated by the old fit and one
   calibrated by the new fit carry different `calibration` strings, so a downloaded dataset names the
   fit behind its numbers instead of only the node
-  ([ADR 0035](adr/0035-a-correction-version-that-names-its-fit.md)).
+  ([ADR 0038](adr/0038-a-correction-version-that-names-its-fit.md)).
 - **Widening residuals as a service signal.** Drift shows up as a `residual_std` that grows from one
   co-location to the next. A node whose residuals widen past the network's bound is flagged for service
   before its data is trusted, rather than quietly publishing a correction that has stopped being true.
@@ -329,7 +329,7 @@ of the registry's git history. Without it, two corrections fit from different co
 10 °C apart in what they publish for the same raw reading — shared one identifier, one store primary
 key, and one `calibration` value in every export; a dataset downloaded a year later said
 `trustworthy: true` under the same string with different numbers behind it. See
-[ADR 0035](adr/0035-a-correction-version-that-names-its-fit.md) and issue #149.
+[ADR 0038](adr/0038-a-correction-version-that-names-its-fit.md) and issue #149.
 
 It is reproducible: coefficients are rounded to a fixed precision before the digest is taken, so
 re-running the fit on the committed co-location data reproduces the same ids byte for byte. The

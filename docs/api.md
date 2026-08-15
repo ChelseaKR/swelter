@@ -299,7 +299,7 @@ Pass `dedupe=false` to keep both the raw *and* the calibrated rows (this roughly
 `calibration` is either `raw` or a correction version id of the form
 `{parameter}.{method}.{node_id}@{window_end}-{digest}` — the part after `@` identifies the fit
 itself, so two datasets downloaded a year apart name different fits when the correction behind them
-was re-fitted ([ADR 0035](adr/0035-a-correction-version-that-names-its-fit.md)). A raw reading
+was re-fitted ([ADR 0038](adr/0038-a-correction-version-that-names-its-fit.md)). A raw reading
 carries `calibration: "raw"`, a null `uncertainty`,
 and `trustworthy: false`; it is shown provisional. A calibrated, QC-clean reading is `trustworthy:
 true`. Calibrated and raw are always distinguishable here.
@@ -337,6 +337,20 @@ cell. **Caveat:** the standard-error formula treats member sigmas as independent
 cell often share a calibration fit (same node, same correction), so their errors are not fully
 independent and `uncertainty` is a *lower bound* on the true combined uncertainty, not an exact one.
 Both fields are `null` on a provisional cell.
+
+**An unknown member sigma is not a zero, and never narrows the interval.** If any calibrated member
+of a cell published no 1-sigma, the cell publishes **no** numeric `uncertainty` or
+`mean_member_sigma` at all and carries an `uncertainty_note` saying how many members were unknown.
+Averaging over the known members only would still quote an interval for a cell whose spread is
+partly unmeasured. A member sigma of exactly `0.0` is a measurement (a fit whose residual standard
+deviation rounded to zero), not an absence, so a cell whose members are all `0.0` publishes `0.0` —
+which is a different published fact from `null`
+([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
+
+**A `null` uncertainty says why.** `uncertainty_note` is not exposure-only: any cell that publishes
+no number carries the reason — which axis bounds an `exposure` level, how many member sigmas were
+unknown, or that a NowCast record blends unevenly-weighted hours. A cell that simply has a number
+carries no note.
 
 A derived **`exposure`** layer combines the heat index and the PM2.5 AQI into one level per cell and
 hour (ADR 0009). It appears only where a cell has both a heat-index and a PM2.5 reading for that
@@ -528,7 +542,12 @@ enough trailing hourly history (at least 3 of the preceding 12 hourly means) pub
 `pm25_ugm3` records at the same `bucket` — one `aqi_window: "hourly-mean"` and one
 `aqi_window: "nowcast"` — never one record wearing both tags, and never a record with neither. The
 NowCast record's own `uncertainty`/`mean_member_sigma` are null: NowCast blends unevenly-weighted
-hours, and no single combined σ is published for that blend.
+hours, and no single combined σ is published for that blend. That is stated on the record itself —
+the NowCast record carries an `uncertainty_note` saying it has no error bar and pointing at the
+hourly-mean record for the same bucket, which does carry one. It stays `provisional: false`: it is
+derived from calibrated hourly means, so calling it provisional would say "uncalibrated", which is
+not true. What it lacks is an error bar, and it now says so
+([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
 
 ### `GET /api/health.json`
 
@@ -598,6 +617,13 @@ signals an integrator pins against. It is **generated**, not hand-written: every
 response is built from the same constants the pipeline runs on (`models.PARAMETERS`, the `QC_*`
 verdicts, `export._CSV_FIELDS`), so it can never drift from what the running code actually does.
 
+Each QC verdict carries two flags: `rejected` (this is not a value to trust) and **`emitted`** (the
+shipped pipeline can actually put this verdict on a reading). `missing` is published with
+`emitted: false` — it is a defined verdict nothing writes. swelter represents an absent reading by
+the absence of a row, and reports gaps separately in `swelter qc` / `/api/health.json`, so a client
+must not wait for a row with `qc: "missing"`
+([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
+
 `data_schema_version` is the pin target: an integer, starting at `1`, that only moves when a change
 to the observation fields, the CSV column set/order, or a QC verdict's meaning crosses the line
 `docs/VERSIONING.md` ("Data schema — what counts as breaking") calls MAJOR. It is independent of the
@@ -626,8 +652,9 @@ it without a second request.
     {"name": "temp_c", "unit": "degC", "valid_min": -40.0, "valid_max": 60.0}
   ],
   "qc_verdicts": [
-    {"name": "ok", "description": "The reading passed every QC check ...", "rejected": false},
-    {"name": "range", "description": "The value fell outside the parameter's physically plausible range.", "rejected": true}
+    {"name": "ok", "description": "The reading passed every QC check ...", "rejected": false, "emitted": true},
+    {"name": "range", "description": "The value fell outside the parameter's physically plausible range.", "rejected": true, "emitted": true},
+    {"name": "missing", "description": "An expected reading was absent for the interval ... Reserved: no shipped swelter code path emits this verdict ...", "rejected": true, "emitted": false}
   ],
   "calibration": {
     "raw_sentinel": "raw",
@@ -639,15 +666,28 @@ it without a second request.
 
 ### `GET /api/alerts.json` and `GET /api/alerts.xml`
 
-The neighborhood heat/AQI alerts feed: every published cell whose latest-hour reading has crossed a
-documented danger floor (US-EPA AQI 101, US-NWS heat-index "Danger", or exposure "High"). The JSON
-form carries the active `thresholds`, a data-derived `generated` time, and an `alerts` array; the XML
-form is a standards **Atom 1.0** feed (a GeoRSS point per entry) so a resident subscribes in any
-RSS/Atom reader. `?area=<area_id>` narrows either form to one published cell. Floors are overridable
-per network via `alert_thresholds` in `network.yaml`. Alerts carry only public, aggregate fields — a
-cell id, centroid, area label, node ids, and the reading — and provisional readings are flagged, not
-hidden. Full reference: [`docs/alerts.md`](alerts.md). `swelter demo`/`fetch` bake `alerts.json` +
-`alerts.xml` for the static site.
+The neighborhood heat/AQI alerts feed: every published cell whose reading **in the surface's newest
+bucket** has crossed a documented danger floor (US-EPA AQI 101, US-NWS heat-index "Danger", or
+exposure "High"). The JSON form carries the active `thresholds`, a data-derived `generated` time, an
+`alerts` array, and a `stale` array; the XML form is a standards **Atom 1.0** feed (a GeoRSS point
+per entry) so a resident subscribes in any RSS/Atom reader. `?area=<area_id>` narrows either form to
+one published cell. Floors are overridable per network via `alert_thresholds` in `network.yaml`.
+Alerts carry only public, aggregate fields — a cell id, centroid, area label, node ids, and the
+reading — and provisional readings are flagged, not hidden. Full reference:
+[`docs/alerts.md`](alerts.md). `swelter demo`/`fetch` bake `alerts.json` + `alerts.xml` for the
+static site.
+
+A cell whose latest reading predates that newest bucket cannot raise an alert
+([ADR 0035](adr/0035-alerts-bound-to-the-surfaces-newest-bucket.md)) and is published in `stale`
+instead ([ADR 0036](adr/0036-published-absence-for-areas-that-stop-reporting.md)). **`count: 0` does
+not mean every area is safe** — it means no currently reporting area crossed a floor. `stale_count`
+is the number of areas the feed cannot see. Each `stale` record carries `status:
+"no-current-reading"`, `last_bucket`, `hours_since_last_reading` (`null` when the gap's size is not
+computable — never `0` as a stand-in), and `withdrawn`, and it deliberately carries **no** `value`,
+`severity`, `unit`, or `aqi`: the last reading is not a measurement of now. In Atom, a stale record
+is an entry with `<category term="no-current-reading"/>`, published under the same `id` as the alert
+it supersedes and stamped with the feed's own `updated`, so a reader replaces the standing Danger
+headline with the withdrawal rather than leaving it as the last word on that block.
 
 ### `GET /api/cooling-centers.geojson`
 
