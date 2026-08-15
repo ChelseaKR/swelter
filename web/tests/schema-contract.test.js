@@ -134,6 +134,26 @@ test("a cell record with the wrong type for `provisional` fails validation", () 
   assert.equal(validate(payload), false, "schema should reject a non-boolean `provisional`");
 });
 
+test("a cell that publishes no uncertainty carries a note saying why, and validates", () => {
+  // ADR 0037: a null `uncertainty` must never be a bare null a reader takes for "nothing to
+  // report". `uncertainty_note` is not exposure-only any more, so the surface schema has to accept
+  // it on any parameter. This is the JS half of
+  // `tests/test_schema_contract.py::test_surface_with_an_uncertainty_note_matches_schema`.
+  const { validate, schema } = validatorFor("sample-surface.schema.json");
+  assert.ok(
+    schema.$defs.cellReading.properties.uncertainty_note,
+    "`uncertainty_note` must be part of the declared cell contract",
+  );
+  const payload = readJson(WEB, "sample-surface.json");
+  payload.cells[0].uncertainty = null;
+  payload.cells[0].uncertainty_note =
+    "no combined error bar: 1 of 2 calibrated member(s) published no uncertainty";
+  assertValid(validate, payload, "surface with an uncertainty note");
+
+  payload.cells[0].uncertainty_note = 42; // a note is text, never a number standing in for one
+  assert.equal(validate(payload), false, "schema should reject a non-string uncertainty_note");
+});
+
 test("a cell carrying qc_flags validates against the surface schema", () => {
   const { validate } = validatorFor("sample-surface.schema.json");
   const payload = readJson(WEB, "sample-surface.json");

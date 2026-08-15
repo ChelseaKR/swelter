@@ -29,6 +29,12 @@ def store(tmp_path: Path) -> Iterator[SqliteStore]:
         db.close()
 
 
+#: The 1-sigma a calibrated test observation gets when the test does not care what it is. Tests
+#: that do care pass their own. `Observation` refuses a calibrated row with no uncertainty (a
+#: correction always has a `residual_std`), so the factory cannot leave it unset — see #147.
+DEFAULT_CALIBRATED_SIGMA = 0.5
+
+
 def make_obs(
     *,
     node_id: str = "node-01",
@@ -41,6 +47,8 @@ def make_obs(
     qc: str = "ok",
     uncertainty: float | None = None,
 ) -> Observation:
+    if calibration != RAW and uncertainty is None:
+        uncertainty = DEFAULT_CALIBRATED_SIGMA
     return Observation(
         node_id=node_id,
         timestamp=timestamp,

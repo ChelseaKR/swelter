@@ -67,7 +67,17 @@ QC_OK: Final = "ok"
 QC_RANGE: Final = "range"
 QC_SPIKE: Final = "spike"
 QC_FLATLINE: Final = "flatline"
+#: Reserved, and **never emitted by the shipped pipeline** (issue #147). swelter represents an
+#: absent reading by the absence of a row: nothing writes an observation to say one did not happen,
+#: and `qc.detect_gaps` reports gaps as their own artifact from the timestamps that *are* present.
+#: The constant is kept because it is the verdict an ingest path that genuinely knows a reading was
+#: expected would use, and because `QC_UNMAPPABLE` must reject it if one ever arrives. It stays out
+#: of `QC_EMITTED`, and the published data dictionary says so, so a consumer writing
+#: ``if row.qc == "missing"`` is told plainly that the branch is dead rather than discovering it.
 QC_MISSING: Final = "missing"
+
+#: The verdicts `qc` can actually put on a reading. `QC_MISSING` is deliberately absent — see above.
+QC_EMITTED: Final[frozenset[str]] = frozenset({QC_OK, QC_RANGE, QC_SPIKE, QC_FLATLINE})
 
 #: Verdicts that mean "this is not a measurement" — physically impossible or absent. A cell never
 #: places one, even provisionally (see ADR 0029).
@@ -91,6 +101,14 @@ class Observation:
 
     Frozen on purpose: observations are written once and never mutated. ``with_qc`` and
     ``calibrated`` return new records, so provenance is additive and auditable.
+
+    One invariant is enforced here rather than trusted to every writer: **a calibrated observation
+    carries a 1-sigma.** A correction is fitted from recorded co-location evidence and always has a
+    ``residual_std``, so a calibrated value with no uncertainty is not a legitimate state — it is a
+    row that would go on to be published as fact with no error bar, or (before issue #147) read as
+    a perfect instrument in the cell rollup. `calibrate.apply` never produced one, but nothing
+    stopped an import path, a restored archive, or a future adapter from doing so. It is refused at
+    construction, which is the only boundary every one of those paths passes through.
     """
 
     node_id: str
@@ -101,7 +119,15 @@ class Observation:
     source: str = SOURCE_NATIVE
     calibration: str = RAW
     qc: str = QC_OK
-    uncertainty: float | None = None  # 1-sigma in `unit`, set when calibrated
+    uncertainty: float | None = None  # 1-sigma in `unit`, required once calibrated
+
+    def __post_init__(self) -> None:
+        if self.calibration != RAW and self.uncertainty is None:
+            raise ValueError(
+                f"calibrated observation {self.node_id}/{self.parameter}@{self.timestamp} "
+                f"(calibration={self.calibration!r}) has no uncertainty; a correction is fitted "
+                "with a residual_std, so an absent 1-sigma is a broken row, not a zero one"
+            )
 
     def key(self) -> tuple[str, str, str, str, str]:
         """Identity for idempotent storage: same key ⇒ same logical observation."""

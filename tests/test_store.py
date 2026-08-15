@@ -6,6 +6,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from swelter import integrity
 from swelter.models import (
     RAW,
@@ -207,3 +209,41 @@ def test_open_rebuilds_source_column_store_with_old_primary_key(tmp_path: Path) 
     )
     connection.close()
     assert primary_key == ("node_id", "timestamp", "parameter", "source", "calibration")
+
+
+def test_a_stored_calibrated_row_with_no_uncertainty_is_refused_not_read_as_zero(
+    tmp_path: Path,
+) -> None:
+    # Issue #147. `calibrate.apply` never wrote a calibrated row without a 1-sigma, but the column
+    # is nullable and round-trips faithfully, so an import path or a restored archive could hold
+    # one. The old rollup read that absence as 0.0 — a perfect instrument — and published a
+    # *narrower* error bar than the evidence supported. The store now refuses the row and says how
+    # to re-derive it, instead of quietly handing the pipeline a value it cannot stand behind.
+    db_path = tmp_path / "obs.db"
+    with SqliteStore(db_path) as fresh:
+        fresh.write([make_obs()])
+    connection = sqlite3.connect(db_path)
+    connection.execute(
+        "INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "node-09",
+            "2026-06-01T00:00:00Z",
+            "temp_c",
+            24.0,
+            "degC",
+            SOURCE_NATIVE,
+            "temp_c.enclosure-offset.node-09",
+            "ok",
+            None,  # calibrated, but no 1-sigma
+            "hash",
+        ),
+    )
+    connection.commit()
+    connection.close()
+
+    with pytest.raises(ValueError) as caught, SqliteStore(db_path) as store:
+        list(store.all())
+    message = str(caught.value)
+    assert "node-09" in message  # names the row, so it can be found
+    assert "no uncertainty" in message
+    assert "swelter rebuild" in message  # and says how to fix it

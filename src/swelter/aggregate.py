@@ -25,16 +25,27 @@ cell's own standard error — ``sqrt(sum(sigma_i^2)) / n`` — which is what sho
 as "the cell's uncertainty" when averaging several independent-ish readings. It carries a caveat:
 members of one cell often share a calibration fit (same node, same correction), so their errors are
 not fully independent, and this SE is a lower bound on the true combined uncertainty, not an exact
-one. The derived ``exposure`` cell has no sigma of its own — its mean is an ordinal level, not a
-physical quantity — so instead of a fabricated number it carries an ``uncertainty_note`` identifying
-which component (heat or air) bounds the published level.
+one.
+
+Both numbers obey one rule (:func:`combine_member_sigmas`): **an unknown member sigma is not a
+zero.** A calibrated member that published no 1-sigma enters no arithmetic; the cell publishes no
+numeric uncertainty at all and says how many members were unknown. Treating absence as ``0.0``
+made an unmeasured member look like a perfect instrument and *shrank* the published error bar — the
+one direction a heat-safety number must never move (issue #147). A member sigma of exactly ``0.0``
+is a measurement, not an absence, and is kept as one.
+
+A cell with no numeric uncertainty says why, in ``uncertainty_note``, instead of leaving a bare
+``null``: the derived ``exposure`` cell has no sigma of its own — its mean is an ordinal level, not
+a physical quantity — so its note identifies which component (heat or air) bounds the published
+level; a NowCast cell's note says the blend has no derivable combined sigma; a cell with an unknown
+member sigma says how many members were unknown.
 """
 
 from __future__ import annotations
 
 import math
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -99,7 +110,10 @@ class CellReading:
     heat_category: str | None = None  # exposure only: NWS heat-index tier name
     air_category: str | None = None  # exposure only: PM2.5 AQI category name
     compound: bool = False  # exposure only: heat AND air both at least mid-tier
-    # exposure only: which axis (heat/air/both) bounds the level — see `_exposure_cells`.
+    # Why this cell has no numeric `uncertainty`, when there is a reason worth carrying: which
+    # axis bounds an `exposure` level (`_exposure_cells`), an unknown member sigma
+    # (`combine_member_sigmas`), or the NowCast blend (`_nowcast_cells`). None when the cell simply
+    # has one.
     uncertainty_note: str | None = None
     method: str | None = None  # calibration method(s) behind a confirmed value
     reference: str | None = None  # reference monitor(s) the value was calibrated against
@@ -144,6 +158,11 @@ class CellReading:
             record["air_category"] = self.air_category
             record["compound"] = self.compound
             record["uncertainty_note"] = self.uncertainty_note
+        elif self.uncertainty_note is not None:
+            # `uncertainty_note` is no longer exposure-only: any cell that publishes a null
+            # `uncertainty` for a *reason* (an unknown member sigma, a NowCast blend) says what the
+            # reason is here, so a null is never left to be read as "nothing to report" (#147).
+            record["uncertainty_note"] = self.uncertainty_note
         return record
 
 
@@ -161,6 +180,10 @@ def _snapshot_reading_props(parameter: str, reading: CellReading) -> dict[str, o
     if reading.mean_member_sigma is not None:
         props[f"{parameter}_mean_member_sigma"] = round(reading.mean_member_sigma, 3)
     props[f"{parameter}_provisional"] = reading.provisional
+    if parameter != EXPOSURE and reading.uncertainty_note is not None:
+        # The reason this parameter has no error bar, alongside the missing number (#147). Exposure
+        # keeps its long-standing `exposure_uncertainty_note` key below.
+        props[f"{parameter}_uncertainty_note"] = reading.uncertainty_note
     if reading.qc_flags:
         props[f"{parameter}_qc_flags"] = list(reading.qc_flags)
     if reading.method:
@@ -286,7 +309,10 @@ class _Buckets(NamedTuple):
     """Per-(cell, hour, parameter) accumulators built by :func:`_bucket_observations`."""
 
     trusted_vals: dict[tuple[str, str, str], list[float]]
-    trusted_unc: dict[tuple[str, str, str], list[float]]
+    # One entry per trusted member, index-parallel with `trusted_vals`. ``None`` means that member
+    # published no 1-sigma; it is kept as ``None`` all the way to `combine_member_sigmas`, never
+    # coerced to 0.0 (issue #147).
+    trusted_unc: dict[tuple[str, str, str], list[float | None]]
     trusted_methods: dict[tuple[str, str, str], set[str]]
     trusted_refs: dict[tuple[str, str, str], set[str]]
     provisional_vals: dict[tuple[str, str, str], list[float]]
@@ -333,7 +359,7 @@ def _bucket_observations(
         key = (cell_id, hour_bucket(obs.timestamp), obs.parameter)
         if obs.is_trustworthy:
             b.trusted_vals[key].append(obs.value)
-            b.trusted_unc[key].append(obs.uncertainty if obs.uncertainty is not None else 0.0)
+            b.trusted_unc[key].append(obs.uncertainty)
             parts = obs.calibration.split(".")  # "{parameter}.{method}.{node_id}"
             if len(parts) >= 2:
                 b.trusted_methods[key].add(parts[1])
@@ -350,6 +376,67 @@ def _bucket_observations(
     return b
 
 
+class CellSigmas(NamedTuple):
+    """One cell's two published uncertainty numbers, plus why they are absent when they are."""
+
+    uncertainty: float | None  # the cell's standard error
+    mean_member_sigma: float | None  # the plain mean of the members' own 1-sigmas
+    note: str | None  # set only when a number is withheld, saying what was unknown
+
+
+#: What a cell says when at least one calibrated member published no 1-sigma. Formatted with the
+#: unknown count and the member count.
+_UNKNOWN_SIGMA_NOTE = (
+    "no combined error bar: {unknown} of {total} calibrated member(s) published no uncertainty"
+)
+
+#: What a NowCast cell says instead of an error bar. NowCast blends unevenly-weighted hours, so no
+#: single combined sigma is derivable from the member sigmas — that absence is now stated on the
+#: record itself rather than left as a bare `null` a consumer reads as "nothing to worry about".
+NOWCAST_UNCERTAINTY_NOTE = (
+    "no error bar: NowCast blends unevenly-weighted hours and no combined uncertainty is derived "
+    "for that blend; see the hourly-mean record for the same bucket, which carries one"
+)
+
+
+def combine_member_sigmas(sigmas: Sequence[float | None]) -> CellSigmas:
+    """Combine calibrated members' 1-sigmas into the cell's two published uncertainty numbers.
+
+    One rule, in one place: **an unknown sigma is not a zero.** A member whose 1-sigma is unknown
+    enters no arithmetic here. Reading absence as ``0.0`` (what this code did before issue #147)
+    treats an unmeasured member as a *perfect instrument*: adding one member with an unknown sigma
+    to a cell whose one known member had 0.8 halved ``mean_member_sigma`` to 0.4 and pulled the
+    cell's standard error below the value for the single member actually measured — the error bar
+    shrinking because swelter knew *less*. That is the one direction a heat-safety number must
+    never move, so:
+
+    * **Any unknown sigma ⇒ no numeric uncertainty at all**, plus a note saying how many were
+      unknown. Averaging over the known ones only would still quote an interval for a cell whose
+      spread is partly unmeasured, and would still read as more confident than the evidence.
+    * **A sigma of exactly 0.0 is a measurement, not an absence** (a fit whose residual standard
+      deviation rounded to zero). It is kept, so ``[0.0, 0.0]`` publishes ``0.0`` — a different
+      published fact from ``None``. The old ``any(uncs)`` test could not tell those apart.
+
+    Returns ``(None, None, None)`` for an empty list: no members, nothing withheld, nothing to say.
+    """
+    if not sigmas:
+        return CellSigmas(None, None, None)
+    known = [s for s in sigmas if s is not None]
+    unknown = len(sigmas) - len(known)
+    if unknown:
+        return CellSigmas(
+            None, None, _UNKNOWN_SIGMA_NOTE.format(unknown=unknown, total=len(sigmas))
+        )
+    # (a) the plain mean of the members' own 1-sigmas — the old, simpler number.
+    mean_member_sigma = sum(known) / len(known)
+    # (b) the cell's own standard error, combining independent per-value sigmas as
+    # sqrt(sum(sigma_i^2)) / n (see the module docstring for the within-cell-correlation caveat:
+    # this treats members as independent, which co-located/same-fit members aren't fully, so it is
+    # a lower bound on the true combined uncertainty).
+    uncertainty = math.sqrt(sum(s * s for s in known)) / len(known)
+    return CellSigmas(uncertainty, mean_member_sigma, None)
+
+
 def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
     """Reduce the bucketed accumulators to one :class:`CellReading` per (cell, hour, parameter)."""
     cells: list[CellReading] = []
@@ -361,20 +448,16 @@ def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
         method: str | None = None
         reference: str | None = None
         qc_flags: tuple[str, ...] = ()
+        uncertainty_note: str | None = None
         if trustworthy:
             values = trustworthy
             provisional = False
-            uncs = b.trusted_unc[key]
-            has_unc = any(uncs)
-            # (a) the plain mean of the members' own 1-sigmas — the old, simpler number.
-            mean_member_sigma: float | None = (sum(uncs) / len(uncs)) if has_unc else None
-            # (b) the cell's own standard error, combining independent per-value sigmas as
-            # sqrt(sum(sigma_i^2)) / n (see the module docstring for the within-cell-correlation
-            # caveat: this treats members as independent, which co-located/same-fit members
-            # aren't fully, so it is a lower bound on the true combined uncertainty).
-            uncertainty: float | None = (
-                (math.sqrt(sum(u * u for u in uncs)) / len(uncs)) if has_unc else None
-            )
+            sigmas = combine_member_sigmas(b.trusted_unc[key])
+            uncertainty: float | None = sigmas.uncertainty
+            mean_member_sigma: float | None = sigmas.mean_member_sigma
+            # When a member's sigma is unknown the cell publishes no number and says so, rather
+            # than quoting an interval computed as if the unknown member were perfect (#147).
+            uncertainty_note = sigmas.note
             method = " / ".join(sorted(b.trusted_methods[key])) or None
             reference = " / ".join(sorted(b.trusted_refs[key])) or None
         elif clean_provisional:
@@ -414,6 +497,7 @@ def _build_cells(b: _Buckets, labels: dict[str, str]) -> list[CellReading]:
                 aqi=aqi,
                 category=category,
                 aqi_window=aqi_window,
+                uncertainty_note=uncertainty_note,
                 method=method,
                 reference=reference,
                 qc_flags=qc_flags,
@@ -476,6 +560,10 @@ def _exposure_uncertainty_note(heat: CellReading, air: CellReading, air_category
     category = heat_index_category(heat.mean)[1] if component == "heat" else air_category
     if bound.uncertainty is not None:
         detail = f"cell standard error {bound.uncertainty:.3f}"
+    elif bound.uncertainty_note:
+        # The component already says why it has no number; relay that reason rather than flattening
+        # it to a bare "no numeric uncertainty" the reader would have to go chase (#147).
+        detail = bound.uncertainty_note
     elif bound.provisional:
         detail = "provisional, no numeric uncertainty"
     else:
@@ -566,6 +654,10 @@ def _nowcast_cells(cells: list[CellReading]) -> list[CellReading]:
                 provisional=any(c.provisional for c in window),
                 uncertainty=None,
                 mean_member_sigma=None,
+                # A NowCast record used to ship `uncertainty: null` with nothing attached, on a
+                # cell stamped `provisional: false` — published as fact, with the missing error bar
+                # left to be noticed. The absence now travels with the record (#147, invariant 4).
+                uncertainty_note=NOWCAST_UNCERTAINTY_NOTE,
                 aqi=aqi,
                 category=category,
                 aqi_window=AQI_WINDOW_NOWCAST,

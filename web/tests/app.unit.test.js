@@ -1488,3 +1488,33 @@ test("linked selectors expose selection state and dynamic action lists restore f
   assert.match(source, /closest\?\.\("#alerts-list button"\)/);
   assert.match(source, /closest\?\.\("#area-alerts-list button"\)/);
 });
+
+test("provenanceText — a confirmed cell with no error bar says why instead of saying nothing", async () => {
+  // ADR 0037: a missing uncertainty must never read as "nothing to report". The number is absent
+  // because something about it is unknown, and the reason travels to the UI (invariant 4).
+  const app = await freshApp();
+  app.state.parameter = "pm25_ugm3";
+  app.state.strings = {
+    "prov-confirmed": "Confirmed.",
+    "prov-uncertainty": "Give or take {$u} {$unit}.",
+    "prov-readings": "{$n} readings.",
+  };
+  const withNumber = app.provenanceText({
+    parameter: "pm25_ugm3",
+    provisional: false,
+    uncertainty: 0.8,
+    n: 2,
+  });
+  assert.match(withNumber, /Give or take/);
+
+  const withoutNumber = app.provenanceText({
+    parameter: "pm25_ugm3",
+    provisional: false,
+    uncertainty: null,
+    uncertainty_note: "no combined error bar: 1 of 2 calibrated member(s) published no uncertainty",
+    n: 2,
+  });
+  assert.doesNotMatch(withoutNumber, /Give or take/);
+  assert.match(withoutNumber, /no combined error bar/);
+  assert.match(withoutNumber, /1 of 2/);
+});

@@ -7,7 +7,7 @@ from typing import Any
 from swelter import qc
 from swelter.calibrate import Correction, CorrectionRegistry
 from swelter.config import TwinWindow
-from swelter.models import Observation
+from swelter.models import QC_EMITTED, QC_MISSING, Observation
 
 from .conftest import make_obs
 
@@ -40,6 +40,32 @@ def test_spike_is_isolated_departure() -> None:
 def test_flatline_detects_stuck_sensor() -> None:
     flagged = qc.apply(_series([41.0] * 6, parameter="humidity_pct", unit="%"))
     assert all(o.qc == "flatline" for o in flagged)
+
+
+def test_qc_never_emits_the_missing_verdict_and_gaps_are_reported_separately() -> None:
+    # Issue #147: `QC_MISSING` is a published verdict nothing writes. This pins the fact that it
+    # stays that way — a gap is a gap in the *rows*, surfaced by `detect_gaps`, not an observation
+    # asserting that a reading did not happen. If a future path starts emitting it, this fails and
+    # the published data dictionary (which says the verdict is never emitted) gets updated with it.
+    series = (
+        _series([25.0, 25.0, 40.0, 25.0, 25.0])  # a spike
+        + _series([41.0] * 6, parameter="humidity_pct", unit="%")  # a flatline
+        + [make_obs(value=80.0)]  # out of range
+        + [  # a genuine reporting gap: 00:00 then 12:00, nothing between
+            make_obs(node_id="node-07", timestamp="2026-06-01T00:00:00Z", value=25.0),
+            make_obs(node_id="node-07", timestamp="2026-06-01T12:00:00Z", value=25.0),
+        ]
+    )
+    flagged = qc.apply(series)
+    verdicts = {o.qc for o in flagged}
+    assert verdicts <= QC_EMITTED
+    assert QC_MISSING not in verdicts
+    assert {"ok", "spike", "flatline", "range"} & verdicts  # the fixture really exercises QC
+
+    # The gap is reported, just not as a row: it is its own artifact, computed from the timestamps
+    # that are present.
+    gaps = qc.detect_gaps(flagged, 3600)
+    assert any(gap.node_id == "node-07" for gap in gaps)
 
 
 def test_health_report_summarizes_status_and_gaps() -> None:

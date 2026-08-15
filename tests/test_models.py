@@ -10,6 +10,7 @@ import pytest
 from swelter.models import (
     PARAMETERS,
     RAW,
+    Observation,
     exposure_bounding_component,
     exposure_level,
     format_timestamp,
@@ -58,6 +59,29 @@ def test_calibration_state_drives_trust() -> None:
     assert calibrated.uncertainty == 0.5
     # the original is untouched — provenance is additive, never destructive
     assert raw.value == 25.0
+
+
+def test_a_calibrated_observation_without_an_uncertainty_is_refused() -> None:
+    # Issue #147. A correction is fitted from recorded co-location evidence and always has a
+    # `residual_std`, so a calibrated value with no 1-sigma is a broken row, not a zero-uncertainty
+    # one. Unenforced, it reached the rollup and was read as a perfect instrument, *shrinking* the
+    # published error bar. `calibrate.apply` never wrote one, but nothing stopped an import path or
+    # a restored archive from doing so — the boundary they all pass through is this constructor.
+    with pytest.raises(ValueError, match="no uncertainty"):
+        Observation(
+            node_id="node-01",
+            timestamp="2026-06-01T00:00:00Z",
+            parameter="temp_c",
+            value=24.2,
+            unit="degC",
+            calibration="temp_c.enclosure-offset.node-01",
+            uncertainty=None,
+        )
+
+    # A raw row with no uncertainty is the normal, legitimate case and stays allowed; a calibrated
+    # row with a *measured* zero is a real fit, not an absence, and stays allowed too.
+    assert make_obs().uncertainty is None
+    assert make_obs(calibration="v1", uncertainty=0.0).uncertainty == 0.0
 
 
 def test_qc_rejected_is_not_trustworthy_even_if_calibrated() -> None:
