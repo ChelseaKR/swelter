@@ -94,15 +94,6 @@ jobs:
           chmod 0755 "${RUNNER_TEMP}/osv-bin/osv-scanner"
           echo "${RUNNER_TEMP}/osv-bin" >> "${GITHUB_PATH}"
 
-      - name: pip-audit (locked Python graph, no waiver)
-        run: make security-pip
-
-      - name: OSV-Scanner (all lockfiles)
-        run: make security-osv
-
-      - name: npm audit (HIGH/CRITICAL)
-        run: make security-node
-
       - name: Install checksum-verified gitleaks v8.30.1
         run: |
           mkdir -p "${RUNNER_TEMP}/security-bin"
@@ -115,20 +106,46 @@ jobs:
           chmod 0755 "${RUNNER_TEMP}/security-bin/gitleaks"
           echo "${RUNNER_TEMP}/security-bin" >> "${GITHUB_PATH}"
 
+      # Every gate below runs on every commit, whatever the gates above it did.
+      # `if: ${{ !cancelled() }}` lets a step start after an earlier step failed;
+      # it does not make failure invisible -- a failed step still fails this job,
+      # and each gate reports its own result. Without it, one unfixable advisory
+      # in the npm toolchain meant OSV-Scanner failed here and the secret scan,
+      # semgrep, and the workflow policy check then never ran at all. That is
+      # also what left the SARIF upload below with no file to upload.
+      - name: Waiver registry matches the OSV ignore list
+        if: ${{ !cancelled() }}
+        run: make security-waivers
+
+      - name: pip-audit (locked Python graph, no waiver)
+        if: ${{ !cancelled() }}
+        run: make security-pip
+
+      - name: OSV-Scanner (all lockfiles)
+        if: ${{ !cancelled() }}
+        run: make security-osv
+
+      - name: npm audit (HIGH/CRITICAL)
+        if: ${{ !cancelled() }}
+        run: make security-node
+
       - name: Full-history secret scan
+        if: ${{ !cancelled() }}
         run: make security-secrets
 
       - name: Semgrep (blocking SAST + SARIF)
+        if: ${{ !cancelled() }}
         run: make security-semgrep
 
       - name: Upload Semgrep SARIF
-        if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        if: ${{ always() && hashFiles('dist/security/semgrep.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           sarif_file: dist/security/semgrep.sarif
           category: semgrep
 
       - name: Workflow policy and zizmor
+        if: ${{ !cancelled() }}
         run: make security-workflows
 
   firmware:

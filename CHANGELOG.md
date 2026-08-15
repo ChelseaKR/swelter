@@ -128,6 +128,26 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **Every gate runs on every commit, whatever the gates before it did.** `verify`,
+  `verify-core` and `verify-security` were prerequisite lists, and make stops one of those at the
+  first failure. An unpatched HIGH advisory in the dashboard accessibility toolchain
+  (GHSA-jmr9-qjv8-65gv in `extract-zip`, no fixed release) failed `security-osv`, so
+  `security-node`, `security-secrets`, `security-semgrep` and `security-workflows` never ran —
+  the secret scan, the blocking SAST gate and the workflow policy check silently stopped
+  executing, and the SARIF upload step then failed for want of a file semgrep never wrote. The
+  CI security job had the same shape, one failing step ending the job. `scripts/run_gates.sh`
+  now runs every gate in a set, prints each one's own PASS/FAIL and exits non-zero if any
+  failed, and each CI gate step carries `if: ${{ !cancelled() }}` so it starts regardless of
+  what the step before it did. A failed step still fails the job: this changes what runs, not
+  what passes.
+- **The one advisory behind that is a dated, narrow, expiring exception.** `waivers.yml` WVR-001
+  records GHSA-jmr9-qjv8-65gv, `extract-zip` 2.0.1, its full path from `pa11y`, that it is a
+  devDependency nothing shipped loads, that no patched release exists as of 2026-08-15, that the
+  only remedy offered downgrades pa11y 9.1.1 to 6.2.3, who accepted it, and a 2026-11-15 expiry.
+  `osv-scanner.toml` ignores exactly that id and `make security-waivers` fails if the two files
+  disagree. `scripts/dependency_advisory_gate.py` matches on advisory id, package and severity
+  together, so a new advisory, a second advisory in `extract-zip`, or the same advisory escalated
+  in severity all still fail; `tests/test_dependency_advisory_gate.py` pins that boundary.
 - **A correction version id now names the fit that produced it ([#149](https://github.com/ChelseaKR/swelter/issues/149)).**
   `version` was a pure function of `(parameter, method, node_id)` — no window, no date, no
   coefficient digest — so two corrections fit from genuinely different co-location evidence, 10 °C
