@@ -1,6 +1,6 @@
 version: 1
 corrections:
-- version: pm10_ugm3.epa-humidity.node-01
+- version: pm10_ugm3.epa-humidity.node-01@20260602T230000Z-2a954353
   node_id: node-01
   parameter: pm10_ugm3
   method: epa-humidity
@@ -17,7 +17,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-01
+- version: pm25_ugm3.epa-humidity.node-01@20260602T230000Z-9294bc38
   node_id: node-01
   parameter: pm25_ugm3
   method: epa-humidity
@@ -34,7 +34,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-01
+- version: temp_c.enclosure-offset.node-01@20260602T230000Z-36672bc8
   node_id: node-01
   parameter: temp_c
   method: enclosure-offset
@@ -49,7 +49,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-02
+- version: pm10_ugm3.epa-humidity.node-02@20260602T230000Z-970f0638
   node_id: node-02
   parameter: pm10_ugm3
   method: epa-humidity
@@ -66,7 +66,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-02
+- version: pm25_ugm3.epa-humidity.node-02@20260602T230000Z-6e9f7e99
   node_id: node-02
   parameter: pm25_ugm3
   method: epa-humidity
@@ -83,7 +83,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-02
+- version: temp_c.enclosure-offset.node-02@20260602T230000Z-ac3c9904
   node_id: node-02
   parameter: temp_c
   method: enclosure-offset
@@ -98,7 +98,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-03
+- version: pm10_ugm3.epa-humidity.node-03@20260602T230000Z-5c7b2293
   node_id: node-03
   parameter: pm10_ugm3
   method: epa-humidity
@@ -115,7 +115,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-03
+- version: pm25_ugm3.epa-humidity.node-03@20260602T230000Z-787526b6
   node_id: node-03
   parameter: pm25_ugm3
   method: epa-humidity
@@ -132,7 +132,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-03
+- version: temp_c.enclosure-offset.node-03@20260602T230000Z-f963a090
   node_id: node-03
   parameter: temp_c
   method: enclosure-offset
@@ -147,7 +147,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-04
+- version: pm10_ugm3.epa-humidity.node-04@20260602T230000Z-c3b28e2c
   node_id: node-04
   parameter: pm10_ugm3
   method: epa-humidity
@@ -164,7 +164,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-04
+- version: pm25_ugm3.epa-humidity.node-04@20260602T230000Z-b625d1bc
   node_id: node-04
   parameter: pm25_ugm3
   method: epa-humidity
@@ -181,7 +181,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-04
+- version: temp_c.enclosure-offset.node-04@20260602T230000Z-bfb1e087
   node_id: node-04
   parameter: temp_c
   method: enclosure-offset
@@ -196,7 +196,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-05
+- version: pm10_ugm3.epa-humidity.node-05@20260602T230000Z-833381cb
   node_id: node-05
   parameter: pm10_ugm3
   method: epa-humidity
@@ -213,7 +213,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-05
+- version: pm25_ugm3.epa-humidity.node-05@20260602T230000Z-2c6b5c62
   node_id: node-05
   parameter: pm25_ugm3
   method: epa-humidity
@@ -230,7 +230,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-05
+- version: temp_c.enclosure-offset.node-05@20260602T230000Z-bc48588f
   node_id: node-05
   parameter: temp_c
   method: enclosure-offset
@@ -245,7 +245,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-06
+- version: pm10_ugm3.epa-humidity.node-06@20260602T230000Z-9c2d39f6
   node_id: node-06
   parameter: pm10_ugm3
   method: epa-humidity
@@ -262,7 +262,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-06
+- version: pm25_ugm3.epa-humidity.node-06@20260602T230000Z-86d9b004
   node_id: node-06
   parameter: pm25_ugm3
   method: epa-humidity
@@ -279,7 +279,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-06
+- version: temp_c.enclosure-offset.node-06@20260602T230000Z-986fab92
   node_id: node-06
   parameter: temp_c
   method: enclosure-offset
@@ -294,7 +294,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-07
+- version: pm10_ugm3.epa-humidity.node-07@20260602T230000Z-ac83f5ab
   node_id: node-07
   parameter: pm10_ugm3
   method: epa-humidity
@@ -311,7 +311,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-07
+- version: pm25_ugm3.epa-humidity.node-07@20260602T230000Z-d0e8c69e
   node_id: node-07
   parameter: pm25_ugm3
   method: epa-humidity
@@ -328,7 +328,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-07
+- version: temp_c.enclosure-offset.node-07@20260602T230000Z-cd4c2cd7
   node_id: node-07
   parameter: temp_c
   method: enclosure-offset
@@ -343,7 +343,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-08
+- version: pm10_ugm3.epa-humidity.node-08@20260602T230000Z-01d6e02e
   node_id: node-08
   parameter: pm10_ugm3
   method: epa-humidity
@@ -360,7 +360,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-08
+- version: pm25_ugm3.epa-humidity.node-08@20260602T230000Z-a9d9aff3
   node_id: node-08
   parameter: pm25_ugm3
   method: epa-humidity
@@ -377,7 +377,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-08
+- version: temp_c.enclosure-offset.node-08@20260602T230000Z-0d9b9a6a
   node_id: node-08
   parameter: temp_c
   method: enclosure-offset
@@ -392,7 +392,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-09
+- version: pm10_ugm3.epa-humidity.node-09@20260602T230000Z-e4ac4105
   node_id: node-09
   parameter: pm10_ugm3
   method: epa-humidity
@@ -409,7 +409,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-09
+- version: pm25_ugm3.epa-humidity.node-09@20260602T230000Z-166eae7c
   node_id: node-09
   parameter: pm25_ugm3
   method: epa-humidity
@@ -426,7 +426,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-09
+- version: temp_c.enclosure-offset.node-09@20260602T230000Z-96449825
   node_id: node-09
   parameter: temp_c
   method: enclosure-offset
@@ -441,7 +441,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-100
+- version: pm10_ugm3.epa-humidity.node-100@20260602T230000Z-f2872897
   node_id: node-100
   parameter: pm10_ugm3
   method: epa-humidity
@@ -458,7 +458,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-100
+- version: pm25_ugm3.epa-humidity.node-100@20260602T230000Z-ea746f4d
   node_id: node-100
   parameter: pm25_ugm3
   method: epa-humidity
@@ -475,7 +475,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-100
+- version: temp_c.enclosure-offset.node-100@20260602T230000Z-6a76507c
   node_id: node-100
   parameter: temp_c
   method: enclosure-offset
@@ -490,7 +490,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-10
+- version: pm10_ugm3.epa-humidity.node-10@20260602T230000Z-3f2ed50b
   node_id: node-10
   parameter: pm10_ugm3
   method: epa-humidity
@@ -507,7 +507,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-10
+- version: pm25_ugm3.epa-humidity.node-10@20260602T230000Z-a1a801f5
   node_id: node-10
   parameter: pm25_ugm3
   method: epa-humidity
@@ -524,7 +524,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-10
+- version: temp_c.enclosure-offset.node-10@20260602T230000Z-74cc28db
   node_id: node-10
   parameter: temp_c
   method: enclosure-offset
@@ -539,7 +539,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-11
+- version: pm10_ugm3.epa-humidity.node-11@20260602T230000Z-162c6268
   node_id: node-11
   parameter: pm10_ugm3
   method: epa-humidity
@@ -556,7 +556,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-11
+- version: pm25_ugm3.epa-humidity.node-11@20260602T230000Z-6073a26d
   node_id: node-11
   parameter: pm25_ugm3
   method: epa-humidity
@@ -573,7 +573,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-11
+- version: temp_c.enclosure-offset.node-11@20260602T230000Z-405a6e1c
   node_id: node-11
   parameter: temp_c
   method: enclosure-offset
@@ -588,7 +588,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-12
+- version: pm10_ugm3.epa-humidity.node-12@20260602T230000Z-64edc4c0
   node_id: node-12
   parameter: pm10_ugm3
   method: epa-humidity
@@ -605,7 +605,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-12
+- version: pm25_ugm3.epa-humidity.node-12@20260602T230000Z-eb357d2b
   node_id: node-12
   parameter: pm25_ugm3
   method: epa-humidity
@@ -622,7 +622,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-12
+- version: temp_c.enclosure-offset.node-12@20260602T230000Z-1102ac39
   node_id: node-12
   parameter: temp_c
   method: enclosure-offset
@@ -637,7 +637,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-13
+- version: pm10_ugm3.epa-humidity.node-13@20260602T230000Z-08c77d10
   node_id: node-13
   parameter: pm10_ugm3
   method: epa-humidity
@@ -654,7 +654,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-13
+- version: pm25_ugm3.epa-humidity.node-13@20260602T230000Z-35abd80b
   node_id: node-13
   parameter: pm25_ugm3
   method: epa-humidity
@@ -671,7 +671,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-13
+- version: temp_c.enclosure-offset.node-13@20260602T230000Z-c27c7b3d
   node_id: node-13
   parameter: temp_c
   method: enclosure-offset
@@ -686,7 +686,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-14
+- version: pm10_ugm3.epa-humidity.node-14@20260602T230000Z-9632f81c
   node_id: node-14
   parameter: pm10_ugm3
   method: epa-humidity
@@ -703,7 +703,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-14
+- version: pm25_ugm3.epa-humidity.node-14@20260602T230000Z-6c5761bc
   node_id: node-14
   parameter: pm25_ugm3
   method: epa-humidity
@@ -720,7 +720,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-14
+- version: temp_c.enclosure-offset.node-14@20260602T230000Z-ddb71d73
   node_id: node-14
   parameter: temp_c
   method: enclosure-offset
@@ -735,7 +735,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-15
+- version: pm10_ugm3.epa-humidity.node-15@20260602T230000Z-a20cc78a
   node_id: node-15
   parameter: pm10_ugm3
   method: epa-humidity
@@ -752,7 +752,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-15
+- version: pm25_ugm3.epa-humidity.node-15@20260602T230000Z-d11293a3
   node_id: node-15
   parameter: pm25_ugm3
   method: epa-humidity
@@ -769,7 +769,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-15
+- version: temp_c.enclosure-offset.node-15@20260602T230000Z-0fe5b0b1
   node_id: node-15
   parameter: temp_c
   method: enclosure-offset
@@ -784,7 +784,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-16
+- version: pm10_ugm3.epa-humidity.node-16@20260602T230000Z-a22b06a4
   node_id: node-16
   parameter: pm10_ugm3
   method: epa-humidity
@@ -801,7 +801,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-16
+- version: pm25_ugm3.epa-humidity.node-16@20260602T230000Z-86e663a5
   node_id: node-16
   parameter: pm25_ugm3
   method: epa-humidity
@@ -818,7 +818,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-16
+- version: temp_c.enclosure-offset.node-16@20260602T230000Z-26cb41bc
   node_id: node-16
   parameter: temp_c
   method: enclosure-offset
@@ -833,7 +833,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-17
+- version: pm10_ugm3.epa-humidity.node-17@20260602T230000Z-980dad18
   node_id: node-17
   parameter: pm10_ugm3
   method: epa-humidity
@@ -850,7 +850,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-17
+- version: pm25_ugm3.epa-humidity.node-17@20260602T230000Z-cba6230c
   node_id: node-17
   parameter: pm25_ugm3
   method: epa-humidity
@@ -867,7 +867,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-17
+- version: temp_c.enclosure-offset.node-17@20260602T230000Z-e66a4cb3
   node_id: node-17
   parameter: temp_c
   method: enclosure-offset
@@ -882,7 +882,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-18
+- version: pm10_ugm3.epa-humidity.node-18@20260602T230000Z-751ef1b7
   node_id: node-18
   parameter: pm10_ugm3
   method: epa-humidity
@@ -899,7 +899,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-18
+- version: pm25_ugm3.epa-humidity.node-18@20260602T230000Z-4cb700e1
   node_id: node-18
   parameter: pm25_ugm3
   method: epa-humidity
@@ -916,7 +916,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-18
+- version: temp_c.enclosure-offset.node-18@20260602T230000Z-be1b3073
   node_id: node-18
   parameter: temp_c
   method: enclosure-offset
@@ -931,7 +931,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-19
+- version: pm10_ugm3.epa-humidity.node-19@20260602T230000Z-4b9a10d5
   node_id: node-19
   parameter: pm10_ugm3
   method: epa-humidity
@@ -948,7 +948,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-19
+- version: pm25_ugm3.epa-humidity.node-19@20260602T230000Z-081dafe3
   node_id: node-19
   parameter: pm25_ugm3
   method: epa-humidity
@@ -965,7 +965,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-19
+- version: temp_c.enclosure-offset.node-19@20260602T230000Z-c9d4251e
   node_id: node-19
   parameter: temp_c
   method: enclosure-offset
@@ -980,7 +980,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-20
+- version: pm10_ugm3.epa-humidity.node-20@20260602T230000Z-d374a5dc
   node_id: node-20
   parameter: pm10_ugm3
   method: epa-humidity
@@ -997,7 +997,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-20
+- version: pm25_ugm3.epa-humidity.node-20@20260602T230000Z-bcbb4c41
   node_id: node-20
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1014,7 +1014,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-20
+- version: temp_c.enclosure-offset.node-20@20260602T230000Z-c5efe4ab
   node_id: node-20
   parameter: temp_c
   method: enclosure-offset
@@ -1029,7 +1029,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-21
+- version: pm10_ugm3.epa-humidity.node-21@20260602T230000Z-9494ed80
   node_id: node-21
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1046,7 +1046,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-21
+- version: pm25_ugm3.epa-humidity.node-21@20260602T230000Z-87cf74fb
   node_id: node-21
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1063,7 +1063,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-21
+- version: temp_c.enclosure-offset.node-21@20260602T230000Z-5b529c72
   node_id: node-21
   parameter: temp_c
   method: enclosure-offset
@@ -1078,7 +1078,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-22
+- version: pm10_ugm3.epa-humidity.node-22@20260602T230000Z-b6b4a6fb
   node_id: node-22
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1095,7 +1095,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-22
+- version: pm25_ugm3.epa-humidity.node-22@20260602T230000Z-3d1a3956
   node_id: node-22
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1112,7 +1112,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-22
+- version: temp_c.enclosure-offset.node-22@20260602T230000Z-29990560
   node_id: node-22
   parameter: temp_c
   method: enclosure-offset
@@ -1127,7 +1127,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-23
+- version: pm10_ugm3.epa-humidity.node-23@20260602T230000Z-29457acf
   node_id: node-23
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1144,7 +1144,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-23
+- version: pm25_ugm3.epa-humidity.node-23@20260602T230000Z-ef0692bf
   node_id: node-23
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1161,7 +1161,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-23
+- version: temp_c.enclosure-offset.node-23@20260602T230000Z-f219c72d
   node_id: node-23
   parameter: temp_c
   method: enclosure-offset
@@ -1176,7 +1176,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-24
+- version: pm10_ugm3.epa-humidity.node-24@20260602T230000Z-fbae24e7
   node_id: node-24
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1193,7 +1193,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-24
+- version: pm25_ugm3.epa-humidity.node-24@20260602T230000Z-26a1b4e3
   node_id: node-24
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1210,7 +1210,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-24
+- version: temp_c.enclosure-offset.node-24@20260602T230000Z-d98f1f49
   node_id: node-24
   parameter: temp_c
   method: enclosure-offset
@@ -1225,7 +1225,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-25
+- version: pm10_ugm3.epa-humidity.node-25@20260602T230000Z-91b08feb
   node_id: node-25
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1242,7 +1242,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-25
+- version: pm25_ugm3.epa-humidity.node-25@20260602T230000Z-4052da91
   node_id: node-25
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1259,7 +1259,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-25
+- version: temp_c.enclosure-offset.node-25@20260602T230000Z-fd7021df
   node_id: node-25
   parameter: temp_c
   method: enclosure-offset
@@ -1274,7 +1274,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-26
+- version: pm10_ugm3.epa-humidity.node-26@20260602T230000Z-0e3983ff
   node_id: node-26
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1291,7 +1291,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-26
+- version: pm25_ugm3.epa-humidity.node-26@20260602T230000Z-9aba0f32
   node_id: node-26
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1308,7 +1308,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-26
+- version: temp_c.enclosure-offset.node-26@20260602T230000Z-ca8fb32b
   node_id: node-26
   parameter: temp_c
   method: enclosure-offset
@@ -1323,7 +1323,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-27
+- version: pm10_ugm3.epa-humidity.node-27@20260602T230000Z-2d52c602
   node_id: node-27
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1340,7 +1340,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-27
+- version: pm25_ugm3.epa-humidity.node-27@20260602T230000Z-5d7af4cf
   node_id: node-27
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1357,7 +1357,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-27
+- version: temp_c.enclosure-offset.node-27@20260602T230000Z-a5fcccb7
   node_id: node-27
   parameter: temp_c
   method: enclosure-offset
@@ -1372,7 +1372,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-28
+- version: pm10_ugm3.epa-humidity.node-28@20260602T230000Z-87d3c295
   node_id: node-28
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1389,7 +1389,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-28
+- version: pm25_ugm3.epa-humidity.node-28@20260602T230000Z-85935219
   node_id: node-28
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1406,7 +1406,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-28
+- version: temp_c.enclosure-offset.node-28@20260602T230000Z-efb5d9a6
   node_id: node-28
   parameter: temp_c
   method: enclosure-offset
@@ -1421,7 +1421,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-29
+- version: pm10_ugm3.epa-humidity.node-29@20260602T230000Z-86ca3a5f
   node_id: node-29
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1438,7 +1438,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-29
+- version: pm25_ugm3.epa-humidity.node-29@20260602T230000Z-ccaafc81
   node_id: node-29
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1455,7 +1455,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-29
+- version: temp_c.enclosure-offset.node-29@20260602T230000Z-55100170
   node_id: node-29
   parameter: temp_c
   method: enclosure-offset
@@ -1470,7 +1470,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-30
+- version: pm10_ugm3.epa-humidity.node-30@20260602T230000Z-21b3c384
   node_id: node-30
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1487,7 +1487,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-30
+- version: pm25_ugm3.epa-humidity.node-30@20260602T230000Z-6e9af8a7
   node_id: node-30
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1504,7 +1504,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-30
+- version: temp_c.enclosure-offset.node-30@20260602T230000Z-7e988e8a
   node_id: node-30
   parameter: temp_c
   method: enclosure-offset
@@ -1519,7 +1519,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-31
+- version: pm10_ugm3.epa-humidity.node-31@20260602T230000Z-bf587392
   node_id: node-31
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1536,7 +1536,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-31
+- version: pm25_ugm3.epa-humidity.node-31@20260602T230000Z-e731cab1
   node_id: node-31
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1553,7 +1553,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-31
+- version: temp_c.enclosure-offset.node-31@20260602T230000Z-42570825
   node_id: node-31
   parameter: temp_c
   method: enclosure-offset
@@ -1568,7 +1568,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-32
+- version: pm10_ugm3.epa-humidity.node-32@20260602T230000Z-acc1f225
   node_id: node-32
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1585,7 +1585,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-32
+- version: pm25_ugm3.epa-humidity.node-32@20260602T230000Z-4f58acc2
   node_id: node-32
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1602,7 +1602,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-32
+- version: temp_c.enclosure-offset.node-32@20260602T230000Z-793ec79b
   node_id: node-32
   parameter: temp_c
   method: enclosure-offset
@@ -1617,7 +1617,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-33
+- version: pm10_ugm3.epa-humidity.node-33@20260602T230000Z-574062d3
   node_id: node-33
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1634,7 +1634,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-33
+- version: pm25_ugm3.epa-humidity.node-33@20260602T230000Z-8dd32eec
   node_id: node-33
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1651,7 +1651,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-33
+- version: temp_c.enclosure-offset.node-33@20260602T230000Z-496c7d2c
   node_id: node-33
   parameter: temp_c
   method: enclosure-offset
@@ -1666,7 +1666,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-34
+- version: pm10_ugm3.epa-humidity.node-34@20260602T230000Z-2d4c3be1
   node_id: node-34
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1683,7 +1683,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-34
+- version: pm25_ugm3.epa-humidity.node-34@20260602T230000Z-fc14aacf
   node_id: node-34
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1700,7 +1700,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-34
+- version: temp_c.enclosure-offset.node-34@20260602T230000Z-3689aaf1
   node_id: node-34
   parameter: temp_c
   method: enclosure-offset
@@ -1715,7 +1715,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-35
+- version: pm10_ugm3.epa-humidity.node-35@20260602T230000Z-9a437ab5
   node_id: node-35
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1732,7 +1732,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-35
+- version: pm25_ugm3.epa-humidity.node-35@20260602T230000Z-f5564ec2
   node_id: node-35
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1749,7 +1749,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-35
+- version: temp_c.enclosure-offset.node-35@20260602T230000Z-a572348d
   node_id: node-35
   parameter: temp_c
   method: enclosure-offset
@@ -1764,7 +1764,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-36
+- version: pm10_ugm3.epa-humidity.node-36@20260602T230000Z-92ea8f99
   node_id: node-36
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1781,7 +1781,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-36
+- version: pm25_ugm3.epa-humidity.node-36@20260602T230000Z-38986f3b
   node_id: node-36
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1798,7 +1798,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-36
+- version: temp_c.enclosure-offset.node-36@20260602T230000Z-08c4f490
   node_id: node-36
   parameter: temp_c
   method: enclosure-offset
@@ -1813,7 +1813,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-37
+- version: pm10_ugm3.epa-humidity.node-37@20260602T230000Z-e27e69fc
   node_id: node-37
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1830,7 +1830,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-37
+- version: pm25_ugm3.epa-humidity.node-37@20260602T230000Z-064c44a1
   node_id: node-37
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1847,7 +1847,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-37
+- version: temp_c.enclosure-offset.node-37@20260602T230000Z-1d7ca719
   node_id: node-37
   parameter: temp_c
   method: enclosure-offset
@@ -1862,7 +1862,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-38
+- version: pm10_ugm3.epa-humidity.node-38@20260602T230000Z-12bb14cf
   node_id: node-38
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1879,7 +1879,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-38
+- version: pm25_ugm3.epa-humidity.node-38@20260602T230000Z-6590febb
   node_id: node-38
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1896,7 +1896,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-38
+- version: temp_c.enclosure-offset.node-38@20260602T230000Z-198782d2
   node_id: node-38
   parameter: temp_c
   method: enclosure-offset
@@ -1911,7 +1911,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-39
+- version: pm10_ugm3.epa-humidity.node-39@20260602T230000Z-76a82311
   node_id: node-39
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1928,7 +1928,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-39
+- version: pm25_ugm3.epa-humidity.node-39@20260602T230000Z-e60ab484
   node_id: node-39
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1945,7 +1945,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-39
+- version: temp_c.enclosure-offset.node-39@20260602T230000Z-5e51755d
   node_id: node-39
   parameter: temp_c
   method: enclosure-offset
@@ -1960,7 +1960,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-40
+- version: pm10_ugm3.epa-humidity.node-40@20260602T230000Z-094d336f
   node_id: node-40
   parameter: pm10_ugm3
   method: epa-humidity
@@ -1977,7 +1977,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-40
+- version: pm25_ugm3.epa-humidity.node-40@20260602T230000Z-b5972786
   node_id: node-40
   parameter: pm25_ugm3
   method: epa-humidity
@@ -1994,7 +1994,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-40
+- version: temp_c.enclosure-offset.node-40@20260602T230000Z-5f1afe70
   node_id: node-40
   parameter: temp_c
   method: enclosure-offset
@@ -2009,7 +2009,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-41
+- version: pm10_ugm3.epa-humidity.node-41@20260602T230000Z-b3043fe9
   node_id: node-41
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2026,7 +2026,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-41
+- version: pm25_ugm3.epa-humidity.node-41@20260602T230000Z-3481ceab
   node_id: node-41
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2043,7 +2043,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-41
+- version: temp_c.enclosure-offset.node-41@20260602T230000Z-b357fa53
   node_id: node-41
   parameter: temp_c
   method: enclosure-offset
@@ -2058,7 +2058,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-42
+- version: pm10_ugm3.epa-humidity.node-42@20260602T230000Z-5355b5e5
   node_id: node-42
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2075,7 +2075,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-42
+- version: pm25_ugm3.epa-humidity.node-42@20260602T230000Z-0ce0cd7f
   node_id: node-42
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2092,7 +2092,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-42
+- version: temp_c.enclosure-offset.node-42@20260602T230000Z-2a201c46
   node_id: node-42
   parameter: temp_c
   method: enclosure-offset
@@ -2107,7 +2107,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-43
+- version: pm10_ugm3.epa-humidity.node-43@20260602T230000Z-1c512aca
   node_id: node-43
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2124,7 +2124,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-43
+- version: pm25_ugm3.epa-humidity.node-43@20260602T230000Z-61c4cfa7
   node_id: node-43
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2141,7 +2141,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-43
+- version: temp_c.enclosure-offset.node-43@20260602T230000Z-22b418fe
   node_id: node-43
   parameter: temp_c
   method: enclosure-offset
@@ -2156,7 +2156,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-44
+- version: pm10_ugm3.epa-humidity.node-44@20260602T230000Z-b24ce0c3
   node_id: node-44
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2173,7 +2173,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-44
+- version: pm25_ugm3.epa-humidity.node-44@20260602T230000Z-6347f795
   node_id: node-44
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2190,7 +2190,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-44
+- version: temp_c.enclosure-offset.node-44@20260602T230000Z-bffc3a80
   node_id: node-44
   parameter: temp_c
   method: enclosure-offset
@@ -2205,7 +2205,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-45
+- version: pm10_ugm3.epa-humidity.node-45@20260602T230000Z-3eef762a
   node_id: node-45
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2222,7 +2222,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-45
+- version: pm25_ugm3.epa-humidity.node-45@20260602T230000Z-af2fb9a4
   node_id: node-45
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2239,7 +2239,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-45
+- version: temp_c.enclosure-offset.node-45@20260602T230000Z-84a6fabf
   node_id: node-45
   parameter: temp_c
   method: enclosure-offset
@@ -2254,7 +2254,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-46
+- version: pm10_ugm3.epa-humidity.node-46@20260602T230000Z-b148c2a9
   node_id: node-46
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2271,7 +2271,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-46
+- version: pm25_ugm3.epa-humidity.node-46@20260602T230000Z-2538a6ea
   node_id: node-46
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2288,7 +2288,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-46
+- version: temp_c.enclosure-offset.node-46@20260602T230000Z-e5761e7e
   node_id: node-46
   parameter: temp_c
   method: enclosure-offset
@@ -2303,7 +2303,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-47
+- version: pm10_ugm3.epa-humidity.node-47@20260602T230000Z-43d09ff0
   node_id: node-47
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2320,7 +2320,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-47
+- version: pm25_ugm3.epa-humidity.node-47@20260602T230000Z-51674b11
   node_id: node-47
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2337,7 +2337,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-47
+- version: temp_c.enclosure-offset.node-47@20260602T230000Z-1e9e636f
   node_id: node-47
   parameter: temp_c
   method: enclosure-offset
@@ -2352,7 +2352,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-48
+- version: pm10_ugm3.epa-humidity.node-48@20260602T230000Z-afbb1c57
   node_id: node-48
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2369,7 +2369,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-48
+- version: pm25_ugm3.epa-humidity.node-48@20260602T230000Z-9c415bab
   node_id: node-48
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2386,7 +2386,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-48
+- version: temp_c.enclosure-offset.node-48@20260602T230000Z-1425036f
   node_id: node-48
   parameter: temp_c
   method: enclosure-offset
@@ -2401,7 +2401,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-49
+- version: pm10_ugm3.epa-humidity.node-49@20260602T230000Z-84000a41
   node_id: node-49
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2418,7 +2418,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-49
+- version: pm25_ugm3.epa-humidity.node-49@20260602T230000Z-61452e4d
   node_id: node-49
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2435,7 +2435,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-49
+- version: temp_c.enclosure-offset.node-49@20260602T230000Z-8a1f402a
   node_id: node-49
   parameter: temp_c
   method: enclosure-offset
@@ -2450,7 +2450,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-50
+- version: pm10_ugm3.epa-humidity.node-50@20260602T230000Z-ca23c9b9
   node_id: node-50
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2467,7 +2467,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-50
+- version: pm25_ugm3.epa-humidity.node-50@20260602T230000Z-c913f4ef
   node_id: node-50
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2484,7 +2484,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-50
+- version: temp_c.enclosure-offset.node-50@20260602T230000Z-935761f8
   node_id: node-50
   parameter: temp_c
   method: enclosure-offset
@@ -2499,7 +2499,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-51
+- version: pm10_ugm3.epa-humidity.node-51@20260602T230000Z-2e09a9c2
   node_id: node-51
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2516,7 +2516,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-51
+- version: pm25_ugm3.epa-humidity.node-51@20260602T230000Z-9fc85841
   node_id: node-51
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2533,7 +2533,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-51
+- version: temp_c.enclosure-offset.node-51@20260602T230000Z-075cb1d6
   node_id: node-51
   parameter: temp_c
   method: enclosure-offset
@@ -2548,7 +2548,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-52
+- version: pm10_ugm3.epa-humidity.node-52@20260602T230000Z-64529afa
   node_id: node-52
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2565,7 +2565,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-52
+- version: pm25_ugm3.epa-humidity.node-52@20260602T230000Z-a5f33437
   node_id: node-52
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2582,7 +2582,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-52
+- version: temp_c.enclosure-offset.node-52@20260602T230000Z-525c638e
   node_id: node-52
   parameter: temp_c
   method: enclosure-offset
@@ -2597,7 +2597,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-53
+- version: pm10_ugm3.epa-humidity.node-53@20260602T230000Z-3692e352
   node_id: node-53
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2614,7 +2614,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-53
+- version: pm25_ugm3.epa-humidity.node-53@20260602T230000Z-1affff46
   node_id: node-53
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2631,7 +2631,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-53
+- version: temp_c.enclosure-offset.node-53@20260602T230000Z-65be0470
   node_id: node-53
   parameter: temp_c
   method: enclosure-offset
@@ -2646,7 +2646,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-54
+- version: pm10_ugm3.epa-humidity.node-54@20260602T230000Z-05083e28
   node_id: node-54
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2663,7 +2663,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-54
+- version: pm25_ugm3.epa-humidity.node-54@20260602T230000Z-b565d85a
   node_id: node-54
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2680,7 +2680,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-54
+- version: temp_c.enclosure-offset.node-54@20260602T230000Z-719cb9ec
   node_id: node-54
   parameter: temp_c
   method: enclosure-offset
@@ -2695,7 +2695,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-55
+- version: pm10_ugm3.epa-humidity.node-55@20260602T230000Z-45d42cf2
   node_id: node-55
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2712,7 +2712,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-55
+- version: pm25_ugm3.epa-humidity.node-55@20260602T230000Z-acb53969
   node_id: node-55
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2729,7 +2729,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-55
+- version: temp_c.enclosure-offset.node-55@20260602T230000Z-4f6cea93
   node_id: node-55
   parameter: temp_c
   method: enclosure-offset
@@ -2744,7 +2744,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-56
+- version: pm10_ugm3.epa-humidity.node-56@20260602T230000Z-6e16aff8
   node_id: node-56
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2761,7 +2761,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-56
+- version: pm25_ugm3.epa-humidity.node-56@20260602T230000Z-2cc937b2
   node_id: node-56
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2778,7 +2778,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-56
+- version: temp_c.enclosure-offset.node-56@20260602T230000Z-f0fcb478
   node_id: node-56
   parameter: temp_c
   method: enclosure-offset
@@ -2793,7 +2793,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-57
+- version: pm10_ugm3.epa-humidity.node-57@20260602T230000Z-bbd89fad
   node_id: node-57
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2810,7 +2810,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-57
+- version: pm25_ugm3.epa-humidity.node-57@20260602T230000Z-c45a96da
   node_id: node-57
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2827,7 +2827,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-57
+- version: temp_c.enclosure-offset.node-57@20260602T230000Z-f324ae1f
   node_id: node-57
   parameter: temp_c
   method: enclosure-offset
@@ -2842,7 +2842,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-58
+- version: pm10_ugm3.epa-humidity.node-58@20260602T230000Z-bb786031
   node_id: node-58
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2859,7 +2859,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-58
+- version: pm25_ugm3.epa-humidity.node-58@20260602T230000Z-30efdc6a
   node_id: node-58
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2876,7 +2876,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-58
+- version: temp_c.enclosure-offset.node-58@20260602T230000Z-e4023327
   node_id: node-58
   parameter: temp_c
   method: enclosure-offset
@@ -2891,7 +2891,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-59
+- version: pm10_ugm3.epa-humidity.node-59@20260602T230000Z-6a9f63aa
   node_id: node-59
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2908,7 +2908,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-59
+- version: pm25_ugm3.epa-humidity.node-59@20260602T230000Z-f539302a
   node_id: node-59
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2925,7 +2925,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-59
+- version: temp_c.enclosure-offset.node-59@20260602T230000Z-b76b1ac8
   node_id: node-59
   parameter: temp_c
   method: enclosure-offset
@@ -2940,7 +2940,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-60
+- version: pm10_ugm3.epa-humidity.node-60@20260602T230000Z-80d2aa70
   node_id: node-60
   parameter: pm10_ugm3
   method: epa-humidity
@@ -2957,7 +2957,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-60
+- version: pm25_ugm3.epa-humidity.node-60@20260602T230000Z-17d939a7
   node_id: node-60
   parameter: pm25_ugm3
   method: epa-humidity
@@ -2974,7 +2974,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-60
+- version: temp_c.enclosure-offset.node-60@20260602T230000Z-120138d2
   node_id: node-60
   parameter: temp_c
   method: enclosure-offset
@@ -2989,7 +2989,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-61
+- version: pm10_ugm3.epa-humidity.node-61@20260602T230000Z-2ea62958
   node_id: node-61
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3006,7 +3006,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-61
+- version: pm25_ugm3.epa-humidity.node-61@20260602T230000Z-d62485aa
   node_id: node-61
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3023,7 +3023,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-61
+- version: temp_c.enclosure-offset.node-61@20260602T230000Z-4328224e
   node_id: node-61
   parameter: temp_c
   method: enclosure-offset
@@ -3038,7 +3038,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-62
+- version: pm10_ugm3.epa-humidity.node-62@20260602T230000Z-108294cc
   node_id: node-62
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3055,7 +3055,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-62
+- version: pm25_ugm3.epa-humidity.node-62@20260602T230000Z-ad62b02c
   node_id: node-62
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3072,7 +3072,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-62
+- version: temp_c.enclosure-offset.node-62@20260602T230000Z-aae47320
   node_id: node-62
   parameter: temp_c
   method: enclosure-offset
@@ -3087,7 +3087,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-63
+- version: pm10_ugm3.epa-humidity.node-63@20260602T230000Z-86702fa4
   node_id: node-63
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3104,7 +3104,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-63
+- version: pm25_ugm3.epa-humidity.node-63@20260602T230000Z-2b936cbf
   node_id: node-63
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3121,7 +3121,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-63
+- version: temp_c.enclosure-offset.node-63@20260602T230000Z-27ba52df
   node_id: node-63
   parameter: temp_c
   method: enclosure-offset
@@ -3136,7 +3136,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-64
+- version: pm10_ugm3.epa-humidity.node-64@20260602T230000Z-0b2ee9fd
   node_id: node-64
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3153,7 +3153,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-64
+- version: pm25_ugm3.epa-humidity.node-64@20260602T230000Z-47c5f3de
   node_id: node-64
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3170,7 +3170,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-64
+- version: temp_c.enclosure-offset.node-64@20260602T230000Z-587734d3
   node_id: node-64
   parameter: temp_c
   method: enclosure-offset
@@ -3185,7 +3185,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-65
+- version: pm10_ugm3.epa-humidity.node-65@20260602T230000Z-ab6cbb57
   node_id: node-65
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3202,7 +3202,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-65
+- version: pm25_ugm3.epa-humidity.node-65@20260602T230000Z-ea92a664
   node_id: node-65
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3219,7 +3219,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-65
+- version: temp_c.enclosure-offset.node-65@20260602T230000Z-b40400fd
   node_id: node-65
   parameter: temp_c
   method: enclosure-offset
@@ -3234,7 +3234,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-66
+- version: pm10_ugm3.epa-humidity.node-66@20260602T230000Z-46f79298
   node_id: node-66
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3251,7 +3251,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-66
+- version: pm25_ugm3.epa-humidity.node-66@20260602T230000Z-7f727eff
   node_id: node-66
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3268,7 +3268,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-66
+- version: temp_c.enclosure-offset.node-66@20260602T230000Z-5cbe6981
   node_id: node-66
   parameter: temp_c
   method: enclosure-offset
@@ -3283,7 +3283,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-67
+- version: pm10_ugm3.epa-humidity.node-67@20260602T230000Z-c5a77e2f
   node_id: node-67
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3300,7 +3300,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-67
+- version: pm25_ugm3.epa-humidity.node-67@20260602T230000Z-01ba40a1
   node_id: node-67
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3317,7 +3317,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-67
+- version: temp_c.enclosure-offset.node-67@20260602T230000Z-a9b197ec
   node_id: node-67
   parameter: temp_c
   method: enclosure-offset
@@ -3332,7 +3332,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-68
+- version: pm10_ugm3.epa-humidity.node-68@20260602T230000Z-1985cf03
   node_id: node-68
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3349,7 +3349,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-68
+- version: pm25_ugm3.epa-humidity.node-68@20260602T230000Z-78bb0de6
   node_id: node-68
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3366,7 +3366,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-68
+- version: temp_c.enclosure-offset.node-68@20260602T230000Z-76d493f5
   node_id: node-68
   parameter: temp_c
   method: enclosure-offset
@@ -3381,7 +3381,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-69
+- version: pm10_ugm3.epa-humidity.node-69@20260602T230000Z-dcd4f4de
   node_id: node-69
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3398,7 +3398,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-69
+- version: pm25_ugm3.epa-humidity.node-69@20260602T230000Z-1ed1f9b3
   node_id: node-69
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3415,7 +3415,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-69
+- version: temp_c.enclosure-offset.node-69@20260602T230000Z-f107d163
   node_id: node-69
   parameter: temp_c
   method: enclosure-offset
@@ -3430,7 +3430,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-70
+- version: pm10_ugm3.epa-humidity.node-70@20260602T230000Z-c20221b7
   node_id: node-70
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3447,7 +3447,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-70
+- version: pm25_ugm3.epa-humidity.node-70@20260602T230000Z-9ce7a16d
   node_id: node-70
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3464,7 +3464,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-70
+- version: temp_c.enclosure-offset.node-70@20260602T230000Z-6093f5e1
   node_id: node-70
   parameter: temp_c
   method: enclosure-offset
@@ -3479,7 +3479,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-71
+- version: pm10_ugm3.epa-humidity.node-71@20260602T230000Z-d86e653d
   node_id: node-71
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3496,7 +3496,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-71
+- version: pm25_ugm3.epa-humidity.node-71@20260602T230000Z-e55c3456
   node_id: node-71
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3513,7 +3513,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-71
+- version: temp_c.enclosure-offset.node-71@20260602T230000Z-d79093ed
   node_id: node-71
   parameter: temp_c
   method: enclosure-offset
@@ -3528,7 +3528,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-72
+- version: pm10_ugm3.epa-humidity.node-72@20260602T230000Z-196826b7
   node_id: node-72
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3545,7 +3545,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-72
+- version: pm25_ugm3.epa-humidity.node-72@20260602T230000Z-24757a50
   node_id: node-72
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3562,7 +3562,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-72
+- version: temp_c.enclosure-offset.node-72@20260602T230000Z-fa7fea99
   node_id: node-72
   parameter: temp_c
   method: enclosure-offset
@@ -3577,7 +3577,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-73
+- version: pm10_ugm3.epa-humidity.node-73@20260602T230000Z-701b5f12
   node_id: node-73
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3594,7 +3594,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-73
+- version: pm25_ugm3.epa-humidity.node-73@20260602T230000Z-5e460ac1
   node_id: node-73
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3611,7 +3611,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-73
+- version: temp_c.enclosure-offset.node-73@20260602T230000Z-603af9d4
   node_id: node-73
   parameter: temp_c
   method: enclosure-offset
@@ -3626,7 +3626,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-74
+- version: pm10_ugm3.epa-humidity.node-74@20260602T230000Z-08a96887
   node_id: node-74
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3643,7 +3643,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-74
+- version: pm25_ugm3.epa-humidity.node-74@20260602T230000Z-f48078de
   node_id: node-74
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3660,7 +3660,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-74
+- version: temp_c.enclosure-offset.node-74@20260602T230000Z-4be7ef83
   node_id: node-74
   parameter: temp_c
   method: enclosure-offset
@@ -3675,7 +3675,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-75
+- version: pm10_ugm3.epa-humidity.node-75@20260602T230000Z-76168366
   node_id: node-75
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3692,7 +3692,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-75
+- version: pm25_ugm3.epa-humidity.node-75@20260602T230000Z-416a0a04
   node_id: node-75
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3709,7 +3709,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-75
+- version: temp_c.enclosure-offset.node-75@20260602T230000Z-c0c9ebbd
   node_id: node-75
   parameter: temp_c
   method: enclosure-offset
@@ -3724,7 +3724,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-76
+- version: pm10_ugm3.epa-humidity.node-76@20260602T230000Z-d6f014cc
   node_id: node-76
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3741,7 +3741,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-76
+- version: pm25_ugm3.epa-humidity.node-76@20260602T230000Z-bd90f6ef
   node_id: node-76
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3758,7 +3758,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-76
+- version: temp_c.enclosure-offset.node-76@20260602T230000Z-95a7027d
   node_id: node-76
   parameter: temp_c
   method: enclosure-offset
@@ -3773,7 +3773,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-77
+- version: pm10_ugm3.epa-humidity.node-77@20260602T230000Z-0309c362
   node_id: node-77
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3790,7 +3790,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-77
+- version: pm25_ugm3.epa-humidity.node-77@20260602T230000Z-8cc3b22a
   node_id: node-77
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3807,7 +3807,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-77
+- version: temp_c.enclosure-offset.node-77@20260602T230000Z-065c273f
   node_id: node-77
   parameter: temp_c
   method: enclosure-offset
@@ -3822,7 +3822,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-78
+- version: pm10_ugm3.epa-humidity.node-78@20260602T230000Z-714ab472
   node_id: node-78
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3839,7 +3839,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-78
+- version: pm25_ugm3.epa-humidity.node-78@20260602T230000Z-083526bd
   node_id: node-78
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3856,7 +3856,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-78
+- version: temp_c.enclosure-offset.node-78@20260602T230000Z-738e78a1
   node_id: node-78
   parameter: temp_c
   method: enclosure-offset
@@ -3871,7 +3871,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-79
+- version: pm10_ugm3.epa-humidity.node-79@20260602T230000Z-11f51e36
   node_id: node-79
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3888,7 +3888,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-79
+- version: pm25_ugm3.epa-humidity.node-79@20260602T230000Z-a410110c
   node_id: node-79
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3905,7 +3905,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-79
+- version: temp_c.enclosure-offset.node-79@20260602T230000Z-1b7811e5
   node_id: node-79
   parameter: temp_c
   method: enclosure-offset
@@ -3920,7 +3920,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-80
+- version: pm10_ugm3.epa-humidity.node-80@20260602T230000Z-a58cbf75
   node_id: node-80
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3937,7 +3937,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-80
+- version: pm25_ugm3.epa-humidity.node-80@20260602T230000Z-9c780139
   node_id: node-80
   parameter: pm25_ugm3
   method: epa-humidity
@@ -3954,7 +3954,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-80
+- version: temp_c.enclosure-offset.node-80@20260602T230000Z-e8a3522b
   node_id: node-80
   parameter: temp_c
   method: enclosure-offset
@@ -3969,7 +3969,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-81
+- version: pm10_ugm3.epa-humidity.node-81@20260602T230000Z-39b9b36e
   node_id: node-81
   parameter: pm10_ugm3
   method: epa-humidity
@@ -3986,7 +3986,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-81
+- version: pm25_ugm3.epa-humidity.node-81@20260602T230000Z-63428ee8
   node_id: node-81
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4003,7 +4003,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-81
+- version: temp_c.enclosure-offset.node-81@20260602T230000Z-3e723bce
   node_id: node-81
   parameter: temp_c
   method: enclosure-offset
@@ -4018,7 +4018,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-82
+- version: pm10_ugm3.epa-humidity.node-82@20260602T230000Z-57ab0f8b
   node_id: node-82
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4035,7 +4035,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-82
+- version: pm25_ugm3.epa-humidity.node-82@20260602T230000Z-d6f30567
   node_id: node-82
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4052,7 +4052,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-82
+- version: temp_c.enclosure-offset.node-82@20260602T230000Z-70368e3a
   node_id: node-82
   parameter: temp_c
   method: enclosure-offset
@@ -4067,7 +4067,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-83
+- version: pm10_ugm3.epa-humidity.node-83@20260602T230000Z-66d6a533
   node_id: node-83
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4084,7 +4084,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-83
+- version: pm25_ugm3.epa-humidity.node-83@20260602T230000Z-f7df0206
   node_id: node-83
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4101,7 +4101,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-83
+- version: temp_c.enclosure-offset.node-83@20260602T230000Z-f4f021eb
   node_id: node-83
   parameter: temp_c
   method: enclosure-offset
@@ -4116,7 +4116,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-84
+- version: pm10_ugm3.epa-humidity.node-84@20260602T230000Z-f32516af
   node_id: node-84
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4133,7 +4133,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-84
+- version: pm25_ugm3.epa-humidity.node-84@20260602T230000Z-49eae841
   node_id: node-84
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4150,7 +4150,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-84
+- version: temp_c.enclosure-offset.node-84@20260602T230000Z-85fd5c84
   node_id: node-84
   parameter: temp_c
   method: enclosure-offset
@@ -4165,7 +4165,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-85
+- version: pm10_ugm3.epa-humidity.node-85@20260602T230000Z-bccc9516
   node_id: node-85
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4182,7 +4182,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-85
+- version: pm25_ugm3.epa-humidity.node-85@20260602T230000Z-62c91d3b
   node_id: node-85
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4199,7 +4199,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-85
+- version: temp_c.enclosure-offset.node-85@20260602T230000Z-e142702c
   node_id: node-85
   parameter: temp_c
   method: enclosure-offset
@@ -4214,7 +4214,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-86
+- version: pm10_ugm3.epa-humidity.node-86@20260602T230000Z-aea1f5fd
   node_id: node-86
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4231,7 +4231,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-86
+- version: pm25_ugm3.epa-humidity.node-86@20260602T230000Z-d46f26bc
   node_id: node-86
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4248,7 +4248,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-86
+- version: temp_c.enclosure-offset.node-86@20260602T230000Z-a904bec3
   node_id: node-86
   parameter: temp_c
   method: enclosure-offset
@@ -4263,7 +4263,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-87
+- version: pm10_ugm3.epa-humidity.node-87@20260602T230000Z-5089351f
   node_id: node-87
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4280,7 +4280,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-87
+- version: pm25_ugm3.epa-humidity.node-87@20260602T230000Z-226ba4a2
   node_id: node-87
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4297,7 +4297,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-87
+- version: temp_c.enclosure-offset.node-87@20260602T230000Z-590604cf
   node_id: node-87
   parameter: temp_c
   method: enclosure-offset
@@ -4312,7 +4312,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-88
+- version: pm10_ugm3.epa-humidity.node-88@20260602T230000Z-a08c339c
   node_id: node-88
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4329,7 +4329,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-88
+- version: pm25_ugm3.epa-humidity.node-88@20260602T230000Z-11705fed
   node_id: node-88
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4346,7 +4346,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-88
+- version: temp_c.enclosure-offset.node-88@20260602T230000Z-329b8a29
   node_id: node-88
   parameter: temp_c
   method: enclosure-offset
@@ -4361,7 +4361,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-89
+- version: pm10_ugm3.epa-humidity.node-89@20260602T230000Z-eab98683
   node_id: node-89
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4378,7 +4378,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-89
+- version: pm25_ugm3.epa-humidity.node-89@20260602T230000Z-592cdf6a
   node_id: node-89
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4395,7 +4395,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-89
+- version: temp_c.enclosure-offset.node-89@20260602T230000Z-49633095
   node_id: node-89
   parameter: temp_c
   method: enclosure-offset
@@ -4410,7 +4410,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-90
+- version: pm10_ugm3.epa-humidity.node-90@20260602T230000Z-a6244fa7
   node_id: node-90
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4427,7 +4427,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-90
+- version: pm25_ugm3.epa-humidity.node-90@20260602T230000Z-376a27ed
   node_id: node-90
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4444,7 +4444,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-90
+- version: temp_c.enclosure-offset.node-90@20260602T230000Z-740a3c88
   node_id: node-90
   parameter: temp_c
   method: enclosure-offset
@@ -4459,7 +4459,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-91
+- version: pm10_ugm3.epa-humidity.node-91@20260602T230000Z-917ec1e0
   node_id: node-91
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4476,7 +4476,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-91
+- version: pm25_ugm3.epa-humidity.node-91@20260602T230000Z-2e7b9f05
   node_id: node-91
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4493,7 +4493,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-91
+- version: temp_c.enclosure-offset.node-91@20260602T230000Z-41e5377b
   node_id: node-91
   parameter: temp_c
   method: enclosure-offset
@@ -4508,7 +4508,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-92
+- version: pm10_ugm3.epa-humidity.node-92@20260602T230000Z-e28c44e5
   node_id: node-92
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4525,7 +4525,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-92
+- version: pm25_ugm3.epa-humidity.node-92@20260602T230000Z-37d31291
   node_id: node-92
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4542,7 +4542,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-92
+- version: temp_c.enclosure-offset.node-92@20260602T230000Z-11e1098e
   node_id: node-92
   parameter: temp_c
   method: enclosure-offset
@@ -4557,7 +4557,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-93
+- version: pm10_ugm3.epa-humidity.node-93@20260602T230000Z-06e660d5
   node_id: node-93
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4574,7 +4574,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-93
+- version: pm25_ugm3.epa-humidity.node-93@20260602T230000Z-c14da4ae
   node_id: node-93
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4591,7 +4591,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-93
+- version: temp_c.enclosure-offset.node-93@20260602T230000Z-fb765c4e
   node_id: node-93
   parameter: temp_c
   method: enclosure-offset
@@ -4606,7 +4606,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-94
+- version: pm10_ugm3.epa-humidity.node-94@20260602T230000Z-dd1c795c
   node_id: node-94
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4623,7 +4623,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-94
+- version: pm25_ugm3.epa-humidity.node-94@20260602T230000Z-6479b0ba
   node_id: node-94
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4640,7 +4640,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-94
+- version: temp_c.enclosure-offset.node-94@20260602T230000Z-5b4adf5e
   node_id: node-94
   parameter: temp_c
   method: enclosure-offset
@@ -4655,7 +4655,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-95
+- version: pm10_ugm3.epa-humidity.node-95@20260602T230000Z-2918e071
   node_id: node-95
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4672,7 +4672,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-95
+- version: pm25_ugm3.epa-humidity.node-95@20260602T230000Z-d086651a
   node_id: node-95
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4689,7 +4689,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-95
+- version: temp_c.enclosure-offset.node-95@20260602T230000Z-fe4a9f4b
   node_id: node-95
   parameter: temp_c
   method: enclosure-offset
@@ -4704,7 +4704,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-96
+- version: pm10_ugm3.epa-humidity.node-96@20260602T230000Z-0a664e6b
   node_id: node-96
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4721,7 +4721,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-96
+- version: pm25_ugm3.epa-humidity.node-96@20260602T230000Z-f5e12873
   node_id: node-96
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4738,7 +4738,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-96
+- version: temp_c.enclosure-offset.node-96@20260602T230000Z-6e914e0f
   node_id: node-96
   parameter: temp_c
   method: enclosure-offset
@@ -4753,7 +4753,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-97
+- version: pm10_ugm3.epa-humidity.node-97@20260602T230000Z-556608cd
   node_id: node-97
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4770,7 +4770,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-97
+- version: pm25_ugm3.epa-humidity.node-97@20260602T230000Z-4b98a80e
   node_id: node-97
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4787,7 +4787,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-97
+- version: temp_c.enclosure-offset.node-97@20260602T230000Z-adb1132a
   node_id: node-97
   parameter: temp_c
   method: enclosure-offset
@@ -4802,7 +4802,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-98
+- version: pm10_ugm3.epa-humidity.node-98@20260602T230000Z-ccc636a3
   node_id: node-98
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4819,7 +4819,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-98
+- version: pm25_ugm3.epa-humidity.node-98@20260602T230000Z-4a96e88e
   node_id: node-98
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4836,7 +4836,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-98
+- version: temp_c.enclosure-offset.node-98@20260602T230000Z-91f906ff
   node_id: node-98
   parameter: temp_c
   method: enclosure-offset
@@ -4851,7 +4851,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm10_ugm3.epa-humidity.node-99
+- version: pm10_ugm3.epa-humidity.node-99@20260602T230000Z-78703198
   node_id: node-99
   parameter: pm10_ugm3
   method: epa-humidity
@@ -4868,7 +4868,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: pm25_ugm3.epa-humidity.node-99
+- version: pm25_ugm3.epa-humidity.node-99@20260602T230000Z-2db978ba
   node_id: node-99
   parameter: pm25_ugm3
   method: epa-humidity
@@ -4885,7 +4885,7 @@ corrections:
   reference: reference-monitor
   window_start: '2026-06-01T00:00:00Z'
   window_end: '2026-06-02T23:00:00Z'
-- version: temp_c.enclosure-offset.node-99
+- version: temp_c.enclosure-offset.node-99@20260602T230000Z-cb20fe21
   node_id: node-99
   parameter: temp_c
   method: enclosure-offset

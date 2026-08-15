@@ -57,3 +57,4 @@ evidence of the collision.
 - [ADR 0035: Bind alerts to the surface's newest bucket, not an unbounded latest-per-cell scan](0035-alerts-bound-to-the-surfaces-newest-bucket.md)
 - [ADR 0036: Publish the absence when an area stops reporting, instead of going quiet about it](0036-published-absence-for-areas-that-stop-reporting.md)
 - [ADR 0037: Absence is never published as a number, and never narrows an interval](0037-absence-is-never-published-as-a-number.md)
+- [ADR 0038: A correction version that names its fit](0038-a-correction-version-that-names-its-fit.md)

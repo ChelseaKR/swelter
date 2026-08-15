@@ -250,6 +250,17 @@ def generate() -> None:
             )
 
     # Co-location training records for the calibrated nodes (training window only).
+    #
+    # KNOWN LIMIT of this fixture (issue #149): `raw_readings` is called again below, drawing fresh
+    # Gaussian noise, so a co-location row's `raw` is an *independent* draw from the same node model
+    # rather than the value that node recorded at that instant. Measured against the committed
+    # fixtures, 69 of 14,400 co-location rows (0.5%) match the stored observation exactly. In a real
+    # deployment the co-location `raw` *is* the node's stored reading, so the committed evidence
+    # supports re-running the fit (which `test_published_corrections_are_reproducible` proves) but
+    # not cross-checking the fit against the observation record. Reusing the observation stream's
+    # own draws here would change every subsequent value this generator produces — a full fixture
+    # regeneration, with new coefficients and new worked examples in the docs — so it is left as its
+    # own change rather than folded into a version-id fix.
     for t in timestamps[:TRAINING_HOURS]:
         iso = t.strftime("%Y-%m-%dT%H:%M:%SZ")
         for node in nodes:

@@ -121,8 +121,11 @@ _OBSERVATION_FIELDS: tuple[dict[str, object], ...] = (
         "description": (
             f"Calibration provenance. Never empty: it is either the RAW sentinel ({RAW!r}, an "
             "uncorrected reading) or a correction version id of the form "
-            "'{parameter}.{method}.{node_id}' (a corrected reading). This is how a consumer "
-            "always tells calibrated from raw without guessing."
+            "'{parameter}.{method}.{node_id}@{window_end}-{digest}' (a corrected reading). This "
+            "is how a consumer always tells calibrated from raw without guessing. The part after "
+            "'@' identifies the fit itself — the end of its co-location window and a digest over "
+            "its coefficients, window, n, r2, and reference — so two datasets downloaded a year "
+            "apart name different fits when the correction behind them was re-fitted."
         ),
     },
     {
@@ -219,11 +222,15 @@ def build_data_dictionary(
         "qc_verdicts": _qc_verdicts(),
         "calibration": {
             "raw_sentinel": RAW,
-            "correction_version_format": "{parameter}.{method}.{node_id}",
+            "correction_version_format": "{parameter}.{method}.{node_id}@{window_end}-{digest}",
             "description": (
                 "A value's `calibration` field is either the raw sentinel above (uncorrected) "
                 "or a correction version id in the format shown — the map and export can "
-                "therefore always tell calibrated from raw without guessing."
+                "therefore always tell calibrated from raw without guessing. Everything before "
+                "'@' says what the correction is for; everything after identifies the fit that "
+                "produced it (the compact end of its co-location window, then a digest over the "
+                "fitted coefficients, window, n, r2, and reference). Re-fitting a node yields a "
+                "different id, so a published value always names the fit behind it."
             ),
         },
     }
