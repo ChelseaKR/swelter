@@ -1,0 +1,22 @@
+# Repository waiver registry (portfolio waiver-hygiene convention, SEC-10).
+#
+# One dated, owned, expiring record per accepted finding. `kind:
+# dependency-advisory` entries are the only ones the dependency gates honour,
+# and scripts/dependency_advisory_gate.py matches them on the advisory id, the
+# package, and the severity, all three. A new advisory, a second advisory in
+# the same package, or the same advisory escalated to a higher severity is
+# matched by nothing here and fails the gate. An expired or malformed entry
+# accepts nothing at all.
+#
+# `scanners:` names which scanners the entry covers. An id in
+# osv-scanner.toml with no live waiver here fails `make security-waivers`, so
+# the scanner's ignore list cannot drift away from this file.
+version: 1
+
+waivers: []
+# The registry is deliberately empty. The last entry, WVR-001, accepted
+# GHSA-jmr9-qjv8-65gv in extract-zip; that package is no longer in the
+# dependency graph, so the exception was retired with the finding rather than
+# left to outlive it. An empty registry is the correct resting state: every
+# advisory the scanners report fails the gate. The machinery is exercised
+# against tests/fixtures/waivers/ so it stays tested while nothing is waived.

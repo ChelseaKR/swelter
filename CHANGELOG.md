@@ -128,6 +128,32 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **Every gate runs on every commit, whatever the gates before it did.** `verify`,
+  `verify-core` and `verify-security` were prerequisite lists, and make stops one of those at the
+  first failure. An unpatched HIGH advisory in the dashboard accessibility toolchain
+  (GHSA-jmr9-qjv8-65gv in `extract-zip`, no fixed release) failed `security-osv`, so
+  `security-node`, `security-secrets`, `security-semgrep` and `security-workflows` never ran —
+  the secret scan, the blocking SAST gate and the workflow policy check silently stopped
+  executing, and the SARIF upload step then failed for want of a file semgrep never wrote. The
+  CI security job had the same shape, one failing step ending the job. `scripts/run_gates.sh`
+  now runs every gate in a set, prints each one's own PASS/FAIL and exits non-zero if any
+  failed, and each CI gate step carries `if: ${{ !cancelled() }}` so it starts regardless of
+  what the step before it did. A failed step still fails the job: this changes what runs, not
+  what passes.
+- **A dependency-advisory exception mechanism, with nothing in it.** `waivers.yml` is the single
+  dated, owned, expiring record of any accepted dependency finding, and `osv-scanner.toml` may
+  ignore only ids that have a live waiver naming `osv-scanner` with the same date -- `make
+  security-waivers` fails if the two files disagree, so adding an id to the scanner's ignore list
+  on its own breaks the build instead of silencing anything.
+  `scripts/dependency_advisory_gate.py` matches an advisory on id, package and severity together,
+  so a new advisory, a second advisory in the same package, or the same advisory escalated in
+  severity all still fail. The registry ships **empty**: GHSA-jmr9-qjv8-65gv was going to be its
+  first entry, and `extract-zip` left the dependency graph instead, so the exception was retired
+  with the finding rather than left to outlive it. An empty registry is the correct resting state
+  -- every advisory the scanners report fails the gate. `tests/test_dependency_advisory_gate.py`
+  pins the boundary against `tests/fixtures/waivers/`, a synthetic waiver for a package and an
+  advisory that do not exist, so the mechanism stays tested while nothing is waived, and pins the
+  empty resting state of the committed files directly.
 - **A correction version id now names the fit that produced it ([#149](https://github.com/ChelseaKR/swelter/issues/149)).**
   `version` was a pure function of `(parameter, method, node_id)` — no window, no date, no
   coefficient digest — so two corrections fit from genuinely different co-location evidence, 10 °C

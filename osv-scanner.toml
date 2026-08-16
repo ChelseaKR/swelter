@@ -1,0 +1,12 @@
+# OSV-Scanner ignore list.
+#
+# This file is NOT the record of why anything is accepted -- waivers.yml is.
+# Every id below must have a live `kind: dependency-advisory` waiver naming
+# osv-scanner, with the same date as `ignoreUntil`, or `make security-waivers`
+# fails. Adding an id here on its own does not silence it; it breaks the build.
+#
+# Every advisory not listed here still fails `make security-osv`.
+
+# Nothing is ignored. The one former entry, GHSA-jmr9-qjv8-65gv in extract-zip,
+# was retired together with waivers.yml WVR-001 when the package left the
+# dependency graph. Every advisory OSV-Scanner reports fails `make security-osv`.

@@ -7,7 +7,8 @@
         acceptance-map dora-evidence conformance log-safety workflow-policy \
         web-install web-unit web-browser web-test verify-web firmware-test infra-synth \
         security-pip security-osv security-node security-secrets security-semgrep \
-        security-workflows verify-security package sbom sbom-validate verify-package \
+        security-waivers security-workflows verify-security package sbom sbom-validate \
+        verify-package \
         mutation-tool-smoke mutation-run mutation-report mutation \
         mutation-baseline-candidate mutation-baseline-check release-readiness \
         verify-core verify check clean
@@ -24,6 +25,20 @@ MUTATION_EVIDENCE_DATE ?=
 OSV_SCANNER ?= osv-scanner
 SECURITY_REPORT_DIR ?= dist/security
 PLAYWRIGHT_INSTALL_ARGS ?= chromium firefox webkit
+
+# The gate sets, in reporting order. They are lists rather than prerequisites
+# because make stops a prerequisite list at the first failure, and these gates
+# are independent of each other: a red dependency audit is not a reason for
+# semgrep, the secret scan, or the accessibility check not to run. See
+# scripts/run_gates.sh, which runs every gate, reports each result, and exits
+# non-zero if any of them failed.
+SECURITY_GATES := security-waivers security-secrets security-pip security-osv \
+	security-node security-semgrep security-workflows
+CORE_GATES := fmt-check lint typecheck a11y i18n seo hygiene version-check \
+	reading-level docs-figures docs-contract adr-immutability standards-pin \
+	acceptance-map dora-evidence conformance log-safety workflow-policy test
+VERIFY_GATES := verify-core verify-web firmware-test infra-synth verify-security \
+	verify-package
 
 help:  ## List available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -160,12 +175,21 @@ security-pip:  ## Audit the locked Python dependency graph with no vulnerability
 	  && uv run --with pip-audit==$(PIP_AUDIT_VERSION) pip-audit --requirement "$$REQ"; \
 	STATUS=$$?; rm -f "$$REQ"; exit $$STATUS
 
+security-waivers:  ## Prove osv-scanner.toml still matches the waiver registry
+	uv run python scripts/dependency_advisory_gate.py osv-config
+
 security-osv:  ## Scan all supported lockfiles against OSV
 	test "$$($(OSV_SCANNER) --version | sed -n '1s/^osv-scanner version: //p')" = "$(OSV_SCANNER_VERSION)"
-	$(OSV_SCANNER) scan source -r .
+	$(OSV_SCANNER) scan source -r . --config osv-scanner.toml
 
-security-node:  ## Block HIGH/CRITICAL npm dependency findings
-	npm --prefix web audit --audit-level=high
+# Blocks on HIGH/CRITICAL exactly as `npm audit --audit-level=high` did. The
+# adjudication step exists because npm has no way to accept one reviewed
+# advisory: the only lever it offers is the severity floor, and raising that
+# hides every finding at that level rather than the one that was reviewed.
+# Anything without a live waiver still fails. See waivers.yml.
+security-node:  ## Block HIGH/CRITICAL npm dependency findings, minus live waivers
+	npm --prefix web audit --json \
+		| uv run python scripts/dependency_advisory_gate.py npm-audit
 
 security-secrets:  ## Scan complete Git history with the pinned gitleaks CLI
 	test "$$(gitleaks version)" = "$(GITLEAKS_VERSION)"
@@ -188,7 +212,8 @@ security-semgrep:  ## Run blocking Semgrep SAST and retain SARIF for Code Scanni
 security-workflows: workflow-policy  ## Run workflow SAST at HIGH severity
 	uvx zizmor@$(ZIZMOR_VERSION) --min-severity=high .github/workflows
 
-verify-security: security-secrets security-pip security-osv security-node security-semgrep security-workflows  ## Run every local security gate
+verify-security:  ## Run every local security gate
+	@MAKE="$(MAKE)" scripts/run_gates.sh $(SECURITY_GATES)
 
 package:  ## Build the wheel and source distribution
 	uv build
@@ -241,10 +266,11 @@ release-readiness: mutation-baseline-check  ## Verify release-only committed evi
 		--version "$$(uv run python -c 'import swelter; print(swelter.__version__)')" \
 		--require-complete
 
-verify-core: fmt-check lint typecheck a11y i18n seo hygiene version-check reading-level docs-figures docs-contract adr-immutability standards-pin acceptance-map dora-evidence conformance log-safety workflow-policy test  ## Python/docs merge gate
+verify-core:  ## Python/docs merge gate
+	@MAKE="$(MAKE)" scripts/run_gates.sh $(CORE_GATES)
 
-verify: verify-core verify-web firmware-test infra-synth verify-security verify-package  ## Every automatic local gate, end to end
-	@echo "swelter: all gates green"
+verify:  ## Every automatic local gate, end to end
+	@MAKE="$(MAKE)" scripts/run_gates.sh $(VERIFY_GATES)
 
 check: verify  ## Alias for verify
 

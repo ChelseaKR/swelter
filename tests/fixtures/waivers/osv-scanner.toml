@@ -1,0 +1,7 @@
+# Fixture OSV ignore list paired with tests/fixtures/waivers/waivers.yml.
+# Never read outside the test suite.
+
+[[IgnoredVulns]]
+id = "GHSA-fixt-0000-0001"
+ignoreUntil = 2030-01-01
+reason = "fixture waivers.yml WVR-F01 -- synthetic entry for the gate's boundary tests."
