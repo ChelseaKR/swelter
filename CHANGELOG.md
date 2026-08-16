@@ -269,6 +269,16 @@ All notable changes to swelter are recorded here. The format follows
 - **Skip link visible on focus.** The skip link uses fixed positioning and reveals instantly (no slide
   transition), so it is exposed at the viewport top when focused regardless of scroll.
 
+### Security
+
+- **Dropped the unfixable `extract-zip` symlink-traversal advisory out of the dependency graph.**
+  GHSA-jmr9-qjv8-65gv / CVE-2026-56876 (CVSS 8.6) affects every published `extract-zip` release
+  through `2.0.1`, which is also the latest; there is no version to upgrade to. It reached the
+  dashboard toolchain transitively as `pa11y` to `puppeteer` to `@puppeteer/browsers@2.13.2`.
+  `@puppeteer/browsers@3.0.2` replaced its zip handling and no longer depends on `extract-zip` at
+  all, so the lock now pins that package to `^3.0.2` through an `overrides` entry rather than
+  waiving the finding. Dev-toolchain only; no runtime or published artifact contains either package.
+
 The dated `0.1.0` section is prepared release metadata; it does not assert that a Git tag or GitHub
 Release exists. Publication completes only after the annotated `v0.1.0` tag passes the release
 workflow.
