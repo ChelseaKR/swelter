@@ -13,38 +13,10 @@
 # the scanner's ignore list cannot drift away from this file.
 version: 1
 
-waivers:
-  - id: WVR-001
-    control: SEC-11
-    repo: swelter
-    kind: dependency-advisory
-    advisory: GHSA-jmr9-qjv8-65gv
-    package: extract-zip
-    version: 2.0.1
-    severity: high
-    scanners: npm-audit osv-scanner
-    dependency_path: >-
-      web/package-lock.json -> pa11y@9.1.1 -> puppeteer@24.43.1 ->
-      @puppeteer/browsers@2.13.2 -> extract-zip@2.0.1
-    reason: >-
-      extract-zip 2.0.1 does not validate symlink targets when unpacking an
-      archive, so a crafted archive can write outside the extraction directory
-      (CWE-22). It is in this repository only as a transitive development
-      dependency of the dashboard accessibility toolchain, four levels below
-      pa11y in web/package-lock.json, where its only job is unpacking the
-      Chrome build @puppeteer/browsers downloads from Google's own storage
-      host. It is a devDependency, it is not part of the published Python
-      package, the firmware, or the dashboard bundle served to anyone, and no
-      shipped code path reaches it. No patched release of extract-zip exists
-      as of 2026-08-15 (OSV-Scanner reports the finding with no fixed version,
-      and npm offers no non-breaking remedy). The only remedy npm offers is
-      `npm audit fix --force`, which downgrades pa11y from 9.1.1 to 6.2.3, a
-      breaking major that would walk the dashboard accessibility gate
-      backwards in exchange for a fix to a package nothing shipped ever loads.
-      Accepted on that basis, to be re-reviewed on or before the expiry date
-      below and released the moment extract-zip ships a fix or pa11y moves off
-      it.
-    owner: chelseakr
-    granted: 2026-08-15
-    expires: 2026-11-15
-    link: https://github.com/advisories/GHSA-jmr9-qjv8-65gv
+waivers: []
+# The registry is deliberately empty. The last entry, WVR-001, accepted
+# GHSA-jmr9-qjv8-65gv in extract-zip; that package is no longer in the
+# dependency graph, so the exception was retired with the finding rather than
+# left to outlive it. An empty registry is the correct resting state: every
+# advisory the scanners report fails the gate. The machinery is exercised
+# against tests/fixtures/waivers/ so it stays tested while nothing is waived.

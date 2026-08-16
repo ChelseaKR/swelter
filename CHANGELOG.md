@@ -140,14 +140,20 @@ All notable changes to swelter are recorded here. The format follows
   failed, and each CI gate step carries `if: ${{ !cancelled() }}` so it starts regardless of
   what the step before it did. A failed step still fails the job: this changes what runs, not
   what passes.
-- **The one advisory behind that is a dated, narrow, expiring exception.** `waivers.yml` WVR-001
-  records GHSA-jmr9-qjv8-65gv, `extract-zip` 2.0.1, its full path from `pa11y`, that it is a
-  devDependency nothing shipped loads, that no patched release exists as of 2026-08-15, that the
-  only remedy offered downgrades pa11y 9.1.1 to 6.2.3, who accepted it, and a 2026-11-15 expiry.
-  `osv-scanner.toml` ignores exactly that id and `make security-waivers` fails if the two files
-  disagree. `scripts/dependency_advisory_gate.py` matches on advisory id, package and severity
-  together, so a new advisory, a second advisory in `extract-zip`, or the same advisory escalated
-  in severity all still fail; `tests/test_dependency_advisory_gate.py` pins that boundary.
+- **A dependency-advisory exception mechanism, with nothing in it.** `waivers.yml` is the single
+  dated, owned, expiring record of any accepted dependency finding, and `osv-scanner.toml` may
+  ignore only ids that have a live waiver naming `osv-scanner` with the same date -- `make
+  security-waivers` fails if the two files disagree, so adding an id to the scanner's ignore list
+  on its own breaks the build instead of silencing anything.
+  `scripts/dependency_advisory_gate.py` matches an advisory on id, package and severity together,
+  so a new advisory, a second advisory in the same package, or the same advisory escalated in
+  severity all still fail. The registry ships **empty**: GHSA-jmr9-qjv8-65gv was going to be its
+  first entry, and `extract-zip` left the dependency graph instead, so the exception was retired
+  with the finding rather than left to outlive it. An empty registry is the correct resting state
+  -- every advisory the scanners report fails the gate. `tests/test_dependency_advisory_gate.py`
+  pins the boundary against `tests/fixtures/waivers/`, a synthetic waiver for a package and an
+  advisory that do not exist, so the mechanism stays tested while nothing is waived, and pins the
+  empty resting state of the committed files directly.
 - **A correction version id now names the fit that produced it ([#149](https://github.com/ChelseaKR/swelter/issues/149)).**
   `version` was a pure function of `(parameter, method, node_id)` — no window, no date, no
   coefficient digest — so two corrections fit from genuinely different co-location evidence, 10 °C

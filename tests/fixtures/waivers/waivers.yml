@@ -1,0 +1,29 @@
+# Fixture registry for tests/test_dependency_advisory_gate.py.
+#
+# The committed waivers.yml is empty and should stay that way. The exception
+# mechanism still has to be tested, so these tests exercise it against a
+# synthetic waiver for an advisory and a package that do not exist. Nothing
+# here silences anything in the real dependency graph.
+version: 1
+
+waivers:
+  - id: WVR-F01
+    control: SEC-11
+    repo: swelter
+    kind: dependency-advisory
+    advisory: GHSA-fixt-0000-0001
+    package: fixture-only-package
+    version: 1.0.0
+    severity: high
+    scanners: npm-audit osv-scanner
+    dependency_path: >-
+      tests/fixtures/waivers -> fixture-only-package@1.0.0
+    reason: >-
+      A synthetic devDependency advisory that exists only in this fixture, so
+      the boundary tests below have something to accept. It names a package no
+      registry serves and an advisory id no database issues, and it is never
+      read by any gate outside the test suite.
+    owner: chelseakr
+    granted: 2026-08-15
+    expires: 2030-01-01
+    link: https://github.com/advisories/GHSA-fixt-0000-0001

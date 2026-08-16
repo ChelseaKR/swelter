@@ -7,7 +7,6 @@
 #
 # Every advisory not listed here still fails `make security-osv`.
 
-[[IgnoredVulns]]
-id = "GHSA-jmr9-qjv8-65gv"
-ignoreUntil = 2026-11-15
-reason = "waivers.yml WVR-001 -- unpatched symlink traversal in extract-zip 2.0.1, reachable only as a transitive devDependency of the pa11y accessibility toolchain in web/, never shipped; the only remedy offered is a breaking downgrade of pa11y. Re-review by 2026-11-15."
+# Nothing is ignored. The one former entry, GHSA-jmr9-qjv8-65gv in extract-zip,
+# was retired together with waivers.yml WVR-001 when the package left the
+# dependency graph. Every advisory OSV-Scanner reports fails `make security-osv`.
