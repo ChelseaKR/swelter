@@ -16,6 +16,7 @@ from swelter.dictionary import DATA_SCHEMA_VERSION, build_data_dictionary
 from swelter.models import (
     KNOWN_SOURCES,
     PARAMETERS,
+    QC_EMITTED,
     QC_FLATLINE,
     QC_MISSING,
     QC_OK,
@@ -59,6 +60,23 @@ def test_qc_verdicts_cover_all_five_constants_and_flag_rejected() -> None:
     for name, entry in by_name.items():
         assert entry["rejected"] == (name in QC_REJECTED)
     assert by_name[QC_OK]["rejected"] is False
+
+
+def test_the_dictionary_says_which_verdicts_nothing_ever_emits() -> None:
+    # Issue #147: `missing` is defined, published in this vocabulary, and written by nothing. A
+    # consumer who reads the dictionary and writes `if row.qc == "missing"` gets dead code and a
+    # false sense that gaps arrive in-band. The published entry now says so, and points at where
+    # absence actually lives (row absence + the `gaps` report).
+    doc = build_data_dictionary()
+    by_name = {v["name"]: v for v in cast(list[dict[str, Any]], doc["qc_verdicts"])}
+    for name, entry in by_name.items():
+        assert entry["emitted"] == (name in QC_EMITTED)
+    assert by_name[QC_MISSING]["emitted"] is False
+    described = cast(str, by_name[QC_MISSING]["description"])
+    assert "no shipped swelter code path emits this verdict" in described
+    assert "absence of a" in described
+    # Every other verdict is one the pipeline can genuinely produce.
+    assert all(entry["emitted"] for name, entry in by_name.items() if name != QC_MISSING)
 
 
 def test_dictionary_carries_version_signals_and_license() -> None:

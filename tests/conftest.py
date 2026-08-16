@@ -11,6 +11,12 @@ from swelter.models import RAW, SOURCE_NATIVE, Observation
 from swelter.store import SqliteStore
 
 ROOT = Path(__file__).resolve().parents[1]
+# Under mutmut the tests are copied into `mutants/`, so parents[1] lands on the
+# sandbox rather than the repository. Only source and the selected tests are
+# copied there, never `data/`, so committed fixtures have to be read from the
+# real root or the mutation gate cannot run at all.
+if ROOT.name == "mutants":
+    ROOT = ROOT.parent
 DEMO = ROOT / "data" / "demo"
 
 
@@ -21,6 +27,12 @@ def store(tmp_path: Path) -> Iterator[SqliteStore]:
         yield db
     finally:
         db.close()
+
+
+#: The 1-sigma a calibrated test observation gets when the test does not care what it is. Tests
+#: that do care pass their own. `Observation` refuses a calibrated row with no uncertainty (a
+#: correction always has a `residual_std`), so the factory cannot leave it unset — see #147.
+DEFAULT_CALIBRATED_SIGMA = 0.5
 
 
 def make_obs(
@@ -35,6 +47,8 @@ def make_obs(
     qc: str = "ok",
     uncertainty: float | None = None,
 ) -> Observation:
+    if calibration != RAW and uncertainty is None:
+        uncertainty = DEFAULT_CALIBRATED_SIGMA
     return Observation(
         node_id=node_id,
         timestamp=timestamp,

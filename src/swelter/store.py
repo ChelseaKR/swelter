@@ -416,17 +416,28 @@ class SqliteStore:
 
 def _row_to_obs(row: sqlite3.Row) -> Observation:
     uncertainty = row["uncertainty"]
-    return Observation(
-        node_id=str(row["node_id"]),
-        timestamp=str(row["timestamp"]),
-        parameter=str(row["parameter"]),
-        value=float(row["value"]),
-        unit=str(row["unit"]),
-        source=str(row["source"]),
-        calibration=str(row["calibration"]),
-        qc=str(row["qc"]),
-        uncertainty=None if uncertainty is None else float(uncertainty),
-    )
+    try:
+        return Observation(
+            node_id=str(row["node_id"]),
+            timestamp=str(row["timestamp"]),
+            parameter=str(row["parameter"]),
+            value=float(row["value"]),
+            unit=str(row["unit"]),
+            source=str(row["source"]),
+            calibration=str(row["calibration"]),
+            qc=str(row["qc"]),
+            uncertainty=None if uncertainty is None else float(uncertainty),
+        )
+    except ValueError as exc:
+        # The stored row breaks an `Observation` invariant — a calibrated value with no 1-sigma is
+        # the case that exists (issue #147). Refuse it here rather than repairing it: the only
+        # repairs available are inventing a number or reading the absence as zero, and reading it
+        # as zero is what published a *narrower* error bar than the evidence supported. Raw rows
+        # are immutable and intact, so the fix is to re-derive the calibrated ones.
+        raise ValueError(
+            f"{exc}. Raw observations are unaffected; re-derive calibrated rows with "
+            "`swelter rebuild`"
+        ) from exc
 
 
 def store_paths(store_dir: str | Path) -> dict[str, Path]:

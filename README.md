@@ -164,8 +164,12 @@ is linked from the repository. Open work is never hidden inside a passing state.
 | Accessibility | Applies — gap tracked in [#106](https://github.com/ChelseaKR/swelter/issues/106) |
 | Observability | Applies |
 | Internationalization | Applies — gap tracked in [#106](https://github.com/ChelseaKR/swelter/issues/106) |
+| AI Development Measurement | Applies — gap tracked in [#109](https://github.com/ChelseaKR/swelter/issues/109) |
 | AI Evaluation | N/A — no prompt, retrieval, trained/foundation model, or model-version surface |
+| Data Governance | Applies |
 | Documentation | Applies |
+| Incident Response | Applies |
+| Performance | Applies |
 | Responsible-Tech Framework | Applies — gap tracked in [#106](https://github.com/ChelseaKR/swelter/issues/106) |
 
 For observability, the deployed artifact uses the static-site tier; the optional CLI/self-hosted

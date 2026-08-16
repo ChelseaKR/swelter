@@ -35,6 +35,19 @@ _RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
 #: Hard cap on any single honored ``Retry-After`` so a hostile/large value cannot stall the run.
 _MAX_RETRY_AFTER_S = 30.0
 
+#: Identify swelter to the open-data networks it reads from.
+#:
+#: This is politeness first — an operator who sees this traffic can tell what it is and who to
+#: contact — but it is also load-bearing. Sensor.Community *rejects* an anonymous client, and it
+#: does so with ``HTTP 200`` and a JSON error document rather than a 4xx, so an unidentified
+#: request looks exactly like a successful one that found nothing. Between 2026-06-19 and
+#: 2026-08-06 every Sensor.Community fetch failed that way and was reported as thin coverage.
+#: Sending this header is what makes the request legible; :func:`get_json`'s payload check below
+#: is what makes the refusal audible if a network ever changes its mind.
+USER_AGENT = (
+    "swelter/0.1 (community heat and air-quality monitoring; +https://github.com/ChelseaKR/swelter)"
+)
+
 
 class SourceError(OSError):
     """A live source could not be fetched after retries (network, rate-limit, or bad response).
@@ -79,9 +92,12 @@ def _request_json(url: str, headers: Mapping[str, str], timeout: float) -> Any:
     target = parts.path or "/"
     if parts.query:
         target = f"{target}?{parts.query}"
+    # http.client sends no User-Agent of its own, so an adapter that passes no headers would go
+    # out anonymous. Identify swelter by default; a caller can still override the header.
+    sent = {"User-Agent": USER_AGENT, **dict(headers)}
     connection = http.client.HTTPSConnection(parts.hostname, parts.port, timeout=timeout)
     try:
-        connection.request("GET", target, headers=dict(headers))
+        connection.request("GET", target, headers=sent)
         response = connection.getresponse()
         body = response.read()
         response_headers = {name: value for name, value in response.getheaders()}
@@ -124,3 +140,34 @@ def get_json(
         if attempt < attempts - 1:
             time.sleep(wait)
     raise SourceError(f"{url} failed after {attempts} attempts") from last
+
+
+def expect_records(payload: Any, *, source: str) -> list[dict[str, Any]]:
+    """Read ``payload`` as a list of record objects, or raise :class:`SourceError`.
+
+    Open-data endpoints do not all signal refusal with a status code. Several answer ``HTTP 200``
+    carrying a JSON *error document* — Sensor.Community returns ``["\\"error\\": ..."]``, a list of
+    strings, for a request it declines to serve. Coerced with ``if isinstance(payload, list)``
+    that document is a perfectly good empty result, and the difference between "this area has no
+    sensors" and "this network refused us" disappears at the only point where it is still visible.
+
+    So the two are separated here, and only one of them is an answer:
+
+    * ``[]`` -> genuinely zero records. Returned as ``[]``; an empty area is a real measurement.
+    * a non-empty list with no objects in it -> not records at all. Raises, quoting what arrived.
+    * anything that is not a list -> not a record list. Raises.
+
+    Absence and refusal are different facts and a caller must not be able to confuse them by
+    accident. Note the asymmetry is deliberate: silence about an empty area is honest, silence
+    about a rejected request is not.
+    """
+    if not isinstance(payload, list):
+        raise SourceError(f"{source} returned {type(payload).__name__}, expected a list of records")
+    records = [row for row in payload if isinstance(row, dict)]
+    if payload and not records:
+        excerpt = str(payload[0])[:200]
+        raise SourceError(
+            f"{source} returned {len(payload)} non-record item(s) instead of measurements; "
+            f"first item: {excerpt!r}"
+        )
+    return records

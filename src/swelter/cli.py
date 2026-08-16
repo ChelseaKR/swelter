@@ -427,8 +427,11 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
     paths = store_paths(args.store)
     registry.to_yaml(paths["registry"])
     _err(f"swelter: fit {len(registry)} corrections → {paths['registry']}")
+    width = max((len(c.version) for c in registry.all()), default=0)
     for c in registry.all():
-        _err(f"  {c.version:<28} n={c.n:<4} R²={c.r2:.3f}  ±{c.residual_std} {c.parameter}")
+        # The version now carries the fit's identity after "@", so it is longer than the old
+        # fixed 28-character column could hold; align on the widest one actually being printed.
+        _err(f"  {c.version:<{width}} n={c.n:<4} R²={c.r2:.3f}  ±{c.residual_std} {c.parameter}")
     manifest = obs.RunManifest()
     if not args.fit_only:
         with open_store(args.store) as store:
@@ -937,15 +940,19 @@ def cmd_demo(args: argparse.Namespace) -> int:
             registry.to_yaml(paths["registry"])
             raw = store.read(calibration=RAW)
             calibrated = [o for o in calibrate.apply(raw, registry) if o.calibration != RAW]
-            store.write(calibrated)
+            written = store.write(calibrated)
             manifest.record(
                 "calibrate",
                 "demo replay calibrated",
-                corrections_applied=len(calibrated),
+                # Rows actually inserted, not rows attempted: `cmd_calibrate` already reports
+                # `written.written` and this counter reported `len(calibrated)`, which measures
+                # intent. A run whose writes were partly ignored would have claimed full effect
+                # (issue #149).
+                corrections_applied=written.written,
                 corrections_skipped_stale=_corrections_skipped_stale(raw, registry, calibrated),
             )
             _err(
-                f"swelter demo: fit {len(registry)} corrections, wrote {len(calibrated)} calibrated"
+                f"swelter demo: fit {len(registry)} corrections, wrote {written.written} calibrated"
             )
 
         all_obs = list(store.all())
@@ -1067,7 +1074,7 @@ def _write_web_sample(
     """
     if not web_dir.is_dir():
         return
-    latest = max((cell.bucket for cell in surface.cells), default=None)
+    latest = surface.newest_bucket()
     buckets = [latest] if latest is not None else []
     records = [cell.as_record() for cell in surface.cells if cell.bucket == latest]
     payload = {
@@ -1360,7 +1367,16 @@ def _fetch_sensor_community(args: argparse.Namespace) -> _FetchOk | int:
         _err(f"swelter: fetch failed ({exc}); check your network connection")
         return 1
     if not observations:
-        _err("swelter: no readings (Sensor.Community is sparse outside Europe — try a EU area)")
+        # State the fact; do not name a cause we have not established. The adapter now raises
+        # rather than returning empty when the network refuses us, so reaching here means the
+        # request was served and the area really is unmonitored — but "unmonitored" still has
+        # more than one explanation, and picking one for the operator is how a seven-week
+        # outage read as a coverage caveat.
+        _err(
+            f"swelter: Sensor.Community served the request and reported no sensors within "
+            f"{area.radius_km:g} km of {area.name}. Coverage is densest in Europe; try a "
+            f"larger radius or a different area."
+        )
         return 1
     network = sensor_community.network_doc(area.name, nodes)
     return (
@@ -1882,7 +1898,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
     _write_publish_license_files(web_dir, terms, attribution)
 
-    data_hour = max((cell.bucket for cell in surface.cells), default="")
+    data_hour = surface.newest_bucket() or ""
     written = _write_publish_manifest(
         web_dir, _PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
     )

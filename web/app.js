@@ -734,6 +734,10 @@ function provenanceText(row) {
         u: formatNumber(round1(u), { maximumFractionDigits: 1 }),
         unit: unitLabel(),
       }));
+    } else if (!isExposure() && row.uncertainty_note) {
+      // Confirmed, but with no error bar: say why instead of saying nothing, so a missing number
+      // is never read as "nothing to report" (ADR 0037, invariant 4).
+      parts.push(row.uncertainty_note);
     }
     if (row.method && row.reference) {
       parts.push(t("prov-method", { method: row.method, reference: row.reference }));
@@ -786,6 +790,9 @@ function renderProvenance(row) {
           unit: unitLabel(),
         }),
       );
+    } else if (!isExposure() && row.uncertainty_note) {
+      // Same rule as provenanceText(): a confirmed cell with no number states its reason.
+      addRow("prov-uncertainty-label", row.uncertainty_note, "en");
     }
     if (row.method && row.reference) {
       addRow("prov-calibration-label", row.method);
@@ -3679,12 +3686,23 @@ function buildAreaSelect() {
   if (sel.value !== state.areaSelected) state.areaSelected = sel.value; // selection was filtered out
 }
 
-function areaAlertStatus(feed, scoped) {
+// The areas the feed says it cannot currently see, narrowed the same way the alerts are. A feed
+// baked before ADR 0036 has no `stale` array; an absent list means "this feed does not report
+// unseen areas", which is not the same as "there are none" — it just cannot add a sentence here.
+function scopedUnseen(feed) {
+  const unseen = Array.isArray(feed.stale) ? feed.stale : [];
+  return state.areaSelected ? unseen.filter((s) => s.area_id === state.areaSelected) : unseen;
+}
+
+function areaAlertStatus(feed, scoped, unseen = []) {
   const publishedAt = feed.generated || scoped[0]?.bucket || "";
   const stale = observationAgeMinutes(publishedAt) > CURRENT_OBSERVATION_MAX_AGE_MINUTES;
-  const line = scoped.length
+  let line = scoped.length
     ? t("aa-count", { n: scoped.length, time: fmtBucket(publishedAt) })
     : t("aa-none", { time: fmtBucket(publishedAt) });
+  // "No alerts" alone would read as "everywhere is fine". Where the feed has told us it cannot see
+  // an area, that has to be said in the same breath, not left to the list below.
+  if (unseen.length) line += ` ${t("aa-unseen", { n: unseen.length })}`;
   return stale ? `${line} ${t("aa-stale")}` : line;
 }
 
@@ -3699,7 +3717,8 @@ function renderAreaAlerts() {
   const scoped = state.areaSelected
     ? feed.alerts.filter((a) => a.area_id === state.areaSelected)
     : feed.alerts;
-  status.textContent = areaAlertStatus(feed, scoped);
+  const unseen = scopedUnseen(feed);
+  status.textContent = areaAlertStatus(feed, scoped, unseen);
   let restoreFocus = null;
   for (const alert of scoped) {
     const li = document.createElement("li");
@@ -3732,6 +3751,27 @@ function renderAreaAlerts() {
     });
     if (alertKey === focusedKey) restoreFocus = go;
     li.appendChild(go);
+    list.appendChild(li);
+  }
+  // Then the areas the feed cannot see. These carry no value and no "go to the reading" button —
+  // there is no reading to go to. They are listed rather than dropped so a resident whose own block
+  // went dark is told that, instead of reading an empty list as an all-clear (ADR 0036).
+  for (const area of unseen) {
+    const li = document.createElement("li");
+    li.className = "aa-item unseen";
+    const text = document.createElement("span");
+    text.className = "aa-text";
+    text.textContent = t("aa-unseen-item", {
+      area: area.area,
+      time: fmtBucket(area.last_bucket),
+    });
+    li.appendChild(text);
+    if (area.withdrawn) {
+      const note = document.createElement("span");
+      note.className = "aa-prov";
+      note.textContent = ` ${t("aa-unseen-withdrawn")}`;
+      li.appendChild(note);
+    }
     list.appendChild(li);
   }
   restoreFocus?.focus({ preventScroll: true });

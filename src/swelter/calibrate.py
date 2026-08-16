@@ -38,6 +38,7 @@ no opaque library:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from collections import defaultdict
@@ -135,10 +136,63 @@ class TrainingPair:
     monitor: str = ""
 
 
+def fit_id(
+    *,
+    window_end: str,
+    predictors: tuple[str, ...],
+    coefficients: tuple[float, ...],
+    intercept: float,
+    residual_std: float,
+    r2: float,
+    n: int,
+    reference: str,
+    window_start: str,
+    model: str = "",
+) -> str:
+    """The identity of one *fit*: when its evidence ended, and a digest of what it produced.
+
+    ``{compact window_end}-{8 hex}``, e.g. ``20260602T2300Z-1a2b3c4d``. The date is there so a
+    human can read the version and know how old the evidence is; the digest is there so two fits
+    from different evidence can never collide, whatever their windows.
+
+    Every field that changes what the correction *does* or what it was fit *from* goes into the
+    digest. Coefficients are already rounded to ``PRECISION`` before they reach here, so the digest
+    inherits the same byte-for-byte reproducibility the published registry guarantees.
+    """
+    payload = json.dumps(
+        {
+            "predictors": list(predictors),
+            "coefficients": list(coefficients),
+            "intercept": intercept,
+            "residual_std": residual_std,
+            "r2": r2,
+            "n": n,
+            "reference": reference,
+            "window_start": window_start,
+            "window_end": window_end,
+            "model": model,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+    compact = window_end.replace("-", "").replace(":", "").replace("+00:00", "Z")
+    return f"{compact}-{digest}"
+
+
 @dataclass(frozen=True)
 class Correction:
     """A fitted per-node, per-parameter correction and its provenance."""
 
+    #: ``{parameter}.{method}.{node_id}@{fit_id}`` — the node/parameter/method this correction is
+    #: *for*, then the identity of the fit that produced it (:func:`fit_id`). The suffix is what
+    #: makes ADR 0002's "calibration as versioned data" true of the published record: before it,
+    #: two corrections fit from genuinely different co-location evidence, with coefficients 10 °C
+    #: apart in their output, shared one version string, one store primary key, and one identifier
+    #: in every export — so a downloaded dataset could name the node but never the fit behind its
+    #: numbers (issue #149). The three dot-separated segments are unchanged and still parsed
+    #: positionally (``aggregate`` reads the method, ``export`` groups by family); the fit id is
+    #: separated by ``@`` and contains no dot, so both readers see exactly what they saw before.
     version: str
     node_id: str
     parameter: str
@@ -272,8 +326,21 @@ def fit_one(
     r2 = _round(1 - ss_res / ss_tot)
     method = _method_for(parameter, model or None)
 
+    identity = fit_id(
+        window_end=pairs[-1].timestamp,
+        predictors=predictors,
+        coefficients=coefficients,
+        intercept=intercept,
+        residual_std=residual_std,
+        r2=r2,
+        n=n,
+        reference=reference,
+        window_start=pairs[0].timestamp,
+        model=model,
+    )
+
     return Correction(
-        version=f"{parameter}.{method}.{node_id}",
+        version=f"{parameter}.{method}.{node_id}@{identity}",
         node_id=node_id,
         parameter=parameter,
         method=method,
@@ -415,7 +482,15 @@ def read_colocation(path: str | Path) -> list[TrainingPair]:
     "monitor"]}``. The optional ``monitor`` is the reference monitor's public id (e.g. an AQS site
     id) that ``swelter colocate`` records; when present it flows into ``Correction.reference``.
     This is the recorded evidence a calibration is fit from; committing it is what makes the fit
-    reproducible and auditable by anyone.
+    reproducible and auditable by anyone: re-running ``fit`` over this file reproduces the published
+    registry byte for byte.
+
+    In a real deployment a row's ``raw`` *is* the value that node recorded at that instant, so the
+    fit can also be cross-checked against the observation record. That does not hold for the
+    committed synthetic fixture, where the generator draws the co-location values independently
+    (0.5% of rows match the stored observation) — see the KNOWN LIMIT note in
+    ``scripts/gen_demo_data.py`` and issue #149. Reproducibility of the fit is proven either way;
+    cross-checking against ``observations.jsonl`` is not something the demo fixture supports.
     """
     pairs: list[TrainingPair] = []
     for row in _read_jsonl(path):
@@ -478,7 +553,7 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
     """
     observations = list(observations)
     humidity = humidity_index(observations)
-    calibrated_temp: dict[tuple[str, str], tuple[float, float]] = {}
+    calibrated_temp: dict[tuple[str, str], tuple[float, float, str]] = {}
     out: list[Observation] = []
     for obs in observations:
         out.append(obs)
@@ -498,6 +573,7 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
             calibrated_temp[(obs.node_id, obs.timestamp)] = (
                 corrected_value,
                 correction.residual_std,
+                correction.version,
             )
 
     # Second pass: derive heat index from calibrated temp + co-timed humidity. This runs after
@@ -510,9 +586,15 @@ def apply(observations: Iterable[Observation], registry: CorrectionRegistry) -> 
         rh = humidity.get((obs.node_id, obs.timestamp))
         if temp is None or rh is None:
             continue
-        temp_value, temp_residual_std = temp
+        temp_value, temp_residual_std, temp_version = temp
         derived_value = _heat_index_c(temp_value, rh)
-        version = f"heat_index_c.{_DERIVED_HEAT_INDEX_METHOD}.{obs.node_id}"
+        # A derived value is only as identified as the fit under it: carry the temperature
+        # correction's fit id, so a published heat index names the exact temp fit it came from
+        # rather than a node-shaped label that never changes (issue #149).
+        version = (
+            f"heat_index_c.{_DERIVED_HEAT_INDEX_METHOD}.{obs.node_id}"
+            f"@{temp_version.partition('@')[2]}"
+        )
         # Heat index is monotonic in temperature over the operating range; carrying the temp
         # correction's residual_std forward as the derived value's 1-sigma is the simplest
         # defensible propagation (see ADR 0014) rather than a fitted uncertainty of its own.

@@ -61,3 +61,33 @@ msgid ""
 msgstr ""
 "Zonas donde el calor o la calidad del aire superó un umbral de peligro "
 "de salud pública. Datos ambientales agregados, sin datos personales."
+
+#, python-brace-format
+msgid " (last reported {bucket})"
+msgstr " (último reporte {bucket})"
+
+#, python-brace-format
+msgid " (last reported {bucket}, {hours} h before this feed)"
+msgstr " (último reporte {bucket}, {hours} h antes de este feed)"
+
+msgid " The danger alert published for this area is withdrawn, not cleared: swelter has no current reading there."
+msgstr " La alerta de peligro publicada para esta zona queda retirada, no cancelada: swelter no tiene una lectura actual allí."
+
+#, python-brace-format
+msgid "{area}: no current air-quality reading{age}. swelter cannot tell whether the air there is dangerous now.{withdrawn}"
+msgstr "{area}: sin lectura actual de calidad del aire{age}. swelter no puede saber si el aire allí es peligroso ahora.{withdrawn}"
+
+#, python-brace-format
+msgid "{area}: no current heat-index reading{age}. swelter cannot tell whether the heat there is dangerous now.{withdrawn}"
+msgstr "{area}: sin lectura actual del índice de calor{age}. swelter no puede saber si el calor allí es peligroso ahora.{withdrawn}"
+
+#, python-brace-format
+msgid "{area}: no current wind-chill reading{age}. swelter cannot tell whether the cold there is dangerous now.{withdrawn}"
+msgstr "{area}: sin lectura actual de sensación térmica por frío{age}. swelter no puede saber si el frío allí es peligroso ahora.{withdrawn}"
+
+#, python-brace-format
+msgid "{area}: no current heat-and-air exposure reading{age}. swelter cannot tell whether the exposure there is dangerous now.{withdrawn}"
+msgstr "{area}: sin lectura actual de exposición combinada de calor y aire{age}. swelter no puede saber si la exposición allí es peligrosa ahora.{withdrawn}"
+
+msgid "Areas listed under 'stale' have stopped reporting: swelter cannot tell whether they are safe. An empty 'alerts' list means no currently reporting area crossed a danger floor, not that every area is fine."
+msgstr "Las zonas incluidas en 'stale' han dejado de reportar: swelter no puede saber si son seguras. Una lista 'alerts' vacía significa que ninguna zona que reporta actualmente cruzó un umbral de peligro, no que todas las zonas estén bien."

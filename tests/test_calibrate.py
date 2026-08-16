@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import importlib
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
 from swelter import calibrate
 from swelter.calibrate import CorrectionRegistry, TrainingPair
-from swelter.models import heat_index_c
+from swelter.models import heat_index_c, wbgt_c
 
 from .conftest import DEMO, make_obs
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def _pairs(parameter: str, fn: Callable[[int], float], n: int = 8) -> list[TrainingPair]:
@@ -130,7 +134,11 @@ def test_fit_one_model_selects_method_and_predictors() -> None:
     assert sps30.predictors == ("raw",)
     assert sps30.method == "linear-onboard-rh-sps30"
     assert sps30.model == "SPS30"
-    assert sps30.version == "pm25_ugm3.linear-onboard-rh-sps30.node-01"
+    # What the correction is *for* is still the first three dot-separated segments; the fit's own
+    # identity follows "@" (issue #149), so the assertion is on the prefix plus a non-empty fit id.
+    family, _, identity = sps30.version.partition("@")
+    assert family == "pm25_ugm3.linear-onboard-rh-sps30.node-01"
+    assert identity
 
     pms = calibrate.fit_one("node-01", "pm25_ugm3", pairs, "ref", model="PMS5003")
     assert pms.predictors == ("raw", "humidity")
@@ -229,7 +237,15 @@ def test_heat_index_derives_from_calibrated_temp_and_co_timed_humidity() -> None
     heat_calibrated = [o for o in out if o.parameter == "heat_index_c" and o.is_calibrated]
     assert len(heat_calibrated) == 1
     derived = heat_calibrated[0]
-    assert derived.calibration == "heat_index_c.derived-enclosure.node-01"
+    # The derived value names the *temperature* fit it was computed from, not just its node: a
+    # re-fit of temp_c changes the heat index published for that node, so it must change its id
+    # too (issue #149).
+    temp_version = registry.get("node-01", "temp_c")
+    assert temp_version is not None
+    family, _, identity = derived.calibration.partition("@")
+    assert family == "heat_index_c.derived-enclosure.node-01"
+    assert identity == temp_version.version.partition("@")[2]
+    assert identity
     assert abs(derived.value - heat_index_c(21.0, 65.0)) < 1e-9
 
     temp_correction = registry.get("node-01", "temp_c")
@@ -279,3 +295,101 @@ def test_heat_index_derivation_leaves_corrections_registry_byte_for_byte() -> No
     assert fitted.to_dict() == published.to_dict()
     assert all(c.parameter != "heat_index_c" for c in fitted.all())
     assert all(c.parameter != "heat_index_c" for c in published.all())
+
+
+def test_two_different_fits_of_one_node_never_share_a_version_id() -> None:
+    """Issue #149: the version id must name the fit, not just the node/parameter/method.
+
+    Before this, `version` was a pure function of `(parameter, method, node_id)`. Two corrections
+    fit from genuinely different co-location evidence — 10 °C apart in what they publish for the
+    same raw reading — carried the same identifier, the same store primary key, and the same
+    `calibration` value in every export. A dataset downloaded a year later said `trustworthy: true`
+    under the same string with different numbers behind it, and nothing in the published record
+    could tell the two apart.
+    """
+    fit_a = calibrate.fit_one("node-01", "temp_c", _pairs("temp_c", lambda i: i - 2.0), "ref")
+    fit_b = calibrate.fit_one(
+        "node-01", "temp_c", _pairs("temp_c", lambda i: 0.85 * i - 6.0), "ref"
+    )
+
+    # The fixture reproduces the issue's premise: materially different corrections.
+    raw_reading = 40.0
+    assert abs(fit_a.predict(raw_reading, None) - fit_b.predict(raw_reading, None)) > 5.0
+
+    assert fit_a.version != fit_b.version
+    # What the correction is for is unchanged and still positionally parseable; only the fit id
+    # after "@" differs.
+    assert fit_a.version.partition("@")[0] == "temp_c.enclosure-offset.node-01"
+    assert fit_a.version.partition("@")[0] == fit_b.version.partition("@")[0]
+    assert fit_a.version.split(".")[1] == "enclosure-offset"  # aggregate.py reads the method here
+    assert fit_a.version.rsplit(".", 1)[0] == "temp_c.enclosure-offset"  # export.py's family
+    assert "." not in fit_a.version.partition("@")[2]  # the fit id never adds a dot-segment
+
+    # Different ids mean different store rows: `INSERT OR IGNORE` on
+    # (node_id, timestamp, parameter, source, calibration) can no longer treat a re-fitted value as
+    # a duplicate of the value it supersedes.
+    reading = make_obs(parameter="temp_c", value=raw_reading)
+    a_row = reading.calibrated(fit_a.version, fit_a.predict(raw_reading, None), fit_a.residual_std)
+    b_row = reading.calibrated(fit_b.version, fit_b.predict(raw_reading, None), fit_b.residual_std)
+    assert a_row.key() != b_row.key()
+    assert a_row.content_hash() != b_row.content_hash()
+
+
+def test_a_fit_id_is_reproducible_and_names_its_window() -> None:
+    # The id has to be stable across runs and machines, or the committed registry stops
+    # reproducing byte for byte — the property the whole audit trail rests on.
+    pairs = _pairs("temp_c", lambda i: 2.0 * i + 1.0)
+    first = calibrate.fit_one("node-01", "temp_c", pairs, "ref")
+    again = calibrate.fit_one("node-01", "temp_c", list(reversed(pairs)), "ref")
+    assert first.version == again.version
+
+    identity = first.version.partition("@")[2]
+    assert identity.startswith("20260601T070000Z")  # the compact end of the co-location window
+    assert identity.endswith(first.version[-8:])
+    # A fit from the same coefficients but a different window is a different fit.
+    later = calibrate.fit_one(
+        "node-01",
+        "temp_c",
+        [
+            TrainingPair(
+                node_id="node-01",
+                parameter="temp_c",
+                timestamp=f"2026-07-01T{i:02d}:00:00Z",
+                raw=float(i),
+                reference=2.0 * i + 1.0,
+            )
+            for i in range(8)
+        ],
+        "ref",
+    )
+    assert later.coefficients == first.coefficients
+    assert later.intercept == first.intercept
+    assert later.version != first.version
+
+
+def test_the_demo_generator_and_models_agree_on_heat_index_and_wbgt() -> None:
+    """`scripts/gen_demo_data.py` keeps its own copy of the NWS Rothfusz heat index and the WBGT
+    estimate, and `calibrate`'s module docstring says `apply` uses "the same NWS Rothfusz function
+    the demo generator uses". It is a *copy*, not the same function (issue #149).
+
+    The copy is deliberate and kept: an independent implementation is what makes the committed
+    fixture evidence rather than a restatement of the code under test — if the generator imported
+    `models`, a wrong formula would produce a fixture that agrees with it and hides itself. What was
+    missing is the check that the two agree, so that "the same function" is a verified claim instead
+    of a comment. This is that check.
+    """
+    sys.path.insert(0, str(ROOT))
+    generator = importlib.import_module("scripts.gen_demo_data")
+
+    grid = [
+        (temp, humidity)
+        for temp in (10.0, 20.0, 26.6, 26.7, 30.0, 32.2, 35.0, 40.0, 45.0, 50.0)
+        for humidity in (5.0, 20.0, 40.0, 55.0, 70.0, 85.0, 100.0)
+    ]
+    for temp, humidity in grid:
+        assert generator.heat_index_c(temp, humidity) == round(heat_index_c(temp, humidity), 2), (
+            f"heat index disagrees at {temp} °C / {humidity}%"
+        )
+        assert generator.wbgt_c(temp, humidity) == round(wbgt_c(temp, humidity), 2), (
+            f"WBGT disagrees at {temp} °C / {humidity}%"
+        )
