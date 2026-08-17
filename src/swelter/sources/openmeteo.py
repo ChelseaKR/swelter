@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from ..config import LOCATION_PUBLIC_PLACE
 from ..models import (
     SOURCE_OPENMETEO,
     Observation,
@@ -229,7 +230,14 @@ def network_doc(
     name: str = "swelter — California (real open data)",
     languages: tuple[str, ...] = ("en", "es"),
 ) -> dict[str, Any]:
-    """A ``network.yaml`` document for the real places (precise public centroids)."""
+    """A ``network.yaml`` document for the real places (exact public centroids, no hosts).
+
+    Every node is ``location: public-place``: the coordinate is exact and published as-is, and
+    there is no host behind it whose consent could be recorded. These were ``precise`` until issue
+    #166, which made ``config.consent_concerns`` warn once per place per route on every deploy —
+    several hundred warnings that named nobody who could act on them, drowning the one warning that
+    would matter (ADR 0040).
+    """
     return {
         "name": name,
         "grid_resolution_m": 150,
@@ -241,7 +249,8 @@ def network_doc(
                 "label": p.name,
                 "lat": p.lat,
                 "lon": p.lon,
-                "location": "precise",  # public city/place centroids, not private homes
+                # Public city/place centroids, not private homes: exact, and hostless.
+                "location": LOCATION_PUBLIC_PLACE,
             }
             for p in places
         ],

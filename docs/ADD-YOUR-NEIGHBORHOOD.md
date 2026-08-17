@@ -100,7 +100,7 @@ nodes:
   label: Cedar & 4th        # the location name residents will see on the map/table/list
   lat: 38.575057            # a coordinate inside the location
   lon: -121.509361
-  location: coarse          # coarse (default, recommended) | precise
+  location: coarse          # coarse (default, recommended) | precise | public-place
 ```
 
 - **`node_id`** — a short stable handle (`node-01`, `node-02`, …). It is published, so keep it
@@ -117,6 +117,12 @@ nodes:
   grid cell. `precise` publishes the node's real coordinates. **`precise` is a per-node, host opt-in
   that needs the host's recorded consent — see [`governance.md`](governance.md) §4 before you ever
   set it.** Doing nothing leaves a node `coarse`, which is correct for almost every node.
+  `public-place` also publishes the exact coordinate, and is only for a location with **no host at
+  all** — a city centroid, a model grid cell, a civic building. It exists so the consent check can
+  stay meaningful: a public place has nobody whose consent could be recorded, so warning about it
+  forever would only bury the hosted node that genuinely needs one
+  ([ADR 0040](adr/0040-a-public-place-is-not-a-host.md)). If a person lives at the coordinate, it is
+  `precise` with a `consent_ref`, never `public-place`.
 
 Aim for overlapping coverage so one node dropping offline does not blind a block. The current demo
 uses 150 synthetic nodes on a roughly 150 m grid; use the coverage principle, not that fixture's

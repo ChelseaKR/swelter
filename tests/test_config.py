@@ -61,6 +61,45 @@ def test_precise_node_publishes_exact_location() -> None:
     assert node.public_location(150.0) == (38.5816, -121.4944)
 
 
+def test_public_place_node_publishes_its_exact_coordinate() -> None:
+    # A hostless public place is exact like `precise`, not snapped like an unrecognised value:
+    # a city centroid or a model grid cell is already public record and has no home to protect.
+    node = NodeConfig(node_id="calexico", lat=32.6789, lon=-115.4989, location="public-place")
+    assert node.public_location(150.0) == (32.6789, -115.4989)
+
+
+def test_an_unrecognised_location_kind_still_snaps() -> None:
+    # Only the two exact spellings turn grid protection off; everything else fails safe.
+    node = NodeConfig(node_id="node-01", lat=38.5816, lon=-121.4944, location="public place")
+    assert node.public_location(150.0) != (38.5816, -121.4944)
+
+
+def test_consent_concerns_is_silent_for_a_hostless_public_place() -> None:
+    config = NetworkConfig(
+        nodes=(NodeConfig(node_id="calexico", lat=1.0, lon=2.0, location="public-place"),)
+    )
+    assert consent_concerns(config) == []
+
+
+def test_a_public_place_that_records_host_consent_is_a_configuration_error() -> None:
+    # A consent_ref means somebody believed there was a host. Either the node is a hosted one
+    # mislabelled as a public place — which would exempt a real home from the consent check — or
+    # the reference is stale. Both need a human.
+    doc = {
+        "nodes": [
+            {
+                "node_id": "node-07",
+                "lat": 1.0,
+                "lon": 2.0,
+                "location": "public-place",
+                "consent_ref": "2026-05-01/node-07",
+            }
+        ]
+    }
+    errors, _ = config_concerns(parse_config(doc), doc)
+    assert any("public-place" in error and "consent_ref" in error for error in errors)
+
+
 def test_unplaced_node_has_no_public_location() -> None:
     node = NodeConfig(node_id="node-99")
     assert node.public_location(150.0) is None

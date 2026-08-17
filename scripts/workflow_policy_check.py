@@ -93,7 +93,8 @@ def main() -> int:
             print(f"  [FAIL] {finding}")
         return 1
     print(
-        f"workflow-policy: all {len(paths)} workflow(s) SHA-pinned, exact-versioned, and fail-closed"
+        f"workflow-policy: all {len(paths)} workflow(s) are SHA-pinned, exact-versioned, "
+        "and fail-closed"
     )
     return 0
 

@@ -50,7 +50,12 @@ def test_demo_web_preview_is_deterministic_statewide_and_geographically_mixed() 
     published = {(node.label, node.lat, node.lon) for node in preview.nodes}
     assert len(published) == len(source.nodes) == 150
     assert published <= validated
-    assert all(node.location == "precise" for node in preview.nodes)
+    # Public place centroids: published exactly, with no host behind any of them (ADR 0040).
+    assert all(node.location == "public-place" for node in preview.nodes)
+    assert all(
+        node.public_location(preview.grid_resolution_m) == (node.lat, node.lon)
+        for node in preview.nodes
+    )
 
     # Calibration belongs to node ids, not geography. Both confirmed and provisional groups must
     # span the state instead of becoming a synthetic north/south coverage divide.

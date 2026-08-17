@@ -13,7 +13,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import replace
 
-from .config import NetworkConfig, is_builtin_demo_web_preview
+from .config import LOCATION_PUBLIC_PLACE, NetworkConfig, is_builtin_demo_web_preview
 from .sources._california_places import CALIFORNIA
 
 Place = tuple[str, float, float]
@@ -74,8 +74,9 @@ def config_for_web(config: NetworkConfig) -> NetworkConfig:
             label=assignments[node.node_id][0],
             lat=assignments[node.node_id][1],
             lon=assignments[node.node_id][2],
-            # These are public place centroids, not host locations; publish them without grid drift.
-            location="precise",
+            # These are public place centroids, not host locations: exact, and hostless, so
+            # they publish without grid drift and without a consent question (ADR 0040).
+            location=LOCATION_PUBLIC_PLACE,
         )
         for node in config.nodes
     )

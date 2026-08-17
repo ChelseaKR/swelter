@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from swelter.config import consent_concerns, parse_config
 from swelter.sources import _http, openmeteo
 from swelter.sources._http import SourceError
 
@@ -163,12 +164,46 @@ def test_fetch_does_not_let_a_forecast_hour_become_the_newest_reading(
     assert not [o for o in obs if o.timestamp > reference.strftime("%Y-%m-%dT%H:%M:%SZ")]
 
 
-def test_network_doc_uses_precise_real_centroids() -> None:
+def test_network_doc_declares_exact_centroids_that_have_no_host() -> None:
     doc = openmeteo.network_doc((openmeteo.Neighborhood("Oak Park", 38.547, -121.463),))
     node = doc["nodes"][0]
     assert node["label"] == "Oak Park"
-    assert node["location"] == "precise"  # public neighborhood centroids, shown exactly
+    # Exact, and hostless: shown as given, with nobody whose consent could be on record (#166).
+    assert node["location"] == "public-place"
     assert doc["calibration_windows"] == []  # this source is not swelter-calibrated
+
+
+def test_the_open_meteo_place_list_raises_no_host_consent_warnings() -> None:
+    # The whole California list used to emit one unfixable consent warning per place, per route,
+    # per deploy — several hundred lines a day naming nobody who could act on them, which is how
+    # the one warning that would matter gets trained into background noise (issue #166).
+    doc = openmeteo.network_doc(openmeteo.CALIFORNIA[:25])
+    config = parse_config(doc)
+
+    assert len(config.nodes) == 25
+    assert consent_concerns(config) == []
+    # The exemption is from the consent question, not from disclosure: these still publish exactly.
+    node = config.nodes[0]
+    assert node.public_location(config.grid_resolution_m) == (node.lat, node.lon)
+
+
+def test_a_hosted_node_with_no_consent_ref_is_still_flagged_beside_them() -> None:
+    # The signal the noise was burying. A real host location with no governance-log entry has to
+    # stay loud, in the same config as any number of hostless public places.
+    doc = openmeteo.network_doc(openmeteo.CALIFORNIA[:25])
+    doc["nodes"].append(
+        {
+            "node_id": "node-07",
+            "label": "Elm & 9th",
+            "lat": 38.61,
+            "lon": -121.46,
+            "location": "precise",
+        }
+    )
+    concerns = consent_concerns(parse_config(doc))
+
+    assert len(concerns) == 1
+    assert "node-07" in concerns[0]
 
 
 def test_get_json_retries_transient_then_succeeds(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -140,6 +140,18 @@ All notable changes to swelter are recorded here. The format follows
   clock, and drops every later hour; `fetch` resolves it once and logs it, so one statewide run
   clips against one instant. `forecast_days` stays 1 because that is how today's already-elapsed
   hours are returned ([ADR 0039](docs/adr/0039-a-forecast-hour-is-not-an-observation.md)).
+- **The host-consent warning fired hundreds of times per deploy on public city centroids
+  ([#166](https://github.com/ChelseaKR/swelter/issues/166)).** `openmeteo.network_doc` wrote
+  `location: precise` for every place it fetched — with a comment on the same line saying they are
+  public centroids, not private homes — because the schema had one spelling for "publish this
+  coordinate exactly" and no way to say whether anyone lives there. So `consent_concerns` asked for
+  a governance-log consent entry for `san-diego`, `redding`, `crescent-city` and the rest of the
+  statewide list, once per place, twice per deploy, forever. A new `location: public-place` kind
+  publishes the exact coordinate and carries no host, so the consent check has nothing to ask; a
+  `public-place` node that records a `consent_ref` is now a hard configuration error, and
+  `swelter node-preview` still states the exact-coordinate disclosure in as many words. The
+  Sensor.Community adapter deliberately stays `precise`
+  ([ADR 0040](docs/adr/0040-a-public-place-is-not-a-host.md)).
 - **Two gates that could not fail.** `make workflow-policy` globbed `.github/workflows/*.yml`
   only, so a workflow committed as `.yaml` — which GitHub runs identically — was invisible to it:
   an unpinned action, `|| true`, `continue-on-error: true`, a missing `permissions:` block and a
