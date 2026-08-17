@@ -128,6 +128,28 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The live map, alerts feed and Atom feed were publishing a CAMS forecast hour as the current
+  reading ([#168](https://github.com/ChelseaKR/swelter/issues/168)).** Open-Meteo returns elapsed and
+  forecast hours in one array, and `openmeteo.to_observations` emitted an `Observation` for every
+  entry with no comparison against any reference instant, so hours that had not happened entered the
+  store as ordinary readings. Because "now" is the newest bucket present (ADR 0035), they *became*
+  now: on 2026-08-15 the published `data_hour` was nine hours ahead of the deploy that wrote it, and
+  `alerts.json` carried 17 heat-index **Danger** alerts stamped `2026-08-15T23:00:00Z` — read at
+  14:40Z. The caveats that travel say how a number was produced, never that the hour it describes
+  has not happened. `to_observations` now takes a `now` reference instant, defaulting to the wall
+  clock, and drops every later hour; `fetch` resolves it once and logs it, so one statewide run
+  clips against one instant. `forecast_days` stays 1 because that is how today's already-elapsed
+  hours are returned ([ADR 0039](docs/adr/0039-a-forecast-hour-is-not-an-observation.md)).
+- **Two gates that could not fail.** `make workflow-policy` globbed `.github/workflows/*.yml`
+  only, so a workflow committed as `.yaml` — which GitHub runs identically — was invisible to it:
+  an unpinned action, `|| true`, `continue-on-error: true`, a missing `permissions:` block and a
+  credential-persisting checkout all passed, and the gate still printed that *every* Action is
+  SHA-pinned and fail-closed. It now enumerates both suffixes, reports how many workflows it
+  scanned, and fails when it finds none, because a universal claim about an empty set is not a
+  pass. `make reading-level` had the same shape from the other end: with nothing in `en.json`
+  long enough to score it printed `[PASS] all 0 scored strings are at or below grade 8` — the same
+  green a real pass prints — so any change that emptied the corpus would have retired the gate in
+  silence. Scoring nothing is now a failure that says so.
 - **Every gate runs on every commit, whatever the gates before it did.** `verify`,
   `verify-core` and `verify-security` were prerequisite lists, and make stops one of those at the
   first failure. An unpatched HIGH advisory in the dashboard accessibility toolchain
