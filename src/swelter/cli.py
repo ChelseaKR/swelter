@@ -54,6 +54,8 @@ from . import (
     web_preview,
 )
 from .config import (
+    LOCATION_PRECISE,
+    LOCATION_PUBLIC_PLACE,
     NetworkConfig,
     NodeConfig,
     TwinWindow,
@@ -874,11 +876,19 @@ def _print_node_preview(node: NodeConfig, config: NetworkConfig) -> None:
     offset_m = haversine_m(node.lat, node.lon, published[0], published[1])
     print(f"  map shows a point ~{offset_m:.0f} m from your sensor")
     print(f"  location mode: {node.location}")
-    if node.location == "precise":
+    if node.location == LOCATION_PRECISE:
         print(
             "  ⚠ WARNING: location is 'precise' — your EXACT coordinate is published as-is. "
             "Coarse-by-default grid-snap protection is OFF for this node. Switch `location` "
             "back to 'coarse' in network.yaml to publish only the grid cell."
+        )
+    if node.location == LOCATION_PUBLIC_PLACE:
+        # Still says the exact coordinate is published — the exemption is from the consent
+        # question, not from the disclosure. If a person lives here, this is the wrong kind.
+        print(
+            "  location is 'public-place' — the EXACT coordinate is published as-is, and this "
+            "node is declared to have no host, so no consent entry is required for it. If "
+            "somebody's home is at this coordinate, use 'precise' with a consent_ref instead."
         )
     print()
 

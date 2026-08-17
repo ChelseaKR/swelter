@@ -85,6 +85,18 @@ def _scorable_strings(catalog: dict[str, str]) -> dict[str, str]:
 def main() -> int:
     catalog = json.loads(EN_CATALOG.read_text(encoding="utf-8"))
     scorable = _scorable_strings(catalog)
+    if not scorable:
+        # A gate that scored nothing has not held the reading level. This used to print
+        # "[PASS] all 0 scored strings are at or below grade 8", which is the same green a real
+        # pass prints — so any change that emptied the corpus (a restructured catalog, a moved
+        # file, an over-eager `_readable_text`) would have retired the gate in silence.
+        print(f"  [FAIL] no scorable strings in {EN_CATALOG.name} ({len(catalog)} key(s) read)")
+        print(
+            "reading-level: the gate scored no prose, so it proved nothing about the reading "
+            "level; check the catalog path and MF2 stripping",
+            file=sys.stderr,
+        )
+        return 1
 
     over_floor: list[tuple[str, float]] = []
     for key, text in sorted(scorable.items()):
@@ -92,8 +104,7 @@ def main() -> int:
         if grade > GRADE_FLOOR:
             over_floor.append((key, grade))
 
-    corpus = " ".join(scorable.values())
-    corpus_grade = flesch_kincaid_grade(corpus) if corpus else 0.0
+    corpus_grade = flesch_kincaid_grade(" ".join(scorable.values()))
 
     if over_floor:
         print(

@@ -175,3 +175,55 @@ def test_pages_cache_annotation_exception_is_exactly_bound(tmp_path: Path) -> No
         "no exact trailing semver" in problem
         for problem in workflow_policy_check.scan_workflow(workflow)
     )
+
+
+def test_workflow_policy_gate_scans_yaml_workflows_too(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # GitHub runs `.yaml` workflows exactly as it runs `.yml` ones. The gate globbed `*.yml`
+    # alone, so a workflow committed as `.yaml` was invisible to it — unpinned actions, `|| true`,
+    # `continue-on-error: true` and a credential-persisting checkout all passed — while the gate
+    # still printed that *every* action is SHA-pinned and fail-closed.
+    (tmp_path / "pinned.yml").write_text(
+        "permissions:\n  contents: read\njobs: {}\n", encoding="utf-8"
+    )
+    (tmp_path / "unpinned.yaml").write_text(
+        "permissions:\n"
+        "  contents: read\n"
+        "jobs:\n"
+        "  build:\n"
+        "    steps:\n"
+        "      - uses: actions/checkout@v4\n"
+        "      - run: ./flaky.sh || true\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(workflow_policy_check, "WORKFLOWS", tmp_path)
+
+    assert workflow_policy_check.main() == 1
+    assert [path.name for path in workflow_policy_check.workflow_files(tmp_path)] == [
+        "pinned.yml",
+        "unpinned.yaml",
+    ]
+
+
+def test_workflow_policy_gate_refuses_to_pass_on_no_workflows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A gate whose output is a universal claim must not make one about an empty set: scanning
+    # nothing is not the same as finding nothing wrong.
+    monkeypatch.setattr(workflow_policy_check, "WORKFLOWS", tmp_path)
+    assert workflow_policy_check.main() == 1
+
+
+def test_reading_level_gate_refuses_to_pass_when_it_scores_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Same defect, other gate: the corpus is whatever survives `_scorable_strings`, and a catalog
+    # of nothing but short labels used to print "[PASS] all 0 scored strings are at or below
+    # grade 8". A reading-level gate that scored no prose has not held the reading level.
+    catalog = tmp_path / "en.json"
+    catalog.write_text('{"units": "Units", "language": "Language"}', encoding="utf-8")
+    monkeypatch.setattr(reading_level_check, "EN_CATALOG", catalog)
+
+    assert reading_level_check._scorable_strings({"units": "Units"}) == {}
+    assert reading_level_check.main() == 1

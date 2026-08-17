@@ -13,6 +13,14 @@ Honesty notes, because they matter here:
   value carries ``source = "openmeteo"`` while calibration remains ``raw`` so its provenance
   travels independently and it is never presented as a swelter-calibrated sensor reading.
 * The coordinates are real neighborhood centroids; Open-Meteo snaps each to its model grid cell.
+* **Hours that have not happened are not ingested.** The same endpoints serve elapsed hours and
+  forecast hours in one array, and swelter's "now" is the newest hour present in the store
+  (ADR 0035). A forecast hour entering the store therefore becomes the current reading: the map,
+  the Now card and the alerts feed all resolve to an hour that has not occurred. That is a
+  different kind of wrongness from an uncalibrated reading — the caveats that do travel
+  (``provisional``, "Upstream model") say *how the number was produced*, never that *the hour it
+  describes has not happened*. So :func:`to_observations` drops every hour after the fetch's
+  reference instant (ADR 0039), and a prediction never becomes an observation.
 
 Attribution (required by Open-Meteo / Copernicus, and right to show): "Air-quality data from the
 Copernicus Atmosphere Monitoring Service (CAMS) via Open-Meteo; weather from Open-Meteo."
@@ -23,8 +31,10 @@ from __future__ import annotations
 import math
 import sys
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
+from ..config import LOCATION_PUBLIC_PLACE
 from ..models import (
     SOURCE_OPENMETEO,
     Observation,
@@ -98,10 +108,18 @@ def fetch(
     past_days: int = 2,
     forecast_days: int = 1,
     chunk: int = 100,
+    now: datetime | None = None,
 ) -> list[Observation]:
     """Fetch real hourly readings for each place. Coordinates are batched, ``chunk`` places per
     call, so a statewide list of hundreds of places stays a handful of requests (Open-Meteo caps
-    how many coordinates one URL may carry). Results stay index-aligned with ``places``."""
+    how many coordinates one URL may carry). Results stay index-aligned with ``places``.
+
+    ``forecast_days`` stays at 1 because that is how Open-Meteo returns *today's already-elapsed*
+    hours; dropping it to 0 would end the window at the close of yesterday and there would be no
+    current reading at all. The forecast hours it also returns are discarded by
+    :func:`to_observations` against ``now`` (the fetch instant, or an explicit reference for
+    tests), so the window stays wide and the store stays a store of observations (ADR 0039)."""
+    reference = now or datetime.now(UTC)
     window = f"&past_days={past_days}&forecast_days={forecast_days}"
     air: list[dict[str, Any]] = []
     weather: list[dict[str, Any]] = []
@@ -127,7 +145,12 @@ def fetch(
             chunk_air, chunk_weather = [], []
         air += chunk_air if len(chunk_air) == len(group) else [{} for _ in group]
         weather += chunk_weather if len(chunk_weather) == len(group) else [{} for _ in group]
-    return to_observations(places, air, weather)
+    print(
+        "swelter: open-meteo — ingesting hours at or before "
+        f"{format_timestamp(reference)}; later hours in the response are forecast, not readings",
+        file=sys.stderr,
+    )
+    return to_observations(places, air, weather, now=reference)
 
 
 def _emit(
@@ -157,8 +180,24 @@ def to_observations(
     places: tuple[Neighborhood, ...],
     air: list[dict[str, Any]],
     weather: list[dict[str, Any]],
+    *,
+    now: datetime | None = None,
 ) -> list[Observation]:
-    """Map Open-Meteo hourly arrays to swelter observations (pure — no network)."""
+    """Map Open-Meteo hourly arrays to swelter observations (no network).
+
+    An hour later than ``now`` is a **forecast**, not a reading, and is not emitted (ADR 0039).
+    Open-Meteo returns elapsed and forecast hours in one array with nothing in the payload marking
+    which is which, and swelter's ``Observation`` has no field that could carry the distinction —
+    so the boundary is here, where the response is still a response and not yet a record. ``now``
+    defaults to the wall clock precisely because a caller who forgets it must get the safe
+    behaviour: an explicit reference instant is for tests and for reproducing a past fetch, never
+    an opt-in to clipping.
+
+    The clip is a comparison against a real instant, not a rule about the data, so it is the one
+    wall-clock read in this pipeline. Everything downstream stays clock-free: "now" is still the
+    newest bucket present (ADR 0035), which is now guaranteed to be an hour that has happened.
+    """
+    reference = now or datetime.now(UTC)
     out: list[Observation] = []
     for i, place in enumerate(places):
         a = air[i].get("hourly", {}) if i < len(air) else {}
@@ -167,7 +206,10 @@ def to_observations(
         pm25, pm10 = a.get("pm2_5", []), a.get("pm10", [])
         temp, humid = w.get("temperature_2m", []), w.get("relative_humidity_2m", [])
         for j, raw_t in enumerate(times):
-            ts = format_timestamp(parse_timestamp(str(raw_t)))
+            parsed = parse_timestamp(str(raw_t))
+            if parsed > reference:
+                continue  # an hour that has not happened is a prediction, not an observation
+            ts = format_timestamp(parsed)
             t = temp[j] if j < len(temp) else None
             h = humid[j] if j < len(humid) else None
             _emit(out, place.node_id, ts, "temp_c", t, "degC")
@@ -188,7 +230,14 @@ def network_doc(
     name: str = "swelter — California (real open data)",
     languages: tuple[str, ...] = ("en", "es"),
 ) -> dict[str, Any]:
-    """A ``network.yaml`` document for the real places (precise public centroids)."""
+    """A ``network.yaml`` document for the real places (exact public centroids, no hosts).
+
+    Every node is ``location: public-place``: the coordinate is exact and published as-is, and
+    there is no host behind it whose consent could be recorded. These were ``precise`` until issue
+    #166, which made ``config.consent_concerns`` warn once per place per route on every deploy —
+    several hundred warnings that named nobody who could act on them, drowning the one warning that
+    would matter (ADR 0040).
+    """
     return {
         "name": name,
         "grid_resolution_m": 150,
@@ -200,7 +249,8 @@ def network_doc(
                 "label": p.name,
                 "lat": p.lat,
                 "lon": p.lon,
-                "location": "precise",  # public city/place centroids, not private homes
+                # Public city/place centroids, not private homes: exact, and hostless.
+                "location": LOCATION_PUBLIC_PLACE,
             }
             for p in places
         ],

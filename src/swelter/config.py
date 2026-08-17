@@ -11,6 +11,10 @@ Two privacy rules are enforced *here*, before any value reaches the map:
 * A node's published location is snapped to a coarse grid (``grid_precision_m``, default
   ~150 m) unless the host explicitly opts into ``location: precise``. ``public_location``
   is the only coordinate the rest of the system is allowed to read.
+* ``location: public-place`` is the third kind: an exact coordinate with **no host** — a city
+  centroid, a model grid cell, a civic building. It publishes exactly like ``precise`` and is
+  exempt from the host-consent check, because there is nobody whose consent could be recorded
+  (ADR 0040).
 * The precise coordinate is never required — a node with no location at all still ingests,
   it simply does not appear on the map until a host places it.
 * A node's optional ``sensor_model`` is a public hardware family string ("PMS5003", "SDS011",
@@ -27,7 +31,7 @@ import math
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 import yaml
 
@@ -57,7 +61,20 @@ _KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "web_preview",
     }
 )
-_KNOWN_LOCATIONS: frozenset[str] = frozenset({"coarse", "precise"})
+#: Snap to the publication grid. The default, and the only safe default.
+LOCATION_COARSE: Final = "coarse"
+#: A host's exact coordinate, disclosed because that host chose to. Requires a ``consent_ref``.
+LOCATION_PRECISE: Final = "precise"
+#: An exact coordinate with no host behind it — a public city/place centroid, a model grid cell, a
+#: civic building. It publishes exactly like ``precise``; what differs is that there is no person
+#: whose consent could be recorded, so the host-consent check has nothing to ask for (ADR 0040).
+LOCATION_PUBLIC_PLACE: Final = "public-place"
+
+#: Location kinds that publish an exact coordinate rather than a grid-snapped one.
+_EXACT_LOCATIONS: frozenset[str] = frozenset({LOCATION_PRECISE, LOCATION_PUBLIC_PLACE})
+_KNOWN_LOCATIONS: frozenset[str] = frozenset(
+    {LOCATION_COARSE, LOCATION_PRECISE, LOCATION_PUBLIC_PLACE}
+)
 
 # Node labels are PUBLISHED (map, table, API, exports), so they must name a place, not a person or
 # an address (hard rule #1). These heuristics catch the obvious leaks — a street address, apartment
@@ -128,8 +145,11 @@ class NodeConfig:
     label: str = ""
     lat: float | None = None
     lon: float | None = None
-    location: str = "coarse"  # "coarse" (snap to grid) or "precise" (host opted in)
-    # governance-log entry recording host consent for a precise location (governance.md §4)
+    #: "coarse" (snap to grid), "precise" (a host opted their exact coordinate in), or
+    #: "public-place" (an exact coordinate with no host — see `LOCATION_PUBLIC_PLACE`).
+    location: str = LOCATION_COARSE
+    # governance-log entry recording host consent for a precise location (governance.md §4).
+    # Meaningless on a "public-place" node, which has no host to consent, and refused there.
     consent_ref: str = ""
     #: Public hardware family string, e.g. "PMS5003", "SDS011", "SPS30" — never a serial number or
     #: any other per-device identifier (hard rule #1). Empty means unknown/unspecified, which is the
@@ -145,12 +165,14 @@ class NodeConfig:
         """The coordinate swelter is allowed to publish for this node.
 
         ``None`` when the host has not placed the node. ``precise`` returns the exact
-        coordinate the host opted to disclose; otherwise the value is snapped to the grid so
-        hosting a sensor cannot reveal where a person lives.
+        coordinate the host opted to disclose and ``public-place`` returns the exact coordinate of
+        a place that has no host at all; otherwise the value is snapped to the grid so hosting a
+        sensor cannot reveal where a person lives. Any unrecognised value snaps, which is the
+        fail-safe direction: only these two exact spellings turn grid protection off.
         """
         if self.lat is None or self.lon is None:
             return None
-        if self.location == "precise":
+        if self.location in _EXACT_LOCATIONS:
             return (self.lat, self.lon)
         return snap_to_grid(self.lat, self.lon, grid_m)
 
@@ -427,10 +449,17 @@ def consent_concerns(config: NetworkConfig) -> list[str]:
     does not gate ``public_location`` — a node missing ``consent_ref`` still publishes its precise
     coordinate — it only warns, so a host or steward can go record the consent that governance
     already requires; the CLI prints these on load.
+
+    ``public-place`` nodes are exempt, and the exemption is the point of the kind (ADR 0040). A
+    public city centroid or a CAMS model grid cell has no host, so no consent entry can ever exist
+    for it, and warning about it forever is how a real signal gets trained into background noise:
+    the statewide Open-Meteo place list alone put several hundred unfixable warnings in every
+    deploy log, twice per run, which buried the one warning that would mean a household node had
+    started publishing an exact coordinate (issue #166).
     """
     out: list[str] = []
     for node in config.nodes:
-        if node.location == "precise" and not node.consent_ref.strip():
+        if node.location == LOCATION_PRECISE and not node.consent_ref.strip():
             out.append(
                 f"{node.node_id}: location is 'precise' but no consent_ref recorded — a precise "
                 f"location requires a dated governance-log consent entry (governance.md §4)"
@@ -575,9 +604,20 @@ def _node_field_concerns(config: NetworkConfig, errors: list[str], warnings: lis
             )
         if node.location not in _KNOWN_LOCATIONS:
             warnings.append(
-                f"{label}: location {node.location!r} is not 'coarse' or 'precise' — treating it "
-                f"as 'coarse' (fail-safe); set 'location: precise' if the host opted into an "
-                f"exact coordinate"
+                f"{label}: location {node.location!r} is not "
+                f"{', '.join(repr(kind) for kind in sorted(_KNOWN_LOCATIONS))} — treating it as "
+                f"'coarse' (fail-safe); set 'location: precise' if the host opted into an exact "
+                f"coordinate, or 'location: public-place' if this is a public place with no host"
+            )
+        if node.location == LOCATION_PUBLIC_PLACE and node.consent_ref.strip():
+            # A consent_ref means somebody believed there was a host to consent. Either this is a
+            # hosted node mislabelled as a public place — which would silently exempt a real home
+            # from the consent check — or the reference is left over from an earlier shape. Both
+            # need a human, so this is an error rather than a warning.
+            errors.append(
+                f"{label}: location is 'public-place' but a consent_ref "
+                f"({node.consent_ref!r}) is recorded — a public place has no host to consent; "
+                f"use 'location: precise' if this node is hosted, or drop the consent_ref"
             )
 
 

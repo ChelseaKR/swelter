@@ -29,6 +29,12 @@ CAMS is model/reanalysis output already processed upstream and is not fitted by 
 for broad spatial/temporal context and demonstration, not a substitute for local calibrated sensors,
 regulatory determinations, or individual safety advice.
 
+The endpoints return elapsed hours and forecast hours in one array. Only the elapsed ones are
+ingested: the adapter drops every hour after the fetch instant, so a predicted hour can never become
+the store's newest bucket, the current reading, or an alert
+([ADR 0039](../adr/0039-a-forecast-hour-is-not-an-observation.md)). swelter publishes measurements;
+it does not publish a forecast.
+
 ## Distribution and license
 
 Generated artifacts retain **CC BY 4.0 (Copernicus CAMS via Open-Meteo)** and the exact attribution

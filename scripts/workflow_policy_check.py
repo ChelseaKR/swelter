@@ -4,10 +4,17 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
+#: Both suffixes GitHub Actions accepts for a workflow definition. This gate used to glob `*.yml`
+#: alone, so a workflow committed as `.yaml` was invisible to it: unpinned actions, `|| true`,
+#: `continue-on-error: true`, a missing `permissions:` block and a credential-persisting checkout
+#: all passed, while the gate still printed that *every* action is SHA-pinned and fail-closed. A
+#: gate that makes a claim about a set has to enumerate the whole set.
+WORKFLOW_SUFFIXES = ("*.yml", "*.yaml")
 _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s@]+)@([^\s#]+)(?:\s+#\s*(\S+))?\s*$")
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _SEMVER = re.compile(r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
@@ -57,15 +64,38 @@ def scan_workflow(path: Path) -> list[str]:
     return problems
 
 
+def workflow_files(directory: Path = WORKFLOWS) -> list[Path]:
+    """Every workflow definition GitHub would run, in a stable order."""
+    return sorted(path for suffix in WORKFLOW_SUFFIXES for path in directory.glob(suffix))
+
+
+def _display(path: Path) -> str:
+    """Repository-relative where possible; the full path when the scan root is elsewhere."""
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def main() -> int:
+    paths = workflow_files(WORKFLOWS)
+    if not paths:
+        # Scanning nothing is not the same as finding nothing wrong. This gate's output is a
+        # universal claim, and it must not make one about an empty set.
+        print(f"  [FAIL] no workflow definitions found under {WORKFLOWS}")
+        print("workflow-policy: the gate scanned nothing, so it proved nothing", file=sys.stderr)
+        return 1
     findings: list[str] = []
-    for path in sorted(WORKFLOWS.glob("*.yml")):
-        findings.extend(f"{path.relative_to(ROOT)}: {problem}" for problem in scan_workflow(path))
+    for path in paths:
+        findings.extend(f"{_display(path)}: {problem}" for problem in scan_workflow(path))
     if findings:
         for finding in findings:
             print(f"  [FAIL] {finding}")
         return 1
-    print("workflow-policy: every Action is SHA-pinned, exact-versioned, and fail-closed")
+    print(
+        f"workflow-policy: all {len(paths)} workflow(s) are SHA-pinned, exact-versioned, "
+        "and fail-closed"
+    )
     return 0
 
 
