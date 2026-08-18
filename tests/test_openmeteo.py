@@ -73,6 +73,30 @@ def test_to_observations_maps_arrays() -> None:
     assert pm.unit == "ug/m3"
 
 
+def test_to_observations_derives_no_heat_metric_from_a_rejected_input() -> None:
+    """Only the hour whose inputs are physically plausible gets a derived heat metric. The
+    impossible hour keeps its raw rows for QC to label, but contributes no derived value that
+    would pass as a clean reading (ADR 0041)."""
+    places = (openmeteo.Neighborhood("Oak Park", 38.547, -121.463),)
+    air = [{"hourly": {"time": ["2026-06-16T00:00", "2026-06-16T01:00"], "pm2_5": [12.3, 14.1]}}]
+    weather = [
+        {
+            "hourly": {
+                "time": ["2026-06-16T00:00", "2026-06-16T01:00"],
+                "temperature_2m": [30.0, -145.7],
+                "relative_humidity_2m": [55.0, 40.0],
+            }
+        }
+    ]
+    obs = openmeteo.to_observations(places, air, weather)
+    derived = {o.timestamp for o in obs if o.parameter in ("heat_index_c", "wbgt_c")}
+    assert derived == {"2026-06-16T00:00:00Z"}
+    assert {o.timestamp for o in obs if o.parameter == "temp_c"} == {
+        "2026-06-16T00:00:00Z",
+        "2026-06-16T01:00:00Z",
+    }
+
+
 def test_to_observations_skips_nulls() -> None:
     places = (openmeteo.Neighborhood("Test Place", 1.0, 2.0),)
     air = [{"hourly": {"time": ["2026-06-16T00:00"], "pm2_5": [None], "pm10": [None]}}]

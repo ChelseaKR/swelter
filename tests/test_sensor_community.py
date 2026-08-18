@@ -61,6 +61,31 @@ def test_parse_drops_sds011_over_range_sentinel() -> None:
     assert "temp_c" in params  # the genuine temperature reading is kept
 
 
+def test_parse_derives_no_heat_metric_from_a_faulted_probe() -> None:
+    """A faulted DHT/BME on this network reports ≈-145 °C. That temperature is rejected as
+    impossible and never mapped (ADR 0029) — so the heat index and estimated WBGT computed from
+    it must not be published either, even though they can land inside their own valid ranges and
+    pass QC as clean (ADR 0041)."""
+    obs, _ = sensor_community.parse_measurements(
+        [_row(9, "2026-06-17 23:00:00", p2="8.0", p1="12.0", temp="-145.72", humid="100.0")]
+    )
+    params = {o.parameter for o in obs}
+    assert "heat_index_c" not in params and "wbgt_c" not in params
+    # The raw readings themselves still travel; QC labels them, it does not delete them.
+    assert "temp_c" in params and "humidity_pct" in params
+    assert "pm25_ugm3" in params  # a faulted probe does not discredit the PM sensor beside it
+
+
+def test_parse_derives_no_heat_metric_from_a_condensing_humidity_reading() -> None:
+    """>100 %RH is what a condensing low-cost sensor reports, not weather."""
+    obs, _ = sensor_community.parse_measurements(
+        [_row(11, "2026-06-17 23:00:00", p2="8.0", p1="12.0", temp="35.0", humid="110.0")]
+    )
+    params = {o.parameter for o in obs}
+    assert "heat_index_c" not in params and "wbgt_c" not in params
+    assert "temp_c" in params and "humidity_pct" in params
+
+
 def test_parse_keeps_latest_per_sensor() -> None:
     rows = [
         _row(7, "2026-06-17 22:00:00", p2="50.0", p1="60.0", temp="20.0", humid="30.0"),

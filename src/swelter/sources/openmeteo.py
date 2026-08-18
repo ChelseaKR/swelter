@@ -38,10 +38,9 @@ from ..config import LOCATION_PUBLIC_PLACE
 from ..models import (
     SOURCE_OPENMETEO,
     Observation,
+    derive_heat_metrics,
     format_timestamp,
-    heat_index_c,
     parse_timestamp,
-    wbgt_c,
 )
 from ._california_places import CALIFORNIA as _CALIFORNIA_RAW
 from ._http import SourceError, get_json
@@ -217,10 +216,10 @@ def to_observations(
             _emit(out, place.node_id, ts, "pm25_ugm3", pm25[j] if j < len(pm25) else None, "ug/m3")
             _emit(out, place.node_id, ts, "pm10_ugm3", pm10[j] if j < len(pm10) else None, "ug/m3")
             if t is not None and h is not None:
-                with_hi = heat_index_c(float(t), float(h))
-                _emit(out, place.node_id, ts, "heat_index_c", with_hi, "degC")
-                with_wbgt = wbgt_c(float(t), float(h))
-                _emit(out, place.node_id, ts, "wbgt_c", with_wbgt, "degC")
+                # Derived only from in-range inputs — a rejected input must not produce a
+                # mappable derived reading (ADR 0041).
+                for parameter, value in derive_heat_metrics(float(t), float(h)).items():
+                    _emit(out, place.node_id, ts, parameter, value, "degC")
     return out
 
 

@@ -128,6 +128,22 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **A broken sensor's arithmetic could reach the map as a clean heat reading.** All three real
+  source adapters derived heat index and estimated shade WBGT whenever both inputs were *present*,
+  never checking whether they were *plausible*. A temperature or humidity outside its published range
+  is `QC_RANGE` → `QC_UNMAPPABLE`, so the pipeline never places it on a cell "even provisionally"
+  (ADR 0029) — but the metric derived from that same rejected number frequently landed back inside
+  the derived parameter's own range, where nothing downstream could tell it from a real reading, and
+  was published unflagged. Measured: a rejected `-41 °C` yielded a mapped `wbgt_c` of `-39.48`; a
+  rejected `110 %RH` at 35 °C yielded a mapped `36.16`; a rejected `80 °C` yielded a mapped `53.11`.
+  The whole band `temp_c ∈ [-61.72, -40.01]`, everything from just past +60 °C to roughly +85 °C at
+  low humidity, and effectively all humidity above 100 %RH leaked a mappable value. This is live
+  input, not a hypothetical: on two Sensor.Community area fetches on 2026-08-18, 13 of 272
+  temperature readings (4.78%) were impossible values near -145 °C from faulted probes. Derivation
+  now happens in one place, `models.derive_heat_metrics`, which derives nothing unless both inputs
+  are in range and drops a derived value that falls outside its own range; the raw inputs still
+  travel and are still flagged, because QC labels a reading rather than deleting it
+  ([ADR 0041](docs/adr/0041-a-derived-reading-is-only-as-real-as-its-inputs.md)).
 - **The live map, alerts feed and Atom feed were publishing a CAMS forecast hour as the current
   reading ([#168](https://github.com/ChelseaKR/swelter/issues/168)).** Open-Meteo returns elapsed and
   forecast hours in one array, and `openmeteo.to_observations` emitted an `Observation` for every

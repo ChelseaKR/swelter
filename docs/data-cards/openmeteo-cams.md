@@ -12,7 +12,8 @@ Sources: <https://open-meteo.com/en/docs/air-quality-api> and
 ## Composition
 
 Hourly PM2.5, PM10, temperature, and relative humidity are requested for a checked California place
-list; heat index and estimated shade WBGT are derived when inputs exist. Place coordinates are public
+list; heat index and estimated shade WBGT are derived only from inputs inside their published
+plausible range, never merely when both are present (ADR 0041). Place coordinates are public
 city/place centroids checked against Census geography. Values carry the explicit `openmeteo` source
 identity while their calibration state remains `raw`; source provenance is never presented as a
 swelter calibration.

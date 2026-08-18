@@ -58,3 +58,6 @@ evidence of the collision.
 - [ADR 0036: Publish the absence when an area stops reporting, instead of going quiet about it](0036-published-absence-for-areas-that-stop-reporting.md)
 - [ADR 0037: Absence is never published as a number, and never narrows an interval](0037-absence-is-never-published-as-a-number.md)
 - [ADR 0038: A correction version that names its fit](0038-a-correction-version-that-names-its-fit.md)
+- [ADR 0039: A forecast hour is not an observation](0039-a-forecast-hour-is-not-an-observation.md)
+- [ADR 0040: A public place is not a host, and the consent check should not pretend otherwise](0040-a-public-place-is-not-a-host.md)
+- [ADR 0041: A derived reading is only as real as its inputs](0041-a-derived-reading-is-only-as-real-as-its-inputs.md)

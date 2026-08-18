@@ -12,7 +12,8 @@ written into the store or public artifact.
 ## Composition
 
 The adapter maps supported PM2.5, PM10, temperature, and relative-humidity readings into swelter
-observations and derives heat index/estimated shade WBGT when inputs are present. Node ids are based
+observations and derives heat index/estimated shade WBGT only from inputs inside their published
+plausible range, never merely when both are present (ADR 0041). Node ids are based
 on public OpenAQ location ids. Each selected location retains its upstream provider, license name or
 identifier, license URL, attribution, source URL, and fetch time in generated
 `source-license-ledger.json` when OpenAQ supplies those fields. That artifact also carries a

@@ -34,10 +34,9 @@ from urllib.parse import urlsplit
 from ..models import (
     SOURCE_OPENAQ,
     Observation,
+    derive_heat_metrics,
     format_timestamp,
-    heat_index_c,
     parse_timestamp,
-    wbgt_c,
 )
 from . import _california_boundary
 from ._http import SourceError, get_json
@@ -704,33 +703,35 @@ def parse_latest(
             )
         )
         seen[parameter] = (numeric, ts)
-    if "temp_c" in seen and "humidity_pct" in seen:
-        (temp, ts), (humid, _) = seen["temp_c"], seen["humidity_pct"]
-        with contextlib.suppress(TypeError, ValueError):
-            hi = heat_index_c(temp, humid)
-            out.append(
-                Observation(
-                    node_id=node_id,
-                    timestamp=ts,
-                    parameter="heat_index_c",
-                    value=round(hi, 2),
-                    unit="degC",
-                    source=SOURCE_OPENAQ,
-                )
-            )
-        with contextlib.suppress(TypeError, ValueError):
-            wbgt = wbgt_c(temp, humid)
-            out.append(
-                Observation(
-                    node_id=node_id,
-                    timestamp=ts,
-                    parameter="wbgt_c",
-                    value=round(wbgt, 2),
-                    unit="degC",
-                    source=SOURCE_OPENAQ,
-                )
-            )
+    out.extend(_derived_heat_observations(node_id, seen))
     return out
+
+
+def _derived_heat_observations(
+    node_id: str, seen: dict[str, tuple[float, str]]
+) -> list[Observation]:
+    """Heat index and estimated shade WBGT for one location, when its inputs support them.
+
+    Derived only from in-range inputs, so a reading the pipeline rejects as impossible cannot
+    re-enter the map wearing a derived parameter's name (ADR 0041).
+    """
+    if "temp_c" not in seen or "humidity_pct" not in seen:
+        return []
+    (temp, ts), (humid, _) = seen["temp_c"], seen["humidity_pct"]
+    derived: list[Observation] = []
+    with contextlib.suppress(TypeError, ValueError):
+        derived = [
+            Observation(
+                node_id=node_id,
+                timestamp=ts,
+                parameter=parameter,
+                value=round(value, 2),
+                unit="degC",
+                source=SOURCE_OPENAQ,
+            )
+            for parameter, value in derive_heat_metrics(temp, humid).items()
+        ]
+    return derived
 
 
 def fetch(

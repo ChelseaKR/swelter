@@ -311,6 +311,56 @@ def wbgt_c(temp_c: float, humidity_pct: float) -> float:
     return round(0.7 * tw + 0.3 * temp_c, 2)
 
 
+def is_within_range(parameter: str, value: float) -> bool:
+    """True when ``value`` is inside ``parameter``'s published plausible range.
+
+    The value-level form of :func:`swelter.qc.range_flag`, for callers that hold a number rather
+    than an :class:`Observation` — notably the source adapters, which must decide whether an input
+    is a measurement *before* there is an observation to label. An unknown parameter has no bounds
+    to fail, so it passes, exactly as ``range_flag`` treats it.
+    """
+    param = PARAMETERS.get(parameter)
+    if param is None:
+        return True
+    return math.isfinite(value) and param.valid_min <= value <= param.valid_max
+
+
+def derive_heat_metrics(temp_c: float, humidity_pct: float) -> dict[str, float]:
+    """Heat index and estimated shade WBGT — derived **only** from in-range inputs.
+
+    A derived reading is only as real as the inputs under it. A temperature or humidity outside
+    its published range is not a measurement: `range_flag` marks it ``QC_RANGE``, which is in
+    ``QC_UNMAPPABLE``, so aggregation never places it on a cell "even provisionally" (ADR 0029).
+    Deriving from that same rejected number, however, produced a value that frequently lands back
+    *inside* the derived parameter's own range — where nothing downstream can tell it apart from a
+    real one, so it was published as a clean, mappable, unflagged reading (ADR 0041).
+
+    That is not hypothetical on the live community feeds: a broken DHT/BME reporting ≈-145 °C, a
+    sun-baked enclosure reading above +60 °C, or a condensing sensor reporting >100 %RH all reach
+    the adapters routinely. A rejected -41 °C, for instance, yielded an in-range WBGT of -39.5 °C,
+    and a rejected 110 %RH at 35 °C yielded an in-range WBGT of 36.16 °C.
+
+    So the guard belongs here, at the one place derivation happens, rather than in each adapter:
+    when either input is out of range the metric is simply not derived. Nothing is invented to
+    stand in for it — the reading is absent, and absence is never published as a number
+    (ADR 0037). Returns the derived parameters that could be honestly computed, keyed by
+    parameter name; an empty mapping means "these inputs cannot support a derived heat metric".
+    """
+    if not (is_within_range("temp_c", temp_c) and is_within_range("humidity_pct", humidity_pct)):
+        return {}
+    derived: dict[str, float] = {}
+    for parameter, value in (
+        ("heat_index_c", heat_index_c(temp_c, humidity_pct)),
+        ("wbgt_c", wbgt_c(temp_c, humidity_pct)),
+    ):
+        # An in-range input can still put a derived value out of its own range (a real 60 °C at
+        # 100 %RH has no meaningful heat index). Keep the same rule rather than emit an impossible
+        # number: QC would flag it anyway, and an unmappable derived row adds nothing.
+        if is_within_range(parameter, value):
+            derived[parameter] = value
+    return derived
+
+
 def wind_chill_c(temp_c: float, wind_kph: float) -> float:
     """Wind-chill temperature, Celsius in and out, from air temperature and wind speed (km/h).
 
