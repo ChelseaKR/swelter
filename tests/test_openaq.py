@@ -53,6 +53,16 @@ def test_parse_latest_maps_and_stays_raw() -> None:
     assert pm.value == 12.3 and pm.unit == "ug/m3"
 
 
+def test_parse_latest_derives_no_heat_metric_from_a_rejected_input() -> None:
+    """A reference monitor can still report an impossible value. Its heat index and estimated
+    WBGT would land back inside their own ranges and publish as clean readings, so they are not
+    derived at all (ADR 0041); the raw rows still travel for QC to label."""
+    obs = openaq.parse_latest(7, [_row(1, 12.3), _row(2, -145.7), _row(3, 40.0)], SENSOR_PARAM)
+    params = {o.parameter for o in obs}
+    assert "heat_index_c" not in params and "wbgt_c" not in params
+    assert params == {"pm25_ugm3", "temp_c", "humidity_pct"}
+
+
 def test_parse_latest_skips_unknown_or_null() -> None:
     rows = [
         _row(99, 5.0, location_id=1),  # sensor not in the parameter map

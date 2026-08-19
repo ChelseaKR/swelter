@@ -25,10 +25,9 @@ from typing import Any
 from ..models import (
     SOURCE_SENSOR_COMMUNITY,
     Observation,
+    derive_heat_metrics,
     format_timestamp,
-    heat_index_c,
     parse_timestamp,
-    wbgt_c,
 )
 from ._http import expect_records, get_json
 
@@ -173,12 +172,12 @@ def _emit_sensor_readings(
         _emit(out, node_id, ts, parameter, values.get(vtype), unit)
     temp, humid = values.get("temperature"), values.get("humidity")
     if temp is not None and humid is not None:
+        # Only in-range inputs may support a derived metric: a faulted DHT/BME on this network
+        # reports ≈-145 °C or >100 %RH, and deriving from that produced a plausible-looking,
+        # in-range heat index/WBGT that nothing downstream could flag (ADR 0041).
         with contextlib.suppress(TypeError, ValueError):
-            hi = heat_index_c(float(temp), float(humid))
-            _emit(out, node_id, ts, "heat_index_c", hi, "degC")
-        with contextlib.suppress(TypeError, ValueError):
-            wbgt = wbgt_c(float(temp), float(humid))
-            _emit(out, node_id, ts, "wbgt_c", wbgt, "degC")
+            for parameter, value in derive_heat_metrics(float(temp), float(humid)).items():
+                _emit(out, node_id, ts, parameter, value, "degC")
 
 
 def parse_measurements(

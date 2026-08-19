@@ -11,11 +11,13 @@ from swelter.models import (
     PARAMETERS,
     RAW,
     Observation,
+    derive_heat_metrics,
     exposure_bounding_component,
     exposure_level,
     format_timestamp,
     heat_index_c,
     heat_index_category,
+    is_within_range,
     nowcast_aqi,
     nowcast_concentration,
     parse_timestamp,
@@ -140,6 +142,62 @@ def test_wbgt_c_is_registered_and_plausible() -> None:
 def test_wbgt_c_nan_propagates() -> None:
     assert math.isnan(wbgt_c(float("nan"), 50.0))
     assert math.isnan(wbgt_c(35.0, float("nan")))
+
+
+def test_is_within_range_matches_the_published_bounds() -> None:
+    assert is_within_range("temp_c", 20.0)
+    assert is_within_range("temp_c", -40.0)  # the bounds are inclusive
+    assert is_within_range("temp_c", 60.0)
+    assert not is_within_range("temp_c", -40.01)
+    assert not is_within_range("temp_c", 60.01)
+    assert not is_within_range("temp_c", float("nan"))
+    assert not is_within_range("humidity_pct", 100.1)
+    assert not is_within_range("humidity_pct", -0.1)
+    assert is_within_range("not_a_parameter", 1e9)  # no bounds to fail
+
+
+def test_derive_heat_metrics_derives_from_plausible_inputs() -> None:
+    derived = derive_heat_metrics(35.0, 50.0)
+    assert derived == {"heat_index_c": heat_index_c(35.0, 50.0), "wbgt_c": wbgt_c(35.0, 50.0)}
+
+
+@pytest.mark.parametrize(
+    ("temp_c", "humidity_pct"),
+    [
+        (-41.0, 50.0),  # yielded an in-range WBGT of -39.48 and was mapped as a clean reading
+        (-40.01, 0.0),  # yielded an in-range WBGT of -27.21
+        (-145.72, 100.0),  # the ≈-145 °C fault seen live on Sensor.Community
+        (80.0, 10.0),  # a sun-baked enclosure: yielded an in-range WBGT of 53.11
+        (60.5, 90.0),  # just past the ceiling: yielded an in-range WBGT of 59.21
+        (35.0, 110.0),  # a condensing sensor: yielded an in-range WBGT of 36.16
+        (30.0, 200.0),  # yielded an in-range WBGT of 40.26
+        (35.0, -1.0),  # negative RH still yielded an in-range heat index of 32.61
+    ],
+)
+def test_no_derived_heat_metric_from_a_rejected_input(temp_c: float, humidity_pct: float) -> None:
+    """An input outside its range is ``QC_RANGE`` → ``QC_UNMAPPABLE`` → never placed on a cell
+    (ADR 0029). Deriving from it produced a value that landed back *inside* the derived
+    parameter's own range, so QC could not tell it from a real reading and the map published a
+    broken sensor's arithmetic as a clean, unflagged measurement (ADR 0041). Every case here is
+    one that used to leak; none may derive anything now."""
+    assert not is_within_range("temp_c", temp_c) or not is_within_range(
+        "humidity_pct", humidity_pct
+    ), "the fixture must actually be a rejected input, or it proves nothing"
+    assert derive_heat_metrics(temp_c, humidity_pct) == {}
+
+
+def test_derive_heat_metrics_drops_a_derived_value_outside_its_own_range() -> None:
+    """In-range inputs can still put a derived value out of range; it is not emitted either."""
+    derived = derive_heat_metrics(50.0, 90.0)  # real bounds, but no meaningful heat index
+    assert heat_index_c(50.0, 90.0) > PARAMETERS["heat_index_c"].valid_max
+    assert "heat_index_c" not in derived
+    assert derived["wbgt_c"] == wbgt_c(50.0, 90.0)  # WBGT stays in range, so it survives
+
+
+def test_derive_heat_metrics_rejects_nonfinite_inputs() -> None:
+    assert derive_heat_metrics(float("nan"), 50.0) == {}
+    assert derive_heat_metrics(35.0, float("nan")) == {}
+    assert derive_heat_metrics(float("inf"), 50.0) == {}
 
 
 def test_heat_index_category_bands() -> None:

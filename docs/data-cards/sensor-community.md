@@ -11,13 +11,17 @@ Source: <https://sensor.community/en/>. API: keyless area endpoint.
 ## Composition
 
 The latest row per sensor maps supported PM2.5, PM10, temperature, and humidity fields; heat index
-and estimated shade WBGT are derived when inputs exist. Public sensor id, upstream coordinate, and
+and estimated shade WBGT are derived only when both inputs are inside their published plausible
+range, never merely when both are present (ADR 0041). Public sensor id, upstream coordinate, and
 reported hardware family are retained in the generated network metadata.
 
 ## Collection and preprocessing
 
 The area endpoint is a latest snapshot, not a guaranteed history. Invalid coordinates and nonfinite
-values are excluded. The SDS011 PM fault/over-range sentinel is dropped before QC. Upstream sensor
+values are excluded. The SDS011 PM fault/over-range sentinel is dropped before QC. A faulted
+temperature or humidity probe is kept and flagged, but supports no derived heat metric: on two live
+area fetches on 2026-08-18, 13 of 272 temperature readings (4.78%) were physically impossible values
+near -145 °C. Upstream sensor
 locations are published infrastructure coordinates, but the generated network still needs a clear
 deployment policy before reuse outside the reference demonstration.
 
