@@ -26,6 +26,14 @@ All notable changes to swelter are recorded here. The format follows
   not a separately maintained flag, so the claim cannot drift from the code that makes it. This is
   a visibility floor, not the trend-tracking sketched in #180 (comparing the last N runs to flag a
   persistent pattern); that remains a possible follow-up.
+- **`range_note` in the published data dictionary.** Each entry in `/api/schema.json`'s `parameters`
+  block now carries a `range_note` beside `valid_min`/`valid_max`: a string when the bound needs
+  explaining, `null` when it does not. A bound says which values swelter will treat as measurements,
+  so a surprising one has a reason a consumer should not have to guess at —
+  `humidity_pct.valid_min` is `2.0` rather than `0.0` because a dead capacitive probe reports
+  exactly `0.0` or `1.0` %RH (ADR 0043). Additive and generated from `models.PARAMETERS` like the
+  rest of the dictionary, so it cannot drift from the bounds the pipeline runs on;
+  `DATA_SCHEMA_VERSION` stays at 2.
 - **Event chronicle generator.** `swelter chronicle --from <ISO> --to <ISO>` composes the aggregated
   surface, `qc.detect_gaps`, and `qc.coverage_equity` into a citable post-event Markdown chronicle:
   Danger/Extreme-Danger and compound-exposure cell-hours per published cell, the calibrated-vs-
@@ -56,6 +64,25 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **The published site says what data it is actually showing.** The README led with a live-map link
+  and a source table describing what the pipeline *supports*; it said nothing about which source was
+  reaching the deployment. Since at least 2026-08-16 that has been Copernicus CAMS **model** output
+  on both routes — OpenAQ failing its per-location license-ledger check
+  ([#179](https://github.com/ChelseaKR/swelter/issues/179)) and Sensor.Community refusing on the
+  cached store above. The per-artifact rights evidence (`demo.json`, the `rights` envelope, the
+  generated `DATA-LICENSE`) was honest about CAMS throughout; the repository prose was not. The
+  README now opens by naming what the map is showing and carries a dated
+  "What the deployed site actually shows" table, and the CAMS and Sensor.Community data cards record
+  the same. Nothing about the published artifacts changed — only the claims made about them.
+- **The two large history slices are written as compact JSON.** `surface-24h.json` and
+  `surface-7d.json` carry one record per (place, hour, parameter) and are fetched and parsed by the
+  dashboard, never read by a person; `indent=2` spent **49,202,251 bytes (32.2%)** of the
+  152,665,280-byte `surface-7d.json` published on 2026-08-19 on whitespace. Measured after:
+  **103,463,029 bytes**, gzipped 3,119,358 → 2,642,447. The payload shape is unchanged, so no
+  consumer contract moved, and every smaller artifact stays indented. This is a mitigation, not a
+  fix — 103 MB is still too much to hand a browser, and `export.csv` (314,470,584 bytes, growing
+  ~15 MB/day with no bound) is the larger problem — see
+  [#181](https://github.com/ChelseaKR/swelter/issues/181).
 - **The suppression hygiene gate now ratchets (CQ-34/CQ-35, [#107](https://github.com/ChelseaKR/swelter/issues/107)).**
   `scripts/hygiene_check.py` already required every `noqa`/`type: ignore`/`nosemgrep` to be coded
   and issue-linked, which makes a suppression *legible* but does nothing to make it *temporary* —
@@ -154,6 +181,38 @@ All notable changes to swelter are recorded here. The format follows
   drifted from `pyproject.toml` — auditing the wrong set of pins and still passing; `--locked`
   fails closed on that drift instead. Both changes are no-ops today (the lock is in sync, coverage
   already clears 90%) and become real gates the next time either isn't true.
+- **A dead humidity probe published an estimated WBGT that read as a safe day.** A capacitive probe
+  whose readout fails reports its scale floor, and the values it lands on — exactly `0.0` and exactly
+  `1.0` %RH — were *inside* the published range `[0.0, 100.0]`, so `range_flag` returned `ok`,
+  aggregation mapped them, and ADR 0041's input guard passed them into a derived heat index and
+  estimated shade WBGT. Because the wet-bulb term is monotone in humidity, the error was always in
+  the under-warning direction. Measured live on 2026-08-19 across 1,066 Sensor.Community sensors:
+  **26 of 460 humidity readings (5.65%) were sentinels** — 25 at exactly `1.0` (DHT22), one at
+  exactly `0.0` (BME280) — and each published a WBGT 6–14 °C below the same temperature at a
+  plausible humidity. The worst was a sensor reporting 46.2 °C, which published an estimated WBGT of
+  **26.13 instead of ~40.05**: a 46 °C afternoon presented as an ordinary warm day, on a surface
+  whose purpose is helping someone decide whether it is safe to be outside. `humidity_pct.valid_min`
+  is now **2.0**, so both sentinels are flagged `range`, are never mapped, and derive nothing; the
+  raw rows still travel and still count as node-trouble evidence. The floor was checked against the
+  real distribution, not just the sentinels: model output over desert California genuinely reaches
+  single-digit %RH, and the published store's 166,478 humidity rows decay smoothly through that band
+  (458 at 7 %RH, 322 at 6, 213 at 5, 103 at 4, 21 at 3, 3 at 2, 1 at 1), so a 2.0 floor reclassifies
+  **one** of them — 0.0006% — against 5.65% of a physical-sensor feed's readings caught. A dead probe
+  spikes on one value with a gap above it; real dry air decays. `qc.apply` is not retroactive, so
+  that single stored `1.0` row keeps its old `ok` verdict until its store is rebuilt. This resolves
+  the case ADR 0041 recorded and deliberately left open
+  ([ADR 0043](docs/adr/0043-a-dead-probe-reads-zero-not-dry.md)).
+- **`/sensors/` could never recover from a provenance refusal, and had been a copy of page 1 for
+  days.** `swelter fetch --accumulate` refused any store holding observations without a
+  `source-metadata.json`. Correct — readings whose terms nobody can name must not be published — but
+  the Pages workflow restores that store from an `actions/cache` entry on *every* run, so the
+  refusal was self-sustaining: the workflow's documented "a cache miss just degrades to a fresh
+  fetch" never fired, because it was a cache **hit**. Observed on every `demo` run inspected from
+  2026-08-16 to 2026-08-19; the route silently served a byte-identical duplicate of the California
+  page while CI stayed green. Absent provenance now discards the unattributable store (and its
+  OpenAQ license ledger) and fetches fresh, printing why; *disagreeing* provenance is still a hard
+  refusal, unchanged. The cache key moves to `swelter-fetch-store-scope-v3-`
+  ([ADR 0044](docs/adr/0044-an-unattributable-store-is-discarded-not-refused-forever.md)).
 - **A broken sensor's arithmetic could reach the map as a clean heat reading.** All three real
   source adapters derived heat index and estimated shade WBGT whenever both inputs were *present*,
   never checking whether they were *plausible*. A temperature or humidity outside its published range

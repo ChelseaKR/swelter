@@ -200,6 +200,45 @@ def test_derive_heat_metrics_rejects_nonfinite_inputs() -> None:
     assert derive_heat_metrics(float("inf"), 50.0) == {}
 
 
+@pytest.mark.parametrize("humidity_pct", [0.0, 1.0, 1.99])
+def test_a_dead_probe_humidity_is_outside_the_published_range(humidity_pct: float) -> None:
+    """A capacitive probe whose readout fails lands on its scale floor. Measured live on
+    2026-08-19, every Sensor.Community humidity reading at or below 5 %RH was exactly ``0.0``
+    (BME280, 1) or exactly ``1.0`` (DHT22, 25), with nothing between ``1.0`` and the lowest real
+    reading of 7.0 %RH. Both sentinels used to sit *inside* ``[0.0, 100.0]``, so nothing flagged
+    them (ADR 0043)."""
+    assert not is_within_range("humidity_pct", humidity_pct)
+
+
+@pytest.mark.parametrize(("temp_c", "humidity_pct"), [(46.2, 1.0), (35.0, 0.0), (30.3, 1.0)])
+def test_no_derived_heat_metric_from_a_dead_humidity_probe(
+    temp_c: float, humidity_pct: float
+) -> None:
+    """The whole point of the floor: no estimated WBGT reaches the map from a dead probe.
+
+    Each pair is a real (temperature, humidity) reading taken from the live feed on 2026-08-19.
+    The published estimated WBGT was 6 to 14 degC **below** the same temperature at a plausible
+    humidity — always toward "safe", on a heat-safety surface (ADR 0043)."""
+    assert is_within_range("temp_c", temp_c), "the temperature must be the plausible half"
+    assert wbgt_c(temp_c, humidity_pct) < wbgt_c(temp_c, 55.0) - 5.0, (
+        "the fixture must actually under-report by a wide margin, or it proves nothing"
+    )
+    assert derive_heat_metrics(temp_c, humidity_pct) == {}
+
+
+def test_the_humidity_floor_admits_genuinely_very_dry_readings() -> None:
+    """The floor clears the sentinels without deleting real dry air.
+
+    Model output over desert California really does reach single-digit %RH: on 2026-08-19 the
+    published store held 1,121 humidity rows at or below 7 %RH, decaying smoothly (458 at 7,
+    322 at 6, 213 at 5, 103 at 4, 21 at 3, 3 at 2, 1 at 1). A floor set to the *lowest sampled*
+    value rather than to the sentinels would have thrown all of those away (ADR 0043)."""
+    assert PARAMETERS["humidity_pct"].valid_min == 2.0
+    for genuinely_dry in (2.0, 3.0, 4.0, 5.0, 7.0):  # the bound is inclusive, like every other
+        assert is_within_range("humidity_pct", genuinely_dry)
+        assert derive_heat_metrics(35.0, genuinely_dry) != {}
+
+
 def test_heat_index_category_bands() -> None:
     assert heat_index_category(20.0) == (0, "None")  # below the Caution floor
     assert heat_index_category(28.0) == (1, "Caution")

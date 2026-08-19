@@ -111,6 +111,15 @@ Non-breaking (MINOR):
 - Adding a new value to an extensible set: a new entry in `PARAMETERS` (with its unit and valid
   range), or a new QC verdict alongside `ok`, `range`, `spike`, `flatline`, `missing`. Consumers
   that switch on these sets are expected to tolerate unknown values; the docs say so.
+- **Changing an existing `PARAMETERS` entry's `valid_min`/`valid_max`.** A range says which values
+  the pipeline is willing to treat as measurements, not what a field means, so tightening or
+  relaxing one changes no field, unit, CSV column, or verdict meaning and does not move
+  `DATA_SCHEMA_VERSION`. It is still a *visible* change — the bounds are published in
+  `/api/schema.json`'s `parameters` block and in the data dictionary — so it belongs in the
+  changelog with the evidence behind the new bound, and it needs an ADR when the evidence is a
+  measurement rather than a datasheet (ADR 0043 moved `humidity_pct.valid_min` from `0.0` to `2.0`
+  because the old floor admitted a dead probe's sentinel reading). Removing a parameter, or
+  changing its unit, remains MAJOR as above.
 
 ### Store layout
 
@@ -325,6 +334,6 @@ Every release records its API and schema compatibility level in the changelog an
 Breaking changes are never silent: they are named, with a migration step, before the version digits
 are trusted.
 
-Last verified: 2026-07-17. Recheck cadence: review on each release, and whenever the SensorThings
+Last verified: 2026-08-19. Recheck cadence: review on each release, and whenever the SensorThings
 subset, the export shape, the observation fields, the store layout, or the correction-registry
 format change.

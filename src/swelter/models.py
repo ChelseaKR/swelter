@@ -38,19 +38,47 @@ KNOWN_SOURCES: Final[frozenset[str]] = frozenset(
 
 @dataclass(frozen=True)
 class Parameter:
-    """A measurable quantity and the physically plausible range QC holds it to."""
+    """A measurable quantity and the physically plausible range QC holds it to.
+
+    ``range_note`` is published in the data dictionary beside the bounds. It exists for the bounds
+    a consumer would otherwise have to guess at — a humidity floor above zero looks like a bug
+    until you know a dead capacitive probe reports exactly zero — and stays empty for the ones that
+    explain themselves. It is documentation of the bound, never a second bound.
+    """
 
     name: str
     unit: str
     valid_min: float
     valid_max: float
+    range_note: str = ""
 
 
 #: The full set of quantities a node may report. Adding a parameter is a one-line change
 #: here plus a calibration model; nothing else in the pipeline is parameter-specific.
 PARAMETERS: Final[dict[str, Parameter]] = {
     "temp_c": Parameter("temp_c", "degC", -40.0, 60.0),
-    "humidity_pct": Parameter("humidity_pct", "%", 0.0, 100.0),
+    # The floor is 2.0, not 0.0. A capacitive probe's failed readout lands on its own scale floor,
+    # and the values it lands on — exactly 0.0 and exactly 1.0 — are *inside* a [0, 100] range, so
+    # nothing flagged them and a WBGT derived from one was published as an ordinary reading, up to
+    # ~14 °C too cool. On a live Sensor.Community sample 26 of 460 humidity readings (5.65%) were
+    # those two sentinels, with nothing between 1.0 and the lowest real reading of 7.0. Model data
+    # really does get that dry, so the floor was checked against the whole published California
+    # store too: it reclassifies 1 of its 166,478 humidity rows. 2.0 is also at or below every
+    # network probe's own stated ±RH accuracy, so a value under it is not something the instrument
+    # could have resolved. See ADR 0043.
+    "humidity_pct": Parameter(
+        "humidity_pct",
+        "%",
+        2.0,
+        100.0,
+        range_note=(
+            "The floor is 2 %RH, not 0. A capacitive humidity probe whose readout fails reports "
+            "its scale floor — exactly 0.0 or exactly 1.0 %RH — and those sentinels used to pass "
+            "as measurements, publishing an estimated WBGT several degrees too cool. 2 %RH is at "
+            "or below every network probe's own stated accuracy, and excludes the sentinels while "
+            "keeping the genuinely very dry model readings above them. See ADR 0043."
+        ),
+    ),
     "pm25_ugm3": Parameter("pm25_ugm3", "ug/m3", 0.0, 1000.0),
     "pm10_ugm3": Parameter("pm10_ugm3", "ug/m3", 0.0, 2000.0),
     "no2_ppb": Parameter("no2_ppb", "ppb", 0.0, 2000.0),

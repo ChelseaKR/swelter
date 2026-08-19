@@ -9,7 +9,13 @@ and data explorer.
 [![accessibility: WCAG 2.2 AA target](https://img.shields.io/badge/accessibility-WCAG%202.2%20AA-176b3a.svg)](docs/accessibility/ACR.md)
 
 **[Open the live California map](https://chelseakr.github.io/swelter/)** ·
-[Additional data view](https://chelseakr.github.io/swelter/sensors/)
+[Second route (`/sensors/`)](https://chelseakr.github.io/swelter/sensors/)
+
+**What the live map is showing right now: Copernicus CAMS atmospheric model output for 337
+California places, via Open-Meteo — not physical sensors.** The pipeline is built for a physical
+sensor network and supports two real physical-sensor sources; neither is reaching the deployment
+today. See [What the deployed site actually shows](#what-the-deployed-site-actually-shows) for which
+source is live on each route, why, and where each artifact states its own terms.
 
 **Status:** Beta — maintained pre-1.0 reference implementation.
 
@@ -90,6 +96,31 @@ measurements as CC0.
 Read [`DATA-LICENSE`](DATA-LICENSE) for the legal boundary and [`docs/data-cards/`](docs/data-cards/README.md)
 for provenance, limitations, refresh, and quality notes. Context layers and cooling-center data have
 their own source records and are not silently swept into the observation license.
+
+### What the deployed site actually shows
+
+That table is the set of sources the pipeline *supports*. It is not what the two published routes are
+serving, and the difference matters enough to state plainly: **everything on
+[chelseakr.github.io/swelter](https://chelseakr.github.io/swelter/) today is atmospheric model
+output, not a physical sensor reading.**
+
+The daily `demo` workflow tries the sources in order and publishes the first that succeeds. As of
+**2026-08-19**, on every run inspected back to 2026-08-16:
+
+| Route | Intended source | What is published | Why |
+|---|---|---|---|
+| `/` | OpenAQ — dense real physical monitors across California | **Copernicus CAMS via Open-Meteo**, 337 California places, hourly | The OpenAQ fetch fails closed with `OpenAQ readings have no publishable per-location license ledger`. swelter will not publish readings whose provider terms it cannot name, so the run falls through to CAMS. Root cause not yet established; tracked in [issue #179](https://github.com/ChelseaKR/swelter/issues/179) |
+| `/sensors/` | Sensor.Community — community low-cost sensors near Stuttgart | **A copy of `/` — the same CAMS artifact** | The cached fetch store predated a provenance requirement and the fetch refused on every run, with no way to recover; fixed by [ADR 0044](docs/adr/0044-an-unattributable-store-is-discarded-not-refused-forever.md), so this route should carry real Sensor.Community readings again from the next scheduled run |
+
+CAMS is model/reanalysis output on a grid. The published points are real California city centroids
+snapped to model cells, so the map must not be read as block-level measurement, as a sensor at each
+point, or as a swelter-calibrated value — see
+[`docs/data-cards/openmeteo-cams.md`](docs/data-cards/openmeteo-cams.md).
+
+This table is a snapshot and can go stale. Each deploy states its own terms in machine-readable form
+and those never can: `demo.json` (the source-truth contract, built from the fetch output and checked
+against the surface before publish), the `rights` envelope inside `sample-surface.json`, and the
+route's generated `DATA-LICENSE`. When this README and the artifact disagree, the artifact is right.
 
 ## Architecture
 

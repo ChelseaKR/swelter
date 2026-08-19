@@ -31,6 +31,20 @@ def test_range_flag_marks_impossible_values() -> None:
     assert flagged[0].qc == "range"
 
 
+def test_a_dead_probe_humidity_is_flagged_out_of_range() -> None:
+    """The two sentinel values a failed capacitive readout produces get the verdict that already
+    means "not a measurement" — no new state, and the raw row is kept, not deleted (ADR 0043)."""
+    readings = [
+        make_obs(timestamp="2026-06-01T00:00:00Z", parameter="humidity_pct", unit="%", value=0.0),
+        make_obs(timestamp="2026-06-01T01:00:00Z", parameter="humidity_pct", unit="%", value=1.0),
+        make_obs(timestamp="2026-06-01T02:00:00Z", parameter="humidity_pct", unit="%", value=41.0),
+    ]
+    flagged = qc.apply(readings)
+    assert [o.qc for o in flagged] == ["range", "range", "ok"]
+    assert len(flagged) == len(readings)  # QC labels a reading, it never deletes one
+    assert [o.value for o in flagged] == [0.0, 1.0, 41.0]
+
+
 def test_spike_is_isolated_departure() -> None:
     flagged = {o.timestamp: o.qc for o in qc.apply(_series([25.0, 25.0, 40.0, 25.0, 25.0]))}
     assert flagged["2026-06-01T02:00:00Z"] == "spike"

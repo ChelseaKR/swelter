@@ -76,6 +76,22 @@ def test_parse_derives_no_heat_metric_from_a_faulted_probe() -> None:
     assert "pm25_ugm3" in params  # a faulted probe does not discredit the PM sensor beside it
 
 
+def test_parse_derives_no_heat_metric_from_a_dead_humidity_probe() -> None:
+    """The real one, measured on this feed on 2026-08-19: a DHT22 reporting exactly 1.0 %RH beside
+    a 46.2 °C enclosure temperature. Both numbers used to be in range, so ADR 0041's input guard
+    passed them and the map published an estimated WBGT of 26.13 — the reading of an ordinary warm
+    day — where a plausible humidity would have given ~40. 25 of 26 sub-5 %RH readings on that
+    sample were this exact value (ADR 0043)."""
+    obs, _ = sensor_community.parse_measurements(
+        [_row(13, "2026-06-17 23:00:00", p2="8.0", p1="12.0", temp="46.2", humid="1.0")]
+    )
+    params = {o.parameter for o in obs}
+    assert "heat_index_c" not in params and "wbgt_c" not in params
+    # The raw readings still travel, so the fault stays visible as node-trouble evidence.
+    assert "temp_c" in params and "humidity_pct" in params
+    assert next(o for o in obs if o.parameter == "humidity_pct").value == 1.0
+
+
 def test_parse_derives_no_heat_metric_from_a_condensing_humidity_reading() -> None:
     """>100 %RH is what a condensing low-cost sensor reports, not weather."""
     obs, _ = sensor_community.parse_measurements(
