@@ -531,6 +531,12 @@ test("map keyboard pan, zoom, reset, selection, and equivalent views change real
 });
 
 test("larger text preserves the map center and keeps a selected overview singleton clear", async ({ page }) => {
+  // Two text-scale steps each poll for an async re-center (see the comment at the poll below); the
+  // default 10s expect timeout is usually plenty but was observed to time out under heavy CI
+  // concurrency, not because the correction is slow, but because the runner's event loop is
+  // contended. Triple the test's own budget so both iterations' polls have real headroom without
+  // masking a genuine non-convergence, which would still fail, just later.
+  test.slow();
   await ready(page);
   const map = page.locator("#map");
   const canvas = page.locator("#map .map-canvas");
@@ -580,15 +586,19 @@ test("larger text preserves the map center and keeps a selected overview singlet
     // above lands synchronously with the click, well before that correction has necessarily run,
     // so reading the camera on the same tick races it -- a race WebKit's ResizeObserver dispatch
     // loses often enough to be reproducible (#169), while Chromium/Firefox usually win it. Poll
-    // for the corrected value instead of reading once immediately after the click.
+    // for the corrected value instead of reading once immediately after the click. An explicit
+    // 20s ceiling (vs. the 10s default) gives real headroom under CI concurrency without masking
+    // a genuine non-convergence, which still fails the check, just after a longer wait.
     await expect
       .poll(async () => (await cameraState()).centerLeft, {
         message: `${textScale} geographic center x`,
+        timeout: 20_000,
       })
       .toBeCloseTo(beforeScale.centerLeft, 7);
     await expect
       .poll(async () => (await cameraState()).centerTop, {
         message: `${textScale} geographic center y`,
+        timeout: 20_000,
       })
       .toBeCloseTo(beforeScale.centerTop, 7);
     const afterScale = await cameraState();
