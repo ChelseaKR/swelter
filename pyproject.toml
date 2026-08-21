@@ -55,7 +55,7 @@ dev = [
 ]
 infra = [
     "aws-cdk-lib==2.264.0",
-    "constructs==10.7.1",
+    "constructs==10.8.1",
 ]
 mutation = [
     "mutmut==3.6.0",
