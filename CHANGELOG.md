@@ -231,6 +231,19 @@ All notable changes to swelter are recorded here. The format follows
   shared constant so the two artifacts can't drift apart. The complete, unbounded history remains
   available locally via `swelter snapshot`; the live, filterable `/export.csv` route
   (`swelter serve`) is unaffected — only the static Pages artifact is bounded.
+- **The OpenAQ license-ledger refusal now says which reading and why
+  ([#179](https://github.com/ChelseaKR/swelter/issues/179)).** `validate_license_ledger` returned a
+  bare `bool`, so every refusal printed the identical, unactionable
+  `"OpenAQ readings have no publishable per-location license ledger"` regardless of whether one
+  location out of 250 was missing terms or all of them, and regardless of whether a location was
+  never licensed at all versus licensed under an entry that doesn't cover this reading's date. A new
+  `license_ledger_gaps` names each distinct gap ("location 2 (oaq-2): no license entry at all" vs.
+  "location 1 (oaq-1) at 2026-06-02T00:00:00Z: 1 entry present, none covers this reading's date"),
+  de-duplicated so a single dead location's many readings collapse to one line; `fetch`'s
+  `SourceError` now prints the first five. **This does not close #179** — the root cause (why OpenAQ
+  v3 currently returns nothing the ledger can match) is still unconfirmed against the live API, which
+  needs the repo's `OPENAQ_API_KEY` secret to reproduce. It makes the next run's refusal legible
+  enough to diagnose that root cause instead of re-reading the same six words for the sixth time.
 - **A broken sensor's arithmetic could reach the map as a clean heat reading.** All three real
   source adapters derived heat index and estimated shade WBGT whenever both inputs were *present*,
   never checking whether they were *plausible*. A temperature or humidity outside its published range
