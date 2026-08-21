@@ -107,6 +107,12 @@ jobs:
             SOURCE1_LICENSE="CC0-1.0"
             SOURCE1_ATTRIBUTION="Synthetic demonstration data — no real sensors (gen_demo_data.py)."
           fi
+          # A fallback is a supported, non-error outcome (ADR 0034) -- but a *green* run is where a
+          # persistent fallback goes invisible (#180). Announce it in the run summary, generated from
+          # which branch above actually won rather than a hand-maintained flag, so this can't drift.
+          if [ "$primary_source" != "openaq" ]; then
+            echo "::warning title=Page 1 is on a fallback source::/ is serving '$primary_source', not its first-choice source 'openaq'."
+          fi
           # Fail closed if the selected source's claims disagree with the surface it produced.
           # Build before publish so demo.json is included in the auditable publish manifest;
           # publish deterministically rebuilds the same surface from the selected store.
@@ -142,6 +148,7 @@ jobs:
               --cooling-centers /dev/null/none \
               --license "$SC_LICENSE" --attribution "$SC_ATTRIBUTION"
           else
+            echo "::warning title=Page 2 is on a fallback source::/sensors/ is serving '$primary_source' (page 1's source), not its first-choice source 'sensor-community'."
             # Sensor.Community failed: restore the primary California artifact's map and terms
             # before rebuilding the secondary route from the same store. Without this copy, the
             # fallback readings retain California coordinates but lose their geographic context.
