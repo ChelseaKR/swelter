@@ -170,6 +170,13 @@ survives the same delay. The fix polls for the corrected camera state instead of
 genuine future regression (the correction never landing) still fails the check, just after the poll
 timeout rather than immediately. No `web/app.js` change was needed.
 
+**Follow-up (2026-08-21).** The initial poll used the suite's 10s default `expect` timeout, which
+was observed to time out under heavy same-day CI concurrency (many parallel workflow runs sharing
+runner capacity) — not because the correction was slow in absolute terms, but because the runner's
+event loop was contended. `test.slow()` (triples the test's own timeout) plus an explicit 20s ceiling
+on each poll give real headroom; a genuine non-convergence still fails the check, just after a
+longer wait.
+
 ## Regenerating this report
 
 Run `make a11y` and `make verify-web` (which installs all three locked browser engines), then
