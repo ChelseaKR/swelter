@@ -1967,8 +1967,10 @@ def cmd_publish(args: argparse.Namespace) -> int:
         # a sparse or gappy feed still gets a full window's worth of readings. The complete,
         # unbounded history remains available locally via `swelter snapshot`, which this does not
         # touch or replace.
-        export_buckets = set(sorted({o.timestamp for o in all_obs})[-_EXPORT_WINDOW_HOURS:])
-        export_obs = [o for o in all_obs if o.timestamp in export_buckets]
+        export_buckets = set(
+            sorted({aggregate.hour_bucket(o.timestamp) for o in all_obs})[-_EXPORT_WINDOW_HOURS:]
+        )
+        export_obs = [o for o in all_obs if aggregate.hour_bucket(o.timestamp) in export_buckets]
         (web_dir / "export.csv").write_text(
             export.to_csv(
                 export_obs,
