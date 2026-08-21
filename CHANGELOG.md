@@ -213,6 +213,19 @@ All notable changes to swelter are recorded here. The format follows
   OpenAQ license ledger) and fetches fresh, printing why; *disagreeing* provenance is still a hard
   refusal, unchanged. The cache key moves to `swelter-fetch-store-scope-v3-`
   ([ADR 0044](docs/adr/0044-an-unattributable-store-is-discarded-not-refused-forever.md)).
+- **The OpenAQ license-ledger refusal now names which reading and why ([#179](https://github.com/ChelseaKR/swelter/issues/179)).**
+  `openaq.fetch` has failed closed on every deploy run since at least 2026-07-26 with one message —
+  "OpenAQ readings have no publishable per-location license ledger" — that named nothing: not
+  whether one location out of 250 was missing terms or all of them, not which location ids, not
+  which observation timestamps fell outside an entry's coverage window. Fail-closed here is correct
+  (rule 6): a reading whose terms nobody can name must not be published. The problem was that the
+  evidence needed to fix it wasn't in the message. `validate_license_ledger` stays a bool (nothing
+  that reads it changes); a new `license_ledger_gaps` returns the same verdict as a list of reasons
+  — "no license entry at all" for a location the ledger has never heard of, versus "N entries
+  present, none covers this reading's date" for one that's simply stale — and the refusal now prints
+  the first five, with a count of how many more there were. This does not fix the root cause (still
+  unconfirmed against the live v3 API, per the issue) but it is now something the next failing run's
+  log can be read and acted on directly, rather than re-diagnosed from scratch.
 - **A broken sensor's arithmetic could reach the map as a clean heat reading.** All three real
   source adapters derived heat index and estimated shade WBGT whenever both inputs were *present*,
   never checking whether they were *plausible*. A temperature or humidity outside its published range
