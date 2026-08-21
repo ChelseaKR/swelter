@@ -168,9 +168,13 @@ infra-synth:  ## Synthesize the optional AWS stack with locked libraries and exa
 	uv sync --locked --group infra
 	cd infra/cdk && npx --yes aws-cdk@$(CDK_CLI_VERSION) synth --output cdk.out
 
+# `--locked` rather than `--frozen`: `--frozen` exports whatever uv.lock happens
+# to say and exits 0 even when the lock no longer agrees with pyproject.toml, so
+# a drifted lock meant this gate audited the wrong set of pins and still passed.
+# `--locked` exits non-zero on that drift instead.
 security-pip:  ## Audit the locked Python dependency graph with no vulnerability waiver
 	REQ="$$(mktemp)"; \
-	uv export --frozen --no-emit-project --all-groups --no-hashes \
+	uv export --locked --no-emit-project --all-groups --no-hashes \
 	  --format requirements-txt --output-file "$$REQ" \
 	  && uv run --with pip-audit==$(PIP_AUDIT_VERSION) pip-audit --requirement "$$REQ"; \
 	STATUS=$$?; rm -f "$$REQ"; exit $$STATUS
