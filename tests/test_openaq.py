@@ -427,6 +427,36 @@ def test_license_ledger_is_bound_to_location_identity_and_observation_time() -> 
     )
 
 
+def test_describe_ledger_gap_names_which_location_and_why() -> None:
+    """A fail-closed refusal used to be a bare bool with no evidence to fix it from (issue #179).
+    ``describe_ledger_gap`` walks the same rule ``validate_license_ledger`` enforces without
+    short-circuiting, and reports which location has no entry, which has an entry that doesn't
+    cover the observation's timestamp, and which node id doesn't even parse."""
+    ledger = _ledger(
+        1,
+        license_id=7,
+        license_name="Terms A",
+        fetched_at="2026-06-01T12:00:00Z",
+        valid_from="2026-06-01",
+        valid_to="2026-06-01",
+    )
+    gaps = openaq.describe_ledger_gap(
+        ledger,
+        observations=[
+            _pm("oaq-1", "2026-06-02T00:00:00Z", 10.0),  # location 1 exists, window doesn't cover
+            _pm("oaq-2", "2026-06-01T12:00:00Z", 10.0),  # location 2 has no entry at all
+            _pm("not-an-oaq-id", "2026-06-01T12:00:00Z", 10.0),  # doesn't parse as oaq-<id>
+        ],
+    )
+    assert any("location 1" in g and "does not cover" in g for g in gaps)
+    assert any("location 2" in g and "no ledger entry at all" in g for g in gaps)
+    assert any("not-an-oaq-id" in g for g in gaps)
+    # A ledger that validates has nothing to report.
+    assert openaq.describe_ledger_gap(
+        ledger, observations=[_pm("oaq-1", "2026-06-01T12:00:00Z", 10.0)]
+    ) == []
+
+
 def test_merge_license_ledgers_preserves_changed_historical_terms() -> None:
     first = _ledger(
         1,

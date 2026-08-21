@@ -567,16 +567,73 @@ def _observations_have_terms(
     return True
 
 
+#: Cap on how many distinct gap reasons `_ledger_gap_reasons` collects (issue #179's own complaint
+#: was that a fail-closed refusal named nobody; this is what a run should print instead of a bare
+#: bool, bounded so one badly-covered location can't flood a log).
+_LEDGER_GAP_REASON_LIMIT = 10
+
+
+def _ledger_gap_reasons(
+    observations: Iterable[Observation], entries_by_location: dict[int, list[dict[str, Any]]]
+) -> list[str]:
+    """Walk the same coverage rule ``_observations_have_terms`` enforces, without short-circuiting
+    on the first miss, and name which location(s) and how many observations are missing terms —
+    the evidence issue #179 asked for so a fail-closed run can be diagnosed and fixed rather than
+    only reported as an opaque failure."""
+    missing_location: dict[int, int] = {}
+    uncovered_by_location: dict[int, int] = {}
+    bad_node_ids: set[str] = set()
+    for observation in observations:
+        match = _NODE_ID.fullmatch(observation.node_id)
+        if match is None:
+            bad_node_ids.add(observation.node_id)
+            continue
+        location_id = int(match.group(1))
+        candidates = entries_by_location.get(location_id, [])
+        if not candidates:
+            missing_location[location_id] = missing_location.get(location_id, 0) + 1
+        elif not any(_entry_covers(entry, observation) for entry in candidates):
+            uncovered_by_location[location_id] = uncovered_by_location.get(location_id, 0) + 1
+
+    reasons: list[str] = []
+    for node_id in sorted(bad_node_ids):
+        reasons.append(f"node id {node_id!r} does not match the oaq-<location_id> pattern")
+    for location_id, count in sorted(missing_location.items()):
+        reasons.append(f"location {location_id}: no ledger entry at all ({count} observation(s))")
+    for location_id, count in sorted(uncovered_by_location.items()):
+        reasons.append(
+            f"location {location_id}: ledger entry exists but its valid_from/valid_to window "
+            f"does not cover {count} observation(s)"
+        )
+    return reasons[:_LEDGER_GAP_REASON_LIMIT]
+
+
+def _entries_by_location(normalized: Any) -> dict[int, list[dict[str, Any]]]:
+    entries_by_location: dict[int, list[dict[str, Any]]] = {}
+    for normalized_entry in normalized.entries:
+        entry = normalized_entry.to_dict()
+        entries_by_location.setdefault(entry["location_id"], []).append(entry)
+    return entries_by_location
+
+
 def validate_license_ledger(ledger: object, *, observations: Iterable[Observation] = ()) -> bool:
     """Return whether a ledger is complete for the OpenAQ observations being released."""
     normalized = _normalized_ledger(ledger)
     if normalized is None:
         return False
-    entries_by_location: dict[int, list[dict[str, Any]]] = {}
-    for normalized_entry in normalized.entries:
-        entry = normalized_entry.to_dict()
-        entries_by_location.setdefault(entry["location_id"], []).append(entry)
-    return _observations_have_terms(observations, entries_by_location)
+    return _observations_have_terms(observations, _entries_by_location(normalized))
+
+
+def describe_ledger_gap(ledger: object, *, observations: Iterable[Observation] = ()) -> list[str]:
+    """Specific, bounded reasons a ledger failed :func:`validate_license_ledger` -- which
+    location(s) have no entry at all versus an entry whose validity window doesn't cover the
+    observation, and any node id that doesn't even parse as an OpenAQ location. Issue #179's
+    complaint was that the fail-closed refusal ``validate_license_ledger`` backs "names nothing";
+    this is the evidence a run can act on instead of a bare bool."""
+    normalized = _normalized_ledger(ledger)
+    if normalized is None:
+        return ["the ledger itself failed schema validation (see _normalized_ledger)"]
+    return _ledger_gap_reasons(observations, _entries_by_location(normalized))
 
 
 def license_terms_by_observation(
@@ -790,7 +847,11 @@ def fetch(
         entry for entry in ledger["entries"] if f"oaq-{entry['location_id']}" in live
     ]
     if out and not validate_license_ledger(ledger, observations=out):
-        raise SourceError("OpenAQ readings have no publishable per-location license ledger")
+        gaps = describe_ledger_gap(ledger, observations=out)
+        detail = "; ".join(gaps) if gaps else "no further detail available"
+        raise SourceError(
+            f"OpenAQ readings have no publishable per-location license ledger: {detail}"
+        )
     if license_ledger is not None:
         license_ledger.clear()
         license_ledger.update(ledger)

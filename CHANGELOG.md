@@ -133,6 +133,18 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The OpenAQ license-ledger refusal named nobody it could be fixed from
+  ([#179](https://github.com/ChelseaKR/swelter/issues/179), partial).** `validate_license_ledger`
+  is a bare `bool`, so every fail-closed refusal on the live deploy has read
+  `OpenAQ readings have no publishable per-location license ledger` with no way to tell which
+  location(s) are missing a ledger entry, which have an entry whose `valid_from`/`valid_to` window
+  doesn't cover the observation, or whether a node id failed to parse at all. A new
+  `describe_ledger_gap` walks the identical coverage rule without short-circuiting on the first
+  miss and reports up to 10 specific reasons, now appended to the `SourceError` the live fetch
+  raises. Fail-closed behavior itself is unchanged (invariant 6) — this is diagnosability only.
+  **The root cause of the live refusal is still open**: the API key is configured and this fix
+  doesn't establish why coverage fails against the real v3 API; the next failing run's log now
+  names the location(s) and reason, which is what #179 needs next.
 - **A broken sensor's arithmetic could reach the map as a clean heat reading.** All three real
   source adapters derived heat index and estimated shade WBGT whenever both inputs were *present*,
   never checking whether they were *plausible*. A temperature or humidity outside its published range
