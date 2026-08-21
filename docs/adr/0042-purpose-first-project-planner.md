@@ -1,4 +1,4 @@
-# ADR 0044: Decide whether evidence requires sensors before planning hardware
+# ADR 0042: Decide whether evidence requires sensors before planning hardware
 
 - Status: Accepted
 - Date: 2026-07-09

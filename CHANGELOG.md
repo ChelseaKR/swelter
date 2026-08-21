@@ -13,7 +13,7 @@ All notable changes to swelter are recorded here. The format follows
   non-personal questions and recommends public data, a governance or stewardship pause, a bounded
   pilot, or staged operation. “Do not deploy” is a first-class outcome; raw readings cannot unlock
   expansion without a calibration path. Plans are calculated in the browser and can be copied or
-  printed without storing or transmitting answers ([ADR 0044](docs/adr/0044-purpose-first-project-planner.md)).
+  printed without storing or transmitting answers ([ADR 0042](docs/adr/0042-purpose-first-project-planner.md)).
 - **Event chronicle generator.** `swelter chronicle --from <ISO> --to <ISO>` composes the aggregated
   surface, `qc.detect_gaps`, and `qc.coverage_equity` into a citable post-event Markdown chronicle:
   Danger/Extreme-Danger and compound-exposure cell-hours per published cell, the calibrated-vs-
