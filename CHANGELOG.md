@@ -14,6 +14,18 @@ All notable changes to swelter are recorded here. The format follows
   pilot, or staged operation. “Do not deploy” is a first-class outcome; raw readings cannot unlock
   expansion without a calibration path. Plans are calculated in the browser and can be copied or
   printed without storing or transmitting answers ([ADR 0042](docs/adr/0042-purpose-first-project-planner.md)).
+- **A fallback source now announces itself in the deploy run, not just the log ([#180](https://github.com/ChelseaKR/swelter/issues/180)).**
+  The `demo` workflow's source ladder (OpenAQ → CAMS → synthetic for page 1; Sensor.Community →
+  page 1's artifact for `/sensors/`) is a supported, non-error outcome by design (ADR 0034), so the
+  run exits 0 and stays green whether or not a route reached its first-choice source. That is
+  correct for a transient outage and wrong for a persistent one: both physical-sensor routes were
+  dark simultaneously for at least four days (2026-08-16 to 2026-08-19) and every run in that window
+  reported success, with nothing but a workflow log recording it. Each route now emits a
+  `::warning::` GitHub Actions annotation, visible in the run summary, whenever the source that won
+  is not the route's declared first choice — generated from which fallback branch actually ran,
+  not a separately maintained flag, so the claim cannot drift from the code that makes it. This is
+  a visibility floor, not the trend-tracking sketched in #180 (comparing the last N runs to flag a
+  persistent pattern); that remains a possible follow-up.
 - **Event chronicle generator.** `swelter chronicle --from <ISO> --to <ISO>` composes the aggregated
   surface, `qc.detect_gaps`, and `qc.coverage_equity` into a citable post-event Markdown chronicle:
   Danger/Extreme-Danger and compound-exposure cell-hours per published cell, the calibrated-vs-
