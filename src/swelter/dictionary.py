@@ -172,12 +172,16 @@ _OBSERVATION_FIELDS: tuple[dict[str, object], ...] = (
 
 
 def _parameters() -> list[dict[str, object]]:
+    # `range_note` is published as null rather than omitted, so a consumer reads one stable shape
+    # and can tell "this bound has no note" from "this build predates notes" (the same reason
+    # `qc_verdicts` publishes `emitted: false` instead of dropping the entry).
     return [
         {
             "name": p.name,
             "unit": p.unit,
             "valid_min": p.valid_min,
             "valid_max": p.valid_max,
+            "range_note": p.range_note or None,
         }
         for p in PARAMETERS.values()
     ]

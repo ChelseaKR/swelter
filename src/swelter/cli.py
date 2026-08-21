@@ -1109,7 +1109,15 @@ def _write_web_surface_slice(
     """Bake a trailing-window surface slice (``surface-24h.json``, ``surface-7d.json``) so a fully
     static deploy carries the same time-sliced views the live ``/api/surface.json?hours=N`` route
     serves — same payload shape as ``_write_web_sample``, windowed the same way server.py windows
-    it: the most recent ``hours`` hourly buckets, not a literal duration cutoff."""
+    it: the most recent ``hours`` hourly buckets, not a literal duration cutoff.
+
+    These two are the only published artifacts large enough for their own indentation to matter:
+    a statewide 7-day slice is hundreds of thousands of cell records, and ``indent=2`` spent
+    49,202,251 bytes of the 152,665,280-byte file published on 2026-08-19 on whitespace alone
+    (32.2%). They are fetched and parsed by the dashboard, never read by a person, so they are
+    written compact. Every smaller artifact — ``sample-surface.json``, the health and alert files,
+    ``aggregate.geojson`` — stays indented and legible. The payload shape is unchanged; only the
+    separators are (see the size note in ``docs/ARCHITECTURE.md``)."""
     if not web_dir.is_dir():
         return
     buckets = sorted({c.bucket for c in surface.cells})[-hours:] if hours else []
@@ -1122,7 +1130,7 @@ def _write_web_surface_slice(
         "cells": records,
         "rights": _static_rights_envelope(data_terms, attribution=attribution),
     }
-    (web_dir / filename).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    (web_dir / filename).write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
 
 
 def _write_web_health(
@@ -1440,6 +1448,26 @@ def _existing_fetch_observations(
         return list(existing_store.all())
 
 
+def _unattributable_accumulated_store(
+    args: argparse.Namespace,
+    paths: dict[str, Path],
+    existing_observations: Sequence[Observation],
+) -> bool:
+    """True when ``--accumulate`` found readings in a store that cannot state its own terms.
+
+    A store with observations but no ``source-metadata.json`` predates the provenance requirement
+    (or lost the file). Accumulating onto it is not an option: the run would publish readings whose
+    license and attribution nobody can name, which rule 6 forbids. Refusing *forever* is not an
+    option either — the store is restored from a cache on every run, so a permanent refusal is a
+    permanent outage that no rerun can clear (ADR 0044). The third option is the safe one and the
+    one the workflow already documents for a cache miss: the unattributable store is not a store,
+    so it is discarded and the fetch starts fresh.
+    """
+    if not args.accumulate or not existing_observations:
+        return False
+    return not (paths["dir"] / snapshot.SOURCE_METADATA_FILENAME).is_file()
+
+
 def _validate_accumulation_source(
     args: argparse.Namespace,
     paths: dict[str, Path],
@@ -1452,9 +1480,10 @@ def _validate_accumulation_source(
     if not args.accumulate:
         return
     existing_metadata = paths["dir"] / snapshot.SOURCE_METADATA_FILENAME
-    if existing_observations and not existing_metadata.is_file():
-        raise ValueError("--accumulate requires source-metadata.json for an existing store")
     if not existing_metadata.is_file():
+        # Either an empty store (nothing to attribute yet) or one already discarded as
+        # unattributable by `_unattributable_accumulated_store`. Disagreement is still refused
+        # below; only *absence* degrades to a fresh fetch.
         return
     existing_terms = snapshot.load_data_terms(paths["dir"], observations=existing_observations)
     expected = snapshot.DataTerms(source_label, license, attribution, license_url)
@@ -1478,6 +1507,8 @@ def _prepare_openaq_ledger(
     license_ledger: dict[str, Any] | None,
     observations: Sequence[Observation],
     existing_observations: Sequence[Observation],
+    *,
+    keep_existing: bool = True,
 ) -> dict[str, Any]:
     from .sources import openaq
 
@@ -1487,7 +1518,10 @@ def _prepare_openaq_ledger(
         raise ValueError("OpenAQ fetch returned an incomplete source-license ledger")
     prepared = license_ledger
     ledger_path = paths["dir"] / snapshot.SOURCE_LICENSE_LEDGER_FILENAME
-    if args.accumulate and ledger_path.is_file():
+    # A discarded store keeps none of its readings, so it must keep none of their per-location
+    # terms either: merging the old ledger forward would publish rights evidence for observations
+    # this run just dropped.
+    if args.accumulate and keep_existing and ledger_path.is_file():
         try:
             previous = json.loads(ledger_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
@@ -1510,13 +1544,25 @@ def _prepare_fetch_provenance(
     attribution: str,
     license_ledger: dict[str, Any] | None,
     observations: Sequence[Observation],
-) -> dict[str, Any] | None:
-    """Validate source identity and the complete post-fetch ledger before any mutation."""
+) -> tuple[dict[str, Any] | None, bool]:
+    """Validate source identity and the complete post-fetch ledger before any mutation.
+
+    Returns the prepared ledger (or ``None``) and whether the accumulated store must be discarded
+    because it cannot state its own terms — see :func:`_unattributable_accumulated_store`.
+    """
     if not all(value.strip() for value in (source_label, license, attribution)):
         raise ValueError("source, license, and attribution must be non-empty")
     if not license_url.startswith("https://"):
         raise ValueError("source license URL must use HTTPS")
     existing_observations = _existing_fetch_observations(args, paths)
+    discard_existing = _unattributable_accumulated_store(args, paths, existing_observations)
+    if discard_existing:
+        _err(
+            "swelter: --accumulate found an existing store with no source-metadata.json, so it "
+            "cannot name the license or attribution of the readings it holds; discarding it and "
+            "fetching fresh rather than publishing unattributable readings (ADR 0044)"
+        )
+        existing_observations = []
     _validate_accumulation_source(
         args,
         paths,
@@ -1530,9 +1576,19 @@ def _prepare_fetch_provenance(
     if source_label != "OpenAQ":
         if license_ledger is not None:
             raise ValueError(f"{source_label} unexpectedly returned an OpenAQ license ledger")
-        return None
+        return None, discard_existing
 
-    return _prepare_openaq_ledger(args, paths, license_ledger, observations, existing_observations)
+    return (
+        _prepare_openaq_ledger(
+            args,
+            paths,
+            license_ledger,
+            observations,
+            existing_observations,
+            keep_existing=not discard_existing,
+        ),
+        discard_existing,
+    )
 
 
 def _write_fetch_provenance(
@@ -1648,7 +1704,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             # Opening an accumulated store can migrate its schema and integrity chain. Validate
             # provenance only after the rollback journal covers those files, so a rejected fetch
             # restores the exact pre-open store rather than leaking migration side effects.
-            license_ledger = _prepare_fetch_provenance(
+            license_ledger, discard_existing_store = _prepare_fetch_provenance(
                 args,
                 paths,
                 source_label=source_label,
@@ -1670,9 +1726,10 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             attribution=attribution,
             license_ledger=license_ledger,
         )
-        if not args.accumulate:
+        if not args.accumulate or discard_existing_store:
             # A fresh snapshot replaces the database, but the rollback journal retains the prior
-            # bytes until every config/store/web artifact is known-good.
+            # bytes until every config/store/web artifact is known-good. A store that could not
+            # state its own terms takes the same path: it is discarded, not accumulated onto.
             paths["db"].unlink(missing_ok=True)
         with SqliteStore(paths["db"]) as store:
             # write() is INSERT OR IGNORE on
@@ -2429,7 +2486,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--accumulate",
         action="store_true",
         help="keep the existing store between runs instead of wiping it first, so history "
-        "builds up across repeated fetches (e.g. daily CI) instead of one snapshot per run",
+        "builds up across repeated fetches (e.g. daily CI) instead of one snapshot per run. "
+        "A store that cannot state its own license and attribution is discarded and refetched "
+        "rather than accumulated onto; recorded terms that disagree with this fetch still refuse",
     )
     p_fetch.add_argument(
         "--past-days", type=int, default=2, help="openmeteo: history window (days)"

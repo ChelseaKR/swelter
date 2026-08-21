@@ -97,6 +97,31 @@ def test_to_observations_derives_no_heat_metric_from_a_rejected_input() -> None:
     }
 
 
+def test_to_observations_derives_no_heat_metric_from_a_dead_humidity_probe() -> None:
+    """The California route is the one a resident checks before going outside, so the humidity
+    floor has to hold on this adapter too. 0 %RH was never observed on this feed (minimum 7.0 over
+    21,568 readings on 2026-08-19) — but nothing in the adapter guaranteed that, and an upstream
+    null-as-zero would have published an estimated WBGT ~10 °C too cool (ADR 0043)."""
+    places = (openmeteo.Neighborhood("Oak Park", 38.547, -121.463),)
+    air = [{"hourly": {"time": ["2026-06-16T00:00", "2026-06-16T01:00"], "pm2_5": [12.3, 14.1]}}]
+    weather = [
+        {
+            "hourly": {
+                "time": ["2026-06-16T00:00", "2026-06-16T01:00"],
+                "temperature_2m": [35.0, 35.0],
+                "relative_humidity_2m": [7.0, 0.0],
+            }
+        }
+    ]
+    obs = openmeteo.to_observations(places, air, weather)
+    derived = {o.timestamp for o in obs if o.parameter in ("heat_index_c", "wbgt_c")}
+    assert derived == {"2026-06-16T00:00:00Z"}  # 7 %RH is a real reading; 0 %RH is not
+    assert {o.timestamp for o in obs if o.parameter == "humidity_pct"} == {
+        "2026-06-16T00:00:00Z",
+        "2026-06-16T01:00:00Z",
+    }
+
+
 def test_to_observations_skips_nulls() -> None:
     places = (openmeteo.Neighborhood("Test Place", 1.0, 2.0),)
     air = [{"hourly": {"time": ["2026-06-16T00:00"], "pm2_5": [None], "pm10": [None]}}]

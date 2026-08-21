@@ -13,7 +13,7 @@ from __future__ import annotations
 import csv
 import json
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import pytest
@@ -1180,6 +1180,145 @@ def test_fetch_accumulate_rejects_malformed_old_ledger_without_mutation(
     assert main(args) == 1
     assert "source provenance is invalid" in capsys.readouterr().err
     assert _tree_bytes(cfg, store, web) == before
+
+
+def test_accumulate_discards_a_store_that_cannot_state_its_terms(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A store with readings but no ``source-metadata.json`` cannot name their license, so it is
+    discarded and the fetch starts fresh — it is not refused forever.
+
+    This is the exact shape of the ``/sensors/`` outage: the workflow restores the same legacy
+    store from an ``actions/cache`` entry on every run, so a permanent refusal was a permanent
+    outage no rerun could clear (ADR 0044). The run must succeed, keep only today's readings, and
+    say what it did.
+    """
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    args = [
+        "fetch",
+        "--source",
+        "openmeteo",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+    node_id = openmeteo.CALIFORNIA[0].node_id
+
+    def yesterday(*_a: object, **_k: object) -> list[Observation]:
+        return [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-01T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+                calibration=RAW,
+            )
+        ]
+
+    def today(*_a: object, **_k: object) -> list[Observation]:
+        return [
+            make_obs(
+                node_id=node_id,
+                timestamp="2026-06-02T00:00:00Z",
+                source=SOURCE_OPENMETEO,
+                calibration=RAW,
+            )
+        ]
+
+    monkeypatch.setattr(openmeteo, "fetch", yesterday)
+    assert main(args) == 0
+    # Age the store back to before the provenance requirement: readings, no recorded terms.
+    (store / "source-metadata.json").unlink()
+
+    monkeypatch.setattr(openmeteo, "fetch", today)
+    capsys.readouterr()
+    assert main(args) == 0
+    err = capsys.readouterr().err
+    assert "discarding it" in err and "source-metadata.json" in err
+
+    with open_store(store) as opened:
+        timestamps = {o.timestamp for o in opened.all() if o.node_id == node_id}
+    assert timestamps == {"2026-06-02T00:00:00Z"}  # the unattributable history is gone, not kept
+    # The condition clears itself: the fresh run recorded terms, so the next run accumulates.
+    assert (store / "source-metadata.json").is_file()
+    monkeypatch.setattr(openmeteo, "fetch", yesterday)
+    assert main(args) == 0
+    with open_store(store) as opened:
+        timestamps = {o.timestamp for o in opened.all() if o.node_id == node_id}
+    assert timestamps == {"2026-06-01T00:00:00Z", "2026-06-02T00:00:00Z"}
+
+
+def test_a_discarded_openaq_store_does_not_carry_its_license_ledger_forward(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Discarding readings discards their rights evidence too.
+
+    An OpenAQ ledger records per-location terms for the observations the store holds. If the store
+    is dropped as unattributable, merging the old ledger forward would publish rights evidence for
+    readings this run just deleted (ADR 0044).
+    """
+    store = tmp_path / "store"
+    cfg = tmp_path / "net.yaml"
+    web = tmp_path / "web"
+    args = [
+        "fetch",
+        "--source",
+        "openaq",
+        "--api-key",
+        "test-key",
+        "--store",
+        str(store),
+        "--config",
+        str(cfg),
+        "--web",
+        str(web),
+        "--accumulate",
+    ]
+
+    def day(
+        timestamp: str, license_id: int, license_name: str
+    ) -> Callable[..., tuple[list[Observation], dict[str, tuple[str, float, float]]]]:
+        def fetched(
+            *_args: object, **kwargs: object
+        ) -> tuple[list[Observation], dict[str, tuple[str, float, float]]]:
+            ledger = kwargs.get("license_ledger")
+            assert isinstance(ledger, dict)
+            ledger.update(
+                _openaq_ledger(
+                    1,
+                    fetched_at=timestamp,
+                    license_id=license_id,
+                    license_name=license_name,
+                    valid_from=timestamp[:10],
+                )
+            )
+            return [make_obs(node_id="oaq-1", timestamp=timestamp, source=SOURCE_OPENAQ)], {
+                "oaq-1": ("Site 1", 38.58, -121.49)
+            }
+
+        return fetched
+
+    monkeypatch.setattr(openaq, "fetch", day("2026-06-01T12:00:00Z", 1, "Terms A"))
+    assert main(args) == 0
+    (store / "source-metadata.json").unlink()  # age the store past the provenance requirement
+
+    monkeypatch.setattr(openaq, "fetch", day("2026-06-02T12:00:00Z", 2, "Terms B"))
+    assert main(args) == 0
+
+    with open_store(store) as opened:
+        observations = list(opened.all())
+    assert {o.timestamp for o in observations} == {"2026-06-02T12:00:00Z"}
+    ledger = json.loads((store / "source-license-ledger.json").read_text(encoding="utf-8"))
+    assert {entry["license_id"] for entry in ledger["entries"]} == {2}
+    assert openaq.validate_license_ledger(ledger, observations=observations)
 
 
 def test_fetch_accumulate_rejects_cross_source_without_mutation(

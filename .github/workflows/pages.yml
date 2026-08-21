@@ -12,7 +12,9 @@
 # synthetic demo), and the secondary route falls back to page 1's complete artifact.
 # The store persists across runs (actions/cache, keyed by day with a most-recent fallback) and
 # `--accumulate` keeps rather than wipes it (ADR 0013/EXP-01), so the time slider covers weeks of
-# real history instead of one day's snapshot. A cache miss just degrades to a fresh fetch.
+# real history instead of one day's snapshot. A cache miss degrades to a fresh fetch — and so does
+# a cache *hit* on a store that cannot state its own license and attribution (ADR 0043), which is
+# the only way a restored-every-run store can ever recover from a provenance refusal.
 name: demo
 
 on:
@@ -67,11 +69,16 @@ jobs:
             /tmp/cams.yaml
             /tmp/sc
             /tmp/sc.yaml
-          # v2 starts clean after California bbox spillover was replaced with a Census boundary.
+          # v2 started clean after California bbox spillover was replaced with a Census boundary.
           # Restoring an older cache would republish already-stored out-of-state observations.
-          key: swelter-fetch-store-scope-v2-${{ steps.date.outputs.date }}
+          # v3 starts clean again: the v2 /tmp/sc store predates the source-metadata.json
+          # requirement, so every `fetch --source sensor-community --accumulate` since at least
+          # 2026-08-16 refused, and `restore-keys` handed the same store back on the next run.
+          # A refusal that a rerun cannot clear needs a new key to escape; `swelter fetch` now also
+          # discards such a store instead of refusing (ADR 0043), so this is belt and braces.
+          key: swelter-fetch-store-scope-v3-${{ steps.date.outputs.date }}
           restore-keys: |
-            swelter-fetch-store-scope-v2-
+            swelter-fetch-store-scope-v3-
       - name: Assemble the live demo (real sources, layered fallback)
         env:
           OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
@@ -84,7 +91,8 @@ jobs:
           # a fetched third-party source, so the license tracks whichever branch actually
           # succeeded and rides into `swelter publish` below. --accumulate keeps the
           # cache-restored store instead of wiping it, so the time slider covers weeks of real
-          # history, not just today's fetch (a cache miss just starts fresh).
+          # history, not just today's fetch (a cache miss, or a restored store that cannot state
+          # its own terms, just starts fresh — ADR 0043).
           primary_source=synthetic
           if uv run swelter fetch --source openaq --store /tmp/openaq --config /tmp/openaq.yaml \
               --web web --max-locations 250 --accumulate; then

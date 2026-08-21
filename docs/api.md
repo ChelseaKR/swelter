@@ -42,7 +42,7 @@ The server is the standard library's `http.server`, single-threaded and stateles
 store and answers. It is scale-to-zero friendly and runs as well on a Raspberry-Pi-class host with
 no cloud at all. Responses set `Cache-Control: public, max-age=60`.
 
-Author: Chelsea Kelly-Reif. Last verified: 2026-07-16. Recheck cadence: every public route, schema,
+Author: Chelsea Kelly-Reif. Last verified: 2026-08-19. Recheck cadence: every public route, schema,
 export, source, license, or server-boundary change.
 
 ## Endpoints at a glance
@@ -624,6 +624,14 @@ the absence of a row, and reports gaps separately in `swelter qc` / `/api/health
 must not wait for a row with `qc: "missing"`
 ([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
 
+Each parameter carries `valid_min`, `valid_max`, and a `range_note` that is a string when the bound
+needs explaining and `null` when it does not. A bound is a statement about which values swelter is
+willing to treat as measurements, so a surprising one has a reason: `humidity_pct.valid_min` is
+`2.0` rather than `0.0` because a dead capacitive probe reports exactly `0.0` or exactly `1.0` %RH,
+and those sentinels were being published as real readings — and as an estimated WBGT several degrees
+too cool ([ADR 0043](adr/0043-a-dead-probe-reads-zero-not-dry.md)). Ranges can tighten within a
+MINOR release; see `docs/VERSIONING.md`.
+
 `data_schema_version` is the pin target: an integer, starting at `1`, that only moves when a change
 to the observation fields, the CSV column set/order, or a QC verdict's meaning crosses the line
 `docs/VERSIONING.md` ("Data schema — what counts as breaking") calls MAJOR. It is independent of the
@@ -649,7 +657,8 @@ it without a second request.
   ],
   "csv_columns": ["node_id", "timestamp", "parameter", "value", "unit", "source", "calibration", "qc", "uncertainty", "trustworthy", "data_license", "data_attribution"],
   "parameters": [
-    {"name": "temp_c", "unit": "degC", "valid_min": -40.0, "valid_max": 60.0}
+    {"name": "temp_c", "unit": "degC", "valid_min": -40.0, "valid_max": 60.0, "range_note": null},
+    {"name": "humidity_pct", "unit": "%", "valid_min": 2.0, "valid_max": 100.0, "range_note": "The floor is 2 %RH, not 0. A capacitive humidity probe whose readout fails reports its scale floor ... See ADR 0043."}
   ],
   "qc_verdicts": [
     {"name": "ok", "description": "The reading passed every QC check ...", "rejected": false, "emitted": true},
@@ -857,9 +866,12 @@ range −40 to 60 degC.
 
 ## humidity_pct
 
-Relative humidity, unit **%** (percent, 0–100). A diagnostic field: it is an input to the
-humidity-aware PM correction and to the heat index, and is not itself drawn on the map surface.
-Valid range 0 to 100 %.
+Relative humidity, unit **%** (percent). A diagnostic field: it is an input to the humidity-aware
+PM correction and to the heat index and estimated WBGT, and is not itself drawn on the map surface.
+Valid range **2 to 100 %** — the floor is above zero on purpose. A capacitive probe whose readout
+fails reports its scale floor (exactly `0.0` or exactly `1.0` %RH), and those sentinels used to pass
+QC and derive an estimated WBGT several degrees too cool
+([ADR 0043](adr/0043-a-dead-probe-reads-zero-not-dry.md)).
 
 ## pm25_ugm3
 

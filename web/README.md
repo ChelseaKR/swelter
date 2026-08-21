@@ -75,9 +75,13 @@ prefer the live API before falling back to `sample-surface.json`.
 Static routes paint from `sample-surface.json`, which contains only the newest published bucket,
 then fetch `surface-7d.json` in the background to enrich the linked history views. Publication also
 retains the newest 24 hours in `surface-24h.json`; neither history artifact is truncated to the
-initial snapshot. The service worker deliberately does not precache the potentially multi-megabyte
-7-day file: the one-bucket sample remains the offline baseline, and history is cached only after a
-browser actually requests it.
+initial snapshot. Both are written as compact JSON, because they are parsed rather than read: they
+carry one record per (place, hour, parameter), so the 7-day file published on 2026-08-19 held
+340,033 records and 152,665,280 bytes before compaction and 103,463,029 after. The service worker
+deliberately does not precache it — the one-bucket sample remains the offline baseline, and history
+is cached only after a browser actually requests it. A file that large is still more than a phone
+should have to parse; shrinking it structurally is
+[issue #181](https://github.com/ChelseaKR/swelter/issues/181).
 
 The committed 150-node synthetic worked example remains a compact Sacramento calibration fixture in
 the store. Its static web presentation is deterministically assigned to validated public California

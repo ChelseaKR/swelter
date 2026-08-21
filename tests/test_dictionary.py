@@ -45,6 +45,18 @@ def test_parameters_match_the_registry_exactly() -> None:
         assert entry["unit"] == param.unit
         assert entry["valid_min"] == param.valid_min
         assert entry["valid_max"] == param.valid_max
+        assert entry["range_note"] == (param.range_note or None)
+
+
+def test_a_bound_that_needs_explaining_publishes_its_reason() -> None:
+    """A humidity floor above zero reads as a bug until the dictionary says why (ADR 0043)."""
+    doc = build_data_dictionary()
+    by_name = {p["name"]: p for p in cast(list[dict[str, Any]], doc["parameters"])}
+    humidity = by_name["humidity_pct"]
+    assert humidity["valid_min"] == 2.0
+    assert isinstance(humidity["range_note"], str) and "ADR 0043" in humidity["range_note"]
+    # A self-explaining bound carries no note rather than a filler one.
+    assert by_name["pm25_ugm3"]["range_note"] is None
 
 
 def test_csv_columns_equal_export_csv_fields() -> None:

@@ -4,7 +4,7 @@ swelter is a local-first environmental-data pipeline with two deliberately separ
 surfaces: an authenticated node ingest listener and a public read-only data server. The same store
 can also be baked into a fully static artifact for Pages, object storage, or another CDN.
 
-Author/owner: Chelsea Kelly-Reif. Last verified: 2026-07-31. Recheck cadence: every release and any
+Author/owner: Chelsea Kelly-Reif. Last verified: 2026-08-19. Recheck cadence: every release and any
 change to trust boundaries, store layout, public routes, publication artifacts, or source adapters.
 
 Related: [API reference](api.md), [calibration](calibration.md), [data cards](data-cards/README.md),
@@ -105,6 +105,19 @@ fallback. Each static route's `demo.json` names the source that actually won tha
 fallback chain, including its geography, terminology, calibration posture, and reuse terms. A route
 that falls back to the California surface retains the California basemap. Static Pages does not expose
 ingest and is only as current as the last successful publication.
+
+**Published artifact size is a real constraint, not a detail.** The history slices carry one record
+per (place, hour, parameter), so a statewide 7-day slice is hundreds of thousands of records: the
+artifact published on 2026-08-19 held 340,033 records across 337 places and 168 hourly buckets. The
+two slices are therefore written as compact JSON — pretty-printing cost 49,202,251 bytes (32.2%) of
+that file's 152,665,280 — while every smaller artifact stays indented and legible. That is a
+mitigation, not a solution: the slice is still ~103 MB uncompressed for the browser to parse, and
+`export.csv` (the whole accumulated store, 314,470,584 bytes on the same publish and growing about
+15 MB per day) has no bound at all. Structural work — per-day shards, a columnar record shape, or a
+retention window on the accumulating store — is tracked in
+[issue #181](https://github.com/ChelseaKR/swelter/issues/181). GitHub Pages serves all of it gzipped
+(the 7-day slice is ~3.1 MB on the wire), so the pressure is on parse memory, artifact upload, and
+the 1 GB published-site limit rather than on bandwidth.
 
 `snapshot.py` freezes citable observation/correction/surface artifacts with hashes and dataset citation
 metadata. The snapshot's license describes its actual source set; the software `CITATION.cff` is not a

@@ -32,7 +32,7 @@ evidence of the collision.
 - [ADR 0010: Deliver neighborhood heat/AQI alerts as a generated public feed, not a subscriber list](0010-neighborhood-alerts-feed.md)
 - [ADR 0011: Add a curated, provenance-bearing cooling-center overlay with accessible list parity](0011-cooling-center-overlay.md)
 - [ADR 0012: Incident note — the 2026-07-02 gate bypass and the ruleset that should prevent recurrence](0012-gate-bypass-incident-and-ruleset.md)
-- [ADR 0013: `swelter fetch --accumulate` persists the demo store via a GitHub Actions cache](0013-accumulating-fetch-store-via-actions-cache.md) — identity posture superseded by ADR 0024
+- [ADR 0013: `swelter fetch --accumulate` persists the demo store via a GitHub Actions cache](0013-accumulating-fetch-store-via-actions-cache.md) — identity posture superseded by ADR 0024; recovery from an unattributable restored store refined by ADR 0044
 - [ADR 0014: Derive calibrated heat index from calibrated temperature, don't fit it](0014-heat-index-derived-from-calibrated.md)
 - [ADR 0015: Validate `network.yaml` loudly, and add a `swelter doctor` gate](0015-strict-config-doctor.md)
 - [ADR 0016: Bake the provisional label and hourly-window caveat into share-card pixels, not overlaid HTML](0016-caveat-baked-share-card.md)
@@ -62,3 +62,5 @@ evidence of the collision.
 - [ADR 0040: A public place is not a host, and the consent check should not pretend otherwise](0040-a-public-place-is-not-a-host.md)
 - [ADR 0041: A derived reading is only as real as its inputs](0041-a-derived-reading-is-only-as-real-as-its-inputs.md)
 - [ADR 0042: Decide whether evidence requires sensors before planning hardware](0042-purpose-first-project-planner.md)
+- [ADR 0043: A dead probe reads zero, not dry](0043-a-dead-probe-reads-zero-not-dry.md)
+- [ADR 0044: An unattributable store is discarded, not refused forever](0044-an-unattributable-store-is-discarded-not-refused-forever.md)
