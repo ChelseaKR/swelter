@@ -197,10 +197,40 @@ def test_publish_export_matches_export_to_csv(demo_store: Path, tmp_path: Path) 
     finally:
         store.close()
 
+    # export.csv is windowed to the same trailing span as surface-7d.json (#181), not the whole
+    # store -- so the comparison must window the same way: the most recent 24*7 distinct hourly
+    # timestamps present, not a literal now-minus-N cutoff.
+    windowed_buckets = set(sorted({o.timestamp for o in all_obs})[-(24 * 7) :])
+    windowed_obs = [o for o in all_obs if o.timestamp in windowed_buckets]
+
     # Read raw bytes, not read_text(): the CSV module's "\r\n" line terminator survives
     # byte-for-byte only if nothing does universal-newline translation on the way back in.
     baked = (web / "export.csv").read_bytes().decode("utf-8")
-    assert baked == export.to_csv(all_obs, license=export.DEFAULT_LICENSE)
+    assert baked == export.to_csv(windowed_obs, license=export.DEFAULT_LICENSE)
+
+
+def test_publish_export_is_windowed_like_surface_7d(demo_store: Path, tmp_path: Path) -> None:
+    """export.csv must not grow unbounded with the accumulating store (#181): it carries the same
+    trailing window surface-7d.json shows, and no earlier reading, even though the store behind it
+    holds more history than that."""
+    web = tmp_path / "web"
+    rc = _publish(demo_store, web)
+    assert rc == 0
+
+    store = open_store(demo_store)
+    try:
+        all_obs = list(store.all())
+    finally:
+        store.close()
+    all_timestamps = sorted({o.timestamp for o in all_obs})
+    assert len(all_timestamps) > 24 * 7, "demo data should span more than a week of hourly buckets"
+
+    rows = list(csv.DictReader((web / "export.csv").read_bytes().decode("utf-8").splitlines()))
+    exported_timestamps = {row["timestamp"] for row in rows}
+    assert exported_timestamps == set(all_timestamps[-(24 * 7) :])
+    assert all_timestamps[0] not in exported_timestamps, (
+        "the oldest reading in the store must not reach a fresh publish's export.csv"
+    )
 
 
 def test_publish_manifest_enumerates_files_with_hashes(demo_store: Path, tmp_path: Path) -> None:

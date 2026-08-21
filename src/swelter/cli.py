@@ -1811,6 +1811,12 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
 #: Files `publish` may emit into `--web`, in manifest order. Not every run writes every entry —
 #: cooling-centers.geojson needs a dataset, DATA-LICENSE/LICENSE need a checkout — so the manifest
 #: only lists what actually landed on disk (checked by _write_publish_manifest, not assumed here).
+#: The trailing window (in distinct hourly timestamps present, not a literal now-minus-N cutoff)
+#: that `swelter publish` bounds surface-7d.json and export.csv to. The accumulating store behind
+#: them has no such bound and keeps growing (#181); `swelter snapshot` is the escape hatch for the
+#: complete history.
+_EXPORT_WINDOW_HOURS = 24 * 7
+
 _PUBLISH_FILES = (
     "sample-surface.json",
     "demo.json",
@@ -1938,7 +1944,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
         _write_web_surface_slice(
             web_dir,
             surface,
-            24 * 7,
+            _EXPORT_WINDOW_HOURS,
             "surface-7d.json",
             attribution=attribution,
             data_terms=terms,
@@ -1953,12 +1959,22 @@ def cmd_publish(args: argparse.Namespace) -> int:
         )
         _write_web_alerts(web_dir, surface, published_config, data_terms=terms)
         _write_web_cooling_centers(web_dir, Path(args.cooling_centers))
+        # export.csv is bounded to the same trailing window surface-7d.json shows, not the whole
+        # accumulated store: the store grows ~15 MB/day with no bound (#181), and a Pages route
+        # publishing more history than the site itself ever displays only grows unboundedly to no
+        # reader's benefit. Windowed the same way _write_web_surface_slice windows a surface (the
+        # most recent N *distinct hourly timestamps present*, not a literal now-minus-N cutoff), so
+        # a sparse or gappy feed still gets a full window's worth of readings. The complete,
+        # unbounded history remains available locally via `swelter snapshot`, which this does not
+        # touch or replace.
+        export_buckets = set(sorted({o.timestamp for o in all_obs})[-_EXPORT_WINDOW_HOURS:])
+        export_obs = [o for o in all_obs if o.timestamp in export_buckets]
         (web_dir / "export.csv").write_text(
             export.to_csv(
-                all_obs,
+                export_obs,
                 license=terms.license,
                 attribution=attribution or None,
-                terms_by_observation=snapshot.export_terms_by_observation(terms, all_obs),
+                terms_by_observation=snapshot.export_terms_by_observation(terms, export_obs),
             ),
             encoding="utf-8",
         )
