@@ -574,12 +574,25 @@ test("larger text preserves the map center and keeps a selected overview singlet
     await expect.poll(() =>
       page.locator("html").evaluate((root) => root.style.getPropertyValue("--text-scale")),
     ).toBe(textScale);
+    // The text-scale reflow changes the map's own pixel box (the layout is deliberately
+    // rem-based, R6), and the map re-centers itself asynchronously: a ResizeObserver callback,
+    // deferred one requestAnimationFrame, calls restoreMapCameraCenter (app.js). The CSS variable
+    // above lands synchronously with the click, well before that correction has necessarily run,
+    // so reading the camera on the same tick races it -- a race WebKit's ResizeObserver dispatch
+    // loses often enough to be reproducible (#169), while Chromium/Firefox usually win it. Poll
+    // for the corrected value instead of reading once immediately after the click.
+    await expect
+      .poll(async () => (await cameraState()).centerLeft, {
+        message: `${textScale} geographic center x`,
+      })
+      .toBeCloseTo(beforeScale.centerLeft, 7);
+    await expect
+      .poll(async () => (await cameraState()).centerTop, {
+        message: `${textScale} geographic center y`,
+      })
+      .toBeCloseTo(beforeScale.centerTop, 7);
     const afterScale = await cameraState();
     expect(afterScale.scale, `${textScale} camera zoom`).toBe(beforeScale.scale);
-    expect(afterScale.centerLeft, `${textScale} geographic center x`)
-      .toBeCloseTo(beforeScale.centerLeft, 7);
-    expect(afterScale.centerTop, `${textScale} geographic center y`)
-      .toBeCloseTo(beforeScale.centerTop, 7);
   }
 
   await page.locator("#map-reset").click();
