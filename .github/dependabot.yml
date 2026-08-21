@@ -1,8 +1,9 @@
-# Weekly dependency updates. "pip" covers the uv project (pyproject + uv.lock);
-# "github-actions" keeps the workflow action pins current.
+# Weekly dependency updates. "uv" covers the uv project (pyproject + uv.lock, updated together --
+# see #167, where "pip" left uv.lock stale and every Python bump was born red against
+# `uv sync --locked`); "github-actions" keeps the workflow action pins current.
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -16,6 +17,10 @@ updates:
     # 72h floor via `minimumReleaseAge`; this is dependabot's equivalent.
     cooldown:
       default-days: 7
+    # If a future uv.lock format (schema `version`/`revision` in the lockfile header) outruns what
+    # Dependabot's uv ecosystem parses, its update PR will say so directly rather than this comment
+    # making a claim the next reader has to disprove from a red CI run -- watch the PR body, not
+    # this file, for that failure mode.
 
   - package-ecosystem: "github-actions"
     directory: "/"
