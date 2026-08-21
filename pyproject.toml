@@ -58,7 +58,7 @@ infra = [
     "constructs==10.8.1",
 ]
 mutation = [
-    "mutmut==3.6.0",
+    "mutmut==3.7.0",
 ]
 
 [build-system]

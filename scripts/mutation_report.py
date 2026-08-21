@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-MUTMUT_VERSION = "3.6.0"
+MUTMUT_VERSION = "3.7.0"
 DEFAULT_MODULES = ("calibrate", "models", "qc")
 SOURCE_FILES = tuple(Path("src/swelter") / f"{module}.py" for module in DEFAULT_MODULES)
 TEST_FILES = (
