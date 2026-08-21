@@ -152,6 +152,24 @@ both route budgets, with largest-contentful paint at or below 2.5s under the con
 [#117](https://github.com/ChelseaKR/swelter/issues/117); the advisory is no longer red. Axe, Pa11y,
 WCAG 2.5.8 target-size, and contrast checks also pass on both routes.
 
+## WebKit text-scale map-centering flake — resolved
+
+The browser gate's "larger text preserves the map center" check (a WCAG 1.4.4 assertion that the
+in-page text-size control never displaces the geographic point a reader had centered) failed
+reproducibly on WebKit in CI, with the map's vertical center reading 4.6% off the expected fraction
+([#169](https://github.com/ChelseaKR/swelter/issues/169)). It never reproduced locally, including 8
+repeated runs against real WebKit at 5-way parallelism.
+
+The cause is a harness race, not a layout defect. The map's own resize handling
+(`ResizeObserver` → one `requestAnimationFrame` → `restoreMapCameraCenter` in `web/app.js`) already
+recenters the camera correctly after a text-scale reflow changes the map's rem-driven pixel box; the
+test set the `--text-scale` CSS variable and immediately read the camera on the same tick, before
+that asynchronous correction had necessarily run. Confirmed by reproducing the same failure signature
+on Chromium with `requestAnimationFrame` artificially delayed, then confirming a poll-based read
+survives the same delay. The fix polls for the corrected camera state instead of reading once; a
+genuine future regression (the correction never landing) still fails the check, just after the poll
+timeout rather than immediately. No `web/app.js` change was needed.
+
 ## Regenerating this report
 
 Run `make a11y` and `make verify-web` (which installs all three locked browser engines), then
