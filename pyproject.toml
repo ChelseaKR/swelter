@@ -126,6 +126,11 @@ omit = ["src/swelter/__main__.py"]
 
 [tool.coverage.report]
 show_missing = true
+# The branch-coverage floor lives here as well as on the `make test` command
+# line. A floor that exists only in a Makefile recipe is invisible to anything
+# that runs `coverage report` directly, so the number was not actually enforced
+# outside that one entrypoint.
+fail_under = 90
 # Lines that are structurally unreachable under test: the `__main__` guard and
 # Protocol method stubs (`...` bodies in store.Store) carry no behavior to assert.
 exclude_lines = [

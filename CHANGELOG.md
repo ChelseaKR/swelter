@@ -128,6 +128,15 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The coverage floor and the dependency-lock audit now enforce what they claim to.** The 90%
+  branch-coverage floor previously existed only as `--cov-fail-under` on the `make test` command
+  line, so any path that reached `coverage report` another way (direct `pytest`/`coverage` use)
+  carried no floor at all; `fail_under = 90` now also lives in `[tool.coverage.report]`, so the
+  policy has one source of truth. `security-pip` exported the dependency graph with
+  `uv export --frozen`, which writes out whatever `uv.lock` says and exits 0 even when the lock has
+  drifted from `pyproject.toml` — auditing the wrong set of pins and still passing; `--locked`
+  fails closed on that drift instead. Both changes are no-ops today (the lock is in sync, coverage
+  already clears 90%) and become real gates the next time either isn't true.
 - **A broken sensor's arithmetic could reach the map as a clean heat reading.** All three real
   source adapters derived heat index and estimated shade WBGT whenever both inputs were *present*,
   never checking whether they were *plausible*. A temperature or humidity outside its published range
