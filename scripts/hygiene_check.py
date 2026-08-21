@@ -52,7 +52,7 @@ _SUPPRESSION = re.compile(r"#\s*noqa\b|#\s*type:\s*ignore\b|nosemgrep:")
 
 #: The exact number of tracked suppressions on `main` today. Lower it whenever you retire one;
 #: raising it is a deliberate, reviewable edit. Retirement is tracked on #107.
-SUPPRESSION_CEILING = 27
+SUPPRESSION_CEILING = 26
 
 
 def _tracked_files(*dirs: str) -> list[Path]:

@@ -113,7 +113,7 @@ def _released_tags() -> list[str]:
     token = os.environ.get("GITHUB_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    request = urllib.request.Request(RELEASES_API, headers=headers)  # noqa: S310 (#107)
+    request = urllib.request.Request(RELEASES_API, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 (#107)
             payload: Any = json.load(response)
