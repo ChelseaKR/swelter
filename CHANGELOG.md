@@ -145,6 +145,12 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **One fewer tracked static-analysis suppression ([#107](https://github.com/ChelseaKR/swelter/issues/107)).**
+  ruff 0.16.3 narrowed `S310`'s detection so it no longer flags `urllib.request.Request(...)`
+  construction itself — only the actual `urlopen()` network call still needs the suppression —
+  making the `# noqa: S310` on `scripts/standards_pin_check.py`'s `Request(...)` line genuinely
+  unused (`RUF100`). Removed it and lowered `SUPPRESSION_CEILING` from 27 to 26 to lock the
+  retirement in, per `hygiene_check.py`'s own ratchet rule.
 - **The coverage floor and the dependency-lock audit now enforce what they claim to.** The 90%
   branch-coverage floor previously existed only as `--cov-fail-under` on the `make test` command
   line, so any path that reached `coverage report` another way (direct `pytest`/`coverage` use)
