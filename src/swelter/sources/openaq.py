@@ -554,29 +554,69 @@ def _ledger_entries(ledger: object) -> list[dict[str, Any]] | None:
     return None if normalized is None else [entry.to_dict() for entry in normalized.entries]
 
 
+def _observation_gap(
+    observation: Observation, entries_by_location: dict[int, list[dict[str, Any]]]
+) -> str | None:
+    """Return a human-readable reason this one observation isn't covered, or ``None`` if it is."""
+    match = _NODE_ID.fullmatch(observation.node_id)
+    if match is None:
+        return f"{observation.node_id}: not an OpenAQ node id (oaq-<location id>)"
+    location_id = int(match.group(1))
+    candidates = entries_by_location.get(location_id, [])
+    if not candidates:
+        return f"location {location_id} ({observation.node_id}): no license entry at all"
+    if not any(_entry_covers(entry, observation) for entry in candidates):
+        return (
+            f"location {location_id} ({observation.node_id}) at {observation.timestamp}: "
+            f"{len(candidates)} entr{'y' if len(candidates) == 1 else 'ies'} present, "
+            "none covers this reading's date"
+        )
+    return None
+
+
 def _observations_have_terms(
     observations: Iterable[Observation], entries_by_location: dict[int, list[dict[str, Any]]]
 ) -> bool:
-    for observation in observations:
-        match = _NODE_ID.fullmatch(observation.node_id)
-        if match is None:
-            return False
-        candidates = entries_by_location.get(int(match.group(1)), [])
-        if not any(_entry_covers(entry, observation) for entry in candidates):
-            return False
-    return True
+    return all(_observation_gap(o, entries_by_location) is None for o in observations)
 
 
-def validate_license_ledger(ledger: object, *, observations: Iterable[Observation] = ()) -> bool:
-    """Return whether a ledger is complete for the OpenAQ observations being released."""
+def _entries_by_location(ledger: object) -> dict[int, list[dict[str, Any]]] | None:
     normalized = _normalized_ledger(ledger)
     if normalized is None:
-        return False
+        return None
     entries_by_location: dict[int, list[dict[str, Any]]] = {}
     for normalized_entry in normalized.entries:
         entry = normalized_entry.to_dict()
         entries_by_location.setdefault(entry["location_id"], []).append(entry)
+    return entries_by_location
+
+
+def validate_license_ledger(ledger: object, *, observations: Iterable[Observation] = ()) -> bool:
+    """Return whether a ledger is complete for the OpenAQ observations being released."""
+    entries_by_location = _entries_by_location(ledger)
+    if entries_by_location is None:
+        return False
     return _observations_have_terms(observations, entries_by_location)
+
+
+def license_ledger_gaps(ledger: object, *, observations: Iterable[Observation] = ()) -> list[str]:
+    """Why ``validate_license_ledger`` would refuse this ledger, one line per uncovered reading.
+
+    A bare ``False`` says nothing about which of possibly hundreds of locations is missing terms,
+    or whether the gap is "no entry for this location at all" versus "an entry exists but doesn't
+    cover this reading's date" -- the difference between a location OpenAQ never licensed and a
+    ledger that's simply stale. This is that detail, so a refusal is something an operator can act
+    on rather than a message that has stayed identical, and unactionable, across the runs it kept
+    refusing (#179).
+    """
+    entries_by_location = _entries_by_location(ledger)
+    if entries_by_location is None:
+        return ["ledger is malformed or missing required fields"]
+    gaps = (_observation_gap(o, entries_by_location) for o in observations)
+    # dict.fromkeys, not a set: de-duplicate repeat gaps (a dead location reports many readings)
+    # while preserving first-seen order, so the printed handful is stable across otherwise
+    # order-sensitive iteration rather than reshuffling from one run's dict/set hashing to the next.
+    return list(dict.fromkeys(gap for gap in gaps if gap is not None))
 
 
 def license_terms_by_observation(
@@ -790,7 +830,13 @@ def fetch(
         entry for entry in ledger["entries"] if f"oaq-{entry['location_id']}" in live
     ]
     if out and not validate_license_ledger(ledger, observations=out):
-        raise SourceError("OpenAQ readings have no publishable per-location license ledger")
+        gaps = license_ledger_gaps(ledger, observations=out)
+        shown = gaps[:5]
+        more = f" (+{len(gaps) - len(shown)} more)" if len(gaps) > len(shown) else ""
+        detail = "; ".join(shown) + more
+        raise SourceError(
+            f"OpenAQ readings have no publishable per-location license ledger: {detail}"
+        )
     if license_ledger is not None:
         license_ledger.clear()
         license_ledger.update(ledger)

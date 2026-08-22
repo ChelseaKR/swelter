@@ -427,6 +427,48 @@ def test_license_ledger_is_bound_to_location_identity_and_observation_time() -> 
     )
 
 
+def test_license_ledger_gaps_names_which_reading_and_why() -> None:  # #179
+    ledger = _ledger(
+        1,
+        license_id=7,
+        license_name="Terms A",
+        fetched_at="2026-06-01T12:00:00Z",
+        valid_from="2026-06-01",
+        valid_to="2026-06-01",
+    )
+    # Covered: no gap reported at all.
+    covered = [_pm("oaq-1", "2026-06-01T23:59:59Z", 10.0)]
+    assert openaq.license_ledger_gaps(ledger, observations=covered) == []
+    # A location the ledger has never heard of.
+    [gap] = openaq.license_ledger_gaps(
+        ledger, observations=[_pm("oaq-2", "2026-06-01T12:00:00Z", 10.0)]
+    )
+    assert "location 2" in gap and "no license entry at all" in gap
+    # A malformed node id, distinguished from a missing-entry location.
+    [gap] = openaq.license_ledger_gaps(
+        ledger, observations=[_pm("oaq-yuma", "2026-06-01T12:00:00Z", 10.0)]
+    )
+    assert "oaq-yuma" in gap and "not an OpenAQ node id" in gap
+    # A real entry for this location that doesn't cover this reading's date.
+    [gap] = openaq.license_ledger_gaps(
+        ledger, observations=[_pm("oaq-1", "2026-06-02T00:00:00Z", 10.0)]
+    )
+    assert "location 1" in gap and "2026-06-02T00:00:00Z" in gap and "none covers" in gap
+    # A malformed ledger (not per-observation) gets its own, distinct message.
+    assert openaq.license_ledger_gaps(None, observations=[_pm("oaq-1", "x", 10.0)]) == [
+        "ledger is malformed or missing required fields"
+    ]
+    # Repeat gaps from the same dead location collapse to one line, not one per reading.
+    gaps = openaq.license_ledger_gaps(
+        ledger,
+        observations=[
+            _pm("oaq-2", "2026-06-01T12:00:00Z", 10.0),
+            _pm("oaq-2", "2026-06-01T13:00:00Z", 11.0),
+        ],
+    )
+    assert len(gaps) == 1
+
+
 def test_merge_license_ledgers_preserves_changed_historical_terms() -> None:
     first = _ledger(
         1,
