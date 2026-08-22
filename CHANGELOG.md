@@ -172,6 +172,17 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The derived heat index's error bar now widens with the Rothfusz slope, instead of quietly
+  understating it.** `calibrate.apply()` carried the temperature correction's `residual_std`
+  forward *unscaled* as the derived `heat_index_c` 1-sigma. First-order error propagation says
+  `σ_HI = |∂HI/∂T| · σ_T`, and the local Rothfusz slope is roughly 2–2.5 in the hot-humid Danger
+  band — so the published error bar was too tight by more than 2× exactly where the stakes are
+  highest. The slope is now computed at the calibrated temperature (a same-side difference
+  quotient, so the 26.7 °C branch discontinuity cannot inflate it) and floored at 1.0, so a
+  derived error bar is never claimed *tighter* than the temperature's own; below the regression
+  floor, where heat index is the air temperature unchanged, the slope is exactly 1. Humidity's own
+  uncertainty remains unmodeled (uncalibrated in this network), stated at the propagation site.
+  Restores the stranded follow-up PR #80 omitted, per ADR 0014's propagation posture.
 - **One fewer tracked static-analysis suppression ([#107](https://github.com/ChelseaKR/swelter/issues/107)).**
   ruff 0.16.3 narrowed `S310`'s detection so it no longer flags `urllib.request.Request(...)`
   construction itself — only the actual `urlopen()` network call still needs the suppression —

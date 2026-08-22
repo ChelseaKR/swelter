@@ -393,3 +393,53 @@ def test_the_demo_generator_and_models_agree_on_heat_index_and_wbgt() -> None:
         assert generator.wbgt_c(temp, humidity) == round(wbgt_c(temp, humidity), 2), (
             f"WBGT disagrees at {temp} °C / {humidity}%"
         )
+
+
+def test_heat_index_temp_slope_regimes() -> None:
+    """The propagation slope is 1 below the regression floor, >1 hot-humid, and never <1."""
+    # Below the 26.7 degC floor heat index is the air temperature: slope exactly 1.
+    assert calibrate._heat_index_temp_slope(20.0, 50.0) == 1.0
+    # Hot and humid (Danger band): the Rothfusz slope is well above 1.
+    assert calibrate._heat_index_temp_slope(35.0, 70.0) > 1.5
+    # Hot and very dry: the raw regression slope dips below 1; the floor keeps it at 1.
+    assert calibrate._heat_index_temp_slope(27.0, 5.0) == 1.0
+    # At the branch point the difference quotient stays on the regression side of 26.7 degC —
+    # the value discontinuity there must not inflate the slope.
+    assert calibrate._heat_index_temp_slope(26.7, 60.0) < 4.0
+
+
+def test_heat_index_uncertainty_scales_by_local_slope() -> None:
+    """Hot-humid derived heat index carries sigma_T scaled by |dHI/dT|, not sigma_T unscaled."""
+    noisy = [
+        TrainingPair(
+            node_id="node-01",
+            parameter="temp_c",
+            timestamp=f"2026-06-01T{i:02d}:00:00Z",
+            raw=float(i),
+            reference=2.0 * i + 1.0 + (0.4 if i % 2 else -0.4),
+        )
+        for i in range(8)
+    ]
+    registry = CorrectionRegistry()
+    registry.add(calibrate.fit_one("node-01", "temp_c", noisy, "ref"))
+    correction = registry.get("node-01", "temp_c")
+    assert correction is not None
+    assert correction.residual_std > 0
+
+    ts = "2026-06-01T00:00:00Z"
+    observations = [
+        make_obs(parameter="temp_c", value=17.0, timestamp=ts),  # calibrates to ~35 degC
+        make_obs(parameter="humidity_pct", unit="%", value=70.0, timestamp=ts),
+        make_obs(parameter="heat_index_c", value=36.0, timestamp=ts),
+    ]
+    out = calibrate.apply(observations, registry)
+    derived = [o for o in out if o.parameter == "heat_index_c" and o.is_calibrated]
+    assert len(derived) == 1
+    calibrated_temp = correction.predict(17.0, None)
+    assert calibrated_temp > calibrate._HI_REGRESSION_FLOOR_C
+    slope = calibrate._heat_index_temp_slope(calibrated_temp, 70.0)
+    assert slope > 1.0
+    assert derived[0].uncertainty == calibrate._round(slope * correction.residual_std)
+    # The scaled error bar is strictly wider than the unscaled sigma_T it replaces.
+    assert derived[0].uncertainty is not None
+    assert derived[0].uncertainty > correction.residual_std

@@ -153,12 +153,14 @@ nothing to `corrections.yaml` and the byte-for-byte co-location replay is untouc
 The emitted observation is tagged `heat_index_c.derived-enclosure.{node_id}` (method id
 `derived-enclosure`, distinct from `enclosure-offset` so a reader can tell "recomputed from
 calibrated inputs" from "fit against a reference" at a glance) and carries an `uncertainty` equal to
-the *temperature* correction's `residual_std` — heat index is monotonic and steep in temperature over
-the operating range, so the temperature error bar carried forward is a simple, defensible
-1-sigma stand-in rather than a properly propagated variance through the nonlinear regression. It does
-not account for humidity's own uncertainty, because humidity is uncalibrated in this network (see
-below), and it does not scale by the local `∂HI/∂T`, which would be a more precise but more
-complex propagation.
+the *temperature* correction's `residual_std` scaled by the local slope `|∂HI/∂T|` of the Rothfusz
+function at the calibrated temperature — first-order error propagation, `σ_HI = |∂HI/∂T| · σ_T`.
+The slope is roughly 2–2.5 in the hot-humid Danger band, so an unscaled `σ_T` would understate the
+heat-index error bar by more than 2× exactly where it matters most; it is floored at 1.0 so the
+derived error bar is never claimed tighter than the temperature's own, and is exactly 1 below the
+26.7 °C regression floor where heat index is the air temperature unchanged. The propagation is
+first-order only: it does not account for humidity's own uncertainty, because humidity is
+uncalibrated in this network (see below).
 
 **Caveat, stated honestly:** humidity is never calibrated in this demo network — no node has a
 fitted humidity correction, so `humidity_index()` always returns raw, QC-passing humidity, and that
