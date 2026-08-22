@@ -197,10 +197,75 @@ def test_publish_export_matches_export_to_csv(demo_store: Path, tmp_path: Path) 
     finally:
         store.close()
 
+    # export.csv is windowed to the same trailing span as surface-7d.json (#181), not the whole
+    # store -- so the comparison must window the same way: the most recent 24*7 distinct hour
+    # buckets present, not a literal now-minus-N cutoff and not raw sub-hourly timestamps.
+    buckets = sorted({aggregate.hour_bucket(o.timestamp) for o in all_obs})
+    windowed_buckets = set(buckets[-(24 * 7) :])
+    windowed_obs = [o for o in all_obs if aggregate.hour_bucket(o.timestamp) in windowed_buckets]
+
     # Read raw bytes, not read_text(): the CSV module's "\r\n" line terminator survives
     # byte-for-byte only if nothing does universal-newline translation on the way back in.
     baked = (web / "export.csv").read_bytes().decode("utf-8")
-    assert baked == export.to_csv(all_obs, license=export.DEFAULT_LICENSE)
+    assert baked == export.to_csv(windowed_obs, license=export.DEFAULT_LICENSE)
+
+
+def test_publish_export_is_windowed_like_surface_7d(demo_store: Path, tmp_path: Path) -> None:
+    """export.csv must not grow unbounded with the accumulating store (#181): it carries the same
+    trailing window surface-7d.json shows, and no earlier reading, even though the store behind it
+    holds more history than that."""
+    web = tmp_path / "web"
+    rc = _publish(demo_store, web)
+    assert rc == 0
+
+    store = open_store(demo_store)
+    try:
+        all_obs = list(store.all())
+    finally:
+        store.close()
+    all_buckets = sorted({aggregate.hour_bucket(o.timestamp) for o in all_obs})
+    assert len(all_buckets) > 24 * 7, "demo data should span more than a week of hourly buckets"
+
+    rows = list(csv.DictReader((web / "export.csv").read_bytes().decode("utf-8").splitlines()))
+    exported_buckets = {aggregate.hour_bucket(row["timestamp"]) for row in rows}
+    assert exported_buckets == set(all_buckets[-(24 * 7) :])
+    assert all_buckets[0] not in exported_buckets, (
+        "the oldest reading in the store must not reach a fresh publish's export.csv"
+    )
+
+
+def test_publish_export_window_counts_hour_buckets_not_raw_timestamps(tmp_path: Path) -> None:
+    """A source that reports faster than hourly (Sensor.Community's native ~2.5-minute cadence, or
+    any node writing through the authenticated ingest path) must still get a 168-*hour* window, not
+    168 *distinct raw timestamps* -- counting raw timestamps would silently shrink the window to a
+    fraction of a week for exactly the sources most likely to actually run sub-hourly.
+
+    90 hours, two readings each (:00 and :30) -- 90 distinct hour buckets, well under the 168-hour
+    window, but 180 distinct raw timestamps, over it. A publish must keep every one of these 180
+    rows (nothing to window out yet); a raw-timestamp-counted window would drop the oldest ~12.
+    """
+    store_dir = tmp_path / "store"
+    obs = [
+        make_obs(
+            node_id="node-01",
+            timestamp=f"2026-06-{1 + hour // 24:02d}T{hour % 24:02d}:{minute:02d}:00Z",
+            parameter="temp_c",
+        )
+        for hour in range(90)
+        for minute in (0, 30)
+    ]
+    with SqliteStore(store_dir / "observations.db") as db:
+        db.write(obs)
+
+    web = tmp_path / "web"
+    assert _publish(store_dir, web) == 0
+
+    rows = list(csv.DictReader((web / "export.csv").read_bytes().decode("utf-8").splitlines()))
+    assert len(obs) == 180
+    assert len({aggregate.hour_bucket(o.timestamp) for o in obs}) == 90
+    assert len(rows) == len(obs), (
+        "every reading should survive a 90-hour-bucket store against a 168-hour window"
+    )
 
 
 def test_publish_manifest_enumerates_files_with_hashes(demo_store: Path, tmp_path: Path) -> None:

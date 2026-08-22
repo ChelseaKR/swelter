@@ -219,6 +219,18 @@ All notable changes to swelter are recorded here. The format follows
   OpenAQ license ledger) and fetches fresh, printing why; *disagreeing* provenance is still a hard
   refusal, unchanged. The cache key moves to `swelter-fetch-store-scope-v3-`
   ([ADR 0044](docs/adr/0044-an-unattributable-store-is-discarded-not-refused-forever.md)).
+- **`export.csv` no longer grows unbounded with the accumulating store ([#181](https://github.com/ChelseaKR/swelter/issues/181), [ADR 0045](docs/adr/0045-published-export-is-windowed-the-accumulating-store-is-not.md)).**
+  The store behind a live deploy accumulates without a bound by design (ADR 0013), and a static
+  `swelter publish` baked the *entire* store into `export.csv` every run — measured at 314,470,584
+  bytes and growing ~15 MB/day on 2026-08-19, on a path toward the GitHub Pages 1 GB site limit in
+  about a month, while no view the site itself offers ever shows more than 7 days of history.
+  `export.csv` is now windowed to the same trailing span `surface-7d.json` already uses (the most
+  recent 24×7 distinct hour *buckets* present, not a literal now-minus-N cutoff and not raw
+  timestamps — a source reporting faster than hourly, like Sensor.Community's native ~2.5-minute
+  cadence, would otherwise undercount the window by counting readings instead of hours), via one
+  shared constant so the two artifacts can't drift apart. The complete, unbounded history remains
+  available locally via `swelter snapshot`; the live, filterable `/export.csv` route
+  (`swelter serve`) is unaffected — only the static Pages artifact is bounded.
 - **A broken sensor's arithmetic could reach the map as a clean heat reading.** All three real
   source adapters derived heat index and estimated shade WBGT whenever both inputs were *present*,
   never checking whether they were *plausible*. A temperature or humidity outside its published range

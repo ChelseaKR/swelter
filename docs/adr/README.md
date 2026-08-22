@@ -64,3 +64,4 @@ evidence of the collision.
 - [ADR 0042: Decide whether evidence requires sensors before planning hardware](0042-purpose-first-project-planner.md)
 - [ADR 0043: A dead probe reads zero, not dry](0043-a-dead-probe-reads-zero-not-dry.md)
 - [ADR 0044: An unattributable store is discarded, not refused forever](0044-an-unattributable-store-is-discarded-not-refused-forever.md)
+- [ADR 0045: The published export is windowed; the accumulating store behind it is not](0045-published-export-is-windowed-the-accumulating-store-is-not.md)

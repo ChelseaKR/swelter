@@ -727,6 +727,13 @@ downloader can see what was measured and what was corrected.
 `text/csv; charset=utf-8`. Columns, in this fixed order (the final two provenance columns keep a
 downloaded or filtered subset's source terms attached to every row):
 
+This route on the live, dynamic server (`swelter demo --serve` and similar) serves the complete
+accumulated store on demand, filterable with `since`/`until`/`node`/`parameter` below. A **static**
+`swelter publish` deploy (what GitHub Pages serves) is different: its baked `export.csv` is windowed
+to the same trailing span as `surface-7d.json` — the accumulating store behind a long-running deploy
+has no such bound and keeps growing, so an unbounded static export would too (#181). `swelter
+snapshot` remains the way to get the complete, uncalibrated history as a citable local release.
+
 ```
 node_id,timestamp,parameter,value,unit,source,calibration,qc,uncertainty,trustworthy,data_license,data_attribution
 node-01,2026-06-01T00:00:00Z,temp_c,24.96,degC,native,raw,ok,,False,CC0-1.0,
