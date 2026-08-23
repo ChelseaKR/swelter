@@ -114,6 +114,14 @@ pytest_add_cli_args_test_selection = [
     "tests/test_models.py",
     "tests/test_qc.py",
 ]
+# test_calibrate.py's cross-check against scripts/gen_demo_data.py (issue #149:
+# the demo generator keeps its own copy of the Rothfusz heat index, so the two
+# must be checked against each other) imports `scripts` from the repo root.
+# mutmut's mutants/ sandbox only contains source_paths and the selected test
+# files by default, so without this the import fails before any mutant is run
+# ("ModuleNotFoundError: No module named 'scripts'", mutation: 0.00% — every
+# run since this gate was added).
+also_copy = ["scripts/"]
 max_stack_depth = 8
 
 [tool.coverage.run]
