@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from swelter import qc
 from swelter.calibrate import Correction, CorrectionRegistry
 from swelter.config import TwinWindow
-from swelter.models import QC_EMITTED, QC_MISSING, Observation
+from swelter.models import QC_EMITTED, QC_MISSING, Observation, format_timestamp
 
 from .conftest import make_obs
 
@@ -547,3 +549,473 @@ def test_health_report_calibration_present_but_empty_when_registry_empty() -> No
     # can tell "no calibration at all" from "the surveillance was never asked for".
     report: Any = qc.health_report([make_obs()], registry=CorrectionRegistry())
     assert report["calibration"]["summary"] == {"corrections": 0, "aging": 0, "fresh": 0}
+
+
+# -- the published JSON contracts ---------------------------------------------------------------
+#
+# `health_report`, `coverage_equity`, and `calibration_block` back `/api/health.json` and
+# `swelter qc --json`. Their key names are the contract a reader parses, so the key sets are
+# asserted exactly: a renamed or dropped key is a breaking change to a published surface, not a
+# refactor. The core-safety mutation gate had no test that noticed one.
+
+
+def _hourly(node_id: str, hours: list[int], **kwargs: Any) -> list[Observation]:
+    return [
+        make_obs(node_id=node_id, timestamp=f"2026-06-01T{h:02d}:00:00Z", **kwargs) for h in hours
+    ]
+
+
+def test_health_report_json_contract() -> None:
+    # node-07 reports at 00:00, goes silent, and comes back at 12:00 — one node entry and one gap,
+    # so every published key of both shapes is present to be named.
+    report: Any = qc.health_report(_hourly("node-07", [0, 12]))
+    assert set(report) == {"interval_s", "latest", "summary", "nodes", "gaps"}
+    assert report["interval_s"] == 3600.0  # the documented default sampling interval
+    assert report["latest"] == "2026-06-01T12:00:00Z"
+    assert set(report["summary"]) == {"total", "ok", "degraded", "offline"}
+    assert set(report["nodes"][0]) == {
+        "node_id",
+        "status",
+        "observations",
+        "completeness",
+        "flagged_fraction",
+        "online",
+        "last_seen",
+    }
+    assert set(report["gaps"][0]) == {"node_id", "parameter", "start", "end", "minutes"}
+    assert report["gaps"][0] == {
+        "node_id": "node-07",
+        "parameter": "temp_c",
+        "start": "2026-06-01T00:00:00Z",
+        "end": "2026-06-01T12:00:00Z",
+        "minutes": 720,  # twelve hours, reported in whole minutes
+    }
+
+
+def test_health_report_empty_json_contract() -> None:
+    # With nothing to report the shape is the same minus `latest`: there is no latest reading to
+    # name, and inventing one would be a claim the data does not support.
+    report: Any = qc.health_report([])
+    assert set(report) == {"interval_s", "summary", "nodes", "gaps"}
+    assert report["gaps"] == []
+    assert report["interval_s"] == 3600.0
+
+
+def test_health_report_status_counts_start_from_zero() -> None:
+    # Two nodes, both degraded: the seeded counters have to start at zero and accumulate per
+    # status, so neither a pre-set count nor a lookup that ignores the status can pass.
+    obs = _hourly("node-A", [0, 5]) + _hourly("node-B", [0, 5])
+    report: Any = qc.health_report(obs, expected_interval_s=3600.0)
+    assert report["summary"] == {"total": 2, "ok": 0, "degraded": 2, "offline": 0}
+
+
+def test_health_report_calls_a_node_offline_after_three_intervals() -> None:
+    # `offline_after_s` is three sampling intervals, and the boundary belongs to "still online":
+    # a node exactly three intervals quiet has not yet missed enough to be called offline.
+    obs = [
+        make_obs(node_id="live", timestamp="2026-06-01T03:00:00Z"),
+        make_obs(node_id="edge", timestamp="2026-06-01T00:00:00Z"),  # 10800 s = 3 * 3600
+        make_obs(node_id="gone", timestamp="2026-05-31T23:59:59Z"),  # 10801 s
+    ]
+    report: Any = qc.health_report(obs, expected_interval_s=3600.0)
+    online = {n["node_id"]: n["online"] for n in report["nodes"]}
+    assert online == {"live": True, "edge": True, "gone": False}
+
+
+def test_health_report_reports_at_most_max_gaps_worst_first() -> None:
+    # Twelve readings three hours apart produce eleven gaps; the default cap publishes ten of
+    # them, and the cap is a parameter a caller can raise.
+    start = datetime(2026, 6, 1, tzinfo=UTC)
+    obs = [
+        make_obs(
+            node_id="node-01",
+            timestamp=format_timestamp(start + timedelta(hours=3 * i)),
+        )
+        for i in range(12)
+    ]
+    assert len(qc.detect_gaps(obs, 3600.0)) == 11
+    capped: Any = qc.health_report(obs, expected_interval_s=3600.0)
+    assert len(capped["gaps"]) == 10
+    raised: Any = qc.health_report(obs, expected_interval_s=3600.0, max_gaps=11)
+    assert len(raised["gaps"]) == 11
+
+
+def test_health_report_rounds_flagged_fraction_to_three_places() -> None:
+    obs = [
+        *_hourly("node-01", [0, 1]),
+        make_obs(node_id="node-01", timestamp="2026-06-01T02:00:00Z", value=80.0),  # out of range
+    ]
+    report: Any = qc.health_report(qc.apply(obs), expected_interval_s=3600.0)
+    assert report["nodes"][0]["flagged_fraction"] == 0.333  # 1 of 3, at the published resolution
+
+
+def test_health_report_carries_every_side_block_it_is_given(tmp_path: Path) -> None:
+    # The four optional reads are additive and each one is keyed by name; a block that silently
+    # dropped its argument would leave the caller's configured read out of the published JSON.
+    (tmp_path / "digests.jsonl").write_text(
+        '{"head": "abc123", "days": 2, "last_day": "2026-06-01"}\n', encoding="utf-8"
+    )
+    obs = _hourly("twin-a", [0, 1], parameter="pm25_ugm3", unit="ug/m3")
+    obs += _hourly("twin-b", [0, 1], parameter="pm25_ugm3", unit="ug/m3")
+    report: Any = qc.health_report(
+        obs,
+        coverage=qc.coverage_equity(obs, {"twin-a": ("c1", "Cedar")}),
+        store_dir=tmp_path,
+        twin_windows=[_TWIN_WINDOW],
+        registry=_registry(_correction("twin-a", "pm25_ugm3", "2026-01-01T00:00:00Z")),
+        calibration_horizon_days=90.0,
+    )
+    assert set(report) == {
+        "interval_s",
+        "latest",
+        "summary",
+        "nodes",
+        "gaps",
+        "coverage_equity",
+        "integrity",
+        "twin_agreement",
+        "calibration",
+    }
+    assert report["integrity"]["head"] == "abc123"
+    assert report["calibration"]["horizon_days"] == 90.0  # the caller's horizon, not the default
+    assert report["twin_agreement"][0]["n_pairs"] == 2
+
+
+def test_health_report_carries_side_blocks_for_an_empty_network(tmp_path: Path) -> None:
+    # The empty-observations branch attaches the same blocks through the same implementation, so
+    # a network that has not reported yet still shows the reads its operator configured.
+    (tmp_path / "digests.jsonl").write_text(
+        '{"head": "abc123", "days": 2, "last_day": "2026-06-01"}\n', encoding="utf-8"
+    )
+    report: Any = qc.health_report(
+        [],
+        coverage=qc.coverage_equity([], {"node-01": ("c1", "Cedar")}),
+        store_dir=tmp_path,
+        registry=CorrectionRegistry(),
+        calibration_horizon_days=90.0,
+    )
+    assert set(report) == {
+        "interval_s",
+        "summary",
+        "nodes",
+        "gaps",
+        "coverage_equity",
+        "integrity",
+        "calibration",
+    }
+    assert report["coverage_equity"]["summary"]["nodes"] == 1
+    assert report["integrity"]["available"] is True
+    assert report["calibration"]["horizon_days"] == 90.0
+
+
+def test_integrity_block_reports_the_published_chain_head(tmp_path: Path) -> None:
+    (tmp_path / "digests.jsonl").write_text(
+        '{"date": "2026-06-01", "row_count": 3, "digest": "d1", "chain": "c1"}\n'
+        '{"head": "c1", "days": 1, "last_day": "2026-06-01"}\n',
+        encoding="utf-8",
+    )
+    report: Any = qc.health_report([], store_dir=tmp_path)
+    assert report["integrity"] == {
+        "available": True,
+        "head": "c1",
+        "last_verified_day": "2026-06-01",
+        "days": 1,
+    }
+
+
+def test_integrity_block_is_unavailable_until_a_steward_writes_digests(tmp_path: Path) -> None:
+    # `swelter verify-archive --write` has not run: the block says so rather than implying a
+    # verified chain, and it carries no head, day, or count to be mistaken for one.
+    report: Any = qc.health_report([], store_dir=tmp_path)
+    assert report["integrity"] == {"available": False}
+
+
+def test_coverage_equity_json_contract() -> None:
+    # c1 has four nodes, two of them calibrated; c2 and c3 have none. The mixed cell is what makes
+    # a per-cell tally that stopped counting, or a summary that read the raw column instead of the
+    # calibrated one, visible.
+    obs = [
+        make_obs(node_id="a1", calibration="temp_c.enclosure-offset.a1"),
+        make_obs(node_id="a2", calibration="temp_c.enclosure-offset.a2"),
+        make_obs(node_id="a3"),
+        make_obs(node_id="a4"),
+        make_obs(node_id="b1"),
+        make_obs(node_id="b2"),
+        make_obs(node_id="c1n"),
+    ]
+    node_cells = {
+        "a1": ("c1", "Cedar & 4th"),
+        "a2": ("c1", "Cedar & 4th"),
+        "a3": ("c1", "Cedar & 4th"),
+        "a4": ("c1", "Cedar & 4th"),
+        "b1": ("c2", "Oak & 4th"),
+        "b2": ("c2", "Oak & 4th"),
+        "c1n": ("c3", "Pine & 9th"),
+    }
+    report: Any = qc.coverage_equity(obs, node_cells)
+    assert set(report) == {"summary", "cells", "note"}
+    assert report["summary"] == {
+        "cells": 3,
+        "confirmed_cells": 1,
+        "provisional_cells": 2,
+        "nodes": 7,
+        "calibrated_nodes": 2,
+        "raw_nodes": 5,
+        "calibrated_node_fraction": 0.286,
+        "confirmed_cell_fraction": 0.333,
+        "coverage_gap": True,
+    }
+    assert report["cells"][0] == {
+        "cell_id": "c1",
+        "label": "Cedar & 4th",  # the cell's own label, carried through from `node_cells`
+        "nodes": 4,
+        "calibrated_nodes": 2,
+        "raw_nodes": 2,
+        "confirmed": True,
+    }
+    assert [c["cell_id"] for c in report["cells"]] == ["c1", "c2", "c3"]
+
+
+def test_coverage_equity_note_states_what_the_read_is_not() -> None:
+    # The caveat travels with the numbers (hard rule #4). It is asserted verbatim because a
+    # reworded or dropped caveat changes what the published block claims.
+    report: Any = qc.coverage_equity([], {})
+    assert report["note"] == (
+        "Descriptive coverage of calibration, not a ranking of neighborhoods. Whether a "
+        "coverage gap correlates with frontline blocks (audit B4) needs external context "
+        "swelter does not hold and is a governance decision."
+    )
+
+
+def test_coverage_equity_of_an_empty_network_divides_by_nothing() -> None:
+    report: Any = qc.coverage_equity([], {})
+    assert report["summary"]["calibrated_node_fraction"] == 0.0
+    assert report["summary"]["confirmed_cell_fraction"] == 0.0
+    assert report["summary"]["coverage_gap"] is False  # no cells, so no cell is uncovered
+    assert report["cells"] == []
+
+
+def test_calibration_block_json_contract() -> None:
+    obs = [make_obs(node_id="node-01", timestamp="2026-06-08T00:00:00Z")]
+    registry = _registry(_correction("node-01", "temp_c", "2026-01-01T00:00:00Z"))
+    block: Any = qc.calibration_block(obs, registry)
+    assert set(block) == {"horizon_days", "summary", "corrections", "note"}
+    assert block["horizon_days"] == qc.CALIBRATION_DRIFT_HORIZON_DAYS
+    assert set(block["corrections"][0]) == {
+        "node_id",
+        "parameter",
+        "version",
+        "window_end",
+        "age_days",
+        "aging",
+    }
+    assert block["corrections"][0]["node_id"] == "node-01"
+    assert block["corrections"][0]["parameter"] == "temp_c"
+    assert block["corrections"][0]["window_end"] == "2026-01-01T00:00:00Z"
+
+
+def test_calibration_block_forwards_the_horizon_it_was_given() -> None:
+    # A block that dropped the horizon on the way to `correction_ages` would quietly report every
+    # correction against the 365-day default, whatever the operator configured.
+    obs = [make_obs(node_id="node-01", timestamp="2026-06-08T00:00:00Z")]
+    registry = _registry(_correction("node-01", "temp_c", "2026-01-01T00:00:00Z"))  # ~158 days
+    default: Any = qc.calibration_block(obs, registry)
+    assert default["summary"] == {
+        "corrections": 1,
+        "aging": 0,
+        "fresh": 1,
+    }
+    tight: Any = qc.calibration_block(obs, registry, horizon_days=90.0)
+    assert tight["horizon_days"] == 90.0
+    assert tight["summary"] == {"corrections": 1, "aging": 1, "fresh": 0}
+    assert tight["corrections"][0]["aging"] is True
+
+
+def test_calibration_block_note_states_what_drift_surveillance_never_does() -> None:
+    # Verbatim for the same reason as the coverage note: this caveat is the reason the block is
+    # allowed to exist beside calibrated values without demoting any of them.
+    block: Any = qc.calibration_block([], CorrectionRegistry())
+    assert block["note"] == (
+        "Descriptive drift surveillance — the age of each correction's co-location evidence "
+        "against the latest observation. It never changes a calibrated value or its state "
+        "(hard rule #3: a correction being aging does not demote its output to provisional), "
+        "and it is never a ranking of neighborhoods, only a per-correction recalibration "
+        "signal."
+    )
+
+
+# -- the arithmetic behind a verdict -------------------------------------------------------------
+
+
+def test_node_health_completeness_expects_every_parameter_over_the_span() -> None:
+    # One node reporting two parameters over a six-hour span owes 7 readings per parameter. It
+    # filed 8 of the 14, so it is 57% complete — not 100% because it filed 8 of one parameter's
+    # worth, which is what a per-parameter expectation is there to prevent.
+    obs = _hourly("node-01", [0, 1, 2, 5, 6])
+    obs += _hourly("node-01", [0, 2, 6], parameter="humidity_pct", unit="%")
+    [health] = qc.node_health(
+        obs, "2026-06-01T06:00:00Z", offline_after_s=100000, expected_interval_s=3600.0
+    )
+    assert health.observations == 8
+    assert health.completeness == 0.571  # 8 / 14, at the published resolution
+    assert health.status == "degraded"
+
+
+def test_node_health_completeness_never_exceeds_one() -> None:
+    # A node sampling twice as fast as the configured interval is not 150% complete; over-
+    # reporting is capped rather than published as a completeness above full.
+    obs = [
+        make_obs(node_id="node-01", timestamp=t)
+        for t in ("2026-06-01T00:00:00Z", "2026-06-01T00:30:00Z", "2026-06-01T01:00:00Z")
+    ]
+    [health] = qc.node_health(
+        obs, "2026-06-01T01:00:00Z", offline_after_s=100000, expected_interval_s=3600.0
+    )
+    assert health.completeness == 1.0
+
+
+def test_node_health_counts_clean_readings_as_the_remainder_of_the_flagged_ones() -> None:
+    obs = qc.apply(
+        [
+            *_hourly("node-01", [0, 1]),
+            make_obs(node_id="node-01", timestamp="2026-06-01T02:00:00Z", value=80.0),
+        ]
+    )
+    [health] = qc.node_health(
+        obs, "2026-06-01T02:00:00Z", offline_after_s=100000, expected_interval_s=3600.0
+    )
+    assert (health.observations, health.flagged, health.ok) == (3, 1, 2)
+    assert health.last_seen == "2026-06-01T02:00:00Z"
+
+
+def test_detect_gaps_boundary_is_strictly_longer_than_the_tolerated_interval() -> None:
+    # The default tolerance is 1.5 intervals, and a stretch exactly that long is still on time.
+    on_time = [
+        make_obs(timestamp="2026-06-01T00:00:00Z"),
+        make_obs(timestamp="2026-06-01T01:30:00Z"),  # exactly 1.5 * 3600 s
+    ]
+    assert qc.detect_gaps(on_time, 3600.0) == []
+    late = [
+        make_obs(timestamp="2026-06-01T00:00:00Z"),
+        make_obs(timestamp="2026-06-01T01:31:00Z"),  # one minute past the tolerance
+    ]
+    assert len(qc.detect_gaps(late, 3600.0)) == 1
+    # Two full intervals is a gap under the default tolerance and not under a looser one, so the
+    # tolerance really is 1.5 rather than something wider.
+    two_intervals = [
+        make_obs(timestamp="2026-06-01T00:00:00Z"),
+        make_obs(timestamp="2026-06-01T02:00:00Z"),
+    ]
+    assert len(qc.detect_gaps(two_intervals, 3600.0)) == 1
+    assert qc.detect_gaps(two_intervals, 3600.0, tolerance=2.5) == []
+
+
+def test_detect_gaps_names_the_series_and_reports_worst_first() -> None:
+    obs = _hourly("node-01", [0, 2, 6])  # a two-hour gap, then a four-hour one
+    gaps = qc.detect_gaps(obs, 3600.0)
+    assert [g.seconds for g in gaps] == [14400.0, 7200.0]  # longest outage first
+    assert gaps[0] == qc.Gap(
+        node_id="node-01",
+        parameter="temp_c",
+        start="2026-06-01T02:00:00Z",
+        end="2026-06-01T06:00:00Z",
+        seconds=14400.0,
+    )
+
+
+def test_a_steady_ramp_is_not_a_spike() -> None:
+    # The spike test compares against the median of *both* neighbours. Judged against either one
+    # alone, the middle of a 10-30-50 ramp looks like a 20-degree departure; against both, it is
+    # exactly where it belongs.
+    assert [o.qc for o in qc.apply(_series([10.0, 30.0, 50.0]))] == ["ok", "ok", "ok"]
+
+
+def test_a_departure_exactly_at_the_threshold_is_not_a_spike() -> None:
+    # The per-parameter thresholds are deliberately conservative, and the bar is "further than",
+    # so a reading exactly one threshold away from its neighbours keeps its clean verdict.
+    assert [o.qc for o in qc.apply(_series([25.0, 33.0, 25.0]))] == ["ok", "ok", "ok"]  # 8.0 degC
+    assert [o.qc for o in qc.apply(_series([25.0, 33.1, 25.0]))] == ["ok", "spike", "ok"]
+
+
+def test_the_first_and_last_reading_of_a_series_are_never_spikes() -> None:
+    # An end reading has only one neighbour, so there is no local median to judge it against and
+    # it keeps its verdict. Scanning past the ends would wrap around and compare it to the far
+    # end of the series instead.
+    flagged = [o.qc for o in qc.apply(_series([20.0, 20.0, 20.0, 20.0, 20.0, 40.0]))]
+    assert flagged == ["ok", "ok", "ok", "ok", "spike", "ok"]
+
+
+def test_every_interior_reading_is_examined_for_a_spike() -> None:
+    # Both ends of the interior are scanned: a spike immediately after the first reading and one
+    # immediately before the last are found, not skipped as if they were end readings.
+    assert [o.qc for o in qc.apply(_series([25.0, 40.0, 25.0, 25.0, 25.0]))] == [
+        "ok",
+        "spike",
+        "ok",
+        "ok",
+        "ok",
+    ]
+    assert [o.qc for o in qc.apply(_series([25.0, 25.0, 25.0, 40.0, 25.0]))] == [
+        "ok",
+        "ok",
+        "ok",
+        "spike",
+        "ok",
+    ]
+
+
+def test_an_already_flagged_reading_does_not_stop_the_spike_scan() -> None:
+    # A reading that already failed the range check is skipped, not treated as the end of the
+    # series: a genuine spike later in the same series still gets found.
+    series = _series([80.0, 25.0, 25.0, 40.0, 25.0])  # 80 degC is out of range
+    assert [o.qc for o in qc.apply(series)] == ["range", "ok", "ok", "spike", "ok"]
+
+
+def test_twin_pairing_skips_a_long_unmatched_lead_on_either_side() -> None:
+    # The merge walk has to be able to discard a long run from one side before it reaches the
+    # overlap. Ten unmatched leading readings on twin-b, then one real pair.
+    obs = [
+        make_obs(
+            node_id="twin-b",
+            timestamp=f"2026-06-01T{h:02d}:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=1.0,
+        )
+        for h in range(10)
+    ]
+    obs.append(
+        make_obs(
+            node_id="twin-b",
+            timestamp="2026-06-01T10:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=12.0,
+        )
+    )
+    obs.append(
+        make_obs(
+            node_id="twin-a",
+            timestamp="2026-06-01T10:00:00Z",
+            parameter="pm25_ugm3",
+            unit="ug/m3",
+            value=10.0,
+        )
+    )
+    [result] = qc.twin_agreement(obs, [_TWIN_WINDOW])
+    assert result.n_pairs == 1
+    assert result.residual_spread == 0.0
+
+    # The mirror case: twin-a is the side with the unmatched lead.
+    mirrored = [
+        make_obs(
+            node_id="twin-a" if o.node_id == "twin-b" else "twin-b",
+            timestamp=o.timestamp,
+            parameter=o.parameter,
+            unit=o.unit,
+            value=o.value,
+        )
+        for o in obs
+    ]
+    [mirror_result] = qc.twin_agreement(mirrored, [_TWIN_WINDOW])
+    assert mirror_result.n_pairs == 1
