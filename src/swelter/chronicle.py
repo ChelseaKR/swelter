@@ -3,8 +3,9 @@
 Officials and health departments act on *events*, not dashboards. This module answers, for a
 closed ``[from, to]`` UTC window and per published cell: how many cell-hours the heat index reached
 the NWS "Danger"/"Extreme Danger" tier, how many cell-hours had both heat *and* air elevated
-(compound exposure), and what share of the published cell-hour readings were calibrated rather than
-provisional. It is the institution-facing, event-scoped sibling of :mod:`swelter.exposure_brief`
+(compound exposure), what share of the published cell-hour readings were calibrated rather than
+provisional, and how much of the Danger count itself rests on readings the pipeline does not trust
+as measurements. It is the institution-facing, event-scoped sibling of :mod:`swelter.exposure_brief`
 (the resident-facing historical brief): different audience, same honesty discipline.
 
 It composes existing pipeline outputs and adds no new measurement of its own — the surface comes
@@ -19,9 +20,10 @@ health outcome to an exposure, and it never ranks, scores, or compares neighborh
 refusal :func:`swelter.qc.coverage_equity` already encodes (whether a coverage gap lands on a
 frontline block needs external context swelter does not hold, and is a governance judgment, not a
 number emitted here; see ADR 0009 and ADR 0018). And uncertainty is not a footnote: the calibrated-
-vs-provisional share and the "what the network could not see" section are first-class, and the
-latter is *always rendered* — a chronicle with zero gaps still says so, so "we saw nothing wrong"
-and "we could not see" are never collapsed by omission.
+vs-provisional share, the Danger hours resting on untrusted readings, and the "what the network
+could not see" section are first-class, and the last is *always rendered* — a chronicle with zero
+gaps still says so, so "we saw nothing wrong" and "we could not see" are never collapsed by
+omission (ADR 0046).
 """
 
 from __future__ import annotations
@@ -54,6 +56,10 @@ class CellChronicle:
     Every field is a plain count of hours or readings — never a rank, a score, or an attribution.
     ``observed_hours`` is the count of distinct hourly buckets in which the cell published any
     directly-measured reading; ``danger_hours`` and ``compound_hours`` are subsets of those hours.
+
+    ``danger_hours_provisional`` and ``danger_hours_qc_flagged`` are subsets of ``danger_hours``
+    saying how much of that count swelter vouches for. ``extreme_danger_hours`` is itself a subset
+    of ``danger_hours``, so those two caveats bound it as well.
     """
 
     cell_id: str
@@ -66,6 +72,8 @@ class CellChronicle:
     compound_hours: int
     calibrated_readings: int
     provisional_readings: int
+    danger_hours_provisional: int = 0  # of danger_hours, how many came from a provisional reading
+    danger_hours_qc_flagged: int = 0  # of those, how many were QC flagged (spike/flatline)
 
     @property
     def total_readings(self) -> int:
@@ -96,6 +104,8 @@ class _Tally:
         self.danger: dict[str, set[str]] = defaultdict(set)
         self.extreme: dict[str, set[str]] = defaultdict(set)
         self.compound: dict[str, set[str]] = defaultdict(set)
+        self.danger_provisional: dict[str, set[str]] = defaultdict(set)
+        self.danger_flagged: dict[str, set[str]] = defaultdict(set)
         self.calibrated: dict[str, int] = defaultdict(int)
         self.provisional: dict[str, int] = defaultdict(int)
         self.meta: dict[str, CellReading] = {}
@@ -118,6 +128,14 @@ class _Tally:
             level = heat_index_category(cell.mean)[0]
             if level >= _DANGER_LEVEL:
                 self.danger[cid].add(cell.bucket)
+                # A Danger hour is still counted whatever its QC state (ADR 0029: a suspicious
+                # reading during a real event is exactly what a chronicle must not lose). What
+                # gets recorded beside it is how much of the count rests on evidence the pipeline
+                # does not trust as a measurement.
+                if cell.provisional:
+                    self.danger_provisional[cid].add(cell.bucket)
+                if cell.qc_flags:
+                    self.danger_flagged[cid].add(cell.bucket)
             if level >= _EXTREME_DANGER_LEVEL:
                 self.extreme[cid].add(cell.bucket)
 
@@ -142,6 +160,8 @@ def _cell_chronicles(surface: Surface) -> list[CellChronicle]:
                 compound_hours=len(tally.compound[cid]),
                 calibrated_readings=tally.calibrated[cid],
                 provisional_readings=tally.provisional[cid],
+                danger_hours_provisional=len(tally.danger_provisional[cid]),
+                danger_hours_qc_flagged=len(tally.danger_flagged[cid]),
             )
         )
     return out
@@ -198,6 +218,14 @@ class Chronicle:
         return sum(c.extreme_danger_hours for c in self.cells)
 
     @property
+    def danger_hours_provisional(self) -> int:
+        return sum(c.danger_hours_provisional for c in self.cells)
+
+    @property
+    def danger_hours_qc_flagged(self) -> int:
+        return sum(c.danger_hours_qc_flagged for c in self.cells)
+
+    @property
     def compound_hours(self) -> int:
         return sum(c.compound_hours for c in self.cells)
 
@@ -231,9 +259,12 @@ class Chronicle:
                 f"cell-hour(s) had both heat and air elevated (compound exposure). "
                 f"{self.calibrated_readings} of {self.total_readings} published cell-hour "
                 f"reading(s) were calibrated ({share_txt}); the remaining "
-                f"{self.provisional_readings} are provisional (uncalibrated). These are "
-                "descriptive counts of measured hours — not a health-outcome estimate, and not a "
-                "ranking, score, or comparison of any neighborhood."
+                f"{self.provisional_readings} are provisional (uncalibrated). "
+                f"{self.danger_hours_provisional} of the Danger cell-hour(s) came from a "
+                f"provisional reading, and {self.danger_hours_qc_flagged} of those from a reading "
+                "QC flagged as suspicious (a spike or a flatline). These are descriptive counts "
+                "of measured hours — not a health-outcome estimate, and not a ranking, score, or "
+                "comparison of any neighborhood."
             ),
             "",
             f"Source digest (sha256 of the window's observations): `{self.source_digest}`.",
@@ -244,21 +275,24 @@ class Chronicle:
             "## Per published cell",
             "",
             (
-                "| Cell | Danger hours | Extreme Danger hours | Compound hours | Observed hours "
-                "| Calibrated share |"
+                "| Cell | Danger hours | Danger hours provisional | Danger hours QC-flagged "
+                "| Extreme Danger hours | Compound hours | Observed hours | Calibrated share |"
             ),
-            "| --- | ---: | ---: | ---: | ---: | ---: |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
         for cell in self.cells:
             share = cell.calibrated_share
             share_txt = f"{share * 100:.0f}%" if share is not None else "—"
             name = (cell.label or cell.cell_id).replace("|", "\\|")
             lines.append(
-                f"| {name} | {cell.danger_hours} | {cell.extreme_danger_hours} "
+                f"| {name} | {cell.danger_hours} | {cell.danger_hours_provisional} "
+                f"| {cell.danger_hours_qc_flagged} | {cell.extreme_danger_hours} "
                 f"| {cell.compound_hours} | {cell.observed_hours} | {share_txt} |"
             )
         if not self.cells:
-            lines.append("| (no published cells reported in this window) | 0 | 0 | 0 | 0 | — |")
+            lines.append(
+                "| (no published cells reported in this window) | 0 | 0 | 0 | 0 | 0 | 0 | — |"
+            )
         return lines
 
     def _could_not_see(self) -> list[str]:
@@ -275,6 +309,14 @@ class Chronicle:
             (
                 f"- Uncalibrated cells: {self.provisional_cells} of {self.published_cells} "
                 "published cell(s) had no calibrated node in this window."
+            ),
+            (
+                "- Danger hours resting on untrusted readings: "
+                f"{self.danger_hours_provisional} of {self.danger_hours} Danger cell-hour(s) "
+                f"came from a provisional reading, and {self.danger_hours_qc_flagged} of those "
+                "from a reading QC flagged as a spike or a flatline. Those hours are counted, "
+                "not dropped (ADR 0029) — this line says how much of the count is evidence the "
+                "pipeline vouches for."
             ),
         ]
         if self.gaps:

@@ -195,6 +195,24 @@ All notable changes to swelter are recorded here. The format follows
   arithmetic. A pointer that stopped advancing now returns a checkably wrong answer rather than
   hanging `/api/health.json` forever, which is the worse of the two failures. Pairing behavior is
   unchanged.
+- **A Danger day and a Danger hour now state what they rest on ([#199](https://github.com/ChelseaKR/swelter/issues/199)).**
+  `exposure_brief.count_danger_days` and the event chronicle's per-cell tally both decided "Danger"
+  from `cell.mean` alone, through the same `alerts.crossing` test the live alerts feed uses, and
+  neither looked at `cell.provisional` or `cell.qc_flags`. A single QC-flagged spike — the
+  pipeline's own "do not trust this as a measurement" verdict — became a full Danger day or Danger
+  hour in a record built for organizers and health departments, with nothing on the page saying the
+  evidence behind it was flagged or uncalibrated. The alerts feed had honoured this all along
+  (`Alert.provisional`, rendered in the headline); the two share artifacts had not.
+  `DangerDayCount` now carries `danger_days_provisional` and `danger_days_qc_flagged`, and
+  `CellChronicle` carries `danger_hours_provisional` and `danger_hours_qc_flagged` — how much of
+  the count rests only on readings the pipeline does not vouch for. Both splits render everywhere
+  the count does: the brief's lines and JSON record, the chronicle headline, its per-cell table,
+  its always-present "what the network could not see" section, and the `swelter chronicle` summary
+  line. The crossing itself is unchanged: a flagged reading is still counted, because dropping it
+  would blank exactly the hours ADR 0029 exists to keep visible. The evidence line is rendered at
+  zero too, so a well-evidenced count and a shaky one never read the same
+  ([ADR 0046](docs/adr/0046-a-danger-count-states-what-it-rests-on.md)).
+
 - **The derived heat index's error bar now widens with the Rothfusz slope, instead of quietly
   understating it.** `calibrate.apply()` carried the temperature correction's `residual_std`
   forward *unscaled* as the derived `heat_index_c` 1-sigma. First-order error propagation says

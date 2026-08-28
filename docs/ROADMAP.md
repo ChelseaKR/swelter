@@ -4,9 +4,11 @@ The product goal is a community-owned measurement-to-action record: residents ca
 and air conditions, investigate change and uneven exposure, inspect evidence, and take the data with
 them without surrendering control to an account or vendor.
 
-Owner: Chelsea Kelly-Reif. Last verified: 2026-07-18. Recheck cadence: monthly, each release, and
+Owner: Chelsea Kelly-Reif. Last verified: 2026-08-27. Recheck cadence: monthly, each release, and
 after partner research or a material incident. The [root README](../README.md) describes the current
 product; this file records delivery state, next decisions, and measurable success.
+[`MULTIYEAR-PLAN.md`](MULTIYEAR-PLAN.md) sequences the next two to three years into phases and is
+explicit about which of them are blocked on people rather than on engineering.
 
 ## Current state
 

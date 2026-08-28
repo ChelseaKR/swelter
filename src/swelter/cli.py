@@ -687,8 +687,10 @@ def cmd_chronicle(args: argparse.Namespace) -> int:
     else:
         sys.stdout.write(document)
     _err(
-        f"swelter: chronicle {args.start} → {args.end}: {record.danger_hours} Danger cell-hour(s), "
-        f"{record.compound_hours} compound, {record.provisional_readings} provisional reading(s)"
+        f"swelter: chronicle {args.start} → {args.end}: {record.danger_hours} Danger cell-hour(s) "
+        f"({record.danger_hours_provisional} on provisional readings, "
+        f"{record.danger_hours_qc_flagged} of those QC flagged), {record.compound_hours} compound, "
+        f"{record.provisional_readings} provisional reading(s)"
     )
     return 0
 

@@ -213,7 +213,7 @@ finding is isolated in #105 and is not claimed as remediated here.
 - [Contributing](CONTRIBUTING.md) · [definition of done](DEFINITION_OF_DONE.md) ·
   [changelog](CHANGELOG.md) · [security](SECURITY.md)
 - [Architecture](docs/ARCHITECTURE.md) · [ADRs](docs/adr/README.md) ·
-  [roadmap](docs/ROADMAP.md) · [API](docs/api.md)
+  [roadmap](docs/ROADMAP.md) · [multiyear plan](docs/MULTIYEAR-PLAN.md) · [API](docs/api.md)
 - [Responsible-technology audits](docs/RESPONSIBLE-TECH-AUDITS.md) ·
   [DPIA](docs/audits/privacy-dpia.md) · [threat model](docs/audits/threat-model.md) ·
   [residual-risk register](docs/audits/residual-risk-register.md)
