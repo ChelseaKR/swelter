@@ -94,6 +94,26 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **ADR 0012 told the next reader to lock the maintainer out of `main`, and that ruleset was
+  never created, so it was still an open instruction.** Its bullet read "**No bypass actors** —
+  including repo admins", and an empty `bypass_actors` list is not a stricter version of the same
+  rules: it changes none of them and removes the maintainer's only route past a required check
+  that cannot report. GitHub answers `201` when such a ruleset is applied, so nothing warns you,
+  and the ruleset that then blocks every merge is itself protected from deletion. Automation
+  applied exactly this configuration elsewhere in this portfolio and restoring the owner's access
+  took a sweep across eighteen repositories. `bypass_mode: pull_request` is no better, because the
+  wedged thing is usually the pull request. [ADR 0047](docs/adr/0047-the-owner-keeps-a-standing-bypass-on-main.md)
+  supersedes that one bullet: exactly one bypass actor, the repository-admin role with
+  `bypass_mode: always`, and the audit obligation moves onto the record (a bypassed merge names
+  the blocked check and the authorization) rather than onto the actor list. Every other bullet of
+  ADR 0012 stands, and the companion `v*` tag ruleset keeps its empty bypass list deliberately: a
+  wedged branch check stops all work, while a bad release is corrected by cutting a new tag rather
+  than moving an old one. ADR 0012 itself is Accepted and was not rewritten; its legacy copy under
+  `docs/decisions/` carries a banner pointing at ADR 0047. Break-tested: rewriting ADR 0012 in
+  place fails `make adr-immutability` with "changed, but the base ADR is Accepted", and a banner
+  link to a nonexistent ADR fails `make docs-contract` with "missing link target"; both are green
+  again after restoring.
+
 - **`make verify` is green end to end again: OSV-Scanner is pinned at 2.5.1.** `security-osv`
   asserts the installed binary matches `OSV_SCANNER_VERSION` before it scans anything, and the pin
   had drifted to a build no longer current, so the gate failed at its own version assertion for

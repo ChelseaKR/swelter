@@ -31,7 +31,7 @@ evidence of the collision.
 - [ADR 0009: Add a compound heat-and-air exposure surface as the flagship differentiating feature](0009-compound-heat-air-exposure-surface.md)
 - [ADR 0010: Deliver neighborhood heat/AQI alerts as a generated public feed, not a subscriber list](0010-neighborhood-alerts-feed.md)
 - [ADR 0011: Add a curated, provenance-bearing cooling-center overlay with accessible list parity](0011-cooling-center-overlay.md)
-- [ADR 0012: Incident note — the 2026-07-02 gate bypass and the ruleset that should prevent recurrence](0012-gate-bypass-incident-and-ruleset.md)
+- [ADR 0012: Incident note — the 2026-07-02 gate bypass and the ruleset that should prevent recurrence](0012-gate-bypass-incident-and-ruleset.md) — bypass-actor line superseded by ADR 0047
 - [ADR 0013: `swelter fetch --accumulate` persists the demo store via a GitHub Actions cache](0013-accumulating-fetch-store-via-actions-cache.md) — identity posture superseded by ADR 0024; recovery from an unattributable restored store refined by ADR 0044
 - [ADR 0014: Derive calibrated heat index from calibrated temperature, don't fit it](0014-heat-index-derived-from-calibrated.md)
 - [ADR 0015: Validate `network.yaml` loudly, and add a `swelter doctor` gate](0015-strict-config-doctor.md)
@@ -66,3 +66,4 @@ evidence of the collision.
 - [ADR 0044: An unattributable store is discarded, not refused forever](0044-an-unattributable-store-is-discarded-not-refused-forever.md)
 - [ADR 0045: The published export is windowed; the accumulating store behind it is not](0045-published-export-is-windowed-the-accumulating-store-is-not.md)
 - [ADR 0046: A danger count states what it rests on](0046-a-danger-count-states-what-it-rests-on.md)
+- [ADR 0047: The owner keeps a standing bypass on `main`; the tag ruleset keeps none](0047-the-owner-keeps-a-standing-bypass-on-main.md)

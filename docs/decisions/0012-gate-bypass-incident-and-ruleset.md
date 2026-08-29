@@ -3,6 +3,13 @@ should prevent recurrence
 
 Date: 2026-07-05. Status: accepted.
 
+> **Partly superseded.** The "No bypass actors" bullet below is wrong and was reversed by
+> [ADR 0047](../adr/0047-the-owner-keeps-a-standing-bypass-on-main.md): the `main` ruleset
+> carries exactly the repository-admin role with `bypass_mode: always`, because an empty
+> bypass list is a lockout rather than a stricter gate. The companion `v*` tag ruleset does
+> keep an empty list, deliberately. Every other bullet still stands. The original text is
+> left intact as historical evidence.
+
 ## Decision
 
 Record, plainly and without editing history, that three commits landed on `main` outside the
