@@ -191,9 +191,9 @@ def test_check_readme_duplicate_paragraphs_is_advisory() -> None:
 # --- end-to-end smoke: the real repo's blocking rules pass today ------------------------------
 
 
-def test_run_all_reports_five_rules_and_blocking_rules_pass_on_this_repo() -> None:
+def test_run_all_reports_six_rules_and_blocking_rules_pass_on_this_repo() -> None:
     results = docs_figures.run_all(docs_figures.ROOT)
-    assert len(results) == 5
+    assert len(results) == 6
     blocking_failures = [r for r in results if r.blocking and not r.ok]
     assert not blocking_failures, blocking_failures
 
@@ -230,3 +230,55 @@ def test_this_repository_makes_no_hard_coded_test_count_claim() -> None:
     """If CLAUDE.md ever regains a count, the rule above starts comparing it again."""
     claude = (docs_figures.ROOT / "CLAUDE.md").read_text(encoding="utf-8")
     assert docs_figures.extract_claude_test_count(claude) is None
+
+
+# --- rule 6: paper test count -----------------------------------------------------------------
+
+
+def test_extract_paper_test_count_reads_the_documented_number() -> None:
+    text = "checks, and a 257-test suite with\na 90% branch-coverage floor.\n"
+    assert docs_figures.extract_paper_test_count(text) == 257
+
+
+def test_extract_paper_test_count_missing_claim_returns_none() -> None:
+    assert docs_figures.extract_paper_test_count("the full test suite with a floor") is None
+
+
+def test_check_paper_test_count_detects_a_deliberate_mismatch_and_blocks() -> None:
+    """The load-bearing case, and the one that actually shipped: paper.md said "a 257-test
+    suite" while the collected count was roughly four times that, and no gate read paper/."""
+    result = docs_figures.check_paper_test_count("a 257-test suite", actual_count=lambda: 1040)
+    assert result.ok is False
+    assert "257" in result.detail
+    assert "1040" in result.detail
+    # Blocking: the paper is maintainer prose, not agent-do-not-modify, so this fails CI.
+    assert result.blocking is True
+
+
+def test_check_paper_test_count_passes_when_claim_matches_reality() -> None:
+    result = docs_figures.check_paper_test_count("a 205-test suite", actual_count=lambda: 205)
+    assert result.ok is True
+    assert result.blocking is True
+
+
+def test_paper_without_a_count_is_compliance_and_collects_nothing() -> None:
+    """Absence of the claim passes without running the collection subprocess, like rule 1."""
+    calls: list[int] = []
+
+    def counter() -> int:
+        calls.append(1)
+        return 205
+
+    result = docs_figures.check_paper_test_count("no count claimed", actual_count=counter)
+    assert result.ok is True
+    assert result.blocking is True
+    assert calls == []
+
+    docs_figures.check_paper_test_count("a 205-test suite", actual_count=counter)
+    assert calls == [1]
+
+
+def test_the_paper_makes_no_hard_coded_test_count_claim() -> None:
+    """If paper/paper.md ever regains a count, rule 6 starts comparing it against pytest."""
+    paper = (docs_figures.ROOT / "paper" / "paper.md").read_text(encoding="utf-8")
+    assert docs_figures.extract_paper_test_count(paper) is None
