@@ -252,20 +252,27 @@ def _pair_by_nearest_timestamp(
     A merge-style walk (mirrors ``detect_gaps``'s sorted-series approach): each reading pairs
     with at most one reading from the other series, so a twin with a denser cadence than its
     partner does not inflate ``n_pairs`` by matching the same partner reading twice.
+
+    Every pass consumes at least one reading from one side, so the walk can never need more
+    passes than the two series hold between them. That bound is written out rather than left
+    implicit in the pointer arithmetic, which makes the function total: a pointer that stopped
+    advancing would return a checkably wrong answer instead of hanging ``/api/health.json``
+    forever, and a health read that never returns is the worse failure of the two.
     """
     residuals: list[float] = []
     i = j = 0
-    while i < len(series_a) and j < len(series_b):
-        delta = parse_timestamp(series_b[j].timestamp) - parse_timestamp(series_a[i].timestamp)
-        delta_s = delta.total_seconds()
-        if abs(delta_s) <= tol_s:
-            residuals.append(series_a[i].value - series_b[j].value)
-            i += 1
-            j += 1
-        elif delta_s < 0:
-            j += 1
-        else:
-            i += 1
+    for _ in range(len(series_a) + len(series_b)):
+        if i < len(series_a) and j < len(series_b):
+            delta = parse_timestamp(series_b[j].timestamp) - parse_timestamp(series_a[i].timestamp)
+            delta_s = delta.total_seconds()
+            if abs(delta_s) <= tol_s:
+                residuals.append(series_a[i].value - series_b[j].value)
+                i += 1
+                j += 1
+            elif delta_s < 0:
+                j += 1
+            else:
+                i += 1
     return residuals
 
 

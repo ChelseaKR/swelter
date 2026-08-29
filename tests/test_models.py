@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import FrozenInstanceError
 
 import pytest
@@ -23,6 +24,8 @@ from swelter.models import (
     parse_timestamp,
     pm25_aqi,
     wbgt_c,
+    wind_chill_c,
+    wind_chill_category,
 )
 
 from .conftest import make_obs
@@ -299,3 +302,135 @@ def test_nowcast_concentration_uses_at_most_the_trailing_twelve_hours() -> None:
     window = [10.0] * 12
     outlier_appended = [*window, 1000.0]
     assert nowcast_concentration(window) == nowcast_concentration(outlier_appended)
+
+
+# -- wind chill: the reference implementation for a node that reports it -----------------------
+#
+# `wind_chill_c` and `wind_chill_category` had no unit test in this module at all: every mutant
+# mutmut generated for them reported `no_tests`, so the published NWS coefficients, the domain
+# boundary, and the frostbite band were unprotected by the core-safety gate.
+
+
+def test_wind_chill_c_reproduces_the_published_nws_index() -> None:
+    # NWS/Environment Canada 2001 North American revision, metric form:
+    #   WCT = 13.12 + 0.6215*T - 11.37*V^0.16 + 0.3965*T*V^0.16   (T in degC, V in km/h)
+    # Hand-checked against that formula, so a drifted coefficient or a flipped operator moves
+    # these numbers rather than passing silently.
+    # https://www.weather.gov/safety/cold-wind-chill-chart
+    assert wind_chill_c(0.0, 32.0) == -6.68
+    assert wind_chill_c(-10.0, 20.0) == -17.86
+    assert wind_chill_c(-20.0, 50.0) == -35.4
+
+
+def test_wind_chill_c_applies_exactly_on_its_documented_domain_edges() -> None:
+    # The index is defined for temp_c <= 10 and wind_kph > 4.8; both edges belong to the index,
+    # and the first step outside either one is the passthrough.
+    assert wind_chill_c(10.0, 40.0) == 5.97  # exactly at the warm ceiling: still wind chill
+    assert wind_chill_c(-5.0, 4.9) == -7.21  # just over the calm floor: still wind chill
+    assert wind_chill_c(10.1, 40.0) == 10.1  # too warm for the index
+    assert wind_chill_c(-5.0, 4.8) == -5.0  # calm enough that wind chill is not meaningful
+    assert wind_chill_c(-5.0, 0.0) == -5.0
+
+
+def test_wind_chill_c_rounds_both_branches_to_two_decimals() -> None:
+    # Two decimals is the published resolution on both sides of the domain test; a passthrough
+    # that echoed the input unrounded would leak more precision than the index claims.
+    assert wind_chill_c(11.234, 40.0) == 11.23
+    assert wind_chill_c(-3.126, 4.0) == -3.13
+
+
+def test_wind_chill_c_nan_propagates_rather_than_raising() -> None:
+    # A missing reading is a missing derived reading — the same convention `wbgt_c` uses.
+    assert math.isnan(wind_chill_c(float("nan"), 20.0))
+    assert math.isnan(wind_chill_c(-5.0, float("nan")))
+
+
+def test_wind_chill_category_bands() -> None:
+    # Colder is worse, so a reading crosses a band by falling at or below its ceiling. The NWS
+    # chart publishes exactly one numeric frostbite boundary (-19 degF / -28.3 degC).
+    assert wind_chill_category(0.0) == (0, "None")
+    assert wind_chill_category(-28.2) == (0, "None")
+    assert wind_chill_category(-28.3) == (1, "Frostbite in 30 min")  # the ceiling is in the band
+    assert wind_chill_category(-45.0) == (1, "Frostbite in 30 min")
+
+
+def test_wind_chill_category_rejects_nan() -> None:
+    # A missing reading must not pose as a measurement, the same way `pm25_aqi` refuses NaN.
+    with pytest.raises(ValueError, match="wind chill is NaN"):
+        wind_chill_category(float("nan"))
+
+
+# -- boundaries the published tables actually turn on ------------------------------------------
+
+
+def test_pm25_aqi_breakpoints_are_inclusive_at_both_ends() -> None:
+    # The EPA table has deliberate gaps between bands (9.0 then 9.1), so both ends of every
+    # breakpoint belong to their band. A half-open comparison would drop a value into the gap
+    # and fall through to the "Hazardous" clamp at the bottom of the function.
+    assert pm25_aqi(9.0) == (50, "Good")
+    assert pm25_aqi(9.1) == (51, "Moderate")
+    assert pm25_aqi(35.4) == (100, "Moderate")
+    assert pm25_aqi(35.5) == (101, "Unhealthy for Sensitive Groups")
+    assert pm25_aqi(325.4) == (500, "Hazardous")
+    assert pm25_aqi(325.5) == (500, "Hazardous")  # above the top band, clamped
+
+
+def test_pm25_aqi_clamps_at_and_below_zero_but_not_above_it() -> None:
+    assert pm25_aqi(0.0) == (0, "Good")
+    assert pm25_aqi(-1.0) == (0, "Good")
+    # 0.05 truncates to 0.0 and still runs the table rather than short-circuiting on the clamp,
+    # so the clamp really is "at or below zero" and not "below one".
+    assert pm25_aqi(0.05) == (0, "Good")
+    assert pm25_aqi(1.0) == (6, "Good")
+
+
+def test_pm25_aqi_rejects_nan_by_name() -> None:
+    with pytest.raises(ValueError, match=re.escape("PM2.5 concentration is NaN")):
+        pm25_aqi(float("nan"))
+
+
+def test_heat_index_category_floors_are_inclusive() -> None:
+    # The band floors are the published NWS values converted from degF; a reading exactly on a
+    # floor is inside that band, not the one below it.
+    assert heat_index_category(26.7) == (1, "Caution")
+    assert heat_index_category(32.2) == (2, "Extreme Caution")
+    assert heat_index_category(39.4) == (3, "Danger")
+    assert heat_index_category(51.1) == (4, "Extreme Danger")
+
+
+def test_heat_index_category_rejects_nan_by_name() -> None:
+    with pytest.raises(ValueError, match="heat index is NaN"):
+        heat_index_category(float("nan"))
+
+
+def test_heat_index_passthrough_rounds_to_two_decimals() -> None:
+    # Below the regression floor heat index *is* the air temperature, at the same two-decimal
+    # resolution the regression branch reports.
+    assert heat_index_c(20.126, 50.0) == 20.13
+
+
+def test_exposure_bounding_component_needs_a_strictly_higher_axis() -> None:
+    # Caution heat (1) against Good air (0): heat is strictly higher, so heat bounds it. A tie
+    # reads "both" (covered above) — this pins that the comparison is strict in the other
+    # direction too, so "heat" is never reported for a level heat did not actually set.
+    assert exposure_bounding_component(28.0, "Good") == "heat"
+    assert exposure_bounding_component(20.0, "Moderate") == "air"
+
+
+def test_unknown_aqi_category_contributes_no_air_concern() -> None:
+    # An unrecognised category must read as no elevated air concern, never as a mid-tier one:
+    # a mislabelled band would otherwise silently raise the published exposure level.
+    assert exposure_level(20.0, "not-a-published-category") == (0, "Minimal", False)
+    assert exposure_bounding_component(28.0, "not-a-published-category") == "heat"
+
+
+def test_nowcast_concentration_of_an_all_zero_window_is_zero() -> None:
+    # c_max == 0 has no range ratio to take, so the weight falls back to 1.0 (a flat average)
+    # rather than dividing by zero.
+    assert nowcast_concentration([0.0, 0.0, 0.0]) == 0.0
+
+
+def test_parse_timestamp_assumes_utc_for_a_naive_reading() -> None:
+    # A node that omits the offset is read as UTC rather than as the reader's local clock, so
+    # the same payload parses identically wherever the pipeline runs.
+    assert format_timestamp(parse_timestamp("2026-06-01T12:00:00")) == "2026-06-01T12:00:00Z"
