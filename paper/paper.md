@@ -124,8 +124,8 @@ and leave with the data.
   same pipeline, ingested raw and displayed provisional.
 
 The full merge gate (`make verify`) runs formatting, lint, strict typing,
-the accessibility and internationalization checks, and a 257-test suite with
-a 90% branch-coverage floor.
+the accessibility and internationalization checks, and the full test suite
+with a 90% branch-coverage floor.
 
 # Acknowledgements
 
