@@ -54,7 +54,7 @@ dev = [
     "types-jsonschema>=4.23",
 ]
 infra = [
-    "aws-cdk-lib==2.264.0",
+    "aws-cdk-lib==2.265.0",
     "constructs==10.8.1",
 ]
 mutation = [
