@@ -83,13 +83,13 @@ jobs:
       - name: Install locked Python environment
         run: uv sync --locked
 
-      - name: Install checksum-verified OSV-Scanner v2.3.8
+      - name: Install checksum-verified OSV-Scanner v2.5.1
         run: |
           mkdir -p "${RUNNER_TEMP}/osv-bin"
           curl --fail --silent --show-error --location \
             --output "${RUNNER_TEMP}/osv-bin/osv-scanner" \
-            https://github.com/google/osv-scanner/releases/download/v2.3.8/osv-scanner_linux_amd64
-          echo "bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc  ${RUNNER_TEMP}/osv-bin/osv-scanner" \
+            https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64
+          echo "f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be  ${RUNNER_TEMP}/osv-bin/osv-scanner" \
             | sha256sum --check --strict
           chmod 0755 "${RUNNER_TEMP}/osv-bin/osv-scanner"
           echo "${RUNNER_TEMP}/osv-bin" >> "${GITHUB_PATH}"

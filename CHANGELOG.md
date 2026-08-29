@@ -94,6 +94,20 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **`make verify` is green end to end again: OSV-Scanner is pinned at 2.5.1.** `security-osv`
+  asserts the installed binary matches `OSV_SCANNER_VERSION` before it scans anything, and the pin
+  had drifted to a build no longer current, so the gate failed at its own version assertion for
+  anyone with a present-day install. That failure is environmental, it says nothing about the
+  dependency graph, and a red that everyone learns to read as benign is a red nobody reads.
+
+  Checked before bumping rather than after: 2.5.1 scans the same two lockfiles (`uv.lock`, 50
+  packages; `web/package-lock.json`, 318 packages) and reports **no issues**, so the older pin was
+  not concealing a finding. `osv-scanner.toml` still ignores nothing, so every advisory either
+  version reports still fails the gate. The binary is checksum-verified in CI and at release; the
+  new `sha256` is `f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be`, taken from
+  the upstream `osv-scanner_SHA256SUMS` for `v2.5.1` and confirmed against the downloaded artifact.
+  Break-tested: a deliberately wrong `OSV_SCANNER_VERSION` fails `make security-osv` with exit 2,
+  and the correct one passes with exit 0.
 - **The published site says what data it is actually showing.** The README led with a live-map link
   and a source table describing what the pipeline *supports*; it said nothing about which source was
   reaching the deployment. Since at least 2026-08-16 that has been Copernicus CAMS **model** output
