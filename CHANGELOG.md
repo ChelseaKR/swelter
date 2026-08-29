@@ -218,6 +218,38 @@ All notable changes to swelter are recorded here. The format follows
   repository's own `web/`), which regenerated the correct values on every gate run, threw the
   comparison away, and silently repaired the drift on any machine that ran the tests; that test
   now writes to a temporary directory, so no gate mutates the tracked tree.
+- **The WebKit map-center check was failing on its own reference point, not on the map.** The
+  merge-blocking `a11y-advisory` gate went red on WebKit for two unrelated pull requests (#211,
+  #212), one of which touches no `web/` file, with the same numbers issue #169 recorded in July:
+  `Expected: 0.5`, `Received: 0.5456412596987678`. The map was never wrong. The trace from run
+  33266336949 shows the box going 540x626 to 585x678 CSS pixels and the camera going
+  `translate(-148px, -165.2px) scale(1.4)` to
+  `translate(-160.33333333333331px, -178.9226837060703px) scale(1.4)`, which is exactly
+  `-148 * 585/540` and `-165.2 * 678/626`: the geographic center held to sixteen digits in both
+  axes, through a WCAG 1.4.4 text-scale reflow.
+
+  What drifted was the baseline. The test zooms, pans `ArrowRight` then `ArrowDown`, and records
+  the pre-reflow camera to compare against. A pan key mutates `state.mapView` and defers the DOM
+  write to the next animation frame (`scheduleTransform`), and the wait before the recording was
+  "the camera is no longer the post-zoom value" — a condition `ArrowRight` meets by itself. When a
+  frame boundary falls between the two presses, which is what WebKit does once the runner is
+  contended, the baseline was taken with `ArrowDown` still pending, and the reported 0.0456412596987678
+  of drift is just `40 / (626 * 1.4)`, that one deferred 40-pixel pan. The horizontal assertion
+  passed throughout because `ArrowRight` was in the baseline.
+
+  Each pan is now settled against the camera observed immediately before it. That is stricter than
+  the wait it replaces, which required only the first of the two pans to have landed. The
+  `toBeCloseTo(..., 7)` tolerance is untouched, as are the polls, `test.slow()`, and the 20s
+  ceilings, so a genuine non-convergence still fails; nothing was excluded, skipped, or loosened.
+  Reproduced deterministically on local WebKit by holding the `ArrowDown` keydown until after the
+  baseline read, which reproduces the CI failure to every digit, and confirmed to pass under the
+  same injection once each pan is settled.
+
+  The two earlier diagnoses in `docs/audits/accessibility-report.md` both blamed a late
+  `ResizeObserver` correction in `web/app.js` and are corrected there rather than deleted. The
+  2026-08-21 experiment that "confirmed" that reading — delaying `requestAnimationFrame` and
+  watching the failure reappear — was in fact delaying the pan render, so it reproduced this
+  mechanism and was read as the other one.
 - **The core-safety mutation gate now measures something.** Every scheduled run since the gate was
   added reported `mutation: 0.00% (0 killed / 1718 total)`: `tests/test_calibrate.py`'s cross-check
   against `scripts/gen_demo_data.py` imports `scripts` from the repository root, mutmut's `mutants/`
