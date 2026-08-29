@@ -9,6 +9,36 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **The planner is discoverable. It was live and crawlable with no canonical, no social
+  metadata and no sitemap entry.** `/planner/` was added to the pa11y URL list and to nothing
+  else, so every discovery surface missed it: `KNOWN_ROUTES` gates `canonical_url`, the `page`
+  subcommand and `write_sitemap` alike, and all three of them reach only source-aware data
+  routes. `web/` is uploaded whole, so the page deployed and served fine while sharing a link
+  to it previewed as a bare URL.
+
+  `pages_seo.py` gains `STATIC_ROUTES` and `write_static_page_metadata` for a published route
+  that is not a data surface. The planner reads no readings, so it gets a canonical, icons,
+  `robots`, Open Graph and a Twitter card, and deliberately **no JSON-LD**: the only graph this
+  project emits is a `Dataset` describing readings and their licence, and a page that publishes
+  none must not claim one. It also keeps the title and description it already ships with rather
+  than having them rewritten, because a static page's copy is truthful in source, whereas a data
+  surface's is only truthful once the deployed fallback is known. Nothing new is written about
+  what the planner does; the card repeats the page.
+
+  The sitemap is now derived from the route list rather than maintained beside it, so the next
+  route cannot be added to one and forgotten by the other, and `make seo` validates the planner
+  template as well as the dashboard's.
+
+  Observed failing four ways: `/planner/` dropped from the published routes; the planner
+  canonicalised to the bare `chelseakr.github.io` origin, which is a different site and one all
+  six project sites on that origin would claim; the `Dataset` graph attached to the planner; and
+  the planner template stripped of its marker block, which fails `make seo` with exit 2.
+
+  Unchanged and recorded rather than "fixed": there is still no `robots.txt`. `check_template`
+  fails the build if one appears under `web/`, because a crawler reads `/robots.txt` only at the
+  origin root and this project repository cannot publish `https://chelseakr.github.io/robots.txt`.
+  Page-level `robots` metadata remains the crawl control, as that check already says.
+
 - **Purpose-first project planner.** A no-account decision guide at `/planner/` asks six bounded,
   non-personal questions and recommends public data, a governance or stewardship pause, a bounded
   pilot, or staged operation. “Do not deploy” is a first-class outcome; raw readings cannot unlock
