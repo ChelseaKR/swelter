@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -18,16 +19,19 @@ WORKFLOW_SUFFIXES = ("*.yml", "*.yaml")
 _USES = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s@]+)@([^\s#]+)(?:\s+#\s*(\S+))?\s*$")
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _SEMVER = re.compile(r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
-# Governance exception #105 preserves the existing Pages cache step byte-for-byte. The exemption
-# is deliberately bound to its workflow, action, immutable SHA, and legacy major-version comment.
-_PROTECTED_VERSION_ANNOTATIONS = {
-    (
-        "pages.yml",
-        "actions/cache",
-        "0057852bfaa89a56745cba8c7296529d2fc39830",
-        "v4",
-    ): "v4.3.0",
-}
+# Governance exception #105 preserves a workflow step byte-for-byte when its comment is a legacy
+# major-version rather than an exact semver. Each exemption is bound to its workflow, action,
+# immutable SHA, and comment, so it can only ever excuse the one line it names.
+#
+# The table is empty. It held one entry, for
+# ``pages.yml``/``actions/cache``/``0057852bfaa89a56745cba8c7296529d2fc39830``/``v4``, and that
+# SHA left every workflow when the action was bumped to
+# ``55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0`` -- an exact semver, which needs no
+# exemption. The entry stayed. A security exemption whose subject no longer exists is invisible:
+# it excuses nothing, it can never be reached, and nothing in the gate said so. So
+# ``stale_exemptions`` now checks the table against the workflows on every run: an exemption that
+# outlives what it excused is a finding, not a leftover.
+_PROTECTED_VERSION_ANNOTATIONS: dict[tuple[str, str, str, str], str] = {}
 
 
 def scan_workflow(path: Path) -> list[str]:
@@ -64,6 +68,28 @@ def scan_workflow(path: Path) -> list[str]:
     return problems
 
 
+def stale_exemptions(paths: Iterable[Path]) -> list[str]:
+    """Report any version-annotation exemption whose subject is not in a scanned workflow.
+
+    An exemption is a hole deliberately cut in a security gate. Once the line it was cut for is
+    gone, the hole is still there, excusing nothing, matched by nothing, and reported by nothing
+    -- so nobody learns it can be closed, and a future pin that happened to reproduce the same
+    (workflow, action, SHA, comment) tuple would be waved through on a decision nobody made.
+    """
+    live = {
+        (path.name, match.group(1), match.group(2), match.group(3) or "")
+        for path in paths
+        for match in (_USES.match(line) for line in path.read_text(encoding="utf-8").splitlines())
+        if match
+    }
+    return [
+        f"version-annotation exemption for {action}@{reference} "
+        f"(# {comment or 'no comment'}) in {name} matches no uses: line; delete it"
+        for (name, action, reference, comment) in sorted(_PROTECTED_VERSION_ANNOTATIONS)
+        if (name, action, reference, comment) not in live
+    ]
+
+
 def workflow_files(directory: Path = WORKFLOWS) -> list[Path]:
     """Every workflow definition GitHub would run, in a stable order."""
     return sorted(path for suffix in WORKFLOW_SUFFIXES for path in directory.glob(suffix))
@@ -85,7 +111,7 @@ def main() -> int:
         print(f"  [FAIL] no workflow definitions found under {WORKFLOWS}")
         print("workflow-policy: the gate scanned nothing, so it proved nothing", file=sys.stderr)
         return 1
-    findings: list[str] = []
+    findings: list[str] = list(stale_exemptions(paths))
     for path in paths:
         findings.extend(f"{_display(path)}: {problem}" for problem in scan_workflow(path))
     if findings:

@@ -47,7 +47,7 @@ def test_extract_claude_test_count_missing_line_returns_none() -> None:
 
 def test_check_test_count_passes_when_claim_matches_reality() -> None:
     text = "test → pytest (205 tests, all green)\n"
-    result = docs_figures.check_test_count(text, actual_count=205)
+    result = docs_figures.check_test_count(text, actual_count=lambda: 205)
     assert result.ok is True
     assert result.blocking is False  # CLAUDE.md is agent-do-not-modify: advisory, never fails CI
 
@@ -55,7 +55,7 @@ def test_check_test_count_passes_when_claim_matches_reality() -> None:
 def test_check_test_count_detects_a_deliberate_mismatch() -> None:
     """The load-bearing case: a doc fed the *wrong* number must be caught, not silently passed."""
     text = "test → pytest (62 tests, all green)\n"
-    result = docs_figures.check_test_count(text, actual_count=205)
+    result = docs_figures.check_test_count(text, actual_count=lambda: 205)
     assert result.ok is False
     assert "62" in result.detail
     assert "205" in result.detail
@@ -196,3 +196,37 @@ def test_run_all_reports_five_rules_and_blocking_rules_pass_on_this_repo() -> No
     assert len(results) == 5
     blocking_failures = [r for r in results if r.blocking and not r.ok]
     assert not blocking_failures, blocking_failures
+
+
+def test_no_test_count_claim_is_compliance_not_a_permanent_warning() -> None:
+    """CLAUDE.md's own rule is "never put a test count in prose unless a check regenerates it",
+    and the count this rule was written for was deleted under that rule. The rule then warned
+    ``could not find a '(N tests, all green)' line`` on every run, forever, for a state that is
+    correct. An advisory channel that is always amber reports nothing, because nobody reads it.
+    """
+    result = docs_figures.check_test_count("no count claimed anywhere", actual_count=lambda: 205)
+    assert result.ok is True
+    assert result.blocking is False
+    assert "no hard-coded test count" in result.detail
+
+
+def test_the_pytest_collection_runs_only_when_there_is_a_claim_to_compare() -> None:
+    """The `pytest --collect-only` subprocess used to run on every `make verify` and have its
+    result discarded, because the claim it was collected to compare against no longer exists."""
+    calls = []
+
+    def counter() -> int:
+        calls.append(1)
+        return 205
+
+    docs_figures.check_test_count("no count claimed anywhere", actual_count=counter)
+    assert calls == []
+
+    docs_figures.check_test_count("(205 tests, all green)", actual_count=counter)
+    assert calls == [1]
+
+
+def test_this_repository_makes_no_hard_coded_test_count_claim() -> None:
+    """If CLAUDE.md ever regains a count, the rule above starts comparing it again."""
+    claude = (docs_figures.ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert docs_figures.extract_claude_test_count(claude) is None
