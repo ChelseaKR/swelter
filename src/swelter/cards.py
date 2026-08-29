@@ -147,6 +147,12 @@ class _CellReadings:
     lon: float
     bucket: str
     provisional: bool
+    #: True when QC flagged a contributing reading as a spike or a flatline. Distinct from
+    #: ``provisional``: a reading can be provisional merely because no correction has been
+    #: fitted for it yet, which is a different thing from the pipeline having looked at the
+    #: value and said it does not trust it (ADR 0029). The dashboard, the export and the data
+    #: dictionary have always carried the distinction; the printed card did not.
+    qc_flagged: bool
     heat: CellReading | None
     air: CellReading | None
     exposure: CellReading | None
@@ -162,6 +168,7 @@ def _collect(by_param: dict[str, CellReading]) -> _CellReadings:
         lon=any_reading.lon,
         bucket=max(buckets),
         provisional=any(r.provisional for r in by_param.values()),
+        qc_flagged=any(r.qc_flags for r in by_param.values()),
         heat=by_param.get("heat_index_c"),
         air=by_param.get("pm25_ugm3"),
         exposure=by_param.get(aggregate.EXPOSURE),
@@ -257,9 +264,21 @@ def _render_cooling(
 
 
 def _render_provenance(strings: dict[str, str], cell: _CellReadings) -> str:
-    state_key = "state-provisional" if cell.provisional else "state-calibrated"
+    """The card's one provenance line, in the same three states every other surface uses.
+
+    A card is the surface with the least recourse: no tooltip, no legend, no link. It used to
+    offer a two-way choice, so a value QC had flagged as an implausible spike printed as plain
+    ``provisional`` -- indistinguishable from a perfectly ordinary reading that simply has no
+    correction fitted yet. ``state-flagged`` was already in both shipped catalogs and already
+    loaded by :func:`load_strings`; the card just never asked for it.
+    """
+    if cell.qc_flagged:
+        state_key, cls = "state-flagged", "provenance flagged"
+    elif cell.provisional:
+        state_key, cls = "state-provisional", "provenance provisional"
+    else:
+        state_key, cls = "state-calibrated", "provenance confirmed"
     state = escape(_t(strings, state_key, state_key))
-    cls = "provenance provisional" if cell.provisional else "provenance confirmed"
     return f'<p class="{cls}">{escape(cell.bucket)} · {state}</p>'
 
 
@@ -335,6 +354,8 @@ body.large-type { font-size: 20px; }
 .qr-url { font-family: monospace; font-size: 0.75em; word-break: break-all; }
 .provenance { margin: 0.5rem 0 0; font-size: 0.8em; color: #333; }
 .provenance.provisional { font-style: italic; }
+/* Flagged has to read differently from provisional in print, where colour may not survive. */
+.provenance.flagged { font-style: italic; font-weight: 700; }
 @media print {
   @page { margin: 1.2cm; }
   body { background: #fff; color: #000; }
