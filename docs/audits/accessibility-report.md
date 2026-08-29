@@ -160,7 +160,49 @@ reproducibly on WebKit in CI, with the map's vertical center reading 4.6% off th
 ([#169](https://github.com/ChelseaKR/swelter/issues/169)). It never reproduced locally, including 8
 repeated runs against real WebKit at 5-way parallelism.
 
-The cause is a harness race, not a layout defect. The map's own resize handling
+The cause is a harness race, not a layout defect, and the dashboard's text-scale re-centering is
+correct: there is no WebKit text-scale defect. The mechanism, however, was misidentified twice
+before it was pinned down. Both earlier readings are kept below, marked as superseded, so the record
+shows what was believed and when.
+
+**Corrected diagnosis (2026-08-29).** The check failed again on WebKit, with the identical
+signature, on two unrelated pull requests ([#211](https://github.com/ChelseaKR/swelter/pull/211) and
+[#212](https://github.com/ChelseaKR/swelter/pull/212), runs 33266336949 and 33266337675), one of
+which changes no `web/` file at all.
+
+The failure is a stale baseline, not a late correction. The test zooms with `+`, pans with
+`ArrowRight` then `ArrowDown`, and captures the pre-reflow camera as its reference. A pan key
+mutates `state.mapView` and defers the DOM write to the next animation frame (`scheduleTransform`),
+so when a frame boundary falls between the two presses the camera briefly shows `ArrowRight` only.
+The wait before the capture was "the camera is no longer the post-zoom value", which `ArrowRight`
+satisfies by itself, so the reference was recorded with `ArrowDown` still pending. Everything after
+that compared a correct measurement against a wrong reference.
+
+The trace attached to run 33266336949 settles it arithmetically. The map box went from 540x626 to
+585x678 CSS pixels, and the camera from `translate(-148px, -165.2px) scale(1.4)` to
+`translate(-160.33333333333331px, -178.9226837060703px) scale(1.4)`. Those are exactly
+`-148 * 585/540` and `-165.2 * 678/626`: the geographic center was preserved to sixteen digits, in
+both axes. The horizontal assertion passed for the same reason it always did, because `ArrowRight`
+was in the reference; the vertical one failed because `ArrowDown` was not. The reported drift of
+0.0456412596987678 is `40 / (626 * 1.4)`, the single deferred 40-pixel pan step.
+
+Reproduced deterministically on local WebKit by holding the `ArrowDown` keydown until after the
+baseline read, which yields the CI failure to every digit (`Expected: 0.5`, `Received:
+0.5456412596987678`); the same injection passes once each pan is settled in turn. The fix waits on
+each pan against the camera observed immediately before it, which is stricter than the wait it
+replaces: it requires both pans to have landed where the old one required only the first. The
+`toBeCloseTo(..., 7)` tolerance, the polls, and the `test.slow()` and 20s ceilings added in August
+are all unchanged, so a genuine non-convergence still fails.
+
+This also explains why it never reproduced locally on an idle machine and why it survived retries.
+Both key presses land inside one animation frame when the runner is not contended and in separate
+frames when it is, which holds for a whole run rather than varying per attempt. It is
+load-correlated, not a per-attempt flake, and it was never evidence about the pull request it
+blocked.
+
+### Superseded readings
+
+**Superseded (original).** The map's own resize handling
 (`ResizeObserver` → one `requestAnimationFrame` → `restoreMapCameraCenter` in `web/app.js`) already
 recenters the camera correctly after a text-scale reflow changes the map's rem-driven pixel box; the
 test set the `--text-scale` CSS variable and immediately read the camera on the same tick, before
@@ -170,7 +212,7 @@ survives the same delay. The fix polls for the corrected camera state instead of
 genuine future regression (the correction never landing) still fails the check, just after the poll
 timeout rather than immediately. No `web/app.js` change was needed.
 
-**Follow-up (2026-08-21).** The initial poll used the suite's 10s default `expect` timeout, which
+**Superseded (follow-up, 2026-08-21).** The initial poll used the suite's 10s default `expect` timeout, which
 was observed to time out under heavy same-day CI concurrency (many parallel workflow runs sharing
 runner capacity) — not because the correction was slow in absolute terms, but because the runner's
 event loop was contended. `test.slow()` (triples the test's own timeout) plus an explicit 20s ceiling
