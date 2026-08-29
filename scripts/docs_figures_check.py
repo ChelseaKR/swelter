@@ -14,6 +14,12 @@ this script (or the agent driving it) has no way to fix would just turn CI perma
 The other three rules check docs this script's caller *can* fix (``docs/ROADMAP.md``,
 ``docs/api.md``, ``docs/I18N.md``) and are hard gates — see ``BLOCKING`` on each ``Rule``.
 
+An advisory rule that can only ever warn has to be careful about *what* it warns on. Rule 1
+used to warn whenever ``CLAUDE.md`` carried no test count — which, since the count was deleted
+under CLAUDE.md's own "never put a test count in prose unless a check regenerates it" rule, is
+the correct state, warned about on every run forever. A permanently amber channel reports
+nothing, because nobody reads it. Absence of the claim is now a pass that says so.
+
 Exit status is 0 when every hard-gated rule passes (advisory rules never affect it) and 1
 otherwise, with a per-rule report naming its source of truth.
 """
@@ -24,6 +30,7 @@ import importlib.util
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
@@ -108,19 +115,33 @@ def collected_test_count(root: Path) -> int:
     raise RuntimeError(f"could not parse test count from pytest --collect-only -q:\n{proc.stdout}")
 
 
-def check_test_count(claude_text: str, actual_count: int) -> RuleResult:
+def check_test_count(claude_text: str, actual_count: Callable[[], int]) -> RuleResult:
+    """Compare CLAUDE.md's hard-coded test count, when it still makes one, against pytest.
+
+    CLAUDE.md's own rule is "never put a test count in prose unless a check regenerates it", and
+    the count this rule was written for was deleted under that rule. The rule kept reporting
+    ``WARN: could not find a '(N tests, all green)' line`` forever afterwards: a permanent
+    warning for a state that is correct. A channel that is always amber teaches the reader to
+    stop reading it, which is how an advisory channel loses the ability to report anything.
+
+    Absence of the claim is compliance, so it passes and says so. The comparison -- and the
+    ``pytest --collect-only`` subprocess behind it, whose result was previously computed on every
+    ``make verify`` and then discarded -- runs only when there is a claim to compare against.
+    """
     claimed = extract_claude_test_count(claude_text)
     source = "`pytest --collect-only -q` (actual collected test count)"
     if claimed is None:
         return RuleResult(
             "test-count",
             source,
-            False,
-            "CLAUDE.md: could not find a '(N tests, all green)' line",
+            True,
+            "CLAUDE.md states no hard-coded test count, as its own rule requires: "
+            "never put a test count in prose unless a check regenerates it",
             blocking=False,
         )
-    ok = claimed == actual_count
-    detail = f"CLAUDE.md claims {claimed} tests; {source.split(' (')[0]} finds {actual_count}"
+    resolved = actual_count()
+    ok = claimed == resolved
+    detail = f"CLAUDE.md claims {claimed} tests; {source.split(' (')[0]} finds {resolved}"
     if not ok:
         detail += " — TODO(maintainer): reconcile CLAUDE.md's test count (agent-do-not-modify)"
     return RuleResult("test-count", source, ok, detail, blocking=False)
@@ -302,7 +323,7 @@ def run_all(root: Path = ROOT) -> list[RuleResult]:
     results: list[RuleResult] = []
 
     claude_text = CLAUDE_MD.read_text(encoding="utf-8") if CLAUDE_MD.is_file() else ""
-    results.append(check_test_count(claude_text, collected_test_count(root)))
+    results.append(check_test_count(claude_text, lambda: collected_test_count(root)))
 
     roadmap_text = ROADMAP_MD.read_text(encoding="utf-8") if ROADMAP_MD.is_file() else ""
     results.append(check_corrections_count(roadmap_text, load_corrections_count(CORRECTIONS_YAML)))

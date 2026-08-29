@@ -229,6 +229,15 @@ def check(root: Path = ROOT) -> list[str]:
     if tuple(headers) != MAP_HEADERS:
         return [f"acceptance map: headers must be {MAP_HEADERS!r}, got {tuple(headers)!r}"]
     features, problems = _map_features(root, rows)
+    # An empty table satisfies every per-row rule vacuously and one-to-one coverage of an empty
+    # inventory by an empty map is trivially true, so a map emptied by a bad edit used to print
+    # "PASS (0 shipped features; paths, symbols, roadmap, ISO 25010:2023 verified)". Verifying
+    # nothing is not verifying.
+    if not rows:
+        problems.append(
+            "acceptance map: the executable feature map has no rows; a gate that resolved no "
+            "path, symbol, or ISO characteristic has not verified the map"
+        )
 
     try:
         roadmap_headers, roadmap_rows = _table_after_heading(
@@ -244,6 +253,12 @@ def check(root: Path = ROOT) -> list[str]:
             f"got {tuple(roadmap_headers)!r}"
         )
         return problems
+
+    if not roadmap_rows:
+        problems.append(
+            "roadmap inventory: the shipped feature inventory has no rows; one-to-one coverage "
+            "of an empty inventory is trivially true and proves nothing"
+        )
 
     roadmap_features, roadmap_problems = _roadmap_features(roadmap_rows)
     problems.extend(roadmap_problems)

@@ -9,7 +9,7 @@ import json
 import math
 import re
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -644,7 +644,33 @@ def generate(args: argparse.Namespace) -> None:
     args.markdown.write_text(render_markdown(snapshot, actions, issues), encoding="utf-8")
 
 
-def check(args: argparse.Namespace) -> None:
+def coverage_summary(
+    snapshot: Mapping[str, Any], actions: Mapping[str, Any], issues: Mapping[str, Any]
+) -> str:
+    """Say what this run actually verified, so a vacuous PASS cannot read like a full one.
+
+    The committed evidence currently declares ``collection.complete: false`` with zero retained
+    records, so every metric resolves to ``unavailable`` and ``_complete_metrics`` -- where every
+    DORA threshold in this file lives -- is never entered. That state is real, disclosed, and
+    tracked in #109; what was wrong is that the gate printed the identical bare ``PASS (check)``
+    for it as it would for a full window. A green line that cannot be told apart from a green
+    line over nothing is not evidence. This makes the emptiness part of the output.
+    """
+    metrics = snapshot.get("metrics")
+    metrics = metrics if isinstance(metrics, dict) else {}
+    computed = sum(
+        1
+        for metric in metrics.values()
+        if isinstance(metric, dict) and metric.get("status") != "unavailable"
+    )
+    state = "complete" if snapshot.get("collection_complete") else "INCOMPLETE"
+    return (
+        f"{len(actions['records'])} deployment run(s), {len(issues['records'])} incident(s), "
+        f"{computed}/{len(metrics)} metric(s) computed, collection {state}"
+    )
+
+
+def check(args: argparse.Namespace) -> str:
     expected, actions, issues = build_snapshot(args.actions, args.issues)
     actual = _read_json(args.snapshot)
     if actual != expected:
@@ -658,6 +684,7 @@ def check(args: argparse.Namespace) -> None:
         raise EvidenceError(f"{args.markdown}: missing generated ledger ({exc})") from exc
     if actual_markdown != expected_markdown:
         raise EvidenceError(f"{args.markdown}: ledger differs from retained inputs; regenerate it")
+    return coverage_summary(expected, actions, issues)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -684,17 +711,18 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    detail = ""
     try:
         if args.command == "retain":
             retain(args)
         elif args.command == "generate":
             generate(args)
         else:
-            check(args)
+            detail = f"; {check(args)}"
     except EvidenceError as exc:
         print(f"dora-evidence: FAIL: {exc}", file=sys.stderr)
         return 1
-    print(f"dora-evidence: PASS ({args.command})")
+    print(f"dora-evidence: PASS ({args.command}{detail})")
     return 0
 
 

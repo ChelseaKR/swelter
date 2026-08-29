@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from scripts import (
         docs_contract_check,
         hygiene_check,
+        i18n_parity,
         log_safety_check,
         reading_level_check,
         standards_pin_check,
@@ -24,6 +25,7 @@ else:
     sys.path.insert(0, str(ROOT))
     docs_contract_check = importlib.import_module("scripts.docs_contract_check")
     hygiene_check = importlib.import_module("scripts.hygiene_check")
+    i18n_parity = importlib.import_module("scripts.i18n_parity")
     log_safety_check = importlib.import_module("scripts.log_safety_check")
     reading_level_check = importlib.import_module("scripts.reading_level_check")
     standards_pin_check = importlib.import_module("scripts.standards_pin_check")
@@ -149,7 +151,11 @@ def test_vendored_standards_match_canonical_manifest() -> None:
     assert standards_pin_check.main() == 0
 
 
-def test_pages_cache_annotation_exception_is_exactly_bound(tmp_path: Path) -> None:
+_EXEMPT_SHA = "0057852bfaa89a56745cba8c7296529d2fc39830"
+_EXEMPT_KEY = ("pages.yml", "actions/cache", _EXEMPT_SHA, "v4")
+
+
+def _exempt_workflow(tmp_path: Path) -> Path:
     workflow = tmp_path / "pages.yml"
     workflow.write_text(
         "permissions:\n"
@@ -157,10 +163,23 @@ def test_pages_cache_annotation_exception_is_exactly_bound(tmp_path: Path) -> No
         "jobs:\n"
         "  deploy:\n"
         "    steps:\n"
-        "      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4\n"
-        "# actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0\n",
+        f"      - uses: actions/cache@{_EXEMPT_SHA} # v4\n"
+        f"# actions/cache@{_EXEMPT_SHA} # v4.3.0\n",
         encoding="utf-8",
     )
+    return workflow
+
+
+def test_pages_cache_annotation_exception_is_exactly_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The exemption mechanism is exercised through an injected table rather than through whatever
+    # the live table happens to hold. A test that only passes while a particular pin is committed
+    # stops testing the mechanism the moment that pin is bumped, which is exactly what happened.
+    monkeypatch.setattr(
+        workflow_policy_check, "_PROTECTED_VERSION_ANNOTATIONS", {_EXEMPT_KEY: "v4.3.0"}
+    )
+    workflow = _exempt_workflow(tmp_path)
     assert workflow_policy_check.scan_workflow(workflow) == []
 
     workflow.write_text(
@@ -175,6 +194,69 @@ def test_pages_cache_annotation_exception_is_exactly_bound(tmp_path: Path) -> No
         "no exact trailing semver" in problem
         for problem in workflow_policy_check.scan_workflow(workflow)
     )
+
+
+def test_a_version_exemption_that_outlives_its_workflow_line_is_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An exemption is a hole cut in a security gate. When the line it was cut for is bumped
+    away, the hole stays, excusing nothing and matched by nothing -- so nobody learns it can be
+    closed. That is what the live table did: it was keyed on an `actions/cache` SHA that left
+    `pages.yml` at the v4.3.0 -> v6.1.0 bump and stayed in the table afterwards, reachable by
+    no `uses:` line in any workflow."""
+    monkeypatch.setattr(
+        workflow_policy_check, "_PROTECTED_VERSION_ANNOTATIONS", {_EXEMPT_KEY: "v4.3.0"}
+    )
+    workflow = _exempt_workflow(tmp_path)
+    assert workflow_policy_check.stale_exemptions([workflow]) == []
+
+    workflow.write_text(
+        workflow.read_text(encoding="utf-8").replace(_EXEMPT_SHA, "b" * 40),
+        encoding="utf-8",
+    )
+    stale = workflow_policy_check.stale_exemptions([workflow])
+    assert stale and "matches no uses: line" in stale[0]
+
+
+def test_the_live_version_exemption_table_has_no_stale_entries() -> None:
+    """The committed table, against the committed workflows. This is the assertion that would
+    have failed while the retired `actions/cache` entry was still there."""
+    assert workflow_policy_check.stale_exemptions(workflow_policy_check.workflow_files()) == []
+
+
+def test_log_safety_gate_refuses_to_pass_when_it_scans_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same defect class as `test_workflow_policy_gate_refuses_to_pass_on_no_workflows` and
+    `test_reading_level_gate_refuses_to_pass_when_it_scores_nothing`, in the gate with the
+    highest stake: this one's PASS line is "production log calls are structured and PII-safe".
+    Its corpus is `git ls-files '*.py'` filtered by SCAN_DIRS, so renaming `src/` or a git call
+    that returns nothing emptied it silently and the gate printed the same sentence."""
+    monkeypatch.setattr(log_safety_check, "_tracked_python", list)
+    assert log_safety_check.main() == 1
+
+
+def test_log_safety_gate_names_every_production_directory_it_missed() -> None:
+    grouped: dict[str, list[Path]] = {name: [] for name in log_safety_check.SCAN_DIRS}
+    problems = log_safety_check.corpus_problems(grouped)
+    assert len(problems) == len(log_safety_check.SCAN_DIRS)
+    assert all("empty corpus" in problem for problem in problems)
+
+
+def test_log_safety_gate_still_covers_every_production_directory() -> None:
+    """The guard is only worth anything if the real corpus satisfies it: every configured scan
+    directory must actually contribute files today."""
+    grouped = log_safety_check.scan_targets(log_safety_check._tracked_python())
+    assert log_safety_check.corpus_problems(grouped) == []
+    assert all(grouped[name] for name in log_safety_check.SCAN_DIRS)
+
+
+def test_two_empty_catalogs_are_not_at_parity() -> None:
+    """`_check_catalog`'s three set comparisons are all satisfied by two empty catalogs, so an
+    emptied or truncated `en.json` read as "EN/ES at key parity (0 keys)". Parity over nothing
+    is not parity, and this gate is the floor the accessibility gate assumes."""
+    assert i18n_parity._check_catalog("empty", {}, {}) == 1
+    assert i18n_parity._check_catalog("real", {"a": "A"}, {"a": "A"}) == 0
 
 
 def test_workflow_policy_gate_scans_yaml_workflows_too(
