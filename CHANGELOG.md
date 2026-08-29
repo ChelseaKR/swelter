@@ -172,6 +172,29 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The core-safety mutation gate now measures something.** Every scheduled run since the gate was
+  added reported `mutation: 0.00% (0 killed / 1718 total)`: `tests/test_calibrate.py`'s cross-check
+  against `scripts/gen_demo_data.py` imports `scripts` from the repository root, mutmut's `mutants/`
+  sandbox copies only `source_paths` and the selected tests, and the resulting
+  `ModuleNotFoundError` was scored as a collection failure — zero killed — before any mutant ran.
+  `also_copy = ["scripts/"]` makes the sandbox match the real layout. With the harness working, the
+  first honest reading of `calibrate`/`models`/`qc` was **77.76%** against the 80% floor, plus two
+  mutants of the twin-pairing walk that hung until the runner timed them out (the report treats a
+  timeout as an incomplete state, never as a kill, so the gate could not have passed on score
+  alone). The floor is unchanged at 80. Closing the gap added unit tests for the parts of the three
+  core modules the selected tests never reached — `models.wind_chill_c` and `wind_chill_category`
+  had no test in `tests/test_models.py` at all, and `qc`'s `integrity` block none in
+  `tests/test_qc.py` — and pinned the published JSON contracts of `health_report`,
+  `coverage_equity`, and `calibration_block`: their exact key sets, and their caveats verbatim,
+  since those travel with the numbers under hard rule #4. The score is now **91.16% (1568/1720),
+  with no incomplete states**.
+- **The twin-pairing merge walk cannot hang.** `qc._pair_by_nearest_timestamp` walked two sorted
+  series with a `while` loop whose termination depended entirely on both pointers advancing. Every
+  pass consumes at least one reading, so the walk can never need more passes than the two series
+  hold between them; that bound is now written out instead of left implicit in the pointer
+  arithmetic. A pointer that stopped advancing now returns a checkably wrong answer rather than
+  hanging `/api/health.json` forever, which is the worse of the two failures. Pairing behavior is
+  unchanged.
 - **The derived heat index's error bar now widens with the Rothfusz slope, instead of quietly
   understating it.** `calibrate.apply()` carried the temperature correction's `residual_std`
   forward *unscaled* as the derived `heat_index_c` 1-sigma. First-order error propagation says
