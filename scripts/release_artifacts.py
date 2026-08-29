@@ -702,6 +702,14 @@ def verify_download(directory: Path, version: str) -> list[str]:
     return problems
 
 
+#: Issue #105 is the merge/Pages governance gap. It is a separate, separately tracked deferral,
+#: and the PyPI evidence file must not fold itself into it. Matched as a reference, not as three
+#: digits appearing anywhere in the file.
+_GOVERNANCE_ISSUE_REFERENCE = re.compile(
+    r"(?:#105\b|\bissues?/105\b|\"tracking_issue\"\s*:\s*105\b)"
+)
+
+
 def validate_publishing_gap(path: Path) -> list[str]:
     """Validate the explicit machine-readable state of the required PyPI channel."""
     try:
@@ -735,7 +743,12 @@ def validate_publishing_gap(path: Path) -> list[str]:
         date.fromisoformat(str(document.get("reviewed")))
     except ValueError:
         problems.append("publishing gap reviewed must be an ISO calendar date")
-    if "105" in path.read_text(encoding="utf-8"):
+    # A bare ``"105" in text`` substring test could not tell an issue reference from any other
+    # occurrence of those three digits -- a byte count, a run id, part of a longer number. It
+    # would have fired on a coincidence and, being a substring test rather than a reference
+    # match, told the reader nothing about which reference it meant. Match the reference forms
+    # this repository actually uses.
+    if _GOVERNANCE_ISSUE_REFERENCE.search(path.read_text(encoding="utf-8")):
         problems.append("PyPI publishing gap must not be conflated with governance issue #105")
     return problems
 
@@ -816,9 +829,24 @@ def _command_extract(args: argparse.Namespace) -> int:
 
 
 def _command_publishing_gap(args: argparse.Namespace) -> int:
+    """Block the release, and say which of the two reasons is blocking it.
+
+    Both outcomes exit 1, which is correct: the PyPI gap is release-blocking whether or not the
+    evidence file describing it is well formed. What was wrong is that both outcomes printed the
+    same shape of ``[FAIL]`` line, so every assertion in ``validate_publishing_gap`` -- schema
+    version, channel, state, blocking flag, prerequisite list, owner, review date -- made no
+    observable difference: a corrupted, truncated, or semantically wrong evidence file read
+    exactly like the healthy tracked gap. A validator whose result cannot be told from its
+    absence is not validating.
+    """
     findings = validate_publishing_gap(args.path)
     if findings:
+        print(
+            f"publishing-gap: {args.path} does not state a valid release-blocking gap "
+            "(these findings are about the evidence file, not about PyPI)"
+        )
         return _print_findings(findings)
+    print(f"publishing-gap: {args.path} is a valid, tracked, release-blocking gap")
     return _print_findings(
         [
             "PyPI Trusted Publishing and its protected environment are pending; "

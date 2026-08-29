@@ -204,3 +204,37 @@ def test_cli_cards_writes_html_to_out(tmp_path: Path) -> None:
     html = out.read_text(encoding="utf-8")
     assert "Oak &amp; 4th" in html
     assert 'class="large-type"' in html
+
+
+def test_a_qc_flagged_card_says_flagged_not_merely_provisional() -> None:
+    """A card is the surface with the least recourse: no tooltip, no legend, no link. It offered
+    a two-way provenance choice, so a value QC had flagged as an implausible spike printed as
+    plain ``provisional`` -- indistinguishable from an ordinary reading that simply has no
+    correction fitted yet. That distinction is what ADR 0029 exists to preserve, and the surface
+    record, the export, the data dictionary and the dashboard all carry it. ``state-flagged`` was
+    already in both shipped catalogs and already loaded by ``cards.load_strings``; the card just
+    never asked for it."""
+    surface = _surface(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=900.0, qc="spike"))
+    cell = next(c for c in surface.cells if c.parameter == "pm25_ugm3")
+    assert cell.qc_flags and cell.provisional
+
+    strings = cards.load_strings("en")
+    html = cards.render_cards(surface, empty(), lang="en", feed_url="")
+    assert 'class="provenance flagged"' in html
+    assert strings["state-flagged"] in html
+
+
+def test_an_uncalibrated_but_unflagged_card_still_reads_plain_provisional() -> None:
+    """The new state must not swallow the old one: no correction fitted is not the same verdict
+    as QC does not trust this value."""
+    surface = _surface(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0))
+    html = cards.render_cards(surface, empty(), lang="en", feed_url="")
+    assert 'class="provenance provisional"' in html
+    assert 'class="provenance flagged"' not in html
+
+
+def test_the_flagged_card_state_is_translated_like_every_other_card_string() -> None:
+    surface = _surface(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=900.0, qc="spike"))
+    spanish = cards.load_strings("es")
+    html = cards.render_cards(surface, empty(), lang="es", feed_url="")
+    assert spanish["state-flagged"] in html
