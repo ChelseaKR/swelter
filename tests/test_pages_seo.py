@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import shutil
 import struct
 import sys
 import xml.etree.ElementTree as ET
 from dataclasses import replace
+from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -283,10 +285,118 @@ def test_sitemap_lists_only_stable_absolute_routes(tmp_path: Path) -> None:
     # This is trusted XML generated in-process by the function under test.
     root = ET.parse(sitemap).getroot()  # noqa: S314 (#107)
     namespace = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-    assert [element.text for element in root.findall("s:url/s:loc", namespace)] == [
+    listed = [element.text for element in root.findall("s:url/s:loc", namespace)]
+    assert listed == [
         "https://chelseakr.github.io/swelter/",
         "https://chelseakr.github.io/swelter/sensors/",
+        # The planner was live and crawlable with no sitemap entry, which did not keep it
+        # private, only undiscovered. It is a stable page, not application state.
+        "https://chelseakr.github.io/swelter/planner/",
     ]
+    # And the list is DERIVED from the published routes rather than maintained beside them.
+    # The planner was added to the pa11y URL list and to nothing else, so it shipped with no
+    # canonical, no card and no sitemap entry; a sitemap kept as a second hand-written list
+    # is how that happens a second time.
+    assert set(listed) == {
+        pages_seo.canonical_url(pages_seo.DEFAULT_BASE_URL, route)
+        for route in pages_seo.PUBLISHED_ROUTES
+    }
+
+
+def _planner_template(tmp_path: Path) -> Path:
+    web_dir = tmp_path / "planner"
+    web_dir.mkdir()
+    shutil.copy(ROOT / "web" / "planner" / "index.html", web_dir / "index.html")
+    return web_dir
+
+
+def test_the_planner_gets_a_canonical_and_a_card_but_no_dataset(tmp_path: Path) -> None:
+    """A published page that is not a data surface still has to say which page it is.
+
+    ``/planner/`` shipped live with no canonical, no Open Graph and no Twitter tags: every
+    one of those was reached only through the source-aware path, which needs a data source
+    the planner does not have. Sharing a link to it previewed as a bare URL.
+
+    It must not carry the Dataset graph. The only structured data this project emits
+    describes readings and their licence, and the planner publishes no readings; claiming
+    otherwise would be a claim the page cannot support.
+    """
+    web_dir = _planner_template(tmp_path)
+    pages_seo.write_static_page_metadata(web_dir, route="/planner/")
+    html = (web_dir / "index.html").read_text(encoding="utf-8")
+
+    canonical = "https://chelseakr.github.io/swelter/planner/"
+    assert f'<link rel="canonical" href="{canonical}" />' in html
+    assert f'<meta property="og:url" content="{canonical}" />' in html
+    for tag in ("og:type", "og:title", "og:description", "og:image", "og:site_name"):
+        assert f'property="{tag}"' in html, tag
+    for tag in ("twitter:card", "twitter:title", "twitter:description", "twitter:image"):
+        assert f'name="{tag}"' in html, tag
+
+    # No Dataset, and no JSON-LD at all: the planner has no readings to describe.
+    assert "application/ld+json" not in html
+    assert "Dataset" not in html
+
+    # This is one of six project sites sharing an origin on paths, so the canonical must
+    # name this project, never the bare origin all six would otherwise claim.
+    assert canonical.rstrip("/") != "https://chelseakr.github.io"
+    assert "/swelter/planner/" in canonical
+
+
+def test_the_planner_card_repeats_the_page_rather_than_inventing_copy(
+    tmp_path: Path,
+) -> None:
+    """The card is built from the page's own title and description, not from new prose.
+
+    Those two strings were written and reviewed for the page. A card that restates them
+    cannot describe the planner as something it is not, and in particular cannot drift into
+    describing a heat and air-quality page as offering health guidance or a safety
+    threshold, which this project does not do (``docs/governance.md`` non-goals).
+    """
+    web_dir = _planner_template(tmp_path)
+    source = (web_dir / "index.html").read_text(encoding="utf-8")
+    title = re.sub(r"<[^>]+>", "", pages_seo._TITLE_PATTERN.findall(source)[0]).strip()
+    described = re.search(r'content="([^"]*)"', pages_seo._DESCRIPTION_PATTERN.findall(source)[0])
+    assert described is not None
+    description = " ".join(described.group(1).split())
+
+    pages_seo.write_static_page_metadata(web_dir, route="/planner/")
+    html = (web_dir / "index.html").read_text(encoding="utf-8")
+
+    assert f'<meta property="og:title" content="{escape(title, quote=True)}" />' in html
+    assert f'<meta property="og:description" content="{escape(description, quote=True)}" />' in html
+    # The page keeps the title and description it shipped with; nothing was rewritten.
+    assert f"<title>{escape(title)}</title>" in html
+
+
+def test_a_static_page_without_a_marker_or_a_description_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Refuse rather than invent. A page missing either is a build error, not a default."""
+    web_dir = tmp_path / "planner"
+    web_dir.mkdir()
+
+    (web_dir / "index.html").write_text(
+        "<html><head><title>T</title>"
+        '<meta name="description" content="D" /></head><body></body></html>',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="exactly one"):
+        pages_seo.write_static_page_metadata(web_dir, route="/planner/")
+
+    (web_dir / "index.html").write_text(
+        f"<html><head>{pages_seo.SEO_START}{pages_seo.SEO_END}</head><body></body></html>",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="exactly one title and meta description"):
+        pages_seo.write_static_page_metadata(web_dir, route="/planner/")
+
+
+def test_a_data_route_is_not_accepted_as_a_static_page(tmp_path: Path) -> None:
+    """The dashboard must keep going through the source-aware path, graph and all."""
+    web_dir = _planner_template(tmp_path)
+    with pytest.raises(ValueError, match="not a static public route"):
+        pages_seo.write_static_page_metadata(web_dir, route="/")
 
 
 def test_raster_icon_has_the_declared_dimensions() -> None:

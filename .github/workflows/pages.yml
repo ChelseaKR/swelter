@@ -192,6 +192,9 @@ jobs:
           # generator identifies the source from the baked surface attribution and fails if unclear.
           uv run python scripts/pages_seo.py page --web-dir web --route /
           uv run python scripts/pages_seo.py page --web-dir web/sensors --route /sensors/
+          # The planner is a published, stable route that is not a data surface: it reads no
+          # readings, so it gets a canonical and a card but no Dataset graph.
+          uv run python scripts/pages_seo.py static-page --web-dir web/planner --route /planner/
           uv run python scripts/pages_seo.py sitemap --output web/sitemap.xml
       - name: Stamp the exact deployed source identity on both routes
         run: |
