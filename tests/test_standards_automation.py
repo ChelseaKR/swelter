@@ -205,3 +205,63 @@ def test_dora_incomplete_collection_requires_a_reason(tmp_path: Path) -> None:
     issues_path.write_text(json.dumps(issues), encoding="utf-8")
     with pytest.raises(dora_evidence.EvidenceError, match="needs a reason"):
         dora_evidence.build_snapshot(actions_path, issues_path)
+
+
+def test_an_empty_acceptance_map_is_not_full_coverage(tmp_path: Path) -> None:
+    """Every per-row rule is satisfied vacuously by a table with no rows, and one-to-one
+    coverage of an empty inventory by an empty map is trivially true. So a map emptied by a bad
+    edit printed ``PASS (0 shipped features; paths, symbols, roadmap, ISO 25010:2023
+    verified)`` -- a gate that resolved no path, no symbol and no characteristic, reporting that
+    it had verified all of them."""
+    _acceptance_fixture(tmp_path)
+    assert acceptance_map_check.check(tmp_path) == []
+
+    header = (
+        "# Map\n\n## Executable feature map\n\n"
+        "| Feature ID | Feature / roadmap outcome | Measurable acceptance criterion | "
+        "Automated evidence | Review evidence | ISO/IEC 25010:2023 characteristic(s) |\n"
+        "| --- | --- | --- | --- | --- | --- |\n"
+    )
+    (tmp_path / "docs" / "ACCEPTANCE-TEST-MAP.md").write_text(header, encoding="utf-8")
+    (tmp_path / "docs" / "ROADMAP.md").write_text(
+        "# Roadmap\n\n## Shipped feature inventory\n\n"
+        "| Feature ID | Shipped roadmap outcome |\n| --- | --- |\n",
+        encoding="utf-8",
+    )
+    problems = acceptance_map_check.check(tmp_path)
+    assert any("executable feature map has no rows" in problem for problem in problems)
+    assert any("shipped feature inventory has no rows" in problem for problem in problems)
+
+
+def test_the_dora_gate_states_how_much_evidence_it_actually_checked() -> None:
+    """``dora-evidence: PASS (check)`` was printed identically for a full retained window and for
+    the committed state, which has zero records, zero computed metrics, and an incomplete
+    collection -- so ``_complete_metrics``, where every DORA threshold in the script lives, is
+    never entered. That emptiness is real, disclosed and tracked in #109; what was wrong is that
+    a reader could not tell the two runs apart from the gate's own output."""
+    snapshot = {
+        "collection_complete": False,
+        "metrics": {"deployment_frequency": {"status": "unavailable"}},
+    }
+    summary = dora_evidence.coverage_summary(snapshot, {"records": []}, {"records": []})
+    assert "0 deployment run(s)" in summary
+    assert "0/1 metric(s) computed" in summary
+    assert "collection INCOMPLETE" in summary
+
+    full = {"collection_complete": True, "metrics": {"deployment_frequency": {"status": "pass"}}}
+    summary = dora_evidence.coverage_summary(full, {"records": [{}, {}]}, {"records": [{}]})
+    assert "2 deployment run(s), 1 incident(s), 1/1 metric(s) computed, collection complete" in (
+        summary
+    )
+
+
+def test_the_committed_dora_gate_reports_its_own_coverage() -> None:
+    detail = dora_evidence.check(
+        argparse.Namespace(
+            actions=dora_evidence.DEFAULT_ACTIONS,
+            issues=dora_evidence.DEFAULT_ISSUES,
+            snapshot=dora_evidence.DEFAULT_SNAPSHOT,
+            markdown=dora_evidence.DEFAULT_MARKDOWN,
+        )
+    )
+    assert "metric(s) computed" in detail and "deployment run(s)" in detail
