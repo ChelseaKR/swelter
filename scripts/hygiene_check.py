@@ -52,7 +52,10 @@ _SUPPRESSION = re.compile(r"#\s*noqa\b|#\s*type:\s*ignore\b|nosemgrep:")
 
 #: The exact number of tracked suppressions on `main` today. Lower it whenever you retire one;
 #: raising it is a deliberate, reviewable edit. Retirement is tracked on #107.
-SUPPRESSION_CEILING = 26
+#: 26 -> 28: two fixed-argv `S603` subprocess calls in scripts/demo_artifact_check.py
+#: (git ls-files, and the demo replay the gate re-runs), the same permanent pattern as
+#: the other gate scripts.
+SUPPRESSION_CEILING = 28
 
 
 def _tracked_files(*dirs: str) -> list[Path]:
