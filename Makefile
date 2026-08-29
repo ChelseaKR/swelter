@@ -222,13 +222,26 @@ verify-security:  ## Run every local security gate
 package:  ## Build the wheel and source distribution
 	uv build
 
+# `set -e` inside the loop, because a shell `for` loop's exit status is the *last* iteration's.
+# Without it a failed BOM generation for the wheel was swallowed whenever the sdist succeeded,
+# and `sbom-validate`'s `dist/*.cdx.json` glob then simply did not include the file that was
+# never written -- so it validated the sdist alone and `verify-package` went green over a wheel
+# with no BOM at all. Neither step reported the artifact it had not covered.
 sbom: package  ## Generate one artifact-bound CycloneDX 1.7 BOM per package
-	@for artifact in dist/*.whl dist/*.tar.gz; do \
+	@set -e; \
+	for artifact in dist/*.whl dist/*.tar.gz; do \
 		uv run python scripts/release_artifacts.py generate-sbom \
 			--artifact "$$artifact" --output "$$artifact.cdx.json"; \
 	done
 
+# The pairing assertion is what makes the glob below a claim about the built artifacts rather
+# than about whichever BOM files happen to be sitting in dist/.
 sbom-validate: sbom  ## Apply the local CycloneDX 1.7 policy validator
+	@set -e; \
+	for artifact in dist/*.whl dist/*.tar.gz; do \
+		test -f "$$artifact.cdx.json" || { \
+			echo "sbom-validate: $$artifact has no CycloneDX BOM beside it" >&2; exit 1; }; \
+	done
 	uv run python scripts/release_artifacts.py validate-sbom dist/*.cdx.json
 
 verify-package: sbom-validate  ## Build and validate release-package evidence

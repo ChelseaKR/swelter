@@ -224,6 +224,65 @@ All notable changes to swelter are recorded here. The format follows
   floor, where heat index is the air temperature unchanged, the slope is exactly 1. Humidity's own
   uncertainty remains unmodeled (uncalibrated in this network), stated at the propagation site.
   Restores the stranded follow-up PR #80 omitted, per ADR 0014's propagation posture.
+- **A printed card now says *why* a value is provisional.** `swelter cards` renders one door-flyer
+  per published cell for residents with no screen and no connection — the surface with the least
+  recourse. Its provenance line offered a two-way choice, `confirmed` or `provisional`, so a
+  reading QC had flagged as an implausible spike or a flatline printed as plain `provisional`,
+  indistinguishable from an ordinary reading that simply has no correction fitted yet. That is the
+  exact distinction [ADR 0029](docs/adr/0029-event-aware-qc-visible-provisional.md) exists to keep,
+  and the surface record, the CSV/JSON export, the data dictionary and the dashboard all carry it.
+  `state-flagged` (`provisional, flagged` / `provisional, marcada`) was already in both shipped
+  catalogs and already loaded by `cards.load_strings`; the card never asked for it. `_CellReadings`
+  now carries `qc_flagged` and `_render_provenance` renders the same three states as every other
+  surface, with a print-safe weight difference rather than colour alone.
+- **Five merge-blocking gates could pass over an empty corpus.** The repository had already fixed
+  this shape twice (`workflow_policy_check`, `reading_level_check`); these are the rest of it. Each
+  printed a universal claim and returned 0 when the set it was claiming about was empty:
+  `log_safety_check` (`production log calls are structured and PII-safe` with nothing scanned — the
+  corpus is `git ls-files '*.py'` filtered by `SCAN_DIRS`, so renaming `src/` emptied it silently);
+  `acceptance_map_check` (`PASS (0 shipped features; paths, symbols, roadmap, ISO 25010:2023
+  verified)` for an empty table, since every per-row rule and one-to-one coverage of an empty
+  inventory are vacuously satisfied); `adr_immutability_check` (`PASS (0 Accepted base ADR(s)
+  unchanged)`, reachable because `git ls-tree` exits 0 with empty output for a path absent at the
+  base while `_ADR_PATH` hard-codes `docs/adr/`); `i18n_parity` (two empty catalogs reported as at
+  key parity); and `web/tests/run-pa11y.cjs` (`Pa11y: 0/0 pages passed`, exit 0, for an empty URL
+  list). All five now refuse, and each states the size of the corpus it did cover. The Pa11y runner
+  additionally checks its URL list against the published routes, and no longer treats an issue
+  whose severity it cannot read as non-blocking.
+- **`make verify-package` could go green over a wheel with no SBOM.** `make sbom` generated one
+  CycloneDX BOM per artifact in a shell `for` loop, whose exit status is the last iteration's — so a
+  failed BOM for the wheel was swallowed whenever the sdist succeeded. `make sbom-validate` then
+  validated `dist/*.cdx.json`, a glob that simply did not include the file that was never written,
+  and reported success over the sdist alone. The loop now runs under `set -e`, and `sbom-validate`
+  asserts one BOM beside each built artifact before validating any of them.
+- **A workflow-policy exemption outlived what it excused.** `_PROTECTED_VERSION_ANNOTATIONS` held a
+  governance exception keyed to `pages.yml`'s `actions/cache@0057852…` pinned `# v4`. That pin left
+  the workflow at the v4.3.0 → v6.1.0 bump and the entry stayed: a hole cut in a security gate,
+  matched by no `uses:` line, reachable by nothing and reported by nothing — so nobody could learn
+  it was closable, and a future pin reproducing the same tuple would have been waved through on a
+  decision no one made. The entry is retired and `stale_exemptions` now checks the table against the
+  workflows on every run.
+- **The DORA gate's PASS line said nothing about how much it checked.** `dora-evidence: PASS (check)`
+  was printed identically for a full retained window and for the committed state, which has zero
+  records, zero computed metrics, and `collection.complete: false` — so `_complete_metrics`, where
+  every DORA threshold in the script lives, is never entered. That emptiness is real and tracked in
+  [#109](https://github.com/ChelseaKR/swelter/issues/109); what was wrong is that a reader could not
+  tell the two runs apart from the gate's own output. It now reports records, metrics computed, and
+  collection state.
+- **The publishing-gap validator's findings made no observable difference.** Both branches of
+  `validate-publishing-gap` printed the same shape of `[FAIL]` and exited 1, so a corrupted or
+  semantically wrong `release-publishing-gap.json` read exactly like the healthy tracked gap and
+  every assertion in `validate_publishing_gap` was decorative. The release is still blocked either
+  way — that is correct — but the two reasons now read differently. Its "must not be conflated with
+  #105" rule was a bare `"105" in text` substring test that could not tell an issue reference from
+  any other occurrence of three digits; it now matches a reference.
+- **The docs-figures test-count rule warned forever about a correct state.** CLAUDE.md's own rule is
+  "never put a test count in prose unless a check regenerates it", and the count this rule was
+  written for was deleted under that rule — after which the rule reported `could not find a
+  '(N tests, all green)' line` on every run, and ran a `pytest --collect-only` subprocess whose
+  result was then discarded. An advisory channel that is always amber reports nothing. Absence of
+  the claim is now a pass that says so, and the collection runs only when there is a claim to
+  compare against.
 - **One fewer tracked static-analysis suppression ([#107](https://github.com/ChelseaKR/swelter/issues/107)).**
   ruff 0.16.3 narrowed `S310`'s detection so it no longer flags `urllib.request.Request(...)`
   construction itself — only the actual `urlopen()` network call still needs the suppression —

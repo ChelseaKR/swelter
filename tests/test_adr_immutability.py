@@ -154,3 +154,29 @@ def test_local_fallback_prefers_origin_main_then_head(monkeypatch: pytest.Monkey
 def test_documentation_contract_accepts_adr_0024() -> None:
     assert (ROOT / "docs/adr/0024-preserve-source-specific-data-terms.md").is_file()
     assert docs_contract_check._adr_problems() == []
+
+
+def test_a_base_with_no_accepted_adr_is_not_a_pass() -> None:
+    """``git ls-tree -r <commit> -- docs/adr`` exits 0 with empty output when that path does not
+    exist at the base, and ``_ADR_PATH`` hard-codes ``docs/adr/``. So a renamed ADR directory (the
+    repository still has a legacy ``docs/decisions/``), a base predating the log, or a truncated
+    fetch all left ``historical`` empty -- and the gate printed
+    ``PASS (0 Accepted base ADR(s) unchanged)``: a claim that history was protected, from a run
+    that protected nothing."""
+    problems = adr_immutability_check.corpus_problems({})
+    assert problems and "protected nothing" not in problems[0]
+    assert "nothing was held immutable" in problems[0]
+
+    # A base carrying a Proposed ADR is still an empty *Accepted* set, which is what the gate's
+    # PASS line counts -- so it must not pass either.
+    assert adr_immutability_check.corpus_problems({"docs/adr/0001-x.md": _adr("Proposed")})
+
+    assert adr_immutability_check.corpus_problems({"docs/adr/0001-x.md": _adr("Accepted")}) == []
+
+
+def test_the_live_base_actually_carries_accepted_adrs() -> None:
+    """The guard is only worth something if the real base satisfies it."""
+    selection = adr_immutability_check.resolve_base(ROOT)
+    historical = adr_immutability_check.base_adrs(ROOT, selection.commit)
+    assert adr_immutability_check.accepted_count(historical) > 0
+    assert adr_immutability_check.corpus_problems(historical) == []
