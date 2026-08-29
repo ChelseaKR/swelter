@@ -202,6 +202,22 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The committed fallback surface no longer understates single-member heat-index error bars.**
+  `web/sample-surface.json` — the dashboard's committed offline fallback, served by `web/app.js`
+  and cached by `web/sw.js` — was last regenerated before #142 corrected the derived heat-index
+  uncertainty by the local |dHI/dT|. Eleven single-member `heat_index_c` cells therefore kept
+  pre-fix error bars 0.28 to 0.6 °C smaller than what the current pipeline computes from the same
+  committed recorded week (for example `0.942` where a fresh replay computes `1.54`); every `mean`
+  was untouched. The schema-contract test could not notice, because the stale file and the fresh
+  file both satisfy the schema. The artifact is regenerated, and a new `make demo-artifacts` gate
+  in `verify-core` now replays the committed demo into a throwaway directory and byte-compares
+  every git-tracked file the replay writes — refusing an empty comparison set — so a committed
+  generated artifact can no longer drift silently from the computation it stands in for. The
+  test suite itself had been rewriting these artifacts in place on every run
+  (`test_demo_pipeline_calibrates_and_aggregates` omitted `--web`, whose default is the
+  repository's own `web/`), which regenerated the correct values on every gate run, threw the
+  comparison away, and silently repaired the drift on any machine that ran the tests; that test
+  now writes to a temporary directory, so no gate mutates the tracked tree.
 - **The core-safety mutation gate now measures something.** Every scheduled run since the gate was
   added reported `mutation: 0.00% (0 killed / 1718 total)`: `tests/test_calibrate.py`'s cross-check
   against `scripts/gen_demo_data.py` imports `scripts` from the repository root, mutmut's `mutants/`
