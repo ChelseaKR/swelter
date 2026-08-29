@@ -61,6 +61,14 @@ def _check_catalog(label: str, en: dict[str, Any], es: dict[str, Any]) -> int:
     )
 
     checks: list[tuple[bool, str, list[str]]] = [
+        # Two empty catalogs satisfy every set comparison below, so an emptied or truncated
+        # en.json read as "EN/ES at key parity (0 keys)". Parity over nothing is not parity,
+        # and this gate is the floor the accessibility gate assumes.
+        (
+            bool(en),
+            f"the EN catalog has strings to compare ({len(en)} keys)",
+            [] if en else ["the EN catalog flattened to zero keys"],
+        ),
         (
             not missing_in_es,
             f"every EN key exists in ES ({len(missing_in_es)} missing)",

@@ -272,3 +272,67 @@ def test_workflow_policy_rejects_mutable_or_major_only_action_refs(tmp_path: Pat
     findings = workflow_policy_check.scan_workflow(workflow)
     assert any("40-character SHA" in finding for finding in findings)
     assert any("exact trailing semver" in finding for finding in findings)
+
+
+def _gap_document() -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "channel": "PyPI",
+        "state": "pending_external_configuration",
+        "release_blocking": True,
+        "canonical_distribution": "GitHub Releases",
+        "required_external_configuration": ["Configure PyPI.", "Protect the environment."],
+        "owner": "Owner Name",
+        "reviewed": "2026-07-16",
+        "tracking_issue": 108,
+    }
+
+
+def test_a_corrupt_publishing_gap_does_not_read_like_the_tracked_one(
+    tmp_path: Path, capsys: Any
+) -> None:
+    """Both outcomes exit 1, which is right: the PyPI gap blocks the release either way. What was
+    wrong is that both printed the same shape of ``[FAIL]`` line, so every assertion in
+    ``validate_publishing_gap`` -- schema version, channel, state, blocking flag, prerequisites,
+    owner, review date -- made no observable difference. A corrupt file read exactly like the
+    healthy tracked gap."""
+    import argparse
+
+    healthy = tmp_path / "gap.json"
+    healthy.write_text(json.dumps(_gap_document()), encoding="utf-8")
+    assert release_artifacts.validate_publishing_gap(healthy) == []
+    assert release_artifacts._command_publishing_gap(argparse.Namespace(path=healthy)) == 1
+    good_output = capsys.readouterr().out
+    assert "is a valid, tracked, release-blocking gap" in good_output
+
+    broken = tmp_path / "broken.json"
+    document = _gap_document()
+    document["release_blocking"] = False
+    del document["owner"]
+    broken.write_text(json.dumps(document), encoding="utf-8")
+    assert release_artifacts.validate_publishing_gap(broken)
+    assert release_artifacts._command_publishing_gap(argparse.Namespace(path=broken)) == 1
+    bad_output = capsys.readouterr().out
+    assert "does not state a valid release-blocking gap" in bad_output
+    assert "is a valid, tracked, release-blocking gap" not in bad_output
+
+
+def test_the_governance_issue_rule_matches_a_reference_not_three_digits(tmp_path: Path) -> None:
+    """``"105" in text`` could not tell an issue reference from any other occurrence of those
+    digits, so it would fire on a byte count or a run id and told the reader nothing about which
+    reference it meant."""
+    coincidence = tmp_path / "coincidence.json"
+    document = _gap_document()
+    document["owner"] = "Owner Name (desk 105)"
+    coincidence.write_text(json.dumps(document), encoding="utf-8")
+    assert "105" in coincidence.read_text(encoding="utf-8")
+    assert release_artifacts.validate_publishing_gap(coincidence) == []
+
+    conflated = tmp_path / "conflated.json"
+    document = _gap_document()
+    document["owner"] = "Owner Name, tracked alongside #105"
+    conflated.write_text(json.dumps(document), encoding="utf-8")
+    assert any(
+        "governance issue #105" in problem
+        for problem in release_artifacts.validate_publishing_gap(conflated)
+    )

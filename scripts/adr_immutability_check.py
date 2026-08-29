@@ -209,24 +209,47 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def accepted_count(historical_adrs: Mapping[str, bytes]) -> int:
+    """How many base ADRs this run actually held to the immutability rule."""
+    return sum(_ACCEPTED.search(content) is not None for content in historical_adrs.values())
+
+
+def corpus_problems(historical_adrs: Mapping[str, bytes]) -> list[str]:
+    """Refuse to pass when the base carried no Accepted ADR to protect.
+
+    ``git ls-tree -r <commit> -- docs/adr`` exits 0 with empty output when that path does not
+    exist at the base, and ``_ADR_PATH`` hard-codes ``docs/adr/``. So a renamed ADR directory,
+    a base commit from before the log existed, or a truncated fetch all leave ``historical``
+    empty -- and this gate then printed ``PASS (0 Accepted base ADR(s) unchanged)``, which is a
+    statement that history was protected by a run that protected nothing. The repository even
+    has a legacy ``docs/decisions/`` directory, so the rename is not hypothetical.
+    """
+    if accepted_count(historical_adrs) == 0:
+        return [
+            "no Accepted ADR was found at the comparison base, so nothing was held immutable. "
+            "Check that docs/adr/ exists at the base and that its history was fetched."
+        ]
+    return []
+
+
 def main(argv: list[str] | None = None, *, repo: Path = ROOT) -> int:
     args = _parser().parse_args(argv)
     try:
         selection = resolve_base(repo, explicit=args.base)
         historical = base_adrs(repo, selection.commit)
-        problems = immutability_problems(repo, historical)
+        problems = corpus_problems(historical) + immutability_problems(repo, historical)
     except ADRImmutabilityError as exc:
         print(f"adr-immutability: FAIL ({exc})", file=sys.stderr)
         return 1
 
-    accepted_count = sum(_ACCEPTED.search(content) is not None for content in historical.values())
+    accepted = accepted_count(historical)
     if problems:
         print(f"adr-immutability: FAIL ({len(problems)} immutable ADR change(s))", file=sys.stderr)
         for problem in problems:
             print(f"  - {problem}", file=sys.stderr)
         return 1
     print(
-        f"adr-immutability: PASS ({accepted_count} Accepted base ADR(s) unchanged; "
+        f"adr-immutability: PASS ({accepted} Accepted base ADR(s) unchanged; "
         f"base {selection.label} via {selection.source})"
     )
     return 0
