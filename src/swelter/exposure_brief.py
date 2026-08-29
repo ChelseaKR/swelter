@@ -21,6 +21,12 @@ copy; this module hands an organizer sourced facts to build that case with, not 
 Context is optional and additive: a cell with no canopy/AC-access/redlining coverage for its area
 still gets a danger-day count, just without that sentence — an absent context layer is left out,
 never estimated or defaulted to a number swelter did not receive from a source.
+
+The day count is not the whole claim, either. Every brief also states how many of its Danger days
+rest only on readings the pipeline does not trust as measurements — provisional (uncalibrated) or
+QC flagged as a spike or a flatline — so a well-evidenced count and a shaky one never read the
+same. Those days are counted, never dropped: dropping them would blank exactly the hours ADR 0029
+exists to keep visible. See ADR 0046.
 """
 
 from __future__ import annotations
@@ -80,6 +86,13 @@ class DangerDayCount:
     period_end: str  # latest calendar date (UTC) with data for this cell/parameter
     days_observed: int  # distinct calendar days with at least one reading
     danger_days: int  # of those, how many had at least one hour at/above the floor
+    # Of `danger_days`, how many rest *entirely* on readings the pipeline does not trust as
+    # measurements. A day with even one calibrated, unflagged crossing is not counted here: that
+    # day's Danger verdict already stands on evidence swelter vouches for. Both are subsets of
+    # `danger_days`, and `danger_days_qc_flagged` is a subset of `danger_days_provisional` in turn,
+    # because a QC-flagged cell is always provisional (ADR 0029).
+    danger_days_provisional: int = 0  # every crossing that day was provisional (uncalibrated)
+    danger_days_qc_flagged: int = 0  # every crossing that day was QC flagged (spike/flatline)
 
     def as_record(self) -> dict[str, object]:
         return {
@@ -94,6 +107,8 @@ class DangerDayCount:
             "period_end": self.period_end,
             "days_observed": self.days_observed,
             "danger_days": self.danger_days,
+            "danger_days_provisional": self.danger_days_provisional,
+            "danger_days_qc_flagged": self.danger_days_qc_flagged,
         }
 
 
@@ -110,6 +125,12 @@ def count_danger_days(
     threshold table. A day counts once it has *any* hour at or above the floor. A cell that never
     reported this parameter is simply absent from the result (not zero-filled): "zero Danger
     days" and "no data" are different claims, and collapsing them would be dishonest.
+
+    A crossing is counted whatever its QC state — a spike that turns out to be the onset of a real
+    event is exactly the hour a resident needs to see, and dropping it would repeat the mistake
+    ADR 0029 corrected. What travels with the count instead is *how much of it swelter vouches
+    for*: `danger_days_provisional` and `danger_days_qc_flagged` record the days whose danger
+    verdict rests entirely on readings the pipeline does not trust as measurements.
     """
     floors = resolve_thresholds(thresholds)
     floor_value, severity = _floor_and_band(parameter, floors)
@@ -124,11 +145,21 @@ def count_danger_days(
         by_date: dict[str, list[CellReading]] = defaultdict(list)
         for reading in readings:
             by_date[_calendar_date(reading.bucket)].append(reading)
-        danger_dates = {
-            date
-            for date, day_readings in by_date.items()
-            if any(crossing(parameter, r, floors) is not None for r in day_readings)
-        }
+        danger_dates: set[str] = set()
+        provisional_dates: set[str] = set()
+        flagged_dates: set[str] = set()
+        for date, day_readings in by_date.items():
+            crossings = [r for r in day_readings if crossing(parameter, r, floors) is not None]
+            if not crossings:
+                continue
+            danger_dates.add(date)
+            # "Entirely", not "any": one calibrated, unflagged crossing is enough for the day's
+            # Danger verdict to stand on evidence swelter vouches for, and calling such a day
+            # provisional would overstate the doubt as badly as omitting it understates it.
+            if all(r.provisional for r in crossings):
+                provisional_dates.add(date)
+            if all(r.qc_flags for r in crossings):
+                flagged_dates.add(date)
         dates_sorted = sorted(by_date)
         any_reading = readings[0]
         out[cell_id] = DangerDayCount(
@@ -143,6 +174,8 @@ def count_danger_days(
             period_end=dates_sorted[-1],
             days_observed=len(dates_sorted),
             danger_days=len(danger_dates),
+            danger_days_provisional=len(provisional_dates),
+            danger_days_qc_flagged=len(flagged_dates),
         )
     return out
 
@@ -173,6 +206,17 @@ class ExposureBrief:
             f"{d.danger_days} of {d.days_observed} day(s) measured, {d.period_start} to "
             f"{d.period_end}."
         ]
+        if d.danger_days:
+            # Rendered whenever there is a Danger verdict to qualify, including when nothing is
+            # in doubt: "0 of 3" is a statement about the evidence, and leaving it out would make
+            # a well-evidenced count and a shaky one look identical (the same reason the event
+            # chronicle always renders its "what the network could not see" section).
+            lines.append(
+                f"Of those {d.danger_days} day(s), {d.danger_days_provisional} rest only on "
+                f"provisional readings, which swelter publishes but has not calibrated, and "
+                f"{d.danger_days_qc_flagged} rest only on readings QC flagged as suspicious "
+                f"(a spike or a flatline)."
+            )
         if self.canopy is not None:
             c = self.canopy
             cite = f" {c.source_url}" if c.source_url else ""

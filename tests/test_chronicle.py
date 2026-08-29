@@ -177,3 +177,70 @@ def test_empty_window_still_renders_a_chronicle(store: SqliteStore) -> None:
     markdown = record.to_markdown()
     assert "no published cells reported in this window" in markdown
     assert "## What the network could not see" in markdown
+
+
+# -- how much of the Danger count swelter vouches for (issue #199, ADR 0046) --
+
+
+def test_danger_hours_from_a_qc_flagged_spike_are_counted_and_named(store: SqliteStore) -> None:
+    store.write(
+        [
+            make_obs(parameter="heat_index_c", timestamp=_hour(13), value=41.0, calibration="v1"),
+            # QC already called this one an implausible spike; it is still an hour a reader must
+            # be able to see (ADR 0029), so it is counted and then qualified, never dropped.
+            make_obs(parameter="heat_index_c", timestamp=_hour(14), value=95.0, qc="spike"),
+        ]
+    )
+    record = _chronicle(store)
+    cell = record.cells[0]
+    assert cell.danger_hours == 2
+    assert cell.danger_hours_provisional == 1
+    assert cell.danger_hours_qc_flagged == 1
+    assert record.danger_hours_provisional == 1
+    assert record.danger_hours_qc_flagged == 1
+
+
+def test_an_uncalibrated_danger_hour_is_provisional_but_not_flagged(store: SqliteStore) -> None:
+    store.write(
+        [make_obs(parameter="heat_index_c", timestamp=_hour(14), value=41.0, calibration=RAW)]
+    )
+    cell = _chronicle(store).cells[0]
+    assert cell.danger_hours == 1
+    assert cell.danger_hours_provisional == 1
+    assert cell.danger_hours_qc_flagged == 0
+
+
+def test_a_calibrated_danger_hour_is_on_neither_untrusted_count(store: SqliteStore) -> None:
+    store.write(
+        [make_obs(parameter="heat_index_c", timestamp=_hour(14), value=41.0, calibration="v1")]
+    )
+    cell = _chronicle(store).cells[0]
+    assert cell.danger_hours == 1
+    assert cell.danger_hours_provisional == 0
+    assert cell.danger_hours_qc_flagged == 0
+
+
+def test_the_document_states_the_untrusted_danger_hours(store: SqliteStore) -> None:
+    store.write(
+        [
+            make_obs(parameter="heat_index_c", timestamp=_hour(13), value=41.0, calibration="v1"),
+            make_obs(parameter="heat_index_c", timestamp=_hour(14), value=95.0, qc="spike"),
+        ]
+    )
+    markdown = _chronicle(store).to_markdown()
+    # Headline, always-rendered caveat section, and the per-cell table all carry the split, so a
+    # figure cannot be quoted out of the document without the caveat that bounds it.
+    assert "1 of the Danger cell-hour(s) came from a provisional reading" in markdown
+    assert "1 of those from a reading QC flagged as suspicious" in markdown
+    assert "Danger hours resting on untrusted readings: 1 of 2 Danger cell-hour(s)" in markdown
+    assert "| Danger hours provisional | Danger hours QC-flagged |" in markdown
+
+
+def test_the_untrusted_danger_hour_line_is_rendered_even_at_zero(store: SqliteStore) -> None:
+    """Never collapsed by omission: "nothing in doubt" is a claim, and it gets stated."""
+    store.write(
+        [make_obs(parameter="heat_index_c", timestamp=_hour(14), value=41.0, calibration="v1")]
+    )
+    markdown = _chronicle(store).to_markdown()
+    assert "Danger hours resting on untrusted readings: 0 of 1 Danger cell-hour(s)" in markdown
+    assert "0 of the Danger cell-hour(s) came from a provisional reading" in markdown

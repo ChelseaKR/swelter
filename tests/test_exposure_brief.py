@@ -105,11 +105,11 @@ def _danger_only_surface() -> aggregate.Surface:
     )
 
 
-def test_brief_with_no_context_has_only_the_danger_line() -> None:
+def test_brief_with_no_context_has_the_danger_line_and_its_evidence_line() -> None:
     briefs = exposure_brief.build_briefs(_danger_only_surface())
     brief = briefs[_CELL_ID]
     lines = brief.lines()
-    assert len(lines) == 1
+    assert len(lines) == 2  # the count, then how much of it swelter vouches for (ADR 0046)
     assert "Danger" in lines[0]
     assert "1 of 1 day(s)" in lines[0]
     assert brief.canopy is None
@@ -162,11 +162,12 @@ def test_brief_joins_all_three_context_layers_by_cell_id() -> None:
     )
     brief = briefs[_CELL_ID]
     lines = brief.lines()
-    assert len(lines) == 4
-    assert "27.5%" in lines[1] and "USDA Forest Service" in lines[1]
-    assert "22%" in lines[2] and "may lack air" in lines[2] and "LACE" in lines[2]
-    assert 'grade D ("Hazardous")' in lines[3] and "Mapping Inequality" in lines[3]
-    assert "https://dsl.richmond.edu/panorama/redlining/" in lines[3]
+    # The danger line, its evidence line, then one line per context layer present.
+    assert len(lines) == 5
+    assert "27.5%" in lines[2] and "USDA Forest Service" in lines[2]
+    assert "22%" in lines[3] and "may lack air" in lines[3] and "LACE" in lines[3]
+    assert 'grade D ("Hazardous")' in lines[4] and "Mapping Inequality" in lines[4]
+    assert "https://dsl.richmond.edu/panorama/redlining/" in lines[4]
 
     record = brief.as_record()
     canopy_record = record["canopy"]
@@ -184,7 +185,7 @@ def test_context_layer_with_no_coverage_for_this_cell_is_omitted() -> None:
     )
     briefs = exposure_brief.build_briefs(_danger_only_surface(), canopy=canopy)
     assert briefs[_CELL_ID].canopy is None
-    assert len(briefs[_CELL_ID].lines()) == 1
+    assert len(briefs[_CELL_ID].lines()) == 2  # danger line + evidence line, no canopy line
 
 
 def test_build_brief_returns_none_for_unreported_area() -> None:
@@ -196,3 +197,118 @@ def test_build_brief_returns_the_area_when_present() -> None:
     result = exposure_brief.build_brief(_CELL_ID, _danger_only_surface())
     assert result is not None
     assert result.area_id == _CELL_ID
+
+
+# -- how much of a Danger count swelter vouches for (issue #199, ADR 0046) ----
+
+
+def test_a_danger_day_resting_on_a_qc_flagged_spike_says_so() -> None:
+    """The reported case: the only crossing is a reading QC already called an implausible spike."""
+    surface = _surface(
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-01T10:00:00Z", value=22.0, calibration="v1"
+        ),
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-01T12:00:00Z", value=95.0, qc="spike"
+        ),
+    )
+    count = exposure_brief.count_danger_days(surface)[_CELL_ID]
+    # Counted, never dropped: blanking the worst hour of a real event is the failure ADR 0029
+    # exists to prevent. What changes is that the count now says what it rests on.
+    assert count.danger_days == 1
+    assert count.danger_days_provisional == 1
+    assert count.danger_days_qc_flagged == 1
+
+
+def test_an_uncalibrated_but_unflagged_danger_day_is_provisional_not_flagged() -> None:
+    surface = _surface(
+        make_obs(parameter="heat_index_c", timestamp="2026-06-01T14:00:00Z", value=41.0)
+    )
+    count = exposure_brief.count_danger_days(surface)[_CELL_ID]
+    assert count.danger_days == 1
+    assert count.danger_days_provisional == 1
+    assert count.danger_days_qc_flagged == 0  # provisional is not the same claim as flagged
+
+
+def test_one_calibrated_crossing_keeps_the_day_off_both_untrusted_counts() -> None:
+    """A day whose Danger verdict has trustworthy evidence is not called into doubt by a spike."""
+    surface = _surface(
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-01T12:00:00Z", value=95.0, qc="spike"
+        ),
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-01T14:00:00Z", value=41.0, calibration="v1"
+        ),
+    )
+    count = exposure_brief.count_danger_days(surface)[_CELL_ID]
+    assert count.danger_days == 1
+    assert count.danger_days_provisional == 0
+    assert count.danger_days_qc_flagged == 0
+
+
+def test_flagged_danger_days_are_always_a_subset_of_provisional_ones() -> None:
+    """A QC-flagged cell is always provisional (ADR 0029), so the two counts can never invert."""
+    surface = _surface(
+        # 2026-06-01: crossing on a flagged spike only.
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-01T12:00:00Z", value=95.0, qc="spike"
+        ),
+        # 2026-06-02: crossing on a clean but uncalibrated reading.
+        make_obs(parameter="heat_index_c", timestamp="2026-06-02T14:00:00Z", value=41.0),
+        # 2026-06-03: crossing on a calibrated reading.
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-03T14:00:00Z", value=41.0, calibration="v1"
+        ),
+    )
+    count = exposure_brief.count_danger_days(surface)[_CELL_ID]
+    assert count.danger_days == 3
+    assert count.danger_days_provisional == 2
+    assert count.danger_days_qc_flagged == 1
+    assert count.danger_days_qc_flagged <= count.danger_days_provisional <= count.danger_days
+
+
+def test_the_brief_states_and_records_how_much_of_its_count_is_untrusted() -> None:
+    surface = _surface(
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-01T12:00:00Z", value=95.0, qc="spike"
+        ),
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-02T14:00:00Z", value=41.0, calibration="v1"
+        ),
+    )
+    brief = exposure_brief.build_brief(_CELL_ID, surface)
+    assert brief is not None
+
+    evidence = brief.lines()[1]
+    assert "Of those 2 day(s), 1 rest only on provisional readings" in evidence
+    assert "1 rest only on readings QC flagged as suspicious" in evidence
+    assert brief.to_text() == "\n".join(brief.lines())
+
+    record = brief.as_record()
+    danger = record["danger"]
+    assert isinstance(danger, dict)
+    assert danger["danger_days"] == 2
+    assert danger["danger_days_provisional"] == 1
+    assert danger["danger_days_qc_flagged"] == 1
+
+
+def test_a_fully_calibrated_count_still_states_that_nothing_is_in_doubt() -> None:
+    """Rendered at zero too, so a well-evidenced count and a shaky one never read the same."""
+    brief = exposure_brief.build_brief(_CELL_ID, _danger_only_surface())
+    assert brief is not None
+    evidence = brief.lines()[1]
+    assert "Of those 1 day(s), 0 rest only on provisional readings" in evidence
+    assert "0 rest only on readings QC flagged as suspicious" in evidence
+
+
+def test_a_cell_that_never_crossed_gets_no_evidence_line() -> None:
+    """There is no Danger verdict to qualify, so the brief does not manufacture a caveat for one."""
+    surface = _surface(
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-06-01T14:00:00Z", value=22.0, calibration="v1"
+        )
+    )
+    brief = exposure_brief.build_brief(_CELL_ID, surface)
+    assert brief is not None
+    assert brief.danger.danger_days == 0
+    assert len(brief.lines()) == 1
