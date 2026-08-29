@@ -7,6 +7,7 @@ import ast
 import re
 import shutil
 import subprocess
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -129,20 +130,58 @@ def scan_python(path: Path) -> list[str]:
     return problems
 
 
+def scan_targets(paths: Iterable[Path]) -> dict[str, list[Path]]:
+    """Group tracked Python files by the production directory this gate covers.
+
+    ``firmware/src`` groups under ``src`` because that is the directory name the existing
+    membership test matches. This is a report of the corpus actually scanned, not a new
+    selection rule: the same files are scanned as before.
+    """
+    grouped: dict[str, list[Path]] = {name: [] for name in SCAN_DIRS}
+    for path in paths:
+        parts = path.relative_to(ROOT).parts
+        for name in SCAN_DIRS:
+            if name in parts:
+                grouped[name].append(path)
+                break
+    return grouped
+
+
+def corpus_problems(grouped: Mapping[str, list[Path]]) -> list[str]:
+    """Refuse to pass on an empty corpus.
+
+    This gate's PASS line is a universal claim: *production log calls are structured and
+    PII-safe*. A universal claim about an empty set is not evidence of anything. The corpus is
+    whatever ``git ls-files '*.py'`` returns, filtered by :data:`SCAN_DIRS` -- so renaming
+    ``src/``, moving the production packages, or a git invocation that returns nothing all
+    shrink it silently, and the gate printed the same sentence either way. Compare
+    ``workflow_policy_check`` and ``reading_level_check``, which already refuse the empty set.
+    """
+    return [
+        f"{name}/: no tracked Python file reached the log-safety scan. This gate's PASS line is "
+        "a claim about production logging; it must not be made about an empty corpus."
+        for name in SCAN_DIRS
+        if not grouped.get(name)
+    ]
+
+
 def main() -> int:
-    all_problems: list[str] = []
-    for path in _tracked_python():
-        if not any(part in SCAN_DIRS for part in path.relative_to(ROOT).parts):
-            continue
-        for problem in scan_python(path):
-            all_problems.append(f"{path.relative_to(ROOT)}: {problem}")
+    grouped = scan_targets(_tracked_python())
+    all_problems: list[str] = corpus_problems(grouped)
+    scanned = 0
+    for name in SCAN_DIRS:
+        for path in grouped[name]:
+            scanned += 1
+            for problem in scan_python(path):
+                all_problems.append(f"{path.relative_to(ROOT)}: {problem}")
     if all_problems:
         print(f"  [FAIL] {len(all_problems)} unsafe logging construct(s)")
         for problem in all_problems:
             print(f"           - {problem}")
         return 1
-    print("  [PASS] production log calls are structured and PII-safe")
-    print("log-safety: static gate passed")
+    covered = ", ".join(f"{name}={len(grouped[name])}" for name in SCAN_DIRS)
+    print(f"  [PASS] production log calls are structured and PII-safe ({covered})")
+    print(f"log-safety: {scanned} tracked production Python file(s) scanned")
     return 0
 
 
