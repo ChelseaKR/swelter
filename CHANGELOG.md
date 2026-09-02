@@ -216,6 +216,42 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **One unlicensable OpenAQ location no longer voids every other location in California.**
+  `build_license_ledger` and `validate_license_ledger` disagreed. The builder emitted an entry
+  for any location OpenAQ named a license for, including ones naming neither a provider nor an
+  attribution to credit; the ledger normalizer refuses exactly that entry — and normalization is
+  all-or-nothing, so a single such location made every *other* California location's terms
+  unpublishable. The `demo` workflow has fallen through to Copernicus CAMS on every run since
+  2026-08-16 (#179).
+
+  The builder now validates each candidate against the same normalizer the ledger will later be
+  checked by, and excludes the location it cannot describe — by id, by name, and with the rule
+  that refused it — instead of emitting an entry that voids the document. The fail-closed posture
+  is unchanged and deliberately not relaxed: an unlicensed location is still never fetched and
+  never published. What changes is the blast radius, from statewide to that one location.
+
+  Three further shapes the live API can return, each of which used to black out the state, now
+  exclude one location apiece: a validity boundary sent as a timestamp rather than a plain date,
+  a license whose canonical source URL is not HTTPS, and validity that ends before it starts.
+  Upstream whitespace around a provider or location name is trimmed rather than treated as a
+  reason to refuse; a location listing the same license twice collapses rather than tripping the
+  duplicate-identity rule.
+
+  **This is a proven cause, not a confirmed complete one.** It is reproduced by unit test from
+  metadata shapes the v3 API can return, but the live refusal has not been reproduced against
+  `GET /v3/locations` with the key, which this session does not have. #179 stays open on that
+  evidence, per its own checklist.
+
+- **A refused ledger says which rule refused it.** `license_ledger_gaps` answered
+  `ledger is malformed or missing required fields` for every structural cause there is — wrong
+  document shape, wrong schema version, no entries at all, one bad field on one entry out of
+  hundreds. That is the message the deployment has printed unchanged since #187 added it, and it
+  named nothing an operator could act on. The normalizer now returns its reason rather than
+  swallowing it, so a refusal reads `entry for location 2178 is unusable: OpenAQ ledger URLs must
+  be absolute credential-free HTTPS URLs`. The `fetch` refusal additionally states how many
+  California locations were licensed and how many were excluded, so "the ledger is empty" is
+  distinguishable from "the ledger covers the wrong dates".
+
 - **The committed fallback surface no longer understates single-member heat-index error bars.**
   `web/sample-surface.json` — the dashboard's committed offline fallback, served by `web/app.js`
   and cached by `web/sw.js` — was last regenerated before #142 corrected the derived heat-index

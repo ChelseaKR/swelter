@@ -180,13 +180,46 @@ def _license_catalog(locations: list[dict[str, Any]], api_key: str) -> dict[int,
     return catalog
 
 
+def _stripped(value: object) -> str:
+    """Upstream text with surrounding whitespace removed.
+
+    The ledger normalizer requires already-normalized text (``value == value.strip()``), so a
+    provider name that arrives with a stray trailing space would otherwise be refused -- and,
+    before #179, would take the entire ledger with it. Trimming whitespace does not invent or
+    alter a value; anything beyond that is left for the normalizer to refuse.
+    """
+    return str(value).strip() if value is not None else ""
+
+
+def _deduplicated_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop entries repeating an identity already present, keeping first-seen order.
+
+    A location that lists the same license twice is not an error worth blacking out the run
+    for; the ledger normalizer rejects duplicate identities outright, so collapse them here.
+    """
+    seen: set[tuple[object, ...]] = set()
+    out: list[dict[str, Any]] = []
+    for entry in entries:
+        identity = _normalize_entry(entry).identity
+        if identity in seen:
+            continue
+        seen.add(identity)
+        out.append(entry)
+    return out
+
+
 def build_license_ledger(
     locations: list[dict[str, Any]],
     catalog: dict[int, dict[str, Any]],
     *,
     fetched_at: str | None = None,
 ) -> dict[str, Any]:
-    """Build a per-location OpenAQ license/attribution ledger from v3 metadata."""
+    """Build a per-location OpenAQ license/attribution ledger from v3 metadata.
+
+    Every entry is validated against the same normalizer ``validate_license_ledger`` will apply,
+    and a location whose metadata cannot produce a valid entry is *excluded by name, with the
+    reason*, rather than emitted as an entry that would invalidate the whole document (#179).
+    """
     fetched = fetched_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     entries: list[dict[str, Any]] = []
     excluded: list[dict[str, Any]] = []
@@ -194,10 +227,10 @@ def build_license_ledger(
         location_id = location.get("id")
         if not _is_positive_id(location_id):
             continue
-        location_name = str(location.get("name") or f"Site {location_id}")
+        location_name = _stripped(location.get("name")) or f"Site {location_id}"
         provider_raw = location.get("provider")
         provider = (
-            str(provider_raw.get("name"))
+            _stripped(provider_raw.get("name"))
             if isinstance(provider_raw, dict) and provider_raw.get("name")
             else ""
         )
@@ -212,6 +245,7 @@ def build_license_ledger(
             )
             continue
         location_entries = 0
+        rejections: list[str] = []
         for license_ref in license_refs:
             if not isinstance(license_ref, dict) or not _is_positive_id(license_ref.get("id")):
                 continue
@@ -220,12 +254,12 @@ def build_license_ledger(
                 continue
             attribution_raw = license_ref.get("attribution")
             attribution = (
-                str(attribution_raw.get("name"))
+                _stripped(attribution_raw.get("name"))
                 if isinstance(attribution_raw, dict) and attribution_raw.get("name")
                 else ""
             )
             attribution_url = (
-                str(attribution_raw.get("url"))
+                _stripped(attribution_raw.get("url"))
                 if isinstance(attribution_raw, dict) and attribution_raw.get("url")
                 else ""
             )
@@ -234,32 +268,47 @@ def build_license_ledger(
                 for field, value in (("provider", provider), ("attribution", attribution))
                 if not value
             ]
-            entries.append(
-                {
-                    "location_id": location_id,
-                    "license_id": license_ref["id"],
-                    "location_name": location_name,
-                    "provider": provider,
-                    "license_name": str(detail["name"]),
-                    "license_url": str(detail["sourceUrl"]),
-                    "attribution": attribution,
-                    "attribution_url": attribution_url,
-                    "valid_from": license_ref.get("dateFrom"),
-                    "valid_to": license_ref.get("dateTo"),
-                    "upstream_url": f"{API}/locations/{location_id}",
-                    "fetched_at": fetched,
-                    "unavailable_fields": unavailable,
-                }
-            )
+            candidate = {
+                "location_id": location_id,
+                "license_id": license_ref["id"],
+                "location_name": location_name,
+                "provider": provider,
+                "license_name": _stripped(detail["name"]),
+                "license_url": _stripped(detail["sourceUrl"]),
+                "attribution": attribution,
+                "attribution_url": attribution_url,
+                "valid_from": license_ref.get("dateFrom"),
+                "valid_to": license_ref.get("dateTo"),
+                "upstream_url": f"{API}/locations/{location_id}",
+                "fetched_at": fetched,
+                "unavailable_fields": unavailable,
+            }
+            # The builder and the validator must agree by construction. Before #179 they did
+            # not: an entry naming neither a provider nor an attribution (or carrying any other
+            # metadata shape the normalizer refuses) was appended anyway, and because ledger
+            # normalization is all-or-nothing, that one entry made every *other* location's
+            # terms unpublishable too. The whole run then refused with a message that named
+            # nothing. Validate each candidate here instead, and exclude only its own location.
+            try:
+                _normalize_entry(candidate)
+            except ValueError as exc:
+                rejections.append(f"license {license_ref['id']}: {exc}")
+                continue
+            entries.append(candidate)
             location_entries += 1
         if not location_entries:
             excluded.append(
                 {
                     "location_id": location_id,
                     "location_name": location_name,
-                    "reason": "OpenAQ license references could not be resolved",
+                    "reason": (
+                        "OpenAQ license metadata is not publishable: " + "; ".join(rejections)
+                        if rejections
+                        else "OpenAQ license references could not be resolved"
+                    ),
                 }
             )
+    entries = _deduplicated_entries(entries)
     return {
         "schema_version": 1,
         "source": "OpenAQ v3",
@@ -490,44 +539,112 @@ def _normalize_exclusion(raw: dict[str, Any]) -> _NormalizedExclusion:
     )
 
 
-def _normalized_ledger(ledger: object) -> _NormalizedLedger | None:
-    try:
-        if not isinstance(ledger, dict) or set(ledger) != _LEDGER_FIELDS:
-            return None
-        schema_version = ledger["schema_version"]
-        if (
-            type(schema_version) is not int
-            or schema_version != 1
-            or ledger["source"] != "OpenAQ v3"
-        ):
-            return None
-        generated_at = _normalized_timestamp(ledger["generated_at"])
-        entries_raw = ledger["entries"]
-        exclusions_raw = ledger["excluded_locations"]
-        if not isinstance(entries_raw, list) or not entries_raw:
-            return None
-        if not isinstance(exclusions_raw, list):
-            return None
-        if not all(isinstance(item, dict) for item in [*entries_raw, *exclusions_raw]):
-            return None
-        entries = tuple(_normalize_entry(item) for item in entries_raw)
-        exclusions = tuple(_normalize_exclusion(item) for item in exclusions_raw)
-    except (KeyError, TypeError, ValueError):
-        return None
+def _describe_entry(raw: object) -> str:
+    """Name the offending entry the way an operator would look it up, when it can be named."""
+    if isinstance(raw, dict) and _is_positive_id(raw.get("location_id")):
+        return f"entry for location {raw['location_id']}"
+    return "an entry"
 
+
+def _envelope_reason(ledger: dict[str, Any]) -> str:
+    """Why the ledger document itself is unusable, ignoring the entries inside it."""
+    if set(ledger) != _LEDGER_FIELDS:
+        missing = sorted(_LEDGER_FIELDS - set(ledger))
+        unexpected = sorted(set(ledger) - _LEDGER_FIELDS)
+        detail = ", ".join(
+            part
+            for part in (
+                f"missing {', '.join(missing)}" if missing else "",
+                f"unexpected {', '.join(unexpected)}" if unexpected else "",
+            )
+            if part
+        )
+        return f"ledger has the wrong top-level fields ({detail})"
+    schema_version = ledger["schema_version"]
+    if type(schema_version) is not int or schema_version != 1:
+        return f"ledger schema_version is {schema_version!r}, expected 1"
+    if ledger["source"] != "OpenAQ v3":
+        return f"ledger source is {ledger['source']!r}, expected 'OpenAQ v3'"
+    if not isinstance(ledger["entries"], list):
+        return "ledger entries is not a list"
+    if not ledger["entries"]:
+        return "ledger carries no entries at all: no location has publishable terms"
+    if not isinstance(ledger["excluded_locations"], list):
+        return "ledger excluded_locations is not a list"
+    try:
+        _normalized_timestamp(ledger["generated_at"])
+    except (TypeError, ValueError) as exc:
+        return f"ledger generated_at is unusable: {exc}"
+    return ""
+
+
+def _normalize_each[T](
+    raws: list[Any], normalize: Callable[[dict[str, Any]], T], noun: str
+) -> tuple[list[T], str]:
+    out: list[T] = []
+    for raw in raws:
+        described = _describe_entry(raw) if noun == "entry" else f"an excluded {noun}"
+        if not isinstance(raw, dict):
+            return [], f"{described} is not an object"
+        try:
+            out.append(normalize(raw))
+        except (KeyError, TypeError, ValueError) as exc:
+            return [], f"{described} is unusable: {exc}"
+    return out, ""
+
+
+def _consistency_reason(
+    generated_at: str, entries: list[_NormalizedEntry], exclusions: list[_NormalizedExclusion]
+) -> str:
+    """Why a ledger whose parts are individually valid still does not hold together."""
     identities = [entry.identity for entry in entries]
+    if len(identities) != len(set(identities)):
+        return "ledger repeats an entry identity (same location, license and validity)"
     exclusion_identities = [item.identity for item in exclusions]
-    if len(identities) != len(set(identities)) or len(exclusion_identities) != len(
-        set(exclusion_identities)
-    ):
-        return None
+    if len(exclusion_identities) != len(set(exclusion_identities)):
+        return "ledger repeats an excluded location"
     generated = datetime.strptime(generated_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
-    if any(
-        datetime.strptime(entry.fetched_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) > generated
-        for entry in entries
-    ):
-        return None
-    return _NormalizedLedger(generated_at, entries, exclusions)
+    for entry in entries:
+        fetched = datetime.strptime(entry.fetched_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+        if fetched > generated:
+            return (
+                f"entry for location {entry.location_id} was fetched at {entry.fetched_at}, "
+                f"after the ledger was generated at {generated_at}"
+            )
+    return ""
+
+
+def _normalize_ledger_or_reason(ledger: object) -> tuple[_NormalizedLedger | None, str]:
+    """Normalize a ledger, or say in one line exactly which rule refused it.
+
+    ``_normalized_ledger`` used to swallow every reason and return a bare ``None``, so the
+    operator-facing refusal read "ledger is malformed or missing required fields" whether the
+    document was the wrong shape entirely or a single location out of hundreds carried an
+    unusable field. That message stayed identical, and unactionable, across every run it kept
+    refusing (#179). This returns the reason instead.
+    """
+    if not isinstance(ledger, dict):
+        return None, f"ledger is {type(ledger).__name__}, not an object"
+    envelope = _envelope_reason(ledger)
+    if envelope:
+        return None, envelope
+    generated_at = _normalized_timestamp(ledger["generated_at"])
+    entries, reason = _normalize_each(ledger["entries"], _normalize_entry, "entry")
+    if reason:
+        return None, reason
+    exclusions, reason = _normalize_each(
+        ledger["excluded_locations"], _normalize_exclusion, "location"
+    )
+    if reason:
+        return None, reason
+    reason = _consistency_reason(generated_at, entries, exclusions)
+    if reason:
+        return None, reason
+    return _NormalizedLedger(generated_at, tuple(entries), tuple(exclusions)), ""
+
+
+def _normalized_ledger(ledger: object) -> _NormalizedLedger | None:
+    return _normalize_ledger_or_reason(ledger)[0]
 
 
 def _validity_boundary(value: object, *, end: bool) -> datetime | None:
@@ -609,9 +726,13 @@ def license_ledger_gaps(ledger: object, *, observations: Iterable[Observation] =
     on rather than a message that has stayed identical, and unactionable, across the runs it kept
     refusing (#179).
     """
-    entries_by_location = _entries_by_location(ledger)
-    if entries_by_location is None:
-        return ["ledger is malformed or missing required fields"]
+    normalized, reason = _normalize_ledger_or_reason(ledger)
+    if normalized is None:
+        return [f"ledger is not publishable: {reason}"]
+    entries_by_location: dict[int, list[dict[str, Any]]] = {}
+    for normalized_entry in normalized.entries:
+        entry = normalized_entry.to_dict()
+        entries_by_location.setdefault(entry["location_id"], []).append(entry)
     gaps = (_observation_gap(o, entries_by_location) for o in observations)
     # dict.fromkeys, not a set: de-duplicate repeat gaps (a dead location reports many readings)
     # while preserving first-seen order, so the printed handful is stable across otherwise
@@ -796,6 +917,12 @@ def fetch(
     eligible_location_ids = {
         entry["location_id"] for entry in ledger["entries"] if isinstance(entry, dict)
     }
+    # Counted before the ledger is narrowed to locations that actually reported, so a refusal
+    # says how much of the state OpenAQ licensed rather than only how much of it is live.
+    census = (
+        f"{len(eligible_location_ids)} of {len(locations)} California location(s) licensed, "
+        f"{len(ledger['excluded_locations'])} excluded"
+    )
     locations = [location for location in locations if location.get("id") in eligible_location_ids]
     sensor_param = _sensor_parameters(locations)
     out: list[Observation] = []
@@ -833,9 +960,10 @@ def fetch(
         gaps = license_ledger_gaps(ledger, observations=out)
         shown = gaps[:5]
         more = f" (+{len(gaps) - len(shown)} more)" if len(gaps) > len(shown) else ""
-        detail = "; ".join(shown) + more
         raise SourceError(
-            f"OpenAQ readings have no publishable per-location license ledger: {detail}"
+            f"OpenAQ readings have no publishable per-location license ledger ({census}): "
+            + "; ".join(shown)
+            + more
         )
     if license_ledger is not None:
         license_ledger.clear()
