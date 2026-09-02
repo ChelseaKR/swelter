@@ -119,6 +119,38 @@ def test_cams_uses_model_terminology_instead_of_claiming_sensor_calibration() ->
     assert "not a Swelter sensor calibration" in terms["non_provisional_explanation"]["en"]
 
 
+def test_cams_network_panel_reports_grid_cells_rather_than_device_health() -> None:
+    """ADR 0040: a city centroid names a model grid cell, so there is no host to be healthy.
+
+    The synthetic ``node_id`` minted per centroid in ``sources/openmeteo.py`` reaches ``qc`` and is
+    published as per-node telemetry. Without these overrides the Network tab reads the absence of a
+    sensor fleet as a perfectly healthy one ("337 of 337", "337 good - 0 offline").
+    """
+    terms = build_contract("openmeteo", _surface([True], source="openmeteo"))["source"][
+        "terminology"
+    ]
+
+    for key in ("coverage", "health_status", "network_intro"):
+        for locale in ("en", "es"):
+            text = terms[key][locale]
+            assert "sensor" not in text.lower(), f"{key}:{locale} still claims hardware: {text}"
+
+    assert terms["coverage"]["en"] == "Model cells with values this hour: {$now} of {$total}."
+    assert terms["health_status"]["en"] == (
+        "Model cell values at {$time}: {$ok} present · {$degraded} sparse · {$offline} missing."
+    )
+
+
+def test_sources_with_real_hardware_keep_the_catalogue_sensor_wording() -> None:
+    """The override is opt-in: Sensor.Community measures with real low-cost sensors, so its Network
+    tab must keep saying "sensors". It declares no terminology, and ``sourceTerm`` falls back."""
+    for source_id in ("sensor-community", "openaq"):
+        surface = _surface([True], source=source_id)
+        terms = build_contract(source_id, surface)["source"].get("terminology", {})
+        for key in ("coverage", "health_status", "network_intro"):
+            assert key not in terms, f"{source_id} must not override {key}"
+
+
 def test_source_terms_match_current_primary_policies() -> None:
     openaq = build_contract("openaq", _surface([True]))["source"]["license"]
     sensor_community = build_contract(

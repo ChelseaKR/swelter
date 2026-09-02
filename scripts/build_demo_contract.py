@@ -140,6 +140,23 @@ PROFILES: dict[str, dict[str, Any]] = {
                 "{$n} locations — {$provisional} provisional upstream model readings.",
                 "{$n} ubicaciones — {$provisional} lecturas provisionales del modelo externo.",
             ),
+            # ADR 0040: a city centroid identifies a model grid cell, not a host — so there is no
+            # device to be "reporting", "good", or "offline". Describe data availability instead of
+            # inventing device health for a fleet that does not exist.
+            "coverage": _text(
+                "Model cells with values this hour: {$now} of {$total}.",
+                "Celdas del modelo con valores esta hora: {$now} de {$total}.",
+            ),
+            "health_status": _text(
+                "Model cell values at {$time}: {$ok} present · {$degraded} sparse · "
+                "{$offline} missing.",
+                "Valores de celdas del modelo a las {$time}: {$ok} presentes · {$degraded} "
+                "escasos · {$offline} ausentes.",
+            ),
+            "network_intro": _text(
+                "Model cell coverage, value availability, and alerts.",
+                "Cobertura de celdas del modelo, disponibilidad de valores y alertas.",
+            ),
             "headline_worst": _text(
                 "Highest modeled air right now: {$place} — AQI {$aqi}, {$category}.",
                 "Mayor nivel de aire modelado ahora: {$place} — ICA {$aqi}, {$category}.",
