@@ -94,6 +94,24 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **One tracked static-analysis suppression is retired rather than re-justified (28 -> 27).**
+  `do_GET` dispatched through a twenty-arm `if/elif` chain of exact `path ==` comparisons with a
+  trailing `else: self._static(path)`. Its branch count alone required a tracked `C901`
+  suppression — the complexity was the dispatch, nothing else. `server._GET_ROUTES` is that same
+  dispatch as a table built once at import: `dict.get` matches exactly, and a miss falls through
+  to the same static handler, so the semantics are unchanged while `do_GET` costs one branch
+  instead of twenty. `SUPPRESSION_CEILING` drops to 27, which is the ratchet in #132 doing its
+  job — the hygiene gate failed the build until the ceiling came down with the count.
+
+  A test pins the table *as* the dispatch: every declared route resolves, trailing slashes are
+  still normalised before lookup, and a path the table does not name still reaches `_static`.
+
+  **Not retired, and honestly so:** the two `_make_handler` `C901` waivers stay. Ruff's mccabe
+  walker sums every nested method into the enclosing factory because the handler class is defined
+  inside it (the stdlib `http.server` closure pattern), so retiring those means giving the handler
+  class module scope and reaching `ctx` through the instance — a mechanical rewrite of every
+  method body, not a local change. #107 keeps them.
+
 - **`make verify` is green end to end again: OSV-Scanner is pinned at 2.5.1.** `security-osv`
   asserts the installed binary matches `OSV_SCANNER_VERSION` before it scans anything, and the pin
   had drifted to a build no longer current, so the gate failed at its own version assertion for

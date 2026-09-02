@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from swelter import aggregate as aggregate_module
+from swelter import server as server_module
 from swelter import snapshot
 from swelter.calibrate import Correction, CorrectionRegistry
 from swelter.config import NetworkConfig, NodeConfig
@@ -403,3 +404,52 @@ def test_surface_cache_invalidates_after_out_of_process_rebuild(server: _Server)
     assert second["features"], "an out-of-process rebuild must not be served from a stale cache"
     assert second != json.loads(first_body)
     assert second["features"][0]["properties"]["pm25_ugm3"] == 77.0
+
+
+# -- the route table replacing the flat if/elif dispatch (#107) ---------------
+
+
+def test_every_declared_route_answers_and_the_table_is_the_whole_dispatch(
+    base_url: str,
+) -> None:
+    """Each exact-match route resolves; unknown paths still fall through to the static handler.
+
+    `do_GET` dispatched through a twenty-arm `if/elif` chain whose branch count alone required a
+    tracked `C901` suppression. Replacing it with a table is only safe if the table *is* the
+    dispatch: every declared path must be reachable, and a path outside it must reach `_static`
+    exactly as the old trailing `else` did.
+    """
+    assert set(server_module._GET_ROUTES) == {
+        "/health",
+        "/healthz",
+        "/v1.1",
+        "/v1.1/Things",
+        "/v1.1/Locations",
+        "/v1.1/Datastreams",
+        "/v1.1/ObservedProperties",
+        "/v1.1/Observations",
+        "/api/surface.geojson",
+        "/api/surface.json",
+        "/api/health.json",
+        "/api/schema.json",
+        "/api/alerts.json",
+        "/api/alerts.xml",
+        "/api/alerts.es.xml",
+        "/api/cooling-centers.geojson",
+        "/export.csv",
+        "/export.json",
+        "/LICENSE",
+        "/DATA-LICENSE",
+        "/NOTICE",
+        "/source-license-ledger.json",
+    }
+    for path in sorted(server_module._GET_ROUTES):
+        status, _ = _get(f"{base_url}{path}")
+        # 200 or 404 (a route whose optional artifact this fixture has no file for) are both
+        # "the route resolved"; a 500 would mean the table calls the wrong thing.
+        assert status in (200, 404), f"{path} answered {status}"
+    # Trailing slashes are still normalised before the lookup, as the old chain assumed.
+    assert _get(f"{base_url}/api/schema.json/")[0] == 200
+    # A path the table does not name reaches the static handler, not an error branch.
+    assert _get(f"{base_url}/index.html")[0] == 200
+    assert _get(f"{base_url}/no-such-file.txt")[0] == 404
