@@ -26,6 +26,14 @@ REPOSITORY_URL = "https://github.com/ChelseaKR/swelter"
 SEO_START = "<!-- pages-seo:start -->"
 SEO_END = "<!-- pages-seo:end -->"
 KNOWN_ROUTES = ("/", "/sensors/")
+# Routes that are published and stable but are not data surfaces. The planner answers a
+# project question and reads no readings, so it has no source, no `sample-surface.json` and
+# no Dataset to describe. It was live and crawlable with no canonical, no social metadata and
+# no sitemap entry, because every one of those was reached only through the source-aware path
+# above. Giving it the Dataset graph would be worse than leaving it out: it would describe
+# observations that page does not publish.
+STATIC_ROUTES = ("/planner/",)
+PUBLISHED_ROUTES = KNOWN_ROUTES + STATIC_ROUTES
 _TITLE_PATTERN = re.compile(r"<title(?:\s[^>]*)?>.*?</title>", re.DOTALL)
 _DESCRIPTION_PATTERN = re.compile(
     r'<meta\s+name="description"[^>]*\scontent="[^"]*"[^>]*/?>', re.DOTALL
@@ -177,7 +185,7 @@ def normalize_base_url(value: str) -> str:
 def canonical_url(base_url: str, route: str) -> str:
     """Join a known route without letting a leading slash discard the Pages project path."""
 
-    if route not in KNOWN_ROUTES:
+    if route not in PUBLISHED_ROUTES:
         raise ValueError(f"unknown public route: {route}")
     base = normalize_base_url(base_url)
     return base if route == "/" else f"{base}{route.strip('/')}/"
@@ -500,6 +508,90 @@ def _metadata_block(
     )
 
 
+def _static_metadata_block(*, base_url: str, route: str, title: str, description: str) -> str:
+    """Discovery metadata for a published page that is not a data surface.
+
+    Deliberately narrower than :func:`_metadata_block`. It carries no JSON-LD, because the
+    only graph this project emits describes readings and their licence, and a page that
+    publishes no readings must not claim to. It also does NOT rewrite the page's title or
+    description: those are correct in source for a static page, whereas a data surface's are
+    only truthful once the deployed fallback is known.
+    """
+
+    base = normalize_base_url(base_url)
+    canonical = canonical_url(base, route)
+    social_image = f"{base}social-card.png"
+    social_alt = "swelter beside a California county map with one measured grid cell"
+
+    def attr(value: str) -> str:
+        return escape(value, quote=True)
+
+    return "\n".join(
+        [
+            f"    {SEO_START}",
+            f'    <link rel="canonical" href="{attr(canonical)}" />',
+            f'    <link rel="icon" href="{attr(base)}icon.svg" type="image/svg+xml" />',
+            f'    <link rel="apple-touch-icon" href="{attr(base)}icon-512.png" />',
+            '    <meta name="robots" content="index,follow,max-image-preview:large" />',
+            '    <meta property="og:type" content="website" />',
+            '    <meta property="og:site_name" content="swelter" />',
+            '    <meta property="og:locale" content="en_US" />',
+            f'    <meta property="og:url" content="{attr(canonical)}" />',
+            f'    <meta property="og:title" content="{attr(title)}" />',
+            f'    <meta property="og:description" content="{attr(description)}" />',
+            f'    <meta property="og:image" content="{attr(social_image)}" />',
+            '    <meta property="og:image:width" content="1280" />',
+            '    <meta property="og:image:height" content="640" />',
+            f'    <meta property="og:image:alt" content="{attr(social_alt)}" />',
+            '    <meta name="twitter:card" content="summary_large_image" />',
+            f'    <meta name="twitter:title" content="{attr(title)}" />',
+            f'    <meta name="twitter:description" content="{attr(description)}" />',
+            f'    <meta name="twitter:image" content="{attr(social_image)}" />',
+            f'    <meta name="twitter:image:alt" content="{attr(social_alt)}" />',
+            f"    {SEO_END}",
+        ]
+    )
+
+
+def write_static_page_metadata(
+    web_dir: Path,
+    *,
+    route: str,
+    base_url: str = DEFAULT_BASE_URL,
+) -> str:
+    """Inject discovery metadata into one published page that is not a data surface.
+
+    The page keeps the title and description it already carries; this reads them so the card
+    repeats the page rather than describing it a second time, and refuses rather than invent
+    either of them.
+    """
+
+    if route not in STATIC_ROUTES:
+        raise ValueError(f"not a static public route: {route}")
+    index = web_dir / "index.html"
+    try:
+        html = index.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ValueError(f"cannot read Pages HTML template {index}: {exc}") from exc
+    pattern = re.compile(rf"[ \t]*{re.escape(SEO_START)}.*?{re.escape(SEO_END)}", re.DOTALL)
+    if len(pattern.findall(html)) != 1:
+        raise ValueError(f"{index} must contain exactly one {SEO_START}/{SEO_END} block")
+    titles = _TITLE_PATTERN.findall(html)
+    descriptions = _DESCRIPTION_PATTERN.findall(html)
+    if len(titles) != 1 or len(descriptions) != 1:
+        raise ValueError(f"{index} must contain exactly one title and meta description")
+    title = re.sub(r"<[^>]+>", "", titles[0]).strip()
+    described = re.search(r'content="([^"]*)"', descriptions[0])
+    description = " ".join(described.group(1).split()) if described else ""
+    if not title or not description:
+        raise ValueError(f"{index} must carry a non-empty title and meta description")
+    block = _static_metadata_block(
+        base_url=base_url, route=route, title=title, description=description
+    )
+    index.write_text(pattern.sub(lambda _match: block, html), encoding="utf-8")
+    return route
+
+
 def write_page_metadata(
     web_dir: Path,
     *,
@@ -542,12 +634,17 @@ def write_page_metadata(
 
 
 def write_sitemap(output: Path, *, base_url: str = DEFAULT_BASE_URL) -> None:
-    """Write the two stable, crawlable routes; transient application state is never a URL."""
+    """Write every stable, crawlable route; transient application state is never a URL.
+
+    That includes the static routes. The planner is a stable public URL that Pages has been
+    serving all along, and leaving it out of the sitemap did not keep it private, only
+    undiscovered. What stays out is application state, not pages.
+    """
 
     namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
     ET.register_namespace("", namespace)
     root = ET.Element(f"{{{namespace}}}urlset")
-    for route in KNOWN_ROUTES:
+    for route in PUBLISHED_ROUTES:
         url = ET.SubElement(root, f"{{{namespace}}}url")
         ET.SubElement(url, f"{{{namespace}}}loc").text = canonical_url(base_url, route)
     tree = ET.ElementTree(root)
@@ -597,6 +694,13 @@ def _parser() -> argparse.ArgumentParser:
     page.add_argument("--source", choices=tuple(SOURCE_SPECS))
     page.add_argument("--base-url", default=DEFAULT_BASE_URL)
 
+    static = subparsers.add_parser(
+        "static-page", help="inject metadata into one published page that is not a data surface"
+    )
+    static.add_argument("--web-dir", type=Path, required=True)
+    static.add_argument("--route", choices=STATIC_ROUTES, required=True)
+    static.add_argument("--base-url", default=DEFAULT_BASE_URL)
+
     sitemap = subparsers.add_parser("sitemap", help="write the stable Pages sitemap")
     sitemap.add_argument("--output", type=Path, required=True)
     sitemap.add_argument("--base-url", default=DEFAULT_BASE_URL)
@@ -613,6 +717,10 @@ def main(argv: list[str] | None = None) -> int:
             args.web_dir, route=args.route, source=args.source, base_url=args.base_url
         )
         print(f"pages-seo: wrote {canonical_url(args.base_url, args.route)} ({source})")
+        return 0
+    if args.command == "static-page":
+        write_static_page_metadata(args.web_dir, route=args.route, base_url=args.base_url)
+        print(f"pages-seo: wrote {canonical_url(args.base_url, args.route)} (static)")
         return 0
     if args.command == "sitemap":
         write_sitemap(args.output, base_url=args.base_url)

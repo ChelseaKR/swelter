@@ -40,6 +40,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MD = ROOT / "CLAUDE.md"
 README_MD = ROOT / "README.md"
+PAPER_MD = ROOT / "paper" / "paper.md"
 ROADMAP_MD = ROOT / "docs" / "ROADMAP.md"
 API_MD = ROOT / "docs" / "api.md"
 I18N_MD = ROOT / "docs" / "I18N.md"
@@ -319,11 +320,54 @@ def check_readme_duplicate_paragraphs(readme_text: str) -> RuleResult:
     return RuleResult("readme-duplicate-paragraph", source, ok, detail, blocking=False)
 
 
+# --- Rule 6: paper test-count claim (paper/paper.md vs. `pytest --collect-only`) ------------
+
+_PAPER_TEST_COUNT_RE = re.compile(r"\b(\d+)-test suite\b")
+
+
+def extract_paper_test_count(text: str) -> int | None:
+    """Extract the N in paper.md's 'a N-test suite' phrasing, if the paper still makes one."""
+    match = _PAPER_TEST_COUNT_RE.search(text)
+    return int(match.group(1)) if match else None
+
+
+def check_paper_test_count(paper_text: str, actual_count: Callable[[], int]) -> RuleResult:
+    """Compare paper/paper.md's hard-coded test count, when it makes one, against pytest.
+
+    The paper claimed "a 257-test suite" while ``pytest --collect-only`` found roughly four
+    times that. The sentence was true the day it was written and nothing re-read it
+    afterwards, because no gate read paper/ at all. Same design as rule 1 -- absence of the
+    claim is compliance, and the collection subprocess only runs when there is a claim to
+    compare against -- but BLOCKING, because paper/paper.md is ordinary maintainer prose
+    rather than an agent-do-not-modify file: whoever reintroduces a count can also fix it.
+    """
+    claimed = extract_paper_test_count(paper_text)
+    source = "`pytest --collect-only -q` (actual collected test count)"
+    if claimed is None:
+        return RuleResult(
+            "paper-test-count",
+            source,
+            True,
+            "paper/paper.md states no hard-coded test count; the suite is described "
+            "without a number that could drift",
+            blocking=True,
+        )
+    resolved = actual_count()
+    ok = claimed == resolved
+    detail = (
+        f"paper/paper.md claims a {claimed}-test suite; {source.split(' (')[0]} finds {resolved}"
+    )
+    return RuleResult("paper-test-count", source, ok, detail, blocking=True)
+
+
 def run_all(root: Path = ROOT) -> list[RuleResult]:
     results: list[RuleResult] = []
 
     claude_text = CLAUDE_MD.read_text(encoding="utf-8") if CLAUDE_MD.is_file() else ""
     results.append(check_test_count(claude_text, lambda: collected_test_count(root)))
+
+    paper_text = PAPER_MD.read_text(encoding="utf-8") if PAPER_MD.is_file() else ""
+    results.append(check_paper_test_count(paper_text, lambda: collected_test_count(root)))
 
     roadmap_text = ROADMAP_MD.read_text(encoding="utf-8") if ROADMAP_MD.is_file() else ""
     results.append(check_corrections_count(roadmap_text, load_corrections_count(CORRECTIONS_YAML)))

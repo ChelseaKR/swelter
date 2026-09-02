@@ -4,7 +4,7 @@
 .PHONY: help install gen-demo ingest qc calibrate aggregate export serve demo rebuild snapshot \
         fmt fmt-check lint typecheck test a11y i18n seo hygiene version-check reading-level \
         docs-figures docs-contract adr-immutability standards-pin standards-pin-upstream \
-        acceptance-map dora-evidence conformance log-safety workflow-policy \
+        acceptance-map dora-evidence conformance log-safety workflow-policy demo-artifacts \
         web-install web-unit web-browser web-test verify-web firmware-test infra-synth \
         security-pip security-osv security-node security-secrets security-semgrep \
         security-waivers security-workflows verify-security package sbom sbom-validate \
@@ -17,7 +17,7 @@ PIP_AUDIT_VERSION := 2.10.1
 SEMGREP_VERSION := 1.169.0
 ZIZMOR_VERSION := 1.26.1
 GITLEAKS_VERSION := 8.30.1
-OSV_SCANNER_VERSION := 2.3.8
+OSV_SCANNER_VERSION := 2.5.1
 CDK_CLI_VERSION := 2.1132.0
 MUTMUT_VERSION := 3.7.0
 MUTATION_SCORE_FLOOR ?= 80
@@ -35,7 +35,7 @@ PLAYWRIGHT_INSTALL_ARGS ?= chromium firefox webkit
 SECURITY_GATES := security-waivers security-secrets security-pip security-osv \
 	security-node security-semgrep security-workflows
 CORE_GATES := fmt-check lint typecheck a11y i18n seo hygiene version-check \
-	reading-level docs-figures docs-contract adr-immutability standards-pin \
+	reading-level docs-figures docs-contract demo-artifacts adr-immutability standards-pin \
 	acceptance-map dora-evidence conformance log-safety workflow-policy test
 VERIFY_GATES := verify-core verify-web firmware-test infra-synth verify-security \
 	verify-package
@@ -104,6 +104,7 @@ i18n:  ## Mechanical i18n gates: gettext/MF2 catalogs, parity, tags, UTF-8, CLDR
 
 seo:  ## Validate Pages metadata inputs and the GitHub project-site crawl policy
 	uv run python scripts/pages_seo.py check --template web/index.html
+	uv run python scripts/pages_seo.py check --template web/planner/index.html
 
 hygiene:  ## No bare TODO/FIXME/HACK; every noqa/type:ignore is coded (CQ-34/CQ-35)
 	uv run python scripts/hygiene_check.py
@@ -119,6 +120,9 @@ docs-figures:  ## Re-prove countable claims in docs against their sources of tru
 
 docs-contract:  ## Verify documentation claims against executable repository state
 	uv run python scripts/docs_contract_check.py
+
+demo-artifacts:  ## Prove the committed demo web artifacts equal a fresh deterministic replay
+	uv run python scripts/demo_artifact_check.py
 
 adr-immutability:  ## Prevent rewrites or deletion of ADRs Accepted at the comparison base
 	uv run python scripts/adr_immutability_check.py

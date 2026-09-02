@@ -126,3 +126,7 @@ Changelog, this plan. No acceptance-map row changes: nothing here ships a new fe
   `/private/tmp/claude-501/.../scratchpad/` is shared between concurrently running agents. A first
   `make verify` log written to a generic filename there was overwritten mid-run by another
   repository's agent. Use a collision-proof filename.
+- 2026-08-29: the `security-osv` version-assertion failure logged on 2026-08-28 is resolved.
+  `OSV_SCANNER_VERSION` and both workflow installs move 2.3.8 -> 2.5.1. Checked before bumping:
+  2.5.1 scans the same two lockfiles and reports no issues, so the old pin concealed nothing.
+  Break-tested: a wrong pin fails `make security-osv` with exit 2, the correct one passes with 0.

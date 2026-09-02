@@ -567,9 +567,21 @@ test("larger text preserves the map center and keeps a selected overview singlet
   await map.focus();
   await page.keyboard.press("+");
   const zoomed = await canvas.evaluate((element) => element.dataset.camera);
+  // Settle each pan against the camera observed immediately before it, not against the shared
+  // post-zoom value. A pan key mutates state.mapView and defers the DOM write to the next
+  // animation frame (scheduleTransform in app.js), so pressing both keys and then waiting for
+  // "the camera is no longer `zoomed`" is a condition ArrowRight satisfies on its own: when a
+  // frame boundary falls between the two presses, which is what WebKit does under CI contention,
+  // the baseline below is captured with ArrowRight applied and ArrowDown still pending. That
+  // baseline understates the vertical geographic center, and the map's later, correct re-centering
+  // is then measured against it and reported as drift (#169). Waiting on each pan in turn makes
+  // the baseline the state both keys produced, and is strictly stronger than the single wait it
+  // replaces: it requires both pans to have landed where the old one required only the first.
   await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("ArrowDown");
   await expect.poll(() => canvas.evaluate((element) => element.dataset.camera)).not.toBe(zoomed);
+  const panned = await canvas.evaluate((element) => element.dataset.camera);
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => canvas.evaluate((element) => element.dataset.camera)).not.toBe(panned);
   const beforeScale = await cameraState();
   expect(beforeScale.scale).toBeGreaterThan(1);
   expect(beforeScale.x).not.toBe(0);
@@ -581,14 +593,15 @@ test("larger text preserves the map center and keeps a selected overview singlet
       page.locator("html").evaluate((root) => root.style.getPropertyValue("--text-scale")),
     ).toBe(textScale);
     // The text-scale reflow changes the map's own pixel box (the layout is deliberately
-    // rem-based, R6), and the map re-centers itself asynchronously: a ResizeObserver callback,
-    // deferred one requestAnimationFrame, calls restoreMapCameraCenter (app.js). The CSS variable
-    // above lands synchronously with the click, well before that correction has necessarily run,
-    // so reading the camera on the same tick races it -- a race WebKit's ResizeObserver dispatch
-    // loses often enough to be reproducible (#169), while Chromium/Firefox usually win it. Poll
-    // for the corrected value instead of reading once immediately after the click. An explicit
-    // 20s ceiling (vs. the 10s default) gives real headroom under CI concurrency without masking
-    // a genuine non-convergence, which still fails the check, just after a longer wait.
+    // rem-based, R6), and the map re-centers itself for it: setTextStep captures the geographic
+    // center, re-measures, and calls restoreMapCameraCenter (app.js), with the ResizeObserver as
+    // a backstop for reflows nothing announced. The correction is not necessarily complete on the
+    // tick the CSS variable lands, so poll for it rather than reading once. An explicit 20s
+    // ceiling (vs. the 10s default) gives real headroom under CI concurrency without masking a
+    // genuine non-convergence, which still fails the check, just after a longer wait.
+    //
+    // These polls converge only against a baseline that is itself settled; the #169 recurrences
+    // were a stale baseline, not a late correction. See the comment at the pans above.
     await expect
       .poll(async () => (await cameraState()).centerLeft, {
         message: `${textScale} geographic center x`,

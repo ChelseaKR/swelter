@@ -9,6 +9,36 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **The planner is discoverable. It was live and crawlable with no canonical, no social
+  metadata and no sitemap entry.** `/planner/` was added to the pa11y URL list and to nothing
+  else, so every discovery surface missed it: `KNOWN_ROUTES` gates `canonical_url`, the `page`
+  subcommand and `write_sitemap` alike, and all three of them reach only source-aware data
+  routes. `web/` is uploaded whole, so the page deployed and served fine while sharing a link
+  to it previewed as a bare URL.
+
+  `pages_seo.py` gains `STATIC_ROUTES` and `write_static_page_metadata` for a published route
+  that is not a data surface. The planner reads no readings, so it gets a canonical, icons,
+  `robots`, Open Graph and a Twitter card, and deliberately **no JSON-LD**: the only graph this
+  project emits is a `Dataset` describing readings and their licence, and a page that publishes
+  none must not claim one. It also keeps the title and description it already ships with rather
+  than having them rewritten, because a static page's copy is truthful in source, whereas a data
+  surface's is only truthful once the deployed fallback is known. Nothing new is written about
+  what the planner does; the card repeats the page.
+
+  The sitemap is now derived from the route list rather than maintained beside it, so the next
+  route cannot be added to one and forgotten by the other, and `make seo` validates the planner
+  template as well as the dashboard's.
+
+  Observed failing four ways: `/planner/` dropped from the published routes; the planner
+  canonicalised to the bare `chelseakr.github.io` origin, which is a different site and one all
+  six project sites on that origin would claim; the `Dataset` graph attached to the planner; and
+  the planner template stripped of its marker block, which fails `make seo` with exit 2.
+
+  Unchanged and recorded rather than "fixed": there is still no `robots.txt`. `check_template`
+  fails the build if one appears under `web/`, because a crawler reads `/robots.txt` only at the
+  origin root and this project repository cannot publish `https://chelseakr.github.io/robots.txt`.
+  Page-level `robots` metadata remains the crawl control, as that check already says.
+
 - **Purpose-first project planner.** A no-account decision guide at `/planner/` asks six bounded,
   non-personal questions and recommends public data, a governance or stewardship pause, a bounded
   pilot, or staged operation. “Do not deploy” is a first-class outcome; raw readings cannot unlock
@@ -64,6 +94,20 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **`make verify` is green end to end again: OSV-Scanner is pinned at 2.5.1.** `security-osv`
+  asserts the installed binary matches `OSV_SCANNER_VERSION` before it scans anything, and the pin
+  had drifted to a build no longer current, so the gate failed at its own version assertion for
+  anyone with a present-day install. That failure is environmental, it says nothing about the
+  dependency graph, and a red that everyone learns to read as benign is a red nobody reads.
+
+  Checked before bumping rather than after: 2.5.1 scans the same two lockfiles (`uv.lock`, 50
+  packages; `web/package-lock.json`, 318 packages) and reports **no issues**, so the older pin was
+  not concealing a finding. `osv-scanner.toml` still ignores nothing, so every advisory either
+  version reports still fails the gate. The binary is checksum-verified in CI and at release; the
+  new `sha256` is `f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be`, taken from
+  the upstream `osv-scanner_SHA256SUMS` for `v2.5.1` and confirmed against the downloaded artifact.
+  Break-tested: a deliberately wrong `OSV_SCANNER_VERSION` fails `make security-osv` with exit 2,
+  and the correct one passes with exit 0.
 - **The published site says what data it is actually showing.** The README led with a live-map link
   and a source table describing what the pipeline *supports*; it said nothing about which source was
   reaching the deployment. Since at least 2026-08-16 that has been Copernicus CAMS **model** output
@@ -172,6 +216,54 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The committed fallback surface no longer understates single-member heat-index error bars.**
+  `web/sample-surface.json` — the dashboard's committed offline fallback, served by `web/app.js`
+  and cached by `web/sw.js` — was last regenerated before #142 corrected the derived heat-index
+  uncertainty by the local |dHI/dT|. Eleven single-member `heat_index_c` cells therefore kept
+  pre-fix error bars 0.28 to 0.6 °C smaller than what the current pipeline computes from the same
+  committed recorded week (for example `0.942` where a fresh replay computes `1.54`); every `mean`
+  was untouched. The schema-contract test could not notice, because the stale file and the fresh
+  file both satisfy the schema. The artifact is regenerated, and a new `make demo-artifacts` gate
+  in `verify-core` now replays the committed demo into a throwaway directory and byte-compares
+  every git-tracked file the replay writes — refusing an empty comparison set — so a committed
+  generated artifact can no longer drift silently from the computation it stands in for. The
+  test suite itself had been rewriting these artifacts in place on every run
+  (`test_demo_pipeline_calibrates_and_aggregates` omitted `--web`, whose default is the
+  repository's own `web/`), which regenerated the correct values on every gate run, threw the
+  comparison away, and silently repaired the drift on any machine that ran the tests; that test
+  now writes to a temporary directory, so no gate mutates the tracked tree.
+- **The WebKit map-center check was failing on its own reference point, not on the map.** The
+  merge-blocking `a11y-advisory` gate went red on WebKit for two unrelated pull requests (#211,
+  #212), one of which touches no `web/` file, with the same numbers issue #169 recorded in July:
+  `Expected: 0.5`, `Received: 0.5456412596987678`. The map was never wrong. The trace from run
+  33266336949 shows the box going 540x626 to 585x678 CSS pixels and the camera going
+  `translate(-148px, -165.2px) scale(1.4)` to
+  `translate(-160.33333333333331px, -178.9226837060703px) scale(1.4)`, which is exactly
+  `-148 * 585/540` and `-165.2 * 678/626`: the geographic center held to sixteen digits in both
+  axes, through a WCAG 1.4.4 text-scale reflow.
+
+  What drifted was the baseline. The test zooms, pans `ArrowRight` then `ArrowDown`, and records
+  the pre-reflow camera to compare against. A pan key mutates `state.mapView` and defers the DOM
+  write to the next animation frame (`scheduleTransform`), and the wait before the recording was
+  "the camera is no longer the post-zoom value" — a condition `ArrowRight` meets by itself. When a
+  frame boundary falls between the two presses, which is what WebKit does once the runner is
+  contended, the baseline was taken with `ArrowDown` still pending, and the reported 0.0456412596987678
+  of drift is just `40 / (626 * 1.4)`, that one deferred 40-pixel pan. The horizontal assertion
+  passed throughout because `ArrowRight` was in the baseline.
+
+  Each pan is now settled against the camera observed immediately before it. That is stricter than
+  the wait it replaces, which required only the first of the two pans to have landed. The
+  `toBeCloseTo(..., 7)` tolerance is untouched, as are the polls, `test.slow()`, and the 20s
+  ceilings, so a genuine non-convergence still fails; nothing was excluded, skipped, or loosened.
+  Reproduced deterministically on local WebKit by holding the `ArrowDown` keydown until after the
+  baseline read, which reproduces the CI failure to every digit, and confirmed to pass under the
+  same injection once each pan is settled.
+
+  The two earlier diagnoses in `docs/audits/accessibility-report.md` both blamed a late
+  `ResizeObserver` correction in `web/app.js` and are corrected there rather than deleted. The
+  2026-08-21 experiment that "confirmed" that reading — delaying `requestAnimationFrame` and
+  watching the failure reappear — was in fact delaying the pan render, so it reproduced this
+  mechanism and was read as the other one.
 - **The core-safety mutation gate now measures something.** Every scheduled run since the gate was
   added reported `mutation: 0.00% (0 killed / 1718 total)`: `tests/test_calibrate.py`'s cross-check
   against `scripts/gen_demo_data.py` imports `scripts` from the repository root, mutmut's `mutants/`

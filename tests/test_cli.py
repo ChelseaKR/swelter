@@ -148,6 +148,13 @@ def test_doctor_missing_config_is_a_clean_error() -> None:
 
 def test_demo_pipeline_calibrates_and_aggregates(tmp_path: Path) -> None:
     store_dir = tmp_path / "store"
+    # `--web` is explicit because the default is the repository's own web/ directory:
+    # without it, this test rewrote the committed web artifacts on every run, which
+    # silently *repaired* any drift between them and the pipeline on a developer's
+    # machine while CI never compared them at all. The demo-artifacts gate does that
+    # comparison hermetically; no test should mutate the tracked tree.
+    web_dir = tmp_path / "web"
+    web_dir.mkdir()
     rc = main(
         [
             "demo",
@@ -157,6 +164,8 @@ def test_demo_pipeline_calibrates_and_aggregates(tmp_path: Path) -> None:
             str(store_dir),
             "--config",
             str(ROOT / "network.yaml"),
+            "--web",
+            str(web_dir),
         ]
     )
     assert rc == 0
