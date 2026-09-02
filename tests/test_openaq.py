@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 from dataclasses import FrozenInstanceError
 from typing import Any
+from unittest import mock
 
 import pytest
 
@@ -17,6 +18,7 @@ from swelter.models import RAW, Observation
 from swelter.sources import _california_boundary as california_boundary
 from swelter.sources import openaq
 from swelter.sources._geometry import contains_point, decode_multipolygon
+from swelter.sources._http import SourceError
 
 
 def _row(
@@ -535,6 +537,7 @@ def _location(location_id: int, **overrides: Any) -> dict[str, Any]:
     location: dict[str, Any] = {
         "id": location_id,
         "name": f"Site {location_id}",
+        "coordinates": {"latitude": 38.58, "longitude": -121.49},  # Sacramento, inside CA
         "provider": {"id": 119, "name": "AirNow"},
         "licenses": [{"id": 33, "attribution": {"name": "AirNow", "url": None}}],
     }
@@ -642,4 +645,72 @@ def test_a_refused_ledger_says_which_rule_refused_it() -> None:
     # Duplicate identities are distinguished from a malformed entry.
     assert "repeats an entry identity" in reason(
         {**good, "entries": [copy.deepcopy(entries[0]), copy.deepcopy(entries[0])]}
+    )
+
+
+def test_licensing_all_of_california_out_is_a_refusal_not_an_empty_dataset() -> None:
+    """A licensing refusal must not reach the operator as "no readings returned" (#179).
+
+    Observed live on 2026-09-02, run 33584560625: after per-location exclusion landed, OpenAQ
+    excluded every California location, so nothing was requested, `fetch` returned `[]`, and the
+    CLI reported `swelter: no readings returned from OpenAQ` in 3.3s. That is false -- OpenAQ
+    returned locations and swelter declined to publish them. The refusal has to say so, and say
+    which rule declined them, or a licensing problem is indistinguishable from an outage.
+    """
+    unlicensable = [
+        _location(i, provider={}, licenses=[{"id": 33, "attribution": {}}]) for i in (1, 2, 3)
+    ]
+
+    def _no_network(*_: object, **__: object) -> object:  # pragma: no cover - must never run
+        raise AssertionError("no per-location request may be made once every location is excluded")
+
+    with (
+        mock.patch.object(openaq, "_locations", return_value=unlicensable),
+        mock.patch.object(openaq, "_license_catalog", return_value=_catalog()),
+        mock.patch.object(openaq, "_get_json", _no_network),
+        pytest.raises(SourceError) as refusal,
+    ):
+        openaq.fetch("key", throttle_s=0)
+    message = str(refusal.value)
+    assert "licensed none of its 3 California locations" in message
+    # The rule, tallied, rather than one line per location.
+    assert "3 x " in message and "provider/attribution availability evidence" in message
+
+
+def test_a_partly_licensed_state_still_fetches_the_licensed_part() -> None:
+    """The refusal above must not fire whenever *any* location is excluded."""
+    locations = [
+        _location(1),
+        _location(2, provider={}, licenses=[{"id": 33, "attribution": {}}]),
+    ]
+    requested: list[str] = []
+
+    def _payload(url: str, *_: object, **__: object) -> dict[str, Any]:
+        requested.append(url)
+        return {"results": []}
+
+    with (
+        mock.patch.object(openaq, "_locations", return_value=locations),
+        mock.patch.object(openaq, "_license_catalog", return_value=_catalog()),
+        mock.patch.object(openaq, "_get_json", _payload),
+    ):
+        observations, nodes = openaq.fetch("key", throttle_s=0)
+    assert observations == [] and nodes == {}
+    # Location 1 was asked for; location 2, excluded, never was.
+    assert any("/locations/1/latest" in url for url in requested)
+    assert not any("/locations/2/latest" in url for url in requested)
+
+
+def test_exclusion_summary_ranks_reasons_by_how_many_locations_hit_them() -> None:
+    ledger = {
+        "excluded_locations": [
+            {"location_id": 1, "location_name": "A", "reason": "rule one"},
+            {"location_id": 2, "location_name": "B", "reason": "rule two"},
+            {"location_id": 3, "location_name": "C", "reason": "rule one"},
+        ]
+    }
+    assert openaq._exclusion_summary(ledger) == "2 x rule one; 1 x rule two"
+    assert openaq._exclusion_summary(ledger, limit=1) == "2 x rule one (+1 other reason(s))"
+    assert openaq._exclusion_summary({"excluded_locations": []}) == (
+        "no exclusion reasons were recorded"
     )
