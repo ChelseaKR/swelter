@@ -292,7 +292,11 @@ def build_license_ledger(
             try:
                 _normalize_entry(candidate)
             except ValueError as exc:
-                rejections.append(f"license {license_ref['id']}: {exc}")
+                # The rule, not the license id: the location is already named beside this reason,
+                # and identical text across locations is what lets a whole-state refusal collapse
+                # to "247 x <this rule>" instead of 247 lines that each say it once.
+                if str(exc) not in rejections:
+                    rejections.append(str(exc))
                 continue
             entries.append(candidate)
             location_entries += 1
@@ -895,6 +899,26 @@ def _derived_heat_observations(
     return derived
 
 
+def _exclusion_summary(ledger: dict[str, Any], *, limit: int = 3) -> str:
+    """The distinct reasons locations were excluded, most common first, with counts.
+
+    Hundreds of locations excluded for the same upstream reason is one finding, not hundreds of
+    lines. Reporting the reasons by frequency is what turns "the route is dark" into a single
+    sentence naming the rule to go and check against the live API (#179).
+    """
+    excluded = ledger.get("excluded_locations") or []
+    tally: dict[str, int] = {}
+    for item in excluded:
+        if isinstance(item, dict) and isinstance(item.get("reason"), str):
+            tally[item["reason"]] = tally.get(item["reason"], 0) + 1
+    if not tally:
+        return "no exclusion reasons were recorded"
+    ranked = sorted(tally.items(), key=lambda pair: (-pair[1], pair[0]))
+    shown = "; ".join(f"{count} x {reason}" for reason, count in ranked[:limit])
+    rest = len(ranked) - min(limit, len(ranked))
+    return shown + (f" (+{rest} other reason(s))" if rest else "")
+
+
 def fetch(
     api_key: str,
     *,
@@ -923,6 +947,15 @@ def fetch(
         f"{len(eligible_location_ids)} of {len(locations)} California location(s) licensed, "
         f"{len(ledger['excluded_locations'])} excluded"
     )
+    if locations and not eligible_location_ids:
+        # A licensing refusal is not an empty dataset. Excluding every location leaves nothing to
+        # request, so the run would return zero observations and the caller would report "no
+        # readings returned from OpenAQ" -- which is false: OpenAQ returned locations and swelter
+        # declined to publish them. Say which rule declined them instead (#179).
+        raise SourceError(
+            f"OpenAQ licensed none of its {len(locations)} California locations, so there is "
+            f"nothing publishable to request: {_exclusion_summary(ledger)}"
+        )
     locations = [location for location in locations if location.get("id") in eligible_location_ids]
     sensor_param = _sensor_parameters(locations)
     out: list[Observation] = []

@@ -234,6 +234,32 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **A licensing refusal no longer reaches the operator as "no readings returned".** Landing
+  per-location exclusion (#216) had an immediate, measured consequence: on `main` at `1f051c1`,
+  run 33584560625, OpenAQ excluded **every** California location, so nothing was left to request,
+  `fetch` returned `[]`, and the CLI printed `swelter: no readings returned from OpenAQ` after 3.3
+  seconds. That sentence is false. OpenAQ returned locations; swelter declined to publish them.
+  A licensing refusal rendered as an empty dataset is the same defect class this project keeps
+  finding elsewhere -- an absence published as a value -- and it makes a rights problem
+  indistinguishable from an outage.
+
+  `fetch` now raises when every location is excluded, naming the count and the rules, tallied:
+
+  ```
+  OpenAQ licensed none of its 250 California locations, so there is nothing publishable to
+  request: 250 x OpenAQ provider/attribution availability evidence is inconsistent
+  ```
+
+  Exclusion reasons drop the license id so identical rules across locations collapse to one
+  counted line instead of hundreds; the location is already named beside its own reason in the
+  ledger. A partly licensed state is unaffected and still fetches the licensed part.
+
+  **What this measures, and what it does not.** It establishes that the OpenAQ route is dark for a
+  licensing reason rather than an outage, which the previous run could not distinguish. It does not
+  yet name *which* upstream field is at fault: this session has no `OPENAQ_API_KEY`, and the run
+  that produced the evidence above predates this message. The next `demo` run prints the rule.
+  #179 stays open until it does.
+
 - **One unlicensable OpenAQ location no longer voids every other location in California.**
   `build_license_ledger` and `validate_license_ledger` disagreed. The builder emitted an entry
   for any location OpenAQ named a license for, including ones naming neither a provider nor an
