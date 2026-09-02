@@ -454,9 +454,10 @@ def test_license_ledger_gaps_names_which_reading_and_why() -> None:  # #179
         ledger, observations=[_pm("oaq-1", "2026-06-02T00:00:00Z", 10.0)]
     )
     assert "location 1" in gap and "2026-06-02T00:00:00Z" in gap and "none covers" in gap
-    # A malformed ledger (not per-observation) gets its own, distinct message.
+    # A malformed ledger (not per-observation) gets its own, distinct message -- and says which
+    # rule refused it, rather than one blanket sentence for every possible cause (#179).
     assert openaq.license_ledger_gaps(None, observations=[_pm("oaq-1", "x", 10.0)]) == [
-        "ledger is malformed or missing required fields"
+        "ledger is not publishable: ledger is NoneType, not an object"
     ]
     # Repeat gaps from the same dead location collapse to one line, not one per reading.
     gaps = openaq.license_ledger_gaps(
@@ -510,3 +511,135 @@ def test_to_snapshot_keeps_source_timestamps_and_drops_stale() -> None:
         "2026-06-17T21:05:00Z",
     }
     assert {o.node_id for o in snap} == {"oaq-1", "oaq-2"}  # the stale site is gone
+
+
+# -- the ledger the whole state was refused over (#179) -----------------------
+#
+# `build_license_ledger` and `validate_license_ledger` used to disagree: the builder emitted
+# entries the ledger normalizer refuses, and because normalization is all-or-nothing, one such
+# location made every *other* California location's terms unpublishable too. Every `demo` run
+# from 2026-08-16 onward then refused with a message that named nothing at all.
+
+
+def _catalog(license_id: int = 33) -> dict[int, dict[str, Any]]:
+    return {
+        license_id: {
+            "id": license_id,
+            "name": "US Public Domain",
+            "sourceUrl": "https://www.usa.gov/government-copyright",
+        }
+    }
+
+
+def _location(location_id: int, **overrides: Any) -> dict[str, Any]:
+    location: dict[str, Any] = {
+        "id": location_id,
+        "name": f"Site {location_id}",
+        "provider": {"id": 119, "name": "AirNow"},
+        "licenses": [{"id": 33, "attribution": {"name": "AirNow", "url": None}}],
+    }
+    location.update(overrides)
+    return location
+
+
+def test_one_unlicensable_location_no_longer_voids_every_other_location() -> None:
+    """The regression #179 is actually about: a per-location refusal, not a statewide one."""
+    ledger = openaq.build_license_ledger(
+        [
+            _location(1),
+            # OpenAQ named a license but neither a provider nor an attribution to credit. The
+            # builder used to emit this as an entry, which the normalizer then refused --
+            # taking location 1's perfectly good terms down with it.
+            _location(2, provider={}, licenses=[{"id": 33, "attribution": {}}]),
+        ],
+        _catalog(),
+        fetched_at="2026-09-01T00:00:00Z",
+    )
+    assert [entry["location_id"] for entry in ledger["entries"]] == [1]
+    [excluded] = ledger["excluded_locations"]
+    assert excluded["location_id"] == 2
+    assert "provider" in excluded["reason"] and "attribution" in excluded["reason"]
+    # Location 1 is publishable, and its reading is covered.
+    assert openaq.validate_license_ledger(
+        ledger, observations=[_pm("oaq-1", "2026-09-01T00:00:00Z", 10.0)]
+    )
+    # Location 2 is still refused -- by name, and only for itself.
+    [gap] = openaq.license_ledger_gaps(
+        ledger, observations=[_pm("oaq-2", "2026-09-01T00:00:00Z", 10.0)]
+    )
+    assert "location 2" in gap and "no license entry at all" in gap
+
+
+@pytest.mark.parametrize(
+    "licenses",
+    [
+        # A license validity boundary that is a timestamp rather than a date.
+        [{"id": 33, "dateFrom": "2016-01-30T00:00:00Z"}],
+        # A license whose canonical source URL is not HTTPS (catalog id 44, below).
+        [{"id": 44}],
+        # Validity that ends before it starts.
+        [{"id": 33, "dateFrom": "2026-02-01", "dateTo": "2026-01-01"}],
+    ],
+)
+def test_a_location_openaq_describes_unusably_is_excluded_not_emitted(
+    licenses: list[dict[str, Any]],
+) -> None:
+    catalog = _catalog() | {44: {"id": 44, "name": "Terms", "sourceUrl": "http://x.example/terms"}}
+    ledger = openaq.build_license_ledger(
+        [_location(1), _location(2, licenses=licenses)], catalog, fetched_at="2026-09-01T00:00:00Z"
+    )
+    assert [entry["location_id"] for entry in ledger["entries"]] == [1]
+    assert [item["location_id"] for item in ledger["excluded_locations"]] == [2]
+    assert openaq.validate_license_ledger(ledger)
+
+
+def test_build_license_ledger_never_emits_an_entry_its_own_validator_refuses() -> None:
+    """The invariant that makes the statewide blackout unreachable, stated once."""
+    ledger = openaq.build_license_ledger(
+        [
+            _location(1),
+            _location(2, provider={}, licenses=[{"id": 33, "attribution": {}}]),
+            _location(3, name="  Padded Name  ", provider={"name": " AirNow "}),
+            _location(4, licenses=[]),
+            _location(5, licenses=[{"id": 33}, {"id": 33}]),  # same license listed twice
+        ],
+        _catalog(),
+        fetched_at="2026-09-01T00:00:00Z",
+    )
+    assert ledger["entries"], "at least one location must survive"
+    assert openaq.validate_license_ledger(ledger)
+    # Upstream whitespace is trimmed, not treated as a reason to refuse the state.
+    [padded] = [e for e in ledger["entries"] if e["location_id"] == 3]
+    assert padded["location_name"] == "Padded Name"
+    assert padded["provider"] == "AirNow"
+    # A license listed twice collapses rather than tripping the duplicate-identity rule.
+    assert len([e for e in ledger["entries"] if e["location_id"] == 5]) == 1
+
+
+def test_a_refused_ledger_says_which_rule_refused_it() -> None:
+    """A refusal an operator can act on, instead of one blanket sentence for every cause."""
+    good = _ledger(1, license_id=7, license_name="Terms A", fetched_at="2026-06-01T12:00:00Z")
+    reading = [_pm("oaq-1", "2026-06-01T12:00:00Z", 10.0)]
+
+    def reason(ledger: object) -> str:
+        [line] = openaq.license_ledger_gaps(ledger, observations=reading)
+        assert line.startswith("ledger is not publishable: ")
+        return line
+
+    assert "not an object" in reason(None)
+    assert "schema_version" in reason({**good, "schema_version": 2})
+    assert "source" in reason({**good, "source": "OpenAQ v2"})
+    assert "no entries at all" in reason({**good, "entries": []})
+    assert "top-level fields" in reason({k: v for k, v in good.items() if k != "entries"})
+    # The one that matters most: a single bad entry names its own location, not the document.
+    entries = good["entries"]
+    assert isinstance(entries, list)
+    broken = copy.deepcopy(entries[0])
+    assert isinstance(broken, dict)
+    broken["license_url"] = "http://example.org/license"
+    detail = reason({**good, "entries": [broken]})
+    assert "location 1" in detail and "HTTPS" in detail
+    # Duplicate identities are distinguished from a malformed entry.
+    assert "repeats an entry identity" in reason(
+        {**good, "entries": [copy.deepcopy(entries[0]), copy.deepcopy(entries[0])]}
+    )

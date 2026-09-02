@@ -20,6 +20,14 @@ identifier, license URL, attribution, source URL, and fetch time in generated
 top-level schema/version/source and an `unavailable_fields` list rather than inventing missing
 metadata or a blanket license.
 
+Exclusion is per location, not per run. A location whose OpenAQ metadata cannot produce a valid
+ledger entry — no provider and no attribution to credit, a non-HTTPS license URL, a validity
+boundary that is not a plain date — is listed by id and name under `excluded_locations` with the
+rule that refused it, and its readings are never fetched or published. Locations OpenAQ *does*
+license are unaffected. Until 2026-09 the builder emitted such an entry anyway; because ledger
+validation is all-or-nothing, one unlicensable location made every other California location
+unpublishable and the whole route went dark (issue #179).
+
 ## Collection and preprocessing
 
 Discovery uses an OpenAQ bounding box, then checks every candidate against the packaged U.S. Census
