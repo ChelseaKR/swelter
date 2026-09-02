@@ -526,6 +526,11 @@ function renderDemoContract() {
 
   const tagline = $(".tagline");
   if (tagline) tagline.textContent = contractText(source.tagline);
+  // The Network heading is static markup localized by `data-i18n`, so a source that has no hosts
+  // has to restate it after every language swap (ADR 0040). Sources with real sensors declare no
+  // override and keep the catalogue's sensor wording.
+  const networkIntro = document.querySelector('[data-i18n="network-intro"]');
+  if (networkIntro) networkIntro.textContent = sourceTerm("network_intro", "network-intro");
   const activeSource = document.querySelector('.source-switch [aria-current="page"]');
   if (activeSource) activeSource.textContent = contractText(source.navigation_label);
 
@@ -2110,11 +2115,13 @@ function renderObservatory(rows, row) {
 // Node health (from /api/health.json, or the baked sample on the static site): the network's
 // sensors broken down by status — ok, degraded (backfilled sparsely or flagging a lot), offline.
 // The operator's "is my network healthy?" line, from the same QC the pipeline already runs.
+// A model-backed source has no hosts to be healthy (ADR 0040), so it overrides the wording via the
+// contract and this line reports value availability per grid cell instead of device status.
 function healthLine() {
   const s = state.health && state.health.summary;
   if (!s || !s.total) return "";
   const observedAt = state.health.latest || latestBucket();
-  let line = t("health-status", {
+  let line = sourceTerm("health_status", "health-status", {
     ok: formatNumber(s.ok || 0),
     degraded: formatNumber(s.degraded || 0),
     offline: formatNumber(s.offline || 0),
@@ -2161,6 +2168,8 @@ async function loadDemoContract() {
 // Sensor coverage: how many of the network's known sensors are actually reporting this hour. "Known"
 // is every node seen anywhere in the loaded history; "now" is those reporting in the current hour. A
 // gap (e.g. a node offline) shows honestly — the coverage-equity question the audits care about.
+// On a model-backed source the same counts are grid cells, not sensors, and the contract supplies
+// that wording (ADR 0040); sources with real hardware keep the sensor phrasing by not overriding.
 function coverageLine() {
   const bucket = currentBucket();
   const known = new Set();
@@ -2172,7 +2181,10 @@ function coverageLine() {
     }
   }
   if (!known.size) return "";
-  return t("coverage", { now: formatNumber(now.size), total: formatNumber(known.size) });
+  return sourceTerm("coverage", "coverage", {
+    now: formatNumber(now.size),
+    total: formatNumber(known.size),
+  });
 }
 
 // How current the data actually is — the newest hour in the network and its age, with an honest

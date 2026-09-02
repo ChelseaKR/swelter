@@ -1477,6 +1477,61 @@ test("sourceTerm — a non-provisional model row keeps upstream terminology", as
   assert.equal(app.sourceTerm("non_provisional_label", "state-calibrated"), "Upstream model");
 });
 
+// ADR 0040: a model grid cell identified by a city centroid has no host, so it cannot be a
+// "sensor" that is "reporting" or "offline". These two lines used to call t() directly and so
+// published the absence of a sensor fleet as a perfectly healthy one.
+test("coverageLine — a model-backed source counts grid cells, not sensors", async () => {
+  const app = await freshApp();
+  app.document.documentElement.lang = "en";
+  const bucket = "2026-07-09T12:00:00Z";
+  app.state.strings = { coverage: "Sensors reporting now: {$now} of {$total}." };
+  app.state.demo = {
+    source: {
+      terminology: {
+        coverage: { en: "Model cells with values this hour: {$now} of {$total}.", es: "" },
+      },
+    },
+  };
+  app.setData({
+    buckets: [bucket],
+    cells: [{ cell_id: "c1", parameter: "temp_c", bucket, mean: 20, nodes: ["fresno", "chico"] }],
+  });
+  // Values arrive bidi-isolated by the MessageFormat 2 runtime, so match around them.
+  assert.match(app.coverageLine(), /^Model cells with values this hour: .*2.* of .*2.*\.$/);
+  assert.doesNotMatch(app.coverageLine(), /sensor/i);
+
+  // A source with real hardware declares no override and keeps the catalogue's sensor wording.
+  app.state.demo = { source: {} };
+  assert.match(app.coverageLine(), /^Sensors reporting now: .*2.* of .*2.*\.$/);
+});
+
+test("healthLine — a model-backed source reports value availability, not device health", async () => {
+  const app = await freshApp();
+  app.document.documentElement.lang = "en";
+  app.state.strings = {
+    "health-status": "Sensor status at {$time}: {$ok} good · {$degraded} weak · {$offline} offline.",
+  };
+  app.state.health = {
+    latest: new Date().toISOString(),
+    summary: { total: 337, ok: 337, degraded: 0, offline: 0 },
+  };
+  app.state.demo = {
+    source: {
+      terminology: {
+        health_status: {
+          en: "Model cell values: {$ok} present · {$degraded} sparse · {$offline} missing.",
+          es: "",
+        },
+      },
+    },
+  };
+  assert.match(app.healthLine(), /^Model cell values: .*337.* present · .*0.* sparse · .*0.* missing\.$/);
+  assert.doesNotMatch(app.healthLine(), /sensor/i);
+
+  app.state.demo = { source: {} };
+  assert.match(app.healthLine(), /Sensor status at .*337.* good/);
+});
+
 test("linked selectors expose selection state and dynamic action lists restore focus", () => {
   const fs = require("node:fs");
   const path = require("node:path");
