@@ -80,14 +80,30 @@ actually run.
 - Commit the dated mutation baseline. `make mutation-baseline-check`, `make release-readiness`, and
   the `preflight` job of `release.yml` all read `docs/audits/mutation-baseline.json`, and that file
   does not exist in the repository. The release workflow's first job would fail on a missing
-  artifact before it evaluated a single mutant.
+  artifact before it evaluated a single mutant. This cannot be produced until the harness fix
+  lands: `[tool.mutmut]` on `main` has no `also_copy`, so the sandbox omits `scripts/`, the
+  calibrate cross-check dies at collection, and any baseline generated today would record the
+  structurally impossible 0.00 percent and fail its own 80 percent floor. Generating one from
+  `main` would be committing a known-false number.
 - Rebuild `web/sample-surface.json`, which drifts whenever the gate regenerates it because
   [#142](https://github.com/ChelseaKR/swelter/pull/142) changed heat-index uncertainty without
-  rebuilding the fixture. Cosmetic, pre-existing on `main`, and worth its own small PR.
-- Separate infrastructure failure from code failure in the DORA evidence run. A run that concluded
-  `cancelled` with zero steps and "job was not acquired by Runner of type hosted" is not a change
-  failure, and neither is a job that dies in two seconds on a spending limit. Both currently read
-  as red checks indistinguishable from a real regression.
+  rebuilding the fixture. **Done.** Regenerating with `swelter demo --web web` moves 11 of 1050
+  cells, all `heat_index_c`, only `uncertainty` and `mean_member_sigma`, every value widening by
+  1.48x to 1.75x. What remains open is the *guard*: nothing fails when the committed fixture and
+  the pipeline disagree, which is why it drifted for five days unnoticed. A full replay costs 14.3
+  seconds measured locally, so a comparison test is affordable; it was not added here because its
+  byte-determinism across machines is unverified from one machine, and a flaky merge gate is worse
+  than a stale fixture. Verifying that is its own task.
+- Keep infrastructure failure separate from code failure in the DORA evidence run. **Already
+  built**, and this plan initially overstated the gap: `scripts/dora_evidence.py` already partitions
+  completed runs into `success`, `FAILED_CONCLUSIONS`, and `cancelled`, excludes cancellations from
+  the change-failure denominator entirely, and reports `cancelled_runs` beside the rate. A run that
+  concluded `cancelled` with zero steps — "job was not acquired by Runner of type hosted" — is
+  therefore already not counted as a change failure. What is genuinely open is narrower: a
+  cancellation caused by a runner never picking the job up is indistinguishable in the snapshot
+  from one a human triggered, and neither is distinguishable from a job that died in two seconds on
+  an Actions spending limit. That is a labelling improvement to an existing correct metric, not a
+  missing metric.
 - Extend the mutation-selected set beyond `calibrate`, `models`, and `qc` once the harness is
   trustworthy, starting with the surviving mutants in the correction-registry serialization and the
   OLS solver.

@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import importlib
+import math
 import sys
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
+
+import pytest
+import yaml
 
 from swelter import calibrate
 from swelter.calibrate import CorrectionRegistry, TrainingPair
@@ -443,3 +448,149 @@ def test_heat_index_uncertainty_scales_by_local_slope() -> None:
     # The scaled error bar is strictly wider than the unscaled sigma_T it replaces.
     assert derived[0].uncertainty is not None
     assert derived[0].uncertainty > correction.residual_std
+
+
+# -- what the mutation gate could not see (issue #107 follow-on, Phase 2) -----
+#
+# mutmut mutates calibrate.py against tests/test_calibrate.py,
+# tests/test_calibrate_branches.py, tests/test_models.py and tests/test_qc.py only. The
+# assertions below close survivor zones those four files left open: serialized key names,
+# published ordering, the OLS solver's own arithmetic, and the rounding that makes the
+# registry reproducible. Each is written against a value that is exact, not a tolerance,
+# because a tolerance wide enough to be safe is usually wide enough to miss the mutant.
+
+
+def test_the_fitted_registry_matches_the_committed_file_key_for_key() -> None:
+    """The committed YAML is the fixed point, so every serialized key name is pinned.
+
+    `test_published_corrections_are_reproducible` runs *both* sides through `to_dict()`, so a
+    renamed key is renamed on both sides and the equality still holds. Comparing against the
+    file as parsed is the asymmetric half that a rename cannot survive.
+    """
+    fitted = calibrate.fit(calibrate.read_colocation(DEMO / "colocation.jsonl"))
+    committed = yaml.safe_load((DEMO / "corrections.yaml").read_text(encoding="utf-8"))
+    assert fitted.to_dict() == committed
+
+
+def test_the_serialized_registry_names_exactly_its_documented_keys() -> None:
+    registry = CorrectionRegistry()
+    registry.add(
+        calibrate.fit_one("node-01", "temp_c", _pairs("temp_c", lambda i: 2.0 * i + 1.0), "ref")
+    )
+    doc = registry.to_dict()
+    assert set(doc) == {"version", "corrections"}
+    assert doc["version"] == 1  # the schema envelope, asserted nowhere else
+    assert set(doc["corrections"][0]) == {
+        "version",
+        "node_id",
+        "parameter",
+        "method",
+        "predictors",
+        "coefficients",
+        "intercept",
+        "residual_std",
+        "r2",
+        "n",
+        "reference",
+        "window_start",
+        "window_end",
+    }
+
+
+def test_serialized_corrections_are_ordered_by_their_registry_key() -> None:
+    """Insertion order is not publication order: `all()` sorts, and the committed file needs it."""
+    base = calibrate.fit_one("node-01", "temp_c", _pairs("temp_c", lambda i: 2.0 * i + 1.0), "ref")
+    registry = CorrectionRegistry()
+    for node_id, parameter in (("node-02", "temp_c"), ("node-01", "pm25_ugm3")):
+        registry.add(replace(base, node_id=node_id, parameter=parameter))
+    registry.add(base)
+    order = [(e["node_id"], e["parameter"]) for e in registry.to_dict()["corrections"]]
+    assert order == [("node-01", "pm25_ugm3"), ("node-01", "temp_c"), ("node-02", "temp_c")]
+
+
+def test_the_written_yaml_keeps_declaration_order_and_block_style(tmp_path: Path) -> None:
+    registry = CorrectionRegistry()
+    registry.add(
+        calibrate.fit_one("node-01", "temp_c", _pairs("temp_c", lambda i: 2.0 * i + 1.0), "ref")
+    )
+    path = tmp_path / "corrections.yaml"
+    registry.to_yaml(path)
+    text = path.read_text(encoding="utf-8")
+    # sort_keys=False: the envelope keeps `version` first instead of alphabetising it after
+    # `corrections`. A committed registry that reorders on every dump is not reproducible.
+    assert text.startswith("version: 1\n")
+    # default_flow_style=False: every sequence is block style, so no inline [] or {} appears.
+    assert "[" not in text
+    assert "{" not in text
+
+
+def test_the_humidity_aware_fit_recovers_each_coefficient_separately() -> None:
+    """One `predict()` probe cannot tell a coefficient swap from a correct fit; two can."""
+    rows = [(2.0, 40.0), (4.0, 55.0), (6.0, 60.0), (8.0, 45.0), (10.0, 70.0), (12.0, 50.0)]
+    pairs = [
+        TrainingPair(
+            node_id="node-01",
+            parameter="pm25_ugm3",
+            timestamp=f"2026-06-01T{i:02d}:00:00Z",
+            raw=raw,
+            reference=0.5 * raw + 0.2 * hum + 1.0,
+            humidity=hum,
+        )
+        for i, (raw, hum) in enumerate(rows)
+    ]
+    correction = calibrate.fit_one("node-01", "pm25_ugm3", pairs, "ref")
+    assert correction.predictors == ("raw", "humidity")
+    # Slot 0 is `raw` and slot 1 is `humidity`, in the order `_design_row` builds them.
+    assert abs(correction.coefficients[0] - 0.5) < 1e-6
+    assert abs(correction.coefficients[1] - 0.2) < 1e-6
+    assert abs(correction.intercept - 1.0) < 1e-6
+
+
+def test_residual_std_and_r2_are_the_documented_formulas() -> None:
+    """An imperfect fit with hand-computable residuals, so both formulas are pinned exactly.
+
+    raw 0,1,2 against reference 0,0,3 fits slope 1.5 and intercept -0.5, leaving residuals
+    0.5, -1.0, 0.5: ss_res 1.5, ss_tot 6.0, n 3. Every existing assertion on these two fields
+    is an inequality (`r2 > 0.999`, `residual_std > 0`), which no formula change can fail.
+    """
+    pairs = [
+        TrainingPair(
+            node_id="node-01",
+            parameter="temp_c",
+            timestamp=f"2026-06-01T{i:02d}:00:00Z",
+            raw=float(i),
+            reference=reference,
+        )
+        for i, reference in enumerate((0.0, 0.0, 3.0))
+    ]
+    correction = calibrate.fit_one("node-01", "temp_c", pairs, "ref")
+    assert abs(correction.coefficients[0] - 1.5) < 1e-9
+    assert abs(correction.intercept + 0.5) < 1e-9
+    assert correction.residual_std == 0.707107  # sqrt(ss_res / n), divided by n and not n - 1
+    assert correction.r2 == 0.75  # 1 - ss_res / ss_tot
+    assert correction.n == 3
+
+
+def test_round_collapses_negative_zero_so_a_refit_stays_byte_identical() -> None:
+    """A coefficient at the noise floor may land on either sign; the file must not."""
+    assert math.copysign(1.0, calibrate._round(-0.0)) == 1.0
+    assert math.copysign(1.0, calibrate._round(-1e-12)) == 1.0
+
+
+def test_round_holds_exactly_six_decimals() -> None:
+    # Five decimals would give 0.12346; seven would keep 0.1234561. Only six gives both of these.
+    assert calibrate._round(0.1234561) == 0.123456
+    assert calibrate._round(0.1234567) == 0.123457
+
+
+def test_solve_pivots_past_a_zero_leading_coefficient() -> None:
+    """Without the row swap the first pivot is 0.0 and the elimination divides by zero."""
+    assert calibrate._solve([[0.0, 1.0], [1.0, 0.0]], [2.0, 3.0]) == [3.0, 2.0]
+
+
+def test_solve_refuses_a_singular_system_instead_of_fitting_noise() -> None:
+    with pytest.raises(ValueError, match="singular system"):
+        calibrate._solve([[1e-13, 0.0], [0.0, 1.0]], [1.0, 1.0])
+    # Just above the guard the same shape solves, so the threshold itself is pinned from both
+    # sides rather than only from the refusing one.
+    assert calibrate._solve([[1e-6, 0.0], [0.0, 1.0]], [1e-6, 1.0]) == [1.0, 1.0]
