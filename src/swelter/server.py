@@ -16,9 +16,11 @@ import json
 import mimetypes
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from . import (
@@ -202,11 +204,69 @@ class _ResponseCache:
             self.bodies[cache_id] = entry
 
 
+#: One GET route: given the request handler, the server context and the parsed query string,
+#: write the response. Typed against ``Any`` for the handler because the class is defined inside
+#: ``_make_handler`` (it closes over ``ctx``, the stdlib ``http.server`` pattern) and so has no
+#: name at module scope.
+_Route = Callable[[Any, "ServerContext", dict[str, list[str]]], None]
+
+
+def _get_routes() -> dict[str, _Route]:
+    """Every exact-match GET path, built once at import.
+
+    This was a flat ``if/elif`` chain of exact ``path ==`` comparisons with a trailing
+    ``else: self._static(path)``. A table has the same semantics -- ``dict.get`` matches exactly,
+    and a miss falls through to the same static handler -- while costing one branch instead of
+    twenty. That branch count alone put both ``do_GET`` and, because ruff's mccabe walker sums
+    every nested method into the enclosing factory, ``_make_handler`` over the complexity ceiling;
+    both carried a tracked ``C901`` suppression until this replaced them (#107).
+    """
+    v = f"/v{api.SENSORTHINGS_VERSION}"
+    terms: Callable[[ServerContext], snapshot.DataTerms] = _resolved_data_terms
+    return {
+        "/health": lambda h, ctx, q: h._json({"status": "ok", "observations": ctx.store.count()}),
+        "/healthz": lambda h, ctx, q: h._json({"status": "ok", "observations": ctx.store.count()}),
+        v: lambda h, ctx, q: h._json(api.service_document(ctx.base_url), data_terms=terms(ctx)),
+        f"{v}/Things": lambda h, ctx, q: h._json(
+            api.things(ctx.config, ctx.base_url), data_terms=terms(ctx)
+        ),
+        f"{v}/Locations": lambda h, ctx, q: h._json(
+            api.locations(ctx.config, ctx.base_url), data_terms=terms(ctx)
+        ),
+        f"{v}/Datastreams": lambda h, ctx, q: h._json(
+            api.datastreams(ctx.config, ctx.base_url), data_terms=terms(ctx)
+        ),
+        f"{v}/ObservedProperties": lambda h, ctx, q: h._json(
+            api.observed_properties(ctx.base_url), data_terms=terms(ctx)
+        ),
+        f"{v}/Observations": lambda h, ctx, q: h._observations(q),
+        "/api/surface.geojson": lambda h, ctx, q: h._surface(),
+        "/api/surface.json": lambda h, ctx, q: h._surface_records(q),
+        "/api/health.json": lambda h, ctx, q: h._health(),
+        "/api/schema.json": lambda h, ctx, q: h._schema(),
+        "/api/alerts.json": lambda h, ctx, q: h._alerts(q, fmt="json"),
+        "/api/alerts.xml": lambda h, ctx, q: h._alerts(q, fmt="atom"),
+        "/api/alerts.es.xml": lambda h, ctx, q: h._alerts(q, fmt="atom", lang="es"),
+        "/api/cooling-centers.geojson": lambda h, ctx, q: h._cooling_centers(),
+        "/export.csv": lambda h, ctx, q: h._export(q, fmt="csv"),
+        "/export.json": lambda h, ctx, q: h._export(q, fmt="json"),
+        "/LICENSE": lambda h, ctx, q: h._repo_file("LICENSE"),
+        "/DATA-LICENSE": lambda h, ctx, q: h._repo_file("DATA-LICENSE"),
+        "/NOTICE": lambda h, ctx, q: h._repo_file("NOTICE"),
+        "/source-license-ledger.json": lambda h, ctx, q: h._source_license_ledger(),
+    }
+
+
+_GET_ROUTES = _get_routes()
+
+
 def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: C901 (#107)
     # Ruff's mccabe walker sums every nested method's branches into this factory function because
     # the handler class is defined inside it (closure over `ctx`, the stdlib http.server pattern);
-    # most methods below are independently simple. Documented exception, not a silent one — see
-    # swelter-REMEDIATION.md Quick win 5 (CQ-05).
+    # most methods below are independently simple. Retiring this one means giving the handler
+    # class module scope and reaching `ctx` through the instance, which is a mechanical rewrite of
+    # every method body rather than a local change — it is not what `_get_routes` above bought.
+    # Documented exception, not a silent one — see swelter-REMEDIATION.md Quick win 5 (CQ-05).
     cache = _ResponseCache()
 
     class Handler(BaseHTTPRequestHandler):
@@ -225,69 +285,18 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             self._status_sent = code  # captured for optional request logging, never IPs
             super().send_response(code, message)
 
-        def do_GET(self) -> None:  # noqa: C901 (http.server API; flat route dispatch, see above) (#107)
+        def do_GET(self) -> None:
             started = time.monotonic()
             self._status_sent = 0
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"  # normalise trailing slashes
             query = parse_qs(parsed.query)
-            v = f"/v{api.SENSORTHINGS_VERSION}"
             try:
-                if path in ("/health", "/healthz"):
-                    self._json({"status": "ok", "observations": ctx.store.count()})
-                elif path == v:
-                    self._json(
-                        api.service_document(ctx.base_url),
-                        data_terms=_resolved_data_terms(ctx),
-                    )
-                elif path == f"{v}/Things":
-                    self._json(
-                        api.things(ctx.config, ctx.base_url),
-                        data_terms=_resolved_data_terms(ctx),
-                    )
-                elif path == f"{v}/Locations":
-                    self._json(
-                        api.locations(ctx.config, ctx.base_url),
-                        data_terms=_resolved_data_terms(ctx),
-                    )
-                elif path == f"{v}/Datastreams":
-                    self._json(
-                        api.datastreams(ctx.config, ctx.base_url),
-                        data_terms=_resolved_data_terms(ctx),
-                    )
-                elif path == f"{v}/ObservedProperties":
-                    self._json(
-                        api.observed_properties(ctx.base_url),
-                        data_terms=_resolved_data_terms(ctx),
-                    )
-                elif path == f"{v}/Observations":
-                    self._observations(query)
-                elif path == "/api/surface.geojson":
-                    self._surface()
-                elif path == "/api/surface.json":
-                    self._surface_records(query)
-                elif path == "/api/health.json":
-                    self._health()
-                elif path == "/api/schema.json":
-                    self._schema()
-                elif path == "/api/alerts.json":
-                    self._alerts(query, fmt="json")
-                elif path == "/api/alerts.xml":
-                    self._alerts(query, fmt="atom")
-                elif path == "/api/alerts.es.xml":
-                    self._alerts(query, fmt="atom", lang="es")
-                elif path == "/api/cooling-centers.geojson":
-                    self._cooling_centers()
-                elif path == "/export.csv":
-                    self._export(query, fmt="csv")
-                elif path == "/export.json":
-                    self._export(query, fmt="json")
-                elif path in ("/LICENSE", "/DATA-LICENSE", "/NOTICE"):
-                    self._repo_file(path.lstrip("/"))
-                elif path == "/source-license-ledger.json":
-                    self._source_license_ledger()
-                else:
+                route = _GET_ROUTES.get(path)
+                if route is None:
                     self._static(path)
+                else:
+                    route(self, ctx, query)
             except BrokenPipeError:  # client went away mid-response
                 return
             except ValueError as exc:  # bad query param: non-numeric top/hours, bad timestamp

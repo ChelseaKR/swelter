@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
 
 
@@ -105,20 +107,37 @@ not a table row
     assert routes == {"/health", "/api/surface.json", "/LICENSE", "/DATA-LICENSE"}
 
 
+_ROUTE_TABLE_SOURCE = """
+def _get_routes():
+    v = f"/v{api.SENSORTHINGS_VERSION}"
+    return {
+        "/health": lambda h, ctx, q: h._json({"status": "ok", "observations": ctx.store.count()}),
+        "/healthz": lambda h, ctx, q: h._json({"status": "ok"}),
+        v: lambda h, ctx, q: h._json(api.service_document(ctx.base_url)),
+        f"{v}/Things": lambda h, ctx, q: h._json(api.things(ctx.config, ctx.base_url)),
+        "/export.csv": lambda h, ctx, q: h._export(q, fmt="csv"),
+    }
+"""
+
+
 def test_extract_server_routes_matches_literal_and_versioned_paths() -> None:
     api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
-    server_source = """
-if path in ("/health", "/healthz"):
-    pass
-elif path == v:
-    pass
-elif path == f"{v}/Things":
-    pass
-elif path == "/export.csv":
-    pass
-"""
-    routes = docs_figures.extract_server_routes(server_source, api_source)
+    routes = docs_figures.extract_server_routes(_ROUTE_TABLE_SOURCE, api_source)
     assert routes == {"/health", "/healthz", "/v1.1", "/v1.1/Things", "/export.csv"}
+
+
+def test_extract_server_routes_ignores_dicts_built_inside_a_route() -> None:
+    """`{"status": "ok", ...}` is a response body, not a route. Only the returned table counts."""
+    api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
+    routes = docs_figures.extract_server_routes(_ROUTE_TABLE_SOURCE, api_source)
+    assert "status" not in routes and "observations" not in routes
+
+
+def test_extract_server_routes_refuses_to_pass_over_nothing() -> None:
+    """A route check that finds no routes agrees with any docs at all; it must fail loudly."""
+    api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
+    with pytest.raises(RuntimeError, match="could not read any route"):
+        docs_figures.extract_server_routes("def _renamed_routes():\n    return {}\n", api_source)
 
 
 def test_check_routes_flags_a_route_registered_but_undocumented() -> None:
@@ -131,8 +150,8 @@ def test_check_routes_flags_a_route_registered_but_undocumented() -> None:
 """
     api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
     server_source = """
-if path in ("/health", "/healthz"):
-    pass
+def _get_routes():
+    return {"/health": None, "/healthz": None}
 """
     result = docs_figures.check_routes(api_md, server_source, api_source)
     assert result.ok is False
@@ -150,8 +169,8 @@ def test_check_routes_passes_when_doc_and_server_agree() -> None:
 """
     api_source = 'SENSORTHINGS_VERSION = "1.1"\n'
     server_source = """
-if path == "/health":
-    pass
+def _get_routes():
+    return {"/health": None}
 """
     result = docs_figures.check_routes(api_md, server_source, api_source)
     assert result.ok is True

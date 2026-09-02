@@ -55,7 +55,10 @@ _SUPPRESSION = re.compile(r"#\s*noqa\b|#\s*type:\s*ignore\b|nosemgrep:")
 #: 26 -> 28: two fixed-argv `S603` subprocess calls in scripts/demo_artifact_check.py
 #: (git ls-files, and the demo replay the gate re-runs), the same permanent pattern as
 #: the other gate scripts.
-SUPPRESSION_CEILING = 28
+#: 28 -> 27: `do_GET`'s `C901` retired. Its twenty-arm `if/elif` route dispatch is a table
+#: (`server._GET_ROUTES`), which is one branch instead of twenty. Genuinely retired debt, not
+#: a rule-level exception waived away.
+SUPPRESSION_CEILING = 27
 
 
 def _tracked_files(*dirs: str) -> list[Path]:

@@ -26,6 +26,7 @@ otherwise, with a per-rule report naming its source of truth.
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import re
 import subprocess
@@ -190,11 +191,8 @@ def check_corrections_count(roadmap_text: str, actual_count: int) -> RuleResult:
 _TABLE_ROW_RE = re.compile(r"^\|\s*(.+?)\s*\|.*\|\s*$", re.MULTILINE)
 _BACKTICK_RE = re.compile(r"`([^`]+)`")
 _SENSORTHINGS_VERSION_RE = re.compile(r'SENSORTHINGS_VERSION\s*=\s*"([^"]+)"')
-_ROUTE_TUPLE_RE = re.compile(r"path in \(([^)]*)\)")
-_ROUTE_LITERAL_RE = re.compile(r'path == "([^"]+)"')
-_ROUTE_V_BASE_RE = re.compile(r"path == v:")
-_ROUTE_V_SUFFIX_RE = re.compile(r'path == f"\{v\}(/[A-Za-z]+)"')
-_QUOTED_RE = re.compile(r'"([^"]+)"')
+#: The function in server.py whose returned dict *is* the GET dispatch (#107).
+_ROUTE_TABLE_FUNCTION = "_get_routes"
 
 
 def extract_api_md_routes(text: str) -> set[str]:
@@ -214,26 +212,71 @@ def extract_api_md_routes(text: str) -> set[str]:
     return routes
 
 
+def _route_key(node: ast.expr, v: str) -> str | None:
+    """One key of the route table as the literal path it registers, or ``None`` if it is not one.
+
+    Two shapes appear: a plain string, and an f-string built from ``v`` (the SensorThings version
+    prefix, resolved from api.py) plus a constant suffix. The bare name ``v`` is the base route.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name) and node.id == "v":
+        return v
+    if isinstance(node, ast.JoinedStr):
+        parts: list[str] = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                parts.append(value.value)
+            elif (
+                isinstance(value, ast.FormattedValue)
+                and isinstance(value.value, ast.Name)
+                and value.value.id == "v"
+            ):
+                parts.append(v)
+            else:
+                return None
+        return "".join(parts)
+    return None
+
+
 def extract_server_routes(server_source: str, api_source: str) -> set[str]:
-    """Parse do_GET's route dispatch in server.py into the same shape as extract_api_md_routes."""
+    """Read server.py's GET route table into the same shape as extract_api_md_routes.
+
+    The dispatch used to be a flat ``if/elif`` chain and this scraped it with four regexes. It is
+    now a dict returned by ``_get_routes`` (#107), so the keys are read from the parse tree --
+    exact rather than pattern-matched, and it can no longer silently find nothing.
+    """
     version_match = _SENSORTHINGS_VERSION_RE.search(api_source)
     if version_match is None:
         raise RuntimeError("could not find SENSORTHINGS_VERSION in src/swelter/api.py")
     v = f"/v{version_match.group(1)}"
 
     routes: set[str] = set()
-    for tuple_body in _ROUTE_TUPLE_RE.findall(server_source):
-        routes.update(_QUOTED_RE.findall(tuple_body))
-    routes.update(_ROUTE_LITERAL_RE.findall(server_source))
-    if _ROUTE_V_BASE_RE.search(server_source):
-        routes.add(v)
-    for suffix in _ROUTE_V_SUFFIX_RE.findall(server_source):
-        routes.add(f"{v}{suffix}")
+    for node in ast.walk(ast.parse(server_source)):
+        if not isinstance(node, ast.FunctionDef) or node.name != _ROUTE_TABLE_FUNCTION:
+            continue
+        # The table is the dict this function *returns*. Walking every nested dict instead would
+        # also collect the response bodies built inside the route lambdas.
+        for statement in node.body:
+            if not isinstance(statement, ast.Return) or not isinstance(statement.value, ast.Dict):
+                continue
+            for key in statement.value.keys:
+                if key is None:
+                    continue
+                path = _route_key(key, v)
+                if path is not None:
+                    routes.add(path)
+    if not routes:
+        # A route check that finds no routes agrees with any documentation at all. Refuse rather
+        # than pass over nothing: the table was renamed, moved, or stopped being a dict literal.
+        raise RuntimeError(
+            f"could not read any route from {_ROUTE_TABLE_FUNCTION}() in src/swelter/server.py"
+        )
     return routes
 
 
 def check_routes(api_md_text: str, server_source: str, api_source: str) -> RuleResult:
-    source = "src/swelter/server.py's do_GET dispatch (registered routes)"
+    source = f"src/swelter/server.py's {_ROUTE_TABLE_FUNCTION} table (registered routes)"
     documented = extract_api_md_routes(api_md_text)
     registered = extract_server_routes(server_source, api_source)
     missing_from_docs = sorted(registered - documented)
