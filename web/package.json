@@ -36,8 +36,9 @@
     "@puppeteer/browsers": "^3.0.2",
     "axe-core": "^4.12.1",
     "chrome-launcher": "1.2.1",
-    "fast-uri": "3.1.5",
+    "fast-uri": "3.1.7",
     "ip-address": "^10.3.1",
+    "qs": "^6.16.0",
     "tmp": "^0.2.6",
     "uuid": "^11.1.1"
   }
