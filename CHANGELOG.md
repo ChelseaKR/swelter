@@ -5,7 +5,7 @@ All notable changes to swelter are recorded here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as scoped in
 [`docs/VERSIONING.md`](docs/VERSIONING.md).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-02
 
 ### Added
 
@@ -867,5 +867,6 @@ responsible-technology evidence.
 - The repository/Pages governance exception intentionally excluded from this remediation remains
   tracked in [issue #105](https://github.com/ChelseaKR/swelter/issues/105).
 
-[Unreleased]: https://github.com/ChelseaKR/swelter/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ChelseaKR/swelter/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ChelseaKR/swelter/releases/tag/v0.2.0
 [0.1.0]: https://github.com/ChelseaKR/swelter/releases/tag/v0.1.0

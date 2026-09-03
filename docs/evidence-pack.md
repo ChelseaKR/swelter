@@ -1,6 +1,6 @@
 # swelter evidence pack
 
-This is the reviewer index for the `0.1.0` release candidate. It links claims to reproducible evidence
+This is the reviewer index for the `0.2.0` release candidate. It links claims to reproducible evidence
 and names limits that remain open. It is not a substitute for the exact merge-commit CI run or the
 tagged release artifacts.
 
@@ -30,7 +30,7 @@ first-party observations are covered by the repository's CC0 dedication.
 | Observatory exposes linked analytical views without a map-only path | `web/index.html`, `app.js`, `observatory.css`, ADR 0004 | Web unit/contract tests, browser checks, structural a11y gate | Current NVDA/VoiceOver signoff remains issue #106 |
 | English and Spanish catalogs remain mechanically aligned | `web/i18n/en.json`, `web/i18n/es.json`, `docs/I18N.md` | UTF-8, BCP-47, key-parity, and CLDR-pin gates | Independent Spanish clarity review remains issue #106 |
 | Static publication identifies source/freshness and excludes unsafe fixtures | `swelter publish`, Pages workflow, generated manifest/source truth | Publisher/SEO/source tests and post-deploy smoke | Pages/repository governance exception remains issue #105 |
-| Archive/data releases are citable and verifiable | `snapshot.py`, `integrity.py`, `docs/citability.md` | Snapshot/integrity/version tests; compare hashes and citation metadata | No DOI or public `v0.1.0` release exists until owner publishes them |
+| Archive/data releases are citable and verifiable | `snapshot.py`, `integrity.py`, `docs/citability.md` | Snapshot/integrity/version tests; compare hashes and citation metadata | No DOI or public `v0.2.0` release exists until owner publishes them |
 | Quality/security/release work is reproducible | Make targets and workflow files | `make verify`, `make web-test`, CI/security/release jobs on exact ref | GitHub-hosted runner and third-party Actions remain trust roots |
 | Responsible-technology review covers current boundaries | `docs/RESPONSIBLE-TECH-AUDITS.md` and linked artifacts | Review data flow, DPIA, threat/fairness/ethics scans, residual risks | No real partner/user validation; manual signoffs are not inferred |
 
@@ -69,7 +69,7 @@ query output was not retained; the committed snapshot therefore says **unavailab
 reverse-engineering apparently precise evidence. Scheduled CI now produces a complete rolling
 evidence artifact for maintainer review and later commitment.
 
-Release evidence is intentionally pending until an annotated `v0.1.0` tag exists. A complete release
+Release evidence is intentionally pending until an annotated `v0.2.0` tag exists. A complete release
 record must include:
 
 - exact tag/commit and dated changelog/CFF version parity;

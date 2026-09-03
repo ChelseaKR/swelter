@@ -30,7 +30,7 @@ The committed calibration fixture contains **300 corrections across the 100 co-l
 the 150-node default size. This count is not hand-maintained: `scripts/docs_figures_check.py`
 recomputes it from `data/demo/corrections.yaml` and fails if the sentence drifts.
 
-The implementation is portfolio-complete enough for a first real `v0.1.0` release, subject to the
+The implementation is portfolio-complete enough for a first real `v0.2.0` release, subject to the
 release checklist and honest treatment of the open items below. Package metadata alone is not a
 release; the annotated tag and published artifacts must exist before release claims change.
 
@@ -118,7 +118,7 @@ never a person-level vulnerability score or individualized safety direction.
 - Complete current NVDA, VoiceOver, keyboard/reflow, and independent Spanish review, or keep the gap
   visibly open in [issue #106](https://github.com/ChelseaKR/swelter/issues/106) and avoid a fresh human-
   conformance claim.
-- Confirm `pyproject.toml`, `CITATION.cff`, and the dated changelog section match `0.1.0`.
+- Confirm `pyproject.toml`, `CITATION.cff`, and the dated changelog section match `0.2.0`.
 
 ### 2. Review and merge
 
@@ -131,7 +131,7 @@ never a person-level vulnerability score or individualized safety direction.
 
 ### 3. Tag, publish, and verify
 
-- Create the annotated `v0.1.0` tag from the verified merge commit.
+- Create the annotated `v0.2.0` tag from the verified merge commit.
 - Let the release workflow rebuild from that tag, generate SBOM/provenance/signatures/checksums, and
   run consumer verification before publication.
 - Deploy the static site from the verified source/license artifact; smoke-test Current reading, Readings,

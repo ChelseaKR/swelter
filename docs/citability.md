@@ -8,11 +8,11 @@ change, or Zenodo/JOSS requirement change.
 ## Cite the software before a release DOI exists
 
 Use [`CITATION.cff`](../CITATION.cff) and identify the exact commit. The repository currently prepares
-version `0.1.0`, but there is no released date or DOI until an annotated tag and GitHub Release exist.
+version `0.2.0`, but there is no released date or DOI until an annotated tag and GitHub Release exist.
 
 Suggested form:
 
-> Kelly-Reif, C. (2026). *swelter* (0.1.0 release candidate, commit `<sha>`) [Computer software].
+> Kelly-Reif, C. (2026). *swelter* (0.2.0 release candidate, commit `<sha>`) [Computer software].
 > https://github.com/ChelseaKR/swelter
 
 Replace the release-candidate wording with the published version/DOI only after that release is
@@ -39,7 +39,7 @@ were CC0:
    date is real. Ensure `.zenodo.json` also uses source-specific data wording.
 2. Enable the Zenodo GitHub integration for `ChelseaKR/swelter` from the repository owner's Zenodo
    account.
-3. Create the annotated `v0.1.0` tag from the verified merge commit. Let the release workflow build,
+3. Create the annotated `v0.2.0` tag from the verified merge commit. Let the release workflow build,
    verify, sign, attest, and publish the artifacts.
 4. Confirm Zenodo archived the GitHub Release and issued a version DOI and concept DOI.
 5. Add the concept DOI to `CITATION.cff` in a follow-up change and cite the version DOI for that exact
