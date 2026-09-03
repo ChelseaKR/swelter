@@ -234,6 +234,23 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **`swelter init` told a wheel-only install to run a command that could not work there.** Its
+  success message named `swelter demo --serve` as the next step. `demo` replays
+  `data/demo/observations.jsonl`, which is committed at the repository root and deliberately
+  not packaged: it is a few megabytes of regenerable synthetic readings
+  (`scripts/gen_demo_data.py`) against a wheel a fraction of that size, and it is the fixture the
+  calibration-reproducibility contract and the accepted ADRs name by that path; CC0 was never
+  the obstacle. So from an installed wheel the hinted command ended in a `FileNotFoundError`
+  traceback, and no test saw it, because every test runs from the checkout, where the file is
+  always there. `init` now names `swelter doctor --config <file>` as the next step, offers the
+  demo only where its data is present, and otherwise says where the demo lives (clone the
+  repository and run `make demo`). `swelter demo` itself now refuses in one line, with the same
+  directions, when the recorded data is missing, and it does so before deleting the existing
+  demo store, which the old code did first and then crashed. `tests/test_wheel_quickstart.py`
+  builds the wheel, installs it into a fresh virtual environment, runs the README's
+  `swelter init` line from a directory outside the repository, and then runs every command the
+  hint names; it fails rather than skips when it cannot examine the wheel.
+
 - **A licensing refusal no longer reaches the operator as "no readings returned".** Landing
   per-location exclusion (#216) had an immediate, measured consequence: on `main` at `1f051c1`,
   run 33584560625, OpenAQ excluded **every** California location, so nothing was left to request,
