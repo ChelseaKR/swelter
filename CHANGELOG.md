@@ -9,6 +9,59 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **The branch ruleset that gates `main` is committed, and it says two pull-request jobs cannot
+  block a merge.** Branch protection lived only in repository settings: it could be widened,
+  narrowed, or deleted without a commit, and the history would not show it. `ci.yml` already
+  depended on it — the `a11y` job carries a comment warning that its published name is pinned by
+  "the existing repository ruleset" and that changing it "would wedge pull requests" — so the
+  constraint was load-bearing while unwritten. `.github/rulesets/main.json` captures the live
+  ruleset (`name`, `target`, `enforcement`, `conditions`, `bypass_actors`, `rules`), and
+  `.github/rulesets/README.md` records what it is and the re-capture command.
+
+  `bypass_actors` is kept faithfully rather than trimmed to read better: the repository-admin role
+  bypasses every rule always, and the maintainer's account bypasses through a pull request. The
+  file is therefore evidence of intent, not proof of enforcement against the owner.
+
+  This closes a named, dated open item.
+  [ADR 0012](docs/adr/0012-gate-bypass-incident-and-ruleset.md) asked for this exact file —
+  "commit the exported artifact so the setting is verifiable from the clone without a live API
+  call" — and its 2026-07-10 status update records that it "does not exist yet". Writing the
+  bypass actors down also puts two things in view at once: ADR 0012's design said "No bypass
+  actors — including repo admins. This is the control that would have stopped this incident",
+  and the live ruleset carries two, a delta that status update did not list among the ones it
+  set out plainly. The unmerged `fix/cicd15-no-bypass-actors-instruction` branch supersedes
+  that line with ADR 0047 and keeps the admin role deliberately — but says the ruleset should
+  carry that role "and nothing else: no team, no app, no named user, no second role", which the
+  live `actor_id: 3114598` named-user entry at `bypass_mode: pull_request` is. Neither is
+  changed here; both are now legible.
+
+  Capturing it surfaced the finding. Six checks are required — `checks`, `security`, `firmware`,
+  `a11y-advisory`, `analyze (python)`, `analyze (actions)` — and two jobs run on every pull request
+  while being required by nothing: `web-tests`, which runs `make web-unit` — the target the
+  `docs/ROADMAP.md` metrics ledger names, via its `make web-test` alias, as the **AUTO** gate for
+  the web interaction contract — and `scorecard`. An AUTO gate that cannot block a merge is a gate
+  in name only.
+  This is not remediated here: making a check required is a repository-settings change, and
+  [#105](https://github.com/ChelseaKR/swelter/issues/105) already lists "strict required checks
+  including web-tests" among the controls deferred to the maintainer. Both are enumerated in
+  `tests/test_ruleset.py`'s `NOT_REQUIRED` with a written reason, so a third one cannot appear
+  silently.
+
+  `tests/test_ruleset.py` reads the workflows rather than a hand-kept list: every pull-request job
+  is required or declared; no required check names a job that cannot report, which is precisely the
+  wedge `ci.yml` warns about; no exemption outlives its job; nothing is both required and excused.
+  Matrix legs are named the way GitHub names them — CodeQL's `analyze (${{ matrix.language }})` is
+  rendered by substitution into `analyze (python)`/`analyze (actions)`, not by appending a suffix,
+  so a checker that only appended would read both required contexts as missing. The `scorecard`
+  guard `github.event_name != 'pull_request' || <head repo is this repo>` is read as the fork guard
+  it is; matching `!= 'pull_request'` anywhere in the string would have dropped the job and hidden
+  the finding.
+
+  Observed failing three ways: the `web-tests` exemption deleted (the suite names it as an
+  unrequired mergeable job); a context nothing produces added to the ruleset (the suite reports it
+  would wedge every merge); and the `a11y` job renamed from `a11y-advisory` (the suite reproduces
+  the exact wedge the `ci.yml` comment predicts).
+
 - **The planner is discoverable. It was live and crawlable with no canonical, no social
   metadata and no sitemap entry.** `/planner/` was added to the pa11y URL list and to nothing
   else, so every discovery surface missed it: `KNOWN_ROUTES` gates `canonical_url`, the `page`
