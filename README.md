@@ -100,8 +100,11 @@ data files.
 
 The **`swelter demo` subcommand is the exception**: it replays `data/demo/observations.jsonl`,
 which is committed at the repository root and is deliberately not packaged, so it needs a clone
-(or the sdist) rather than a wheel. `swelter init` currently suggests `swelter demo --serve` as the
-next step; from a wheel-only install, clone the repository and run `make demo` instead.
+(or the sdist) rather than a wheel. `swelter init` names `swelter demo --serve` only where that
+data is actually present; from a wheel-only install it names `swelter doctor` as the next step and
+says to clone the repository and run `make demo` for the demo. `swelter demo` run without the data
+refuses in one line with the same directions, rather than deleting the demo store and raising
+(#226).
 
 Useful commands:
 
