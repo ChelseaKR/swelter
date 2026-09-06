@@ -6,6 +6,7 @@ import importlib
 import json
 import shutil
 import sys
+import tomllib
 from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -21,11 +22,20 @@ else:
     release_artifacts = importlib.import_module("scripts.release_artifacts")
     workflow_policy_check = importlib.import_module("scripts.workflow_policy_check")
 
+# release_artifacts.build_sbom reads the version out of pyproject.toml, so the release fixture
+# below has to read the same source instead of hard-coding a number. When these were two separate
+# literals, bumping the package version failed these tests for the wrong reason: the payload was
+# correct and the fixture was stale.
+PACKAGE_VERSION: str = cast(
+    str,
+    tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"],
+)
+
 
 def _write_release_fixture(directory: Path) -> list[Path]:
-    wheel = directory / "swelter-0.1.0-py3-none-any.whl"
-    sdist = directory / "swelter-0.1.0.tar.gz"
-    frontend = directory / "swelter-observatory-0.1.0.tgz"
+    wheel = directory / f"swelter-{PACKAGE_VERSION}-py3-none-any.whl"
+    sdist = directory / f"swelter-{PACKAGE_VERSION}.tar.gz"
+    frontend = directory / f"swelter-observatory-{PACKAGE_VERSION}.tgz"
     wheel.write_bytes(b"wheel payload")
     sdist.write_bytes(b"source payload")
     frontend.write_bytes(b"frontend payload")
@@ -35,7 +45,7 @@ def _write_release_fixture(directory: Path) -> list[Path]:
         release_artifacts.write_sbom(artifact, sbom)
         assets.append(sbom)
     notes = directory / "RELEASE_NOTES.md"
-    notes.write_text("# swelter 0.1.0\n", encoding="utf-8")
+    notes.write_text(f"# swelter {PACKAGE_VERSION}\n", encoding="utf-8")
     assets.append(notes)
     attestations = directory / "provenance-inputs"
     attestations.mkdir()
@@ -47,7 +57,7 @@ def _write_release_fixture(directory: Path) -> list[Path]:
         assets=assets,
         attestations_directory=attestations,
         output=provenance,
-        version="0.1.0",
+        version=PACKAGE_VERSION,
         commit="a" * 40,
         repository="ChelseaKR/swelter",
     )
@@ -81,7 +91,7 @@ def _release_jobs() -> dict[str, Any]:
 
 
 def test_cyclonedx_release_sbom_is_bound_to_artifact(tmp_path: Path) -> None:
-    artifact = tmp_path / "swelter-0.1.0-py3-none-any.whl"
+    artifact = tmp_path / f"swelter-{PACKAGE_VERSION}-py3-none-any.whl"
     artifact.write_bytes(b"immutable artifact")
     document = release_artifacts.build_sbom(artifact)
     assert release_artifacts.validate_sbom_document(document) == []
@@ -96,11 +106,11 @@ def test_release_consumer_verifies_complete_payload_and_detects_tampering(
     tmp_path: Path,
 ) -> None:
     assets = _write_release_fixture(tmp_path)
-    assert release_artifacts.verify_download(tmp_path, "0.1.0") == []
+    assert release_artifacts.verify_download(tmp_path, PACKAGE_VERSION) == []
     assets[0].write_bytes(b"tampered")
     assert any(
         "checksum mismatch" in problem
-        for problem in release_artifacts.verify_download(tmp_path, "0.1.0")
+        for problem in release_artifacts.verify_download(tmp_path, PACKAGE_VERSION)
     )
 
 
@@ -108,12 +118,12 @@ def test_release_consumer_rejects_legacy_or_malformed_signature_evidence(tmp_pat
     assets = _write_release_fixture(tmp_path)
     bundle = Path(f"{assets[0]}.sigstore.json")
     bundle.write_text("{}\n", encoding="utf-8")
-    findings = release_artifacts.verify_download(tmp_path, "0.1.0")
+    findings = release_artifacts.verify_download(tmp_path, PACKAGE_VERSION)
     assert any("not the v0.3 format" in finding for finding in findings)
     bundle.unlink()
     Path(f"{assets[0]}.sig").write_text("legacy signature\n", encoding="utf-8")
     Path(f"{assets[0]}.pem").write_text("legacy certificate\n", encoding="utf-8")
-    findings = release_artifacts.verify_download(tmp_path, "0.1.0")
+    findings = release_artifacts.verify_download(tmp_path, PACKAGE_VERSION)
     assert any("Sigstore bundle is missing" in finding for finding in findings)
     assert "release contains missing or unexpected downloadable assets" in findings
 
@@ -240,7 +250,7 @@ def test_provenance_bundle_detects_subject_mismatch(tmp_path: Path) -> None:
     _write_release_fixture(tmp_path)
     findings = release_artifacts.verify_provenance_bundle(
         tmp_path / release_artifacts.PROVENANCE_BUNDLE,
-        version="0.1.0",
+        version=PACKAGE_VERSION,
         expected_artifacts={"different.whl": "0" * 64},
     )
     assert "provenance subjects do not exactly match release payloads" in findings

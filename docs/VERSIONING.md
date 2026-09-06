@@ -12,7 +12,7 @@ rates: a release may bump the API contract without touching the schema, or the r
 diverge in practice, the changelog and release notes state each surface's effective compatibility
 level for that release.
 
-The package version today is `0.1.0`. Pre-1.0, the spirit of the policy below holds, but a breaking
+The package version today is `0.2.0`. Pre-1.0, the spirit of the policy below holds, but a breaking
 change may ship in a MINOR bump; the changelog calls out every breaking change explicitly regardless
 of the version digits.
 

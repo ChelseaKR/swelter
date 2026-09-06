@@ -17,8 +17,8 @@ authors:
     family-names: "Kelly-Reif"
     email: "ckellyreif@gmail.com"
     alias: "ChelseaKR"
-version: "0.1.0"
-# Add date-released only when the annotated v0.1.0 tag and GitHub Release exist.
+version: "0.2.0"
+# Add date-released only when the annotated v0.2.0 tag and GitHub Release exist.
 # Add the Zenodo concept DOI after its GitHub integration archives that release.
 license: "Apache-2.0"
 repository-code: "https://github.com/ChelseaKR/swelter"

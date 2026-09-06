@@ -1,6 +1,6 @@
 [project]
 name = "swelter"
-version = "0.1.0"
+version = "0.2.0"
 description = "Self-hostable community heat and air-quality sensing network with calibrated, open, accessible data — copy network.yaml to register your own"
 readme = "README.md"
 license = "Apache-2.0"

@@ -65,6 +65,47 @@ make demo
 `http://127.0.0.1:8000`. `make verify` reproduces the complete local merge gate, including the web
 contract; `make web-test` remains the focused JavaScript command used while iterating.
 
+## Install a release
+
+swelter is **not on PyPI**, and that is a declared, gate-enforced state rather than an oversight:
+`docs/audits/release-publishing-gap.json` records the PyPI channel as
+`pending_external_configuration`, and `release.yml`'s preflight fails if that file ever claims
+otherwise without the trusted-publisher configuration actually existing. GitHub Releases are the
+canonical distribution channel. There is no `pip install swelter` to run, and this README will not
+print one until there is.
+
+Two release-preflight gates are open today and both block a published release: the PyPI gap above
+(`release_artifacts.py validate-publishing-gap` exits non-zero on purpose while Trusted Publishing
+is unconfigured) and the eight human release-review attestations in
+`docs/audits/release-review-attestations.json`, which are all still `pending` and which only named
+human reviewers can clear. Until those are resolved, `release.yml` cannot finish, so **no GitHub
+Release exists yet**.
+
+Installing from an annotated tag does not depend on either of them. Once `v0.2.0` is tagged, the
+operator CLI installs straight from the tag:
+
+```console
+uvx --from git+https://github.com/ChelseaKR/swelter@v0.2.0 swelter --help
+uvx --from git+https://github.com/ChelseaKR/swelter@v0.2.0 swelter init --config my-network.yaml \
+  --name "My neighborhood heat and air network"
+```
+
+When the release workflow can finish, it attaches a signed, attested wheel and sdist — the same
+artifacts — plus `swelter-observatory-<version>.tgz`, the built dashboard, to the GitHub Release.
+
+The wheel carries the Spanish and English alert catalogs and the California boundary geometry, so
+the operator path — `swelter init`, `doctor`, `ingest`, `qc`, `calibrate`, `aggregate`, `publish`,
+`serve` against **your own** `network.yaml` and store — runs from the wheel alone with no extra
+data files.
+
+The **`swelter demo` subcommand is the exception**: it replays `data/demo/observations.jsonl`,
+which is committed at the repository root and is deliberately not packaged, so it needs a clone
+(or the sdist) rather than a wheel. `swelter init` names `swelter demo --serve` only where that
+data is actually present; from a wheel-only install it names `swelter doctor` as the next step and
+says to clone the repository and run `make demo` for the demo. `swelter demo` run without the data
+refuses in one line with the same directions, rather than deleting the demo store and raising
+(#226).
+
 Useful commands:
 
 ```console

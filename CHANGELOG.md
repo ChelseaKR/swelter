@@ -7,6 +7,10 @@ All notable changes to swelter are recorded here. The format follows
 
 ## [Unreleased]
 
+Nothing yet. New entries go here; the `0.2.0` section below is closed.
+
+## [0.2.0] - 2026-09-06
+
 ### Added
 
 - **The branch ruleset that gates `main` is committed, and it says two pull-request jobs cannot
@@ -990,5 +994,6 @@ responsible-technology evidence.
 - The repository/Pages governance exception intentionally excluded from this remediation remains
   tracked in [issue #105](https://github.com/ChelseaKR/swelter/issues/105).
 
-[Unreleased]: https://github.com/ChelseaKR/swelter/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ChelseaKR/swelter/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ChelseaKR/swelter/releases/tag/v0.2.0
 [0.1.0]: https://github.com/ChelseaKR/swelter/releases/tag/v0.1.0
