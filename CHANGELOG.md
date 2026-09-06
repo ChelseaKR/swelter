@@ -155,6 +155,13 @@ All notable changes to swelter are recorded here. The format follows
   (CI-CD-STANDARD.md 11c/11f), and the release and mutation jobs keep `enable-cache: false`
   because §8c prohibits caching in a job that signs or attests.
 
+  The timeouts are measured, not guessed. `checks` runs `make verify-core` — 20 gates plus the
+  full pytest suite — which takes 16-25 minutes here (16m20s, 17m39s, 20m56s, 25m03s across runs
+  33715839075, 33992964515, 34039001734 and 33992912300). A first pass capped it at 15 minutes
+  and run 34038916070 duly died at 15m15s reporting `cancelled`, which is not a failure and not a
+  pass: the pull request showed no red mark and no verdict. It is 45 now — clear of the slowest
+  observed run, still far below Actions' six-hour default.
+
   The concurrency key is deliberately **not** the standard's
   `${{ github.workflow }}-${{ github.ref }}`. That key groups every run on a branch together, so
   on `main` a second push supersedes the first and GitHub cancels the earlier run. Measured here

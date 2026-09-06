@@ -25,7 +25,12 @@ jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # `make verify-core` is the long one: 20 gates plus the full pytest suite. Measured on this
+    # repository it takes 16-25 minutes (runs 33715839075 16m20s, 33992964515 17m39s,
+    # 34039001734 20m56s, 33992912300 25m03s), so a 15-minute cap cancelled it mid-suite — and a
+    # cancelled job reports no verdict at all rather than a failure. 45 leaves room for a slow
+    # runner while still bounding a genuine hang far below Actions' six-hour default.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
