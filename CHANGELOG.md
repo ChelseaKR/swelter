@@ -147,6 +147,24 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **Every CI workflow now has a job timeout, a warm dependency cache, and a concurrency key that
+  cancels a superseded run without dropping a commit's verdict.** `ci.yml`, `codeql.yml`,
+  `scorecard.yml`, `pages.yml`, `release.yml` and `trufflehog.yml` had no `timeout-minutes` at all,
+  so a hung job burned the runner's six-hour default before anyone saw it; the three `setup-uv`
+  steps in `ci.yml` resolved the locked environment from scratch on every run. Both are fixed
+  (CI-CD-STANDARD.md 11c/11f), and the release and mutation jobs keep `enable-cache: false`
+  because §8c prohibits caching in a job that signs or attests.
+
+  The concurrency key is deliberately **not** the standard's
+  `${{ github.workflow }}-${{ github.ref }}`. That key groups every run on a branch together, so
+  on `main` a second push supersedes the first and GitHub cancels the earlier run. Measured here
+  on `pages.yml`, whose `group: pages` produced runs 33229392078, 33229393809 and 33229395940
+  (2026-08-29) that ended `cancelled` with **zero jobs dispatched**: those commits got no verdict,
+  and "no failing run" read as green. Appending
+  `${{ github.event_name == 'pull_request' && 'pr' || github.sha }}` keeps the saving where it is
+  real — successive pushes to an open pull request still cancel each other — while giving every
+  `main` commit its own slot, keyed by the commit the verdict is about.
+
 - **One tracked static-analysis suppression is retired rather than re-justified (28 -> 27).**
   `do_GET` dispatched through a twenty-arm `if/elif` chain of exact `path ==` comparisons with a
   trailing `else: self._static(path)`. Its branch count alone required a tracked `C901`
