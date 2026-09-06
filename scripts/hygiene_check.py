@@ -58,7 +58,11 @@ _SUPPRESSION = re.compile(r"#\s*noqa\b|#\s*type:\s*ignore\b|nosemgrep:")
 #: 28 -> 27: `do_GET`'s `C901` retired. Its twenty-arm `if/elif` route dispatch is a table
 #: (`server._GET_ROUTES`), which is one branch instead of twenty. Genuinely retired debt, not
 #: a rule-level exception waived away.
-SUPPRESSION_CEILING = 27
+#: 27 -> 28: one fixed-argv `S603` in tests/test_wheel_quickstart.py. That test drives five
+#: subprocesses (build, venv, install, `init`, and each command `init` hints), which would have
+#: been five suppressions; they go through a single `_run` helper instead, so the module costs
+#: one. Same permanent pattern as the other subprocess-driving tests and gate scripts.
+SUPPRESSION_CEILING = 28
 
 
 def _tracked_files(*dirs: str) -> list[Path]:
