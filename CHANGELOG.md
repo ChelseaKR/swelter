@@ -287,6 +287,32 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **An OpenAQ license refusal now names which URL field it refused, and why.** Three fields
+  reach the ledger's URL rule — `license_url` (the license catalog's `sourceUrl`),
+  `attribution_url` (per-location, from the provider) and `upstream_url` (which swelter builds
+  itself) — and every one of them failed with the same sentence: "OpenAQ ledger URLs must be
+  absolute credential-free HTTPS URLs". That sentence was the entire public evidence for #179.
+  The scheduled `demo` run on 2026-09-06 (34036381920) refused **all 250** California locations
+  with it, which establishes that OpenAQ is still returning license metadata and that a URL
+  inside it is no longer publishable, and nothing further: not which field changed, and not how.
+  #179's next step was therefore "reproduce it with the API key", which only the maintainer can
+  do.
+
+  The refusal now reads, for example, `OpenAQ ledger license_url must be an absolute
+  credential-free HTTPS URL (its scheme is 'http')`, and the same for a relative URL, a URL with
+  no host, and `attribution_url`. `provider`, `attribution`, `location_name` and `license_name`
+  name themselves too. The next scheduled run is the reproduction, with no key in anyone's hands.
+
+  The offending URL itself is never echoed. A URL rejected for embedding credentials is exactly
+  the URL this repository must not log, and this reason is written into the published ledger's
+  `excluded_locations`, so the text stays categorical: which field, which rule. A test asserts
+  that a `https://user:hunter2@…` source URL is refused and that neither the secret nor the host
+  appears in the reason.
+
+  This is diagnosis, not a relaxation: no location that was refused before is accepted now.
+  #179 asks explicitly that the ledger check not be loosened to make the fetch pass, and it is
+  not — the rule is unchanged, only what it says about itself.
+
 - **`swelter init` told a wheel-only install to run a command that could not work there.** Its
   success message named `swelter demo --serve` as the next step. `demo` replays
   `data/demo/observations.jsonl`, which is committed at the repository root and deliberately

@@ -619,6 +619,84 @@ def test_build_license_ledger_never_emits_an_entry_its_own_validator_refuses() -
     assert len([e for e in ledger["entries"] if e["location_id"] == 5]) == 1
 
 
+def _exclusion_reason(ledger: dict[str, Any], location_id: int) -> str:
+    [excluded] = [
+        item for item in ledger["excluded_locations"] if item["location_id"] == location_id
+    ]
+    return str(excluded["reason"])
+
+
+def test_a_url_refusal_names_the_field_and_the_rule_it_broke() -> None:
+    """Which of the three URL fields, and how -- the evidence #179 could not get otherwise.
+
+    On 2026-09-06 the scheduled `demo` run (34036381920) refused all 250 California locations
+    with "250 x OpenAQ license metadata is not publishable: OpenAQ ledger URLs must be absolute
+    credential-free HTTPS URLs". OpenAQ *was* returning license metadata; something about a URL
+    in it stopped being publishable. But `license_url` comes from the license catalog,
+    `attribution_url` comes from the location, and `upstream_url` swelter builds itself, and one
+    sentence covered all three -- so the log could not say which one the provider changed, or
+    how, and the issue's next step was "reproduce it with the API key".
+    """
+    catalog = _catalog() | {
+        44: {"id": 44, "name": "Terms", "sourceUrl": "http://x.example/terms"},
+        45: {"id": 45, "name": "Terms", "sourceUrl": "/licenses/45"},
+    }
+    ledger = openaq.build_license_ledger(
+        [
+            _location(1),
+            _location(2, licenses=[{"id": 44, "attribution": {"name": "AirNow", "url": None}}]),
+            _location(3, licenses=[{"id": 45, "attribution": {"name": "AirNow", "url": None}}]),
+            _location(
+                4,
+                licenses=[
+                    {"id": 33, "attribution": {"name": "AirNow", "url": "http://x.example/who"}}
+                ],
+            ),
+        ],
+        catalog,
+        fetched_at="2026-09-01T00:00:00Z",
+    )
+
+    assert [entry["location_id"] for entry in ledger["entries"]] == [1]
+    assert openaq.validate_license_ledger(ledger)
+
+    not_https = _exclusion_reason(ledger, 2)
+    assert "license_url" in not_https and "attribution_url" not in not_https
+    assert "'http'" in not_https
+
+    relative = _exclusion_reason(ledger, 3)
+    assert "license_url" in relative and "relative" in relative
+
+    attribution = _exclusion_reason(ledger, 4)
+    assert "attribution_url" in attribution and "license_url" not in attribution
+    assert "'http'" in attribution
+
+
+def test_a_url_refusal_never_echoes_the_url_it_refused() -> None:
+    """The one refusal that must stay categorical: a URL rejected for carrying credentials.
+
+    CLAUDE.md forbids logging credential-bearing URLs, and this reason is written into the
+    published ledger's `excluded_locations`, so echoing the offending value would put a secret
+    in a public artifact. Name the field and the rule; never the URL.
+    """
+    catalog = _catalog() | {
+        46: {"id": 46, "name": "Terms", "sourceUrl": "https://user:hunter2@x.example/terms"}
+    }
+    ledger = openaq.build_license_ledger(
+        [
+            _location(1),
+            _location(2, licenses=[{"id": 46, "attribution": {"name": "AirNow", "url": None}}]),
+        ],
+        catalog,
+        fetched_at="2026-09-01T00:00:00Z",
+    )
+
+    reason = _exclusion_reason(ledger, 2)
+    assert "license_url" in reason and "embeds credentials" in reason
+    for secret in ("hunter2", "user:", "x.example", "https://user"):
+        assert secret not in reason, reason
+
+
 def test_a_refused_ledger_says_which_rule_refused_it() -> None:
     """A refusal an operator can act on, instead of one blanket sentence for every cause."""
     good = _ledger(1, license_id=7, license_name="Terms A", fetched_at="2026-06-01T12:00:00Z")
