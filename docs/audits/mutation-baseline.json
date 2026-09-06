@@ -1,0 +1,584 @@
+{
+  "configuration_sha256": "144c9ccf79abd8481c5afd5e1a522e90d2d391c4d3f3b0a8113967a7465bf693",
+  "evidence_date": "2026-09-06",
+  "minimum_score": 80.0,
+  "result": {
+    "complete": true,
+    "counts": {
+      "killed": 1584,
+      "survived": 136
+    },
+    "incomplete_statuses": [],
+    "modules": [
+      "calibrate",
+      "models",
+      "qc"
+    ],
+    "non_killed_mutants": [
+      {
+        "id": "swelter.calibrate.x__design_row__mutmut_11",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__heat_index_temp_slope__mutmut_1",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__heat_index_temp_slope__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__heat_index_temp_slope__mutmut_4",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__method_for__mutmut_5",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__method_for__mutmut_7",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__ols__mutmut_11",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__ols__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__ols__mutmut_15",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__read_jsonl__mutmut_1",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__read_jsonl__mutmut_4",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__solve__mutmut_17",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__solve__mutmut_20",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x__solve__mutmut_31",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_17",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_18",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_20",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_21",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_23",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_24",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_27",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_31",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_41",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_54",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_63",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_apply__mutmut_9",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit__mutmut_10",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit__mutmut_37",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit__mutmut_38",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit__mutmut_39",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit__mutmut_40",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit__mutmut_9",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_id__mutmut_1",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_id__mutmut_38",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_id__mutmut_57",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_id__mutmut_58",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_id__mutmut_59",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_108",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_44",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_47",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_50",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_53",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_56",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_57",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_fit_one__mutmut_71",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_read_colocation__mutmut_10",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_read_colocation__mutmut_18",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_read_colocation__mutmut_25",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_read_colocation__mutmut_45",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_read_colocation__mutmut_7",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_read_colocation__mutmut_8",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x_read_colocation__mutmut_9",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_100",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_4",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_49",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_51",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_56",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_58",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_6",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_79",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_81",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_84",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_87",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_89",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_92",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_95",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_dict__mutmut_97",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_yaml__mutmut_3",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1from_yaml__mutmut_6",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_1",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_11",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_18",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_22",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_3",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_6",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.calibrate.x\u01c1CorrectionRegistry\u01c1to_yaml__mutmut_9",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_exposure_bounding_component__mutmut_11",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_heat_index_category__mutmut_3",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_nowcast_concentration__mutmut_17",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_nowcast_concentration__mutmut_18",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_parse_timestamp__mutmut_15",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_parse_timestamp__mutmut_3",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_parse_timestamp__mutmut_4",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_pm25_aqi__mutmut_3",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_pm25_aqi__mutmut_6",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_wind_chill_category__mutmut_13",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.models.x_wind_chill_category__mutmut_3",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__flag_flatline__mutmut_18",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__flag_flatline__mutmut_5",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__flag_flatline__mutmut_7",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__flag_flatline__mutmut_9",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__flag_spikes__mutmut_13",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__flag_spikes__mutmut_21",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_15",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_18",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_21",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_24",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_25",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_27",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_28",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__pair_by_nearest_timestamp__mutmut_31",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__resolve_twin_threshold__mutmut_2",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__resolve_twin_threshold__mutmut_3",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__resolve_twin_threshold__mutmut_5",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__window_series__mutmut_12",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__window_series__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__window_series__mutmut_5",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x__window_series__mutmut_8",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_apply__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_apply__mutmut_17",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_apply__mutmut_18",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_correction_ages__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_correction_ages__mutmut_29",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_correction_ages__mutmut_31",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_correction_ages__mutmut_32",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_correction_ages__mutmut_33",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_correction_ages__mutmut_9",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_health_report__mutmut_58",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_health_report__mutmut_76",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_health_report__mutmut_78",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_health_report__mutmut_79",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_node_health__mutmut_1",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_node_health__mutmut_33",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_node_health__mutmut_46",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_range_flag__mutmut_5",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_range_flag__mutmut_6",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_1",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_13",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_14",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_24",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_25",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_44",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_5",
+        "status": "survived"
+      },
+      {
+        "id": "swelter.qc.x_twin_agreement__mutmut_7",
+        "status": "survived"
+      }
+    ],
+    "schema_version": 2,
+    "score": 92.09,
+    "score_definition": "killed / all generated mutants",
+    "tool": {
+      "name": "mutmut",
+      "version": "3.7.0"
+    }
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "src/swelter/calibrate.py": "ba7cdd057ffd76b9ed4375c3f82939684c336afc79c91e3027aaaca2233d8fa6",
+    "src/swelter/models.py": "8145d2ad29a566e75d5e2d24cd3a65a4afff3671d43f742d0f1af96a74a78f83",
+    "src/swelter/qc.py": "a6eb2c9bf27b2f4da1737ce3bd6136574e06752354f4c1b6c670b37e57fdc8e9"
+  },
+  "tests_sha256": {
+    "tests/test_calibrate.py": "65d8226e2b38b7c2c00cdc29dd187bb2fe313eddc8d1b9413488ee13162b873f",
+    "tests/test_calibrate_branches.py": "c1503c3195cccf8b15bde169592e26dfb135696a30cd7c018651385f7dedb26d",
+    "tests/test_models.py": "a016c7ed62689455fe739a5ea303d99b76947887aaa667e90164d1b03a337585",
+    "tests/test_qc.py": "cbb478d97f549e609160e4bf0182a0acb4cadce8f08506db55746613f93d84d8"
+  },
+  "tool_lock_sha256": "2de70c8785c150440617d87974f2bc8bdd70628cdf29c7762e3764faf33723e0"
+}
