@@ -54,6 +54,9 @@ from . import (
     web_preview,
 )
 from . import (
+    backup as backup_module,
+)
+from . import (
     diff as diff_module,
 )
 from .config import (
@@ -2146,6 +2149,87 @@ def cmd_verify_archive(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def cmd_backup(args: argparse.Namespace) -> int:
+    """Archive the store with a manifest a restore can be checked against — or prune old archives.
+
+    Exit nonzero on any refusal: an empty store, a store with an open SQLite journal, a rights
+    record that is present but unreadable, or a prune whose directory holds an archive that
+    cannot be verified. A backup nobody can restore is worse than a missing one, because it is
+    counted.
+    """
+    if args.prune is not None:
+        return _cmd_backup_prune(args)
+    if not args.out:
+        _err("swelter: backup needs --out <archive.tar>, or --prune <directory>")
+        return 1
+    try:
+        manifest = backup_module.write_backup(args.store, args.out)
+    except backup_module.BackupError as exc:
+        _err(f"swelter: {exc}")
+        return 1
+    if args.json:
+        print(json.dumps({"archive": str(Path(args.out)), **manifest.to_dict()}, indent=2))
+        return 0
+    for line in backup_module.render_manifest(manifest, Path(args.out)):
+        _err(line)
+    return 0
+
+
+def _cmd_backup_prune(args: argparse.Namespace) -> int:
+    try:
+        plan = backup_module.plan_prune(args.prune, args.keep)
+    except backup_module.BackupError as exc:
+        _err(f"swelter: {exc}")
+        return 1
+    applied = not args.dry_run and not plan.refused
+    if applied:
+        backup_module.apply_prune(args.prune, plan)
+    if args.json:
+        print(json.dumps({**plan.to_dict(), "applied": applied}, indent=2))
+        return 1 if plan.refused else 0
+    for line in backup_module.render_prune(plan, Path(args.prune)):
+        _err(line)
+    if plan.refused:
+        _err("  fix or remove the archive(s) above, then run this again")
+    elif args.dry_run:
+        _err("  (dry run — nothing was deleted)")
+    return 1 if plan.refused else 0
+
+
+def cmd_restore(args: argparse.Namespace) -> int:
+    """Restore an archive, but only after every check on it has passed, and print the receipt.
+
+    Verification is not optional and cannot be switched off: a restore nobody checked is the
+    thing this verb exists to replace. ``--verify-only`` runs the whole drill into a temporary
+    directory and writes no store, which is the form a quarterly rehearsal wants.
+    """
+    if args.verify_only and args.store:
+        _err("swelter: pass either --store <dir> or --verify-only, not both")
+        return 1
+    if not args.verify_only and not args.store:
+        _err("swelter: restore needs --store <dir> to restore into, or --verify-only")
+        return 1
+    try:
+        receipt = backup_module.restore_archive(
+            args.archive, None if args.verify_only else args.store, force=args.force
+        )
+    except backup_module.BackupError as exc:
+        _err(f"swelter: {exc}")
+        return 1
+    if args.receipt:
+        destination = Path(args.receipt)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(receipt.to_json())
+    if args.json:
+        print(receipt.to_json().decode("utf-8"), end="")
+    else:
+        for line in backup_module.render_receipt(receipt):
+            _err(line)
+        if args.receipt:
+            _err(f"  receipt    {args.receipt}")
+    return 0 if receipt.verdict == "verified" else 1
+
+
 def cmd_snapshot(args: argparse.Namespace) -> int:
     """Freeze a citable, versioned data release: raw observations + corrections + surface, a
     MANIFEST.json with per-file SHA-256, and a dataset CITATION.cff/CITATION.txt pair. Local
@@ -2730,6 +2814,83 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_diff.set_defaults(func=cmd_diff)
+
+    p_backup = sub.add_parser(
+        "backup",
+        help="archive the store with a manifest a restore can be checked against",
+        description=(
+            "Writes a byte-reproducible tar of the store plus a BACKUP-MANIFEST.json recording "
+            "per-file SHA-256 digests, the row and node counts, the observation window, the "
+            "chained daily digest head, and the rights envelope. Two backups of an unchanged "
+            "store are the same bytes. A store with no observations is refused: it would verify "
+            "clean against itself forever and prove nothing. Offline, stdlib tarfile, no cloud "
+            "target — copy the tarball wherever you like."
+        ),
+    )
+    add_store(p_backup)
+    p_backup.add_argument("--out", default=None, help="path of the archive file to write")
+    p_backup.add_argument(
+        "--prune",
+        default=None,
+        metavar="DIR",
+        help=(
+            "instead of writing an archive, apply the retention policy to a directory of them. "
+            "Refuses to delete anything at all while any archive there cannot be verified."
+        ),
+    )
+    p_backup.add_argument(
+        "--keep",
+        type=int,
+        default=backup_module.DEFAULT_KEEP,
+        help=(
+            "how many archives --prune keeps, newest first (default "
+            f"{backup_module.DEFAULT_KEEP}). Clamped to at least one: the newest verified "
+            "archive is never deleted."
+        ),
+    )
+    p_backup.add_argument(
+        "--dry-run", action="store_true", help="with --prune, print the plan and delete nothing"
+    )
+    p_backup.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_backup.set_defaults(func=cmd_backup)
+
+    p_restore = sub.add_parser(
+        "restore",
+        help="restore a backup archive, verify it, and print a receipt",
+        description=(
+            "Extracts into a staging directory, verifies it there, and moves it into place only "
+            "on a verified verdict — so a failed drill leaves the target exactly as it was, "
+            "including not existing. The receipt reports three outcomes: PASS, FAIL, and "
+            "NOT_APPLICABLE, which is counted separately and never as a pass, because 'there "
+            "were no corrections to compare' is not evidence that the corrections survived. The "
+            "verdict is 'verified' only when every required check ran and passed."
+        ),
+    )
+    p_restore.add_argument("archive", help="the backup archive written by `swelter backup`")
+    p_restore.add_argument(
+        "--store",
+        default=None,
+        help="directory to restore into; must not exist, or be empty, unless --force",
+    )
+    p_restore.add_argument(
+        "--verify",
+        action="store_true",
+        help=(
+            "accepted so a runbook line can say so explicitly. Verification always runs and "
+            "cannot be switched off; this flag changes nothing."
+        ),
+    )
+    p_restore.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="run the whole drill into a temporary directory and write no store",
+    )
+    p_restore.add_argument(
+        "--force", action="store_true", help="replace a non-empty target directory"
+    )
+    p_restore.add_argument("--receipt", default=None, help="also write the receipt JSON here")
+    p_restore.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_restore.set_defaults(func=cmd_restore)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)
