@@ -346,13 +346,13 @@ _EXCLUDED_FIELDS = frozenset({"location_id", "location_name", "reason"})
 _UNAVAILABLE_FIELDS = frozenset({"provider", "attribution"})
 
 
-def _normalized_text(value: object, *, required: bool) -> str:
+def _normalized_text(value: object, *, required: bool, field: str = "text") -> str:
     if not isinstance(value, str) or value != value.strip():
-        raise ValueError("OpenAQ ledger text must be a normalized string")
+        raise ValueError(f"OpenAQ ledger {field} must be a normalized string")
     if required and not value:
-        raise ValueError("OpenAQ ledger text must not be empty")
+        raise ValueError(f"OpenAQ ledger {field} must not be empty")
     if any(ord(character) < 32 for character in value):
-        raise ValueError("OpenAQ ledger text must not contain control characters")
+        raise ValueError(f"OpenAQ ledger {field} must not contain control characters")
     return value
 
 
@@ -380,8 +380,27 @@ def _normalized_date(value: object) -> str | None:
     return text
 
 
-def _normalized_https_url(value: object, *, required: bool) -> str:
-    text = _normalized_text(value, required=required)
+#: A scheme safe to quote back in a refusal: RFC 3986 shape, so it cannot smuggle anything.
+_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*")
+
+
+def _normalized_https_url(value: object, *, required: bool, field: str = "URL") -> str:
+    """One ledger URL, with the failing field and the reason it failed both named.
+
+    Three different fields reach here — `license_url` (the OpenAQ catalog's `sourceUrl`),
+    `attribution_url` (per-location, from the provider), and `upstream_url` (which swelter
+    builds itself) — and until now every one of them failed with the same sentence. On
+    2026-09-06 that sentence was the entire public evidence for #179: run 34036381920 refused
+    all 250 California locations with "250 x OpenAQ license metadata is not publishable: OpenAQ
+    ledger URLs must be absolute credential-free HTTPS URLs", which does not say which of the
+    three fields OpenAQ changed, or how. Naming both turns the next scheduled `demo` run into
+    the reproduction the issue asks for, without anyone holding the API key.
+
+    The rejected URL itself is never echoed. A URL refused for embedding credentials is exactly
+    the URL this repository must not log (CLAUDE.md), so the reason stays categorical: which
+    field, and which rule it broke.
+    """
+    text = _normalized_text(value, required=required, field=field)
     if not text and not required:
         return ""
     try:
@@ -389,14 +408,22 @@ def _normalized_https_url(value: object, *, required: bool) -> str:
         hostname = parsed.hostname
         _port = parsed.port  # validate a supplied port rather than leaving a latent ValueError
     except ValueError as exc:
-        raise ValueError("OpenAQ ledger URL is malformed") from exc
-    if (
-        parsed.scheme != "https"
-        or not hostname
-        or parsed.username is not None
-        or parsed.password is not None
-    ):
-        raise ValueError("OpenAQ ledger URLs must be absolute credential-free HTTPS URLs")
+        raise ValueError(f"OpenAQ ledger {field} is a malformed URL") from exc
+    causes: list[str] = []
+    if not parsed.scheme:
+        causes.append("it is relative, with no scheme")
+    elif parsed.scheme != "https":
+        quoted = repr(parsed.scheme) if _SCHEME.fullmatch(parsed.scheme) else "not HTTPS"
+        causes.append(f"its scheme is {quoted}")
+    if not hostname:
+        causes.append("it names no host")
+    if parsed.username is not None or parsed.password is not None:
+        causes.append("it embeds credentials")
+    if causes:
+        raise ValueError(
+            f"OpenAQ ledger {field} must be an absolute credential-free HTTPS URL "
+            f"({'; '.join(causes)})"
+        )
     return text
 
 
@@ -489,8 +516,8 @@ def _normalize_entry(raw: dict[str, Any]) -> _NormalizedEntry:
     if not _is_positive_id(location_id) or not _is_positive_id(license_id):
         raise ValueError("OpenAQ ledger IDs must be positive non-boolean integers")
 
-    provider = _normalized_text(raw["provider"], required=False)
-    attribution = _normalized_text(raw["attribution"], required=False)
+    provider = _normalized_text(raw["provider"], required=False, field="provider")
+    attribution = _normalized_text(raw["attribution"], required=False, field="attribution")
     unavailable_raw = raw["unavailable_fields"]
     if not isinstance(unavailable_raw, list) or not all(
         isinstance(field, str) for field in unavailable_raw
@@ -519,15 +546,19 @@ def _normalize_entry(raw: dict[str, Any]) -> _NormalizedEntry:
     return _NormalizedEntry(
         location_id=location_id,
         license_id=license_id,
-        location_name=_normalized_text(raw["location_name"], required=True),
+        location_name=_normalized_text(raw["location_name"], required=True, field="location_name"),
         provider=provider,
-        license_name=_normalized_text(raw["license_name"], required=True),
-        license_url=_normalized_https_url(raw["license_url"], required=True),
+        license_name=_normalized_text(raw["license_name"], required=True, field="license_name"),
+        license_url=_normalized_https_url(raw["license_url"], required=True, field="license_url"),
         attribution=attribution,
-        attribution_url=_normalized_https_url(raw["attribution_url"], required=False),
+        attribution_url=_normalized_https_url(
+            raw["attribution_url"], required=False, field="attribution_url"
+        ),
         valid_from=valid_from,
         valid_to=valid_to,
-        upstream_url=_normalized_https_url(raw["upstream_url"], required=True),
+        upstream_url=_normalized_https_url(
+            raw["upstream_url"], required=True, field="upstream_url"
+        ),
         fetched_at=_normalized_timestamp(raw["fetched_at"]),
         unavailable_fields=unavailable,
     )
