@@ -66,3 +66,4 @@ evidence of the collision.
 - [ADR 0044: An unattributable store is discarded, not refused forever](0044-an-unattributable-store-is-discarded-not-refused-forever.md)
 - [ADR 0045: The published export is windowed; the accumulating store behind it is not](0045-published-export-is-windowed-the-accumulating-store-is-not.md)
 - [ADR 0046: A danger count states what it rests on](0046-a-danger-count-states-what-it-rests-on.md)
+- [ADR 0047: A diff attributes every change to one kind, and never invents one out of an absence](0047-a-diff-attributes-every-change-and-never-invents-one.md)

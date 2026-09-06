@@ -854,6 +854,49 @@ swelter: verify-archive OK — 141696 row(s) match their stored hash across 16 d
 Add `--json` for the machine-readable form (`ok`, `rows_checked`, `days`, `head`, `mismatches`,
 `digests_path`) for CI or an audit script.
 
+## `swelter diff` (CLI)
+
+Not an HTTP endpoint. `verify-archive` proves nothing was tampered with; `diff` explains what
+legitimately changed. It compares two surface JSON files, two snapshot directories, or two
+`swelter qc --json` health reports, and attributes every difference to exactly one kind from a
+closed vocabulary (ADR 0047):
+
+| kind | what it means |
+| --- | --- |
+| `value_change` | a published number or label moved |
+| `calibration_version` | the correction/fit behind a reading moved (ADR 0038) |
+| `qc_state` | a provisional flag, QC flag, or node status flipped (ADR 0029) |
+| `source_or_rights_change` | the source, licence, attribution or DOI changed (ADR 0024) |
+| `absent_to_present` / `present_to_absent` | something exists on one side only |
+| `schema_version_change` | the recorded schema or swelter version moved |
+
+```
+swelter diff snapshots/2026-06-08 snapshots/2026-06-15 --format md
+swelter diff web/sample-surface.json /tmp/today.json --json
+```
+
+Three properties worth knowing before you build on it.
+
+**Absence is never a delta.** A cell missing on one side is reported as absence, carrying only the
+side that exists. No arithmetic is performed against a missing value and no `delta` key appears
+anywhere in the output, so nothing here can be read as "it fell to zero" (ADR 0037). A recorded
+`null` is a value and is compared as one — `uncertainty: null` means "no error bar, and here is
+why" (ADR 0035), not "absent".
+
+**An unrecorded schema version is not a matching one.** If either input records no version,
+`schema_version_comparison.comparable` is `false` and the note says the two were *not* compared.
+Two recorded versions that differ are refused unless `--allow-schema-skew` is passed.
+
+**Alignment is explicit.** `--align bucket` (the default) compares readings at the same instant,
+keyed by `(cell_id, parameter, bucket, aqi_window)`. `--align latest` compares each side's most
+recent reading per cell and parameter — the "did this block get worse" question — and every record
+it produces carries `context.from_bucket` and `context.to_bucket`, because a change between two
+instants must say which two.
+
+Exit codes: `0` for a successful comparison, changes or not (a diff is a report, not a gate); `2`
+for a refusal to compare — different kinds of artifact, an unreadable input, a schema mismatch, or
+two readings this tool cannot tell apart.
+
 ## Observed properties
 
 The full set of quantities a node may report. The QC verdict on each reading is one of `ok`,

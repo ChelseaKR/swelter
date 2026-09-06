@@ -53,6 +53,9 @@ from . import (
     steward,
     web_preview,
 )
+from . import (
+    diff as diff_module,
+)
 from .config import (
     LOCATION_PRECISE,
     LOCATION_PUBLIC_PLACE,
@@ -2230,6 +2233,36 @@ def cmd_version(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Compare two surfaces, snapshot directories, or health reports, and attribute each change.
+
+    `verify-archive` proves nothing was tampered with; this explains what legitimately changed.
+    An organiser who says "the block got worse this week" can show whether the number moved or
+    the calibration did, which are different claims about the same cell.
+
+    Exit 0 on a successful comparison, changes or not — a diff is a report, not a gate. A
+    non-zero exit is a refusal to compare: different kinds of artifact, an unreadable input, or
+    two recorded schema versions that disagree.
+    """
+    try:
+        a = diff_module.load_side(Path(args.a))
+        b = diff_module.load_side(Path(args.b))
+        report = diff_module.build_report(
+            a, b, align=args.align, allow_schema_skew=args.allow_schema_skew
+        )
+    except diff_module.DiffError as exc:
+        _err(f"swelter diff: {exc}")
+        return 2
+
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=False))
+    elif args.format == "md":
+        print(diff_module.render_markdown(report), end="")
+    else:
+        print(diff_module.render_text(report), end="")
+    return 0
+
+
 def cmd_crosswalk(args: argparse.Namespace) -> int:
     """Print the outbound parameter crosswalk (swelter -> OpenAQ / Sensor.Community). Read-only,
     no network — a static in-memory table (see :mod:`swelter.crosswalk`)."""
@@ -2652,6 +2685,51 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_verify.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     p_verify.set_defaults(func=cmd_verify_archive)
+
+    p_diff = sub.add_parser(
+        "diff",
+        help="compare two surfaces, snapshots or health reports and attribute each change",
+        description=(
+            "`verify-archive` proves nothing was tampered with. This explains what legitimately "
+            "changed, attributing every difference to exactly one kind: a value moved, a "
+            "calibration version moved, a QC/provisional state flipped, the source or rights "
+            "envelope changed, something appeared or went absent, or a schema version moved. "
+            "Absence is never reported as a delta: a cell missing on one side is reported as "
+            "absence, and no arithmetic is performed against a missing value (ADR 0037). "
+            "Offline, stdlib-only, and deterministic — the same two inputs always produce the "
+            "same bytes."
+        ),
+    )
+    p_diff.add_argument("a", help="the earlier surface JSON, snapshot directory, or health JSON")
+    p_diff.add_argument("b", help="the later one, of the same kind")
+    p_diff.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_diff.add_argument(
+        "--format",
+        choices=("text", "md"),
+        default="text",
+        help="human-readable output format (ignored when --json is given)",
+    )
+    p_diff.add_argument(
+        "--align",
+        choices=("bucket", "latest"),
+        default="bucket",
+        help=(
+            "how two readings are paired. `bucket` (default) compares readings at the SAME "
+            "instant, which is the only pairing where a before/after describes one moment. "
+            "`latest` compares each side's most recent reading per cell and parameter — the "
+            "'did this block get worse' question — and every record it produces carries both "
+            "buckets, because a change between two instants must say which two."
+        ),
+    )
+    p_diff.add_argument(
+        "--allow-schema-skew",
+        action="store_true",
+        help=(
+            "compare two inputs whose recorded schema versions differ. Refused by default: the "
+            "fields on either side may not mean the same thing."
+        ),
+    )
+    p_diff.set_defaults(func=cmd_diff)
 
     p_version = sub.add_parser("version", help="print the swelter version")
     p_version.set_defaults(func=cmd_version)
