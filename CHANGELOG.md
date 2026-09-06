@@ -5,7 +5,11 @@ All notable changes to swelter are recorded here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as scoped in
 [`docs/VERSIONING.md`](docs/VERSIONING.md).
 
-## [0.2.0] - 2026-09-02
+## [Unreleased]
+
+Nothing yet. New entries go here; the `0.2.0` section below is closed.
+
+## [0.2.0] - 2026-09-06
 
 ### Added
 

@@ -97,7 +97,8 @@ Treat sensitive location exposure, forged ingest, source/license mismatch, and s
 publication as incidents. Do not print node keys, request signatures, raw precise coordinates, or
 credential-bearing URLs.
 
-The package metadata is preparing the first real `v0.1.0` release; do not invent a release or tag.
+The package metadata is preparing the `v0.2.0` release. An annotated `v0.1.0` tag exists, but
+no GitHub Release has ever been published and no `v0.2.0` tag exists; do not invent either.
 Release completion requires the exact tagged source to pass verification and the generated artifacts,
 SBOM, signatures/provenance, consumer verification, deployment, and rollback evidence required by
 the release workflow and [`DEFINITION_OF_DONE.md`](DEFINITION_OF_DONE.md).
