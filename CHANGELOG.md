@@ -75,6 +75,46 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The scheduled full-history secret scan could not fail on a revoked credential.**
+  `.github/workflows/trufflehog.yml` ran `--results=verified,unknown`, and those tier names are
+  misleading: `verified` means the provider was asked and said yes, `unknown` means the provider
+  could not be asked, and **`unverified` means the provider was asked and said no** — that is, a
+  revoked credential, which is the normal end state of a real leak. A key is committed, someone
+  notices, the key is rotated, and the commit stays in history forever. Omitting that tier left a
+  weekly history sweep that could not fail on the exact incident it exists to find.
+
+  Measured on this repository's own history at the pinned scanner (3.97.1), with a real-shaped
+  AWS key pair planted in one commit and deleted in the next (planted blob confirmed present at
+  the planted commit and absent at `HEAD`):
+
+  | configuration | exit | planted key reported |
+  | --- | --- | --- |
+  | `--results=verified,unknown` (before) | 183 | **no** — the only finding was an unrelated false positive |
+  | `--results=verified,unknown,unverified --exclude-detectors=Lob,URI` | 183 | yes, `AWS` |
+  | `--results=verified,unverified --exclude-detectors=Lob` | 183 | yes, `AWS` |
+
+  The scan is now two steps whose union covers all three tiers. Widening the tier reported
+  nothing new on this history, so it was free. The second step exists because of one genuine
+  false positive: `tests/test_openaq.py` deliberately embeds
+  `https://user:hunter2@x.example/terms` as the fixture for the rule that refuses a
+  credential-bearing source URL and proves the refusal never echoes the credential into a
+  published ledger. The `URI` detector cannot verify an RFC 2606 reserved domain — DNS fails, so
+  the finding lands in `unknown` — and the fixture is in history, so it cannot be removed without
+  rewriting history. Step 1 runs every detector except `Lob` and `URI` across all three tiers;
+  step 2 restores `URI` at `verified` and `unverified`, the two tiers where the verifier returns
+  a decision rather than an error, under `if: ${{ !cancelled() }}` so it still runs when step 1
+  has already failed. The pair loses only "`URI` at the `unknown` tier", which is precisely and
+  only the class this false positive belongs to. Excluded by detector name, never by path:
+  fixtures are where a real credential is most likely to land by accident.
+
+  This also fixes a failure that had not surfaced yet. The fixture reached `main` earlier today in
+  #249, after the last successful scheduled run (2026-09-02), so the next scheduled scan would
+  have failed on it. Both steps are green on `main` today.
+
+  Six tests in `tests/test_supply_chain.py` read the committed workflow rather than a fixture,
+  because a fixture asserting the shape we meant to write proves nothing about the file that
+  actually runs. Four of them fail against the pre-fix workflow.
+
 - **The scheduled secret scan now pins the scanner, not just the action.** `trufflehog.yml`
   pinned `trufflesecurity/trufflehog` by commit SHA, which pins the *wrapper* only. The
   action's `version` input defaults to `latest` and it runs

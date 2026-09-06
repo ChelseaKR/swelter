@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import shutil
 import sys
 import tomllib
@@ -325,6 +326,108 @@ def test_workflow_policy_accepts_an_exactly_pinned_trufflehog_scanner(tmp_path: 
         _trufflehog_workflow(tmp_path, "pinned.yml", '          version: "3.97.1"\n')
     )
     assert not any("does not pin its scanner" in finding for finding in findings)
+
+
+# -- the scheduled full-history secret scan ------------------------------------------------
+#
+# These read the committed workflow, not a fixture. The defect they exist for is a
+# configuration that looks thorough and cannot fail on the thing it is for, so a fixture
+# asserting the shape we meant to write would prove nothing about the file that actually runs.
+
+_SECRET_SCAN_WORKFLOW = ROOT / ".github" / "workflows" / "trufflehog.yml"
+
+
+def _secret_scan_job() -> dict[str, Any]:
+    document = yaml.safe_load(_SECRET_SCAN_WORKFLOW.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], document["jobs"]["trufflehog"])
+
+
+def _scanner_steps() -> list[dict[str, Any]]:
+    return [
+        step
+        for step in _secret_scan_job()["steps"]
+        if str(step.get("uses", "")).startswith("trufflesecurity/trufflehog@")
+    ]
+
+
+def _tiers(step: dict[str, Any]) -> set[str]:
+    for argument in str(step["with"]["extra_args"]).split():
+        if argument.startswith("--results="):
+            return set(argument.removeprefix("--results=").split(","))
+    return set()
+
+
+def _excluded_detectors(step: dict[str, Any]) -> set[str]:
+    for argument in str(step["with"]["extra_args"]).split():
+        if argument.startswith("--exclude-detectors="):
+            return set(argument.removeprefix("--exclude-detectors=").split(","))
+    return set()
+
+
+def test_the_history_scan_reports_on_revoked_credentials() -> None:
+    """`unverified` means the provider was asked and said NO -- a revoked credential.
+
+    Revocation is the normal end state of a real leak: a key is committed, someone notices, the
+    key is rotated, and the commit stays in history forever. A scan that omits this tier cannot
+    fail on the exact incident a full-history sweep exists to find. Measured on this
+    repository's history with a real-shaped AWS key planted in one commit and deleted in the
+    next: `--results=verified,unknown` exited 0 and reported no AWS finding at all;
+    `--results=verified,unknown,unverified` exited 183 and reported it.
+    """
+    steps = _scanner_steps()
+    assert steps, "no TruffleHog step in the scheduled scan"
+    assert any("unverified" in _tiers(step) for step in steps)
+
+
+def test_the_history_scan_covers_every_result_tier_across_its_steps() -> None:
+    covered: set[str] = set()
+    for step in _scanner_steps():
+        covered |= _tiers(step)
+    assert covered == {"verified", "unknown", "unverified"}
+
+
+def test_no_detector_is_switched_off_at_every_tier_except_the_documented_one() -> None:
+    """A detector excluded from every step is a detector this repository does not run.
+
+    Lob is the one deliberate case: its detector matches pytest function names, and there is no
+    Lob integration here. URI is excluded from the widened step because a test fixture embeds a
+    credential-bearing URL on an RFC 2606 reserved domain that cannot be verified, so it must
+    still be reachable from another step rather than dropped outright.
+    """
+    steps = _scanner_steps()
+    everywhere = set.intersection(*(_excluded_detectors(step) for step in steps))
+    assert everywhere == {"Lob"}
+    assert any("URI" in _excluded_detectors(step) for step in steps)
+    assert any("URI" not in _excluded_detectors(step) for step in steps)
+
+
+def test_a_later_scan_step_still_runs_when_an_earlier_one_has_failed() -> None:
+    """Otherwise the second lane is dead weight: the job stops at the first finding and the
+    detectors it was added to cover are never asked about."""
+    steps = _scanner_steps()
+    assert len(steps) >= 2
+    for step in steps[1:]:
+        assert step.get("if") == "${{ !cancelled() }}"
+
+
+def test_the_history_scan_is_not_secretly_a_one_commit_scan() -> None:
+    """`fetch-depth: 0` is the difference between a full-history sweep and a shallow clone that
+    reports success over a single commit."""
+    checkout = _secret_scan_job()["steps"][0]
+    assert str(checkout["uses"]).startswith("actions/checkout@")
+    assert checkout["with"]["fetch-depth"] == 0
+
+
+def test_every_scan_step_pins_the_scanner_not_only_the_wrapper() -> None:
+    """A SHA on `uses:` pins the wrapper; `version:` chooses the image that does the scanning,
+    and it defaults to `latest`. Adding a second step is the easy place to forget it."""
+    raw = _SECRET_SCAN_WORKFLOW.read_text(encoding="utf-8")
+    steps = _scanner_steps()
+    assert len(steps) == raw.count("uses: trufflesecurity/trufflehog@")
+    for step in steps:
+        assert step["with"]["version"] == "3.97.1"
+        assert re.fullmatch(r"trufflesecurity/trufflehog@[0-9a-f]{40}", str(step["uses"]))
+    assert raw.count("# v3.97.1") == len(steps)
 
 
 def _gap_document() -> dict[str, Any]:
