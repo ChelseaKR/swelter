@@ -1,11 +1,13 @@
-# Static analysis for the Python codebase via CodeQL. Runs on every push and
-# pull request, plus a weekly scheduled scan to catch advisories published
+# Static analysis for the Python codebase via CodeQL. Runs on every pull
+# request, plus a weekly scheduled scan to catch advisories published
 # after a quiet period with no commits.
 name: CodeQL
 
 on:
-  push:
-    branches: [main]
+  # No push: trigger. CI-CD-STANDARD.md 11e — the pull_request run below
+  # already analysed this exact commit, so re-running CodeQL on the merge
+  # to main pays for the same analysis twice. The weekly schedule keeps the
+  # default-branch alert baseline fresh when no PR has landed.
   pull_request:
     branches: [main]
   schedule:
