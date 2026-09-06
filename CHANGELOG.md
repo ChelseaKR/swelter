@@ -34,6 +34,45 @@ All notable changes to swelter are recorded here. The format follows
   Trusted Publishing and its protected environment, which is recorded in
   `docs/audits/release-publishing-gap.json` and needs the maintainer, not a code change.
 
+- **`swelter diff` — what changed between two artifacts, and why** (closes #235). New
+  `src/swelter/diff.py`, the `diff` verb, `docs/api.md`, and ADR 0047. `verify-archive`
+  proves nothing was tampered with; nothing proved what *legitimately* changed. A steward or
+  a journalist holding two `sample-surface.json` files from different days could only eyeball
+  two GeoJSONs, and an organiser who says "the block got worse this week" had no way to show
+  whether the number moved or the calibration did — different claims about the same cell, and
+  only one of them is about the weather. ADR 0038 made every correction name its fit precisely
+  so that distinction could be drawn; nothing drew it.
+
+  `swelter diff A B [--json] [--format md] [--align bucket|latest] [--allow-schema-skew]`
+  compares two surfaces, two snapshot directories (MANIFEST plus `aggregate.geojson`), or two
+  `swelter qc --json` health reports, attributing every difference to exactly one kind from a
+  closed vocabulary: `value_change`, `calibration_version`, `qc_state`,
+  `source_or_rights_change`, `absent_to_present`, `present_to_absent`,
+  `schema_version_change`. The vocabulary is deliberately the shape of `nearmiss`'s
+  `tools/diff_datasets.py`, so two sibling projects answer "why is this number different from
+  last week's" in one language. Offline, stdlib-only, and deterministic — no clock, so the
+  same two inputs always produce the same bytes.
+
+  Three rules it will not bend, each a test. **Absence is never a delta**: a reading present
+  on one side only is reported as absence carrying only the side that exists, no arithmetic is
+  performed against a missing value, and no `delta` key is emitted anywhere (ADR 0037) — while
+  a recorded `null`, which means "no error bar, and here is why" (ADR 0035), is a value and is
+  compared as one. **An unrecorded schema version is not a matching one**: if either input
+  records none, the report says the two were *not compared* rather than proceeding as though
+  they agreed. **Two readings are only compared when they describe the same instant**;
+  `--align latest` is opt-in and every record it produces carries both buckets.
+
+  One trap worth naming, because the obvious implementation walks into it.
+  `web/sample-surface.json` publishes **two** `pm25_ugm3` records for the same cell and
+  bucket — an `hourly-mean` one carrying an error bar and a `nowcast` one explaining why it
+  has none. That shape is deliberate and the dashboard already handles it (`isDisplayVariant`
+  in `web/app.js` selects the hourly mean so a location is never double-counted), so it is
+  not a defect in the surface. It *is* a defect in any consumer that keys a reading on
+  `(cell_id, parameter, bucket)`: under that key the 1050 committed records collapse to 900,
+  and half of every PM2.5 comparison would be made against whichever record happened to be
+  last in the file while the other half vanished. `aqi_window` is therefore part of a
+  reading's identity here, and a remaining collision is a named refusal rather than a guess.
+
 ### Fixed
 
 - **The scheduled secret scan now pins the scanner, not just the action.** `trufflehog.yml`
