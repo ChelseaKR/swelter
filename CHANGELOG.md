@@ -7,7 +7,32 @@ All notable changes to swelter are recorded here. The format follows
 
 ## [Unreleased]
 
-Nothing yet. New entries go here; the `0.2.0` section below is closed.
+### Added
+
+- **The committed mutation baseline the release gate has always required now exists.**
+  `make release-readiness` begins with `mutation-baseline-check`, which verifies
+  `docs/audits/mutation-baseline.json`. That file was never committed, so the very first
+  step of the release gate failed on `cannot read mutation baseline` and no release could
+  be prepared from a clean checkout. The gate was correct; the evidence it asks for was
+  simply absent.
+
+  The file is now written from a real, complete run of `make mutation-run` against this
+  commit: **92.09%** (1584 killed / 1720 generated), zero timeouts, skips or other
+  incomplete states, over `swelter.calibrate`, `swelter.models` and `swelter.qc`. It is
+  not a hand-written number — `scripts/mutation_report.py baseline` derives it from
+  `mutants/*.meta` and binds it to the SHA-256 of the three source modules, the four test
+  files, the project configuration and the locked `mutmut` entry, so any drift in those
+  inputs turns the gate red rather than letting stale evidence pass.
+
+  This also records that issue #200's measured shortfall is closed. That issue reported
+  **77.76%** against the floor of 80; the score on this commit is 92.09%, above the floor
+  by twelve points. The mutants were killed by real tests, not by moving the floor —
+  `MUTATION_SCORE_FLOOR` is still `80`, and the largest single contribution was
+  #207, which added 151 lines to `tests/test_calibrate.py`.
+
+  `make release-readiness` still fails, and deliberately so: the next blocker is PyPI
+  Trusted Publishing and its protected environment, which is recorded in
+  `docs/audits/release-publishing-gap.json` and needs the maintainer, not a code change.
 
 ## [0.2.0] - 2026-09-06
 
