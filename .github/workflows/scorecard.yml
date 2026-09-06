@@ -14,11 +14,22 @@ on:
 permissions:
   contents: read
 
+# CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref. The key carries the event as
+# well as the ref, because a bare `${{ github.ref }}` on a busy `main` makes consecutive pushes
+# supersede each other: the older commit's run is cancelled before a job is dispatched, so that
+# commit never gets a verdict and the branch looks green on the strength of a run that never
+# happened. Pull-request runs share one slot per ref and do supersede each other, which is the
+# saving this is for; every push keeps its own slot, keyed by the commit it is a verdict about.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   analysis:
     name: scorecard
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write

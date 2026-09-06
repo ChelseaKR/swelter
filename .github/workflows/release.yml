@@ -19,6 +19,7 @@ jobs:
   preflight:
     name: signed tag + release ancestry
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     outputs:
@@ -74,6 +75,7 @@ jobs:
     name: isolated build + internal verification
     needs: preflight
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -207,6 +209,7 @@ jobs:
     name: credential-isolated attestation + signing
     needs: [preflight, build]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       attestations: write
       contents: read
@@ -386,6 +389,7 @@ jobs:
     name: clean draft publication boundary
     needs: [preflight, attest-sign]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
@@ -468,6 +472,7 @@ jobs:
     name: clean cryptographic draft binding
     needs: [preflight, publish-draft]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       attestations: read
       contents: read
@@ -556,6 +561,7 @@ jobs:
     name: read-only exact draft consumer verification
     needs: [preflight, draft-verification]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       attestations: read
       contents: read
@@ -641,6 +647,7 @@ jobs:
     name: clean atomic promotion boundary
     needs: [preflight, draft-verification, consumer-verification]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
     steps:
