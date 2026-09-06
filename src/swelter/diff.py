@@ -423,10 +423,13 @@ def _mapping_changes(
 #: What identifies one published reading. `aqi_window` is in here, and it has to be: the
 #: surface publishes TWO `pm25_ugm3` records for the same cell and the same bucket — an
 #: `hourly-mean` one that carries an error bar and a `nowcast` one that explains why it does
-#: not. Keying on `(cell, parameter, bucket)` alone silently coalesces them, so half of every
-#: PM2.5 comparison would be made against the wrong record and the other half would vanish.
-#: 1050 records in the committed `web/sample-surface.json` collapse to 900 under the shorter
-#: key. A diff that quietly loses a reading is worse than no diff.
+#: not. That is deliberate, and `web/app.js`'s `isDisplayVariant` already picks the hourly
+#: mean so the dashboard never double-counts a location; the surface is not at fault. The
+#: fault would be here. Keying on `(cell, parameter, bucket)` alone silently coalesces the
+#: pair — 1050 records in the committed `web/sample-surface.json` collapse to 900 — so half of
+#: every PM2.5 comparison would be made against whichever record happened to be last in the
+#: file and the other half would vanish. A diff that quietly loses a reading is worse than no
+#: diff.
 _READING_KEY_FIELDS = ("cell_id", "parameter", "bucket", "aqi_window")
 
 

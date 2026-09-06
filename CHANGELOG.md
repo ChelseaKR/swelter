@@ -62,13 +62,16 @@ All notable changes to swelter are recorded here. The format follows
   they agreed. **Two readings are only compared when they describe the same instant**;
   `--align latest` is opt-in and every record it produces carries both buckets.
 
-  Building it surfaced a real defect in the surface's own shape: `web/sample-surface.json`
-  publishes **two** `pm25_ugm3` records for the same cell and bucket — an `hourly-mean` one
-  carrying an error bar and a `nowcast` one explaining why it has none. Keyed on
-  `(cell_id, parameter, bucket)`, 1050 committed records collapse to 900, and half of every
-  PM2.5 comparison would be made against whichever record happened to be last in the file.
-  `aqi_window` is therefore part of a reading's identity, and a remaining collision is a named
-  refusal rather than a guess.
+  One trap worth naming, because the obvious implementation walks into it.
+  `web/sample-surface.json` publishes **two** `pm25_ugm3` records for the same cell and
+  bucket — an `hourly-mean` one carrying an error bar and a `nowcast` one explaining why it
+  has none. That shape is deliberate and the dashboard already handles it (`isDisplayVariant`
+  in `web/app.js` selects the hourly mean so a location is never double-counted), so it is
+  not a defect in the surface. It *is* a defect in any consumer that keys a reading on
+  `(cell_id, parameter, bucket)`: under that key the 1050 committed records collapse to 900,
+  and half of every PM2.5 comparison would be made against whichever record happened to be
+  last in the file while the other half vanished. `aqi_window` is therefore part of a
+  reading's identity here, and a remaining collision is a named refusal rather than a guess.
 
 ### Fixed
 

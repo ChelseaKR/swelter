@@ -167,13 +167,16 @@ def test_an_unrecorded_schema_version_is_not_reported_as_a_matching_one(tmp_path
 def test_two_readings_with_the_same_identity_are_refused_rather_than_coalesced(
     tmp_path: Path,
 ) -> None:
-    """Found while building this: the surface really does publish two records per key.
+    """The trap the obvious implementation walks into.
 
     `web/sample-surface.json` carries an `hourly-mean` PM2.5 record (with an error bar) and a
-    `nowcast` one (explaining why it has none) for the same cell and bucket. Under a
-    `(cell, parameter, bucket)` key those collapse — 1050 records become 900 — and half of every
-    PM2.5 comparison is then made against whichever record happened to be last in the file.
-    `aqi_window` is part of the identity, and a remaining collision is a refusal, not a guess.
+    `nowcast` one (explaining why it has none) for the same cell and bucket. That shape is
+    deliberate and the dashboard handles it (`isDisplayVariant` in `web/app.js`), so it is not
+    a defect in the surface — it is a defect in any consumer keying on
+    `(cell, parameter, bucket)`, under which those two collapse (1050 records become 900) and
+    half of every PM2.5 comparison is made against whichever record happened to be last in the
+    file. `aqi_window` is part of the identity, and a remaining collision is a refusal, not a
+    guess.
     """
     duplicate = _cell(parameter="pm25_ugm3", aqi_window="nowcast")
     a = _surface(tmp_path, "a", [duplicate, dict(duplicate)])
