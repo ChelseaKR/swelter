@@ -34,6 +34,27 @@ All notable changes to swelter are recorded here. The format follows
   Trusted Publishing and its protected environment, which is recorded in
   `docs/audits/release-publishing-gap.json` and needs the maintainer, not a code change.
 
+### Fixed
+
+- **The scheduled secret scan now pins the scanner, not just the action.** `trufflehog.yml`
+  pinned `trufflesecurity/trufflehog` by commit SHA, which pins the *wrapper* only. The
+  action's `version` input defaults to `latest` and it runs
+  `ghcr.io/trufflesecurity/trufflehog:${VERSION}`, so with the input unset every scheduled run
+  pulled whatever image was newest and the `# v3.97.1` comment described none of the code that
+  actually did the scanning.
+
+  That makes the gate non-reproducible in the direction that matters: its detector set — and so
+  what counts as a finding — could change with no commit in this repository. It is not a
+  hypothetical. The same action in `id-churn-sentinel` went red on 2026-08-09 with nothing
+  changed on that side, because upstream shipped 3.96.0 and the next scheduled run picked it
+  up; 3.96.0 is also the release whose Lob detector started matching pytest function names,
+  which is the very false positive the `--exclude-detectors=Lob` argument here exists to
+  suppress. A floating scanner can therefore both invent findings and, on a future release,
+  stop producing one, with no change to review.
+
+  `version: "3.97.1"` now matches the pinned action tag, so the wrapper and the scanner move
+  together and deliberately.
+
 ## [0.2.0] - 2026-09-06
 
 ### Added
