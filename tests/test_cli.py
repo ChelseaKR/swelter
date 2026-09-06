@@ -400,3 +400,66 @@ def test_node_key_creates_a_key_ingest_serve_actually_authenticates_against(
 def _ingest_post(url: str, body: bytes, headers: dict[str, str]) -> tuple[int, dict[str, Any]]:
     response = request_local(url, method="POST", body=body, headers=headers)
     return response.status, json.loads(response.body.decode("utf-8"))
+
+
+def test_init_hint_names_a_next_step_that_runs_where_the_demo_data_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An installed wheel has no data/demo, so the hint must not send people to it.
+
+    Until 2026-09-02 the success message named `swelter demo --serve`, which from a wheel-only
+    install ended in a FileNotFoundError traceback. The hinted command must be one that runs
+    right here, and it is run right here.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["init", "--config", "my-network.yaml"]) == 0
+
+    err = capsys.readouterr().err
+    assert "      swelter doctor --config my-network.yaml" in err
+    assert "swelter demo --serve" not in err
+    assert "git clone https://github.com/ChelseaKR/swelter && cd swelter && make demo" in err
+    assert main(["doctor", "--config", "my-network.yaml"]) == 0
+
+
+def test_init_hint_offers_the_demo_where_its_data_is_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data" / "demo").mkdir(parents=True)
+    (tmp_path / "data" / "demo" / "observations.jsonl").write_text("", encoding="utf-8")
+
+    assert main(["init", "--config", "my-network.yaml"]) == 0
+
+    err = capsys.readouterr().err
+    assert "      swelter doctor --config my-network.yaml" in err
+    assert "      swelter demo --serve" in err
+    assert "git clone" not in err
+
+
+def test_demo_refuses_cleanly_when_the_recorded_data_is_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """One line and directions, exit 1, and the existing demo store is left alone."""
+    store = tmp_path / "store"
+    store.mkdir()
+    (store / "observations.db").write_bytes(b"keep me")
+
+    code = main(
+        [
+            "demo",
+            "--data",
+            str(tmp_path / "nowhere"),
+            "--store",
+            str(store),
+            "--web",
+            str(tmp_path / "web"),
+        ]
+    )
+
+    err = capsys.readouterr().err
+    assert code == 1
+    assert f"swelter demo: no recorded data at {tmp_path / 'nowhere'}" in err
+    assert "git clone https://github.com/ChelseaKR/swelter && cd swelter && make demo" in err
+    assert "Traceback" not in err
+    assert (store / "observations.db").read_bytes() == b"keep me"

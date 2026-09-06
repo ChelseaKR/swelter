@@ -75,6 +75,18 @@ DEFAULT_STORE = "store"
 DEFAULT_CONFIG = "network.yaml"
 DEFAULT_WEB = "web"
 DEFAULT_DATA = "data/demo"
+ADD_YOUR_NEIGHBORHOOD_URL = (
+    "https://github.com/ChelseaKR/swelter/blob/main/docs/ADD-YOUR-NEIGHBORHOOD.md"
+)
+DEMO_CLONE_HINT = "git clone https://github.com/ChelseaKR/swelter && cd swelter && make demo"
+"""Where the bundled demo can run.
+
+``swelter demo`` replays ``data/demo``, which is committed at the repository root and
+deliberately not packaged: it is a few megabytes of regenerable synthetic readings
+(``scripts/gen_demo_data.py``) against a wheel a fraction of that size, and it is the fixture the
+calibration-reproducibility contract and the accepted ADRs name by that path. So a wheel-only
+install is told where the demo lives instead of being handed a command that cannot run there.
+"""
 DEFAULT_COOLING = "data/cooling_centers.geojson"
 DEFAULT_CANOPY = "data/context_layers.geojson"
 DEFAULT_AC_ACCESS = "data/ac_access_layer.geojson"
@@ -136,6 +148,11 @@ calibration_windows:            # one per (node, parameter); a node with none st
 
 
 _JSON_DIAGNOSTICS = False
+
+
+def _demo_data_present(data: str | Path) -> bool:
+    """Whether the recorded week ``swelter demo`` replays is at ``data`` (relative to the cwd)."""
+    return (Path(data) / "observations.jsonl").is_file()
 
 
 def _err(message: str) -> None:
@@ -920,6 +937,18 @@ def cmd_node_preview(args: argparse.Namespace) -> int:
 
 def cmd_demo(args: argparse.Namespace) -> int:
     data = Path(args.data)
+    if not _demo_data_present(data):
+        # Refuse before touching anything: the replay below deletes the existing demo store
+        # first, so a run that was going to fail on the missing file used to take the store
+        # with it and then end in a traceback.
+        _err(f"swelter demo: no recorded data at {data} (observations.jsonl is missing)")
+        _err(
+            "      the demo replays the recorded week committed in the repository, "
+            "which the package does not carry:"
+        )
+        _err(f"      {DEMO_CLONE_HINT}")
+        _err("      …or pass --data <dir> pointing at a copy of it")
+        return 1
     config = _load_config(args.config)
     paths = store_paths(args.store)
     paths["db"].unlink(missing_ok=True)  # a fresh demo store every run; replay is idempotent
@@ -2152,9 +2181,21 @@ def cmd_init(args: argparse.Namespace) -> int:
     path.write_text(content, encoding="utf-8")
     config = load_config(str(path))  # parse it back so we fail loudly if the scaffold is malformed
     _err(f"swelter: wrote starter network → {path} ({len(config.nodes)} nodes)")
-    _err("next: edit it (see docs/ADD-YOUR-NEIGHBORHOOD.md), then try the bundled demo:")
-    _err("      swelter demo --serve")
-    _err(f"      …or run the pipeline against your own config with --config {path}")
+    _err(f"next: edit it (see {ADD_YOUR_NEIGHBORHOOD_URL}), then check it:")
+    _err(f"      swelter doctor --config {path}")
+    _err(f"      …then run the pipeline against it with --config {path}")
+    # Name the demo only where it can run. A command line in this hint is a promise, and the
+    # one it used to make (`swelter demo --serve`) ended in a FileNotFoundError traceback from
+    # every wheel-only install, because data/demo is not package data (see DEMO_CLONE_HINT).
+    if _demo_data_present(DEFAULT_DATA):
+        _err("      …or try the bundled demo:")
+        _err("      swelter demo --serve")
+    else:
+        _err(
+            "      the bundled demo replays recorded data that ships with the repository, "
+            "not the package:"
+        )
+        _err(f"      {DEMO_CLONE_HINT}")
     return 0
 
 
