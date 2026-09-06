@@ -58,17 +58,27 @@ def _clean_env() -> dict[str, str]:
     return {key: value for key, value in os.environ.items() if key not in dropped}
 
 
-def _harness(argv: list[str], cwd: Path | None = None) -> str:
-    """Run one harness step; a non-zero exit is the not-examined state."""
-    result = subprocess.run(  # noqa: S603 -- argv is built here from known paths
+def _run(argv: list[str], cwd: Path | None, timeout: int) -> subprocess.CompletedProcess[str]:
+    """The single subprocess call in this file: fixed argv, no shell, no inherited checkout.
+
+    Every command here — the build, the venv, the install, `init`, and each command `init`
+    hints — goes through this one place, so the module carries one tracked `S603` instead of
+    one per call site (#107).
+    """
+    return subprocess.run(  # noqa: S603 (#107) -- fixed argv assembled here; shell=False
         argv,
         cwd=cwd,
         env=_clean_env(),
         capture_output=True,
         text=True,
-        timeout=HARNESS_TIMEOUT_SECONDS,
+        timeout=timeout,
         check=False,
     )
+
+
+def _harness(argv: list[str], cwd: Path | None = None) -> str:
+    """Run one harness step; a non-zero exit is the not-examined state."""
+    result = _run(argv, cwd, HARNESS_TIMEOUT_SECONDS)
     if result.returncode != 0:
         pytest.fail(
             f"`{' '.join(argv[:2])} ...` exited {result.returncode}; {NOT_EXAMINED}\n"
@@ -146,15 +156,7 @@ def test_init_and_its_next_step_run_from_an_installed_wheel(tmp_path: Path) -> N
 
     swelter = bin_dir / ("swelter.exe" if os.name == "nt" else "swelter")
     init_argv = documented_init_command(README.read_text(encoding="utf-8"))
-    init = subprocess.run(  # noqa: S603 -- argv comes from the README line
-        [str(swelter), *init_argv],
-        cwd=outside,
-        env=_clean_env(),
-        capture_output=True,
-        text=True,
-        timeout=HINT_TIMEOUT_SECONDS,
-        check=False,
-    )
+    init = _run([str(swelter), *init_argv], outside, HINT_TIMEOUT_SECONDS)
     assert init.returncode == 0, (
         f"`swelter {' '.join(init_argv)}` exited {init.returncode} from an installed wheel, "
         f"outside the repository:\n{init.stderr}"
@@ -164,30 +166,14 @@ def test_init_and_its_next_step_run_from_an_installed_wheel(tmp_path: Path) -> N
     hinted = hinted_commands(init.stderr)
     assert hinted, f"init's hint names no command to run next:\n{init.stderr}"
     for argv in hinted:
-        result = subprocess.run(  # noqa: S603 -- argv comes from init's own hint
-            [str(swelter), *argv],
-            cwd=outside,
-            env=_clean_env(),
-            capture_output=True,
-            text=True,
-            timeout=HINT_TIMEOUT_SECONDS,
-            check=False,
-        )
+        result = _run([str(swelter), *argv], outside, HINT_TIMEOUT_SECONDS)
         assert result.returncode == 0, (
             f"init hinted `swelter {' '.join(argv)}`, which exited {result.returncode} from the "
             f"same installed wheel, in the same directory:\n{result.stderr}"
         )
 
     # And the demo, which the hint must not name here, refuses in one line rather than a traceback.
-    demo = subprocess.run(  # noqa: S603 -- fixed argv
-        [str(swelter), "demo"],
-        cwd=outside,
-        env=_clean_env(),
-        capture_output=True,
-        text=True,
-        timeout=HINT_TIMEOUT_SECONDS,
-        check=False,
-    )
+    demo = _run([str(swelter), "demo"], outside, HINT_TIMEOUT_SECONDS)
     assert demo.returncode == 1, demo.stderr
     assert "swelter demo: no recorded data at data/demo" in demo.stderr
     assert "Traceback" not in demo.stderr

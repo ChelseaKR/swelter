@@ -302,7 +302,9 @@ All notable changes to swelter are recorded here. The format follows
   demo store, which the old code did first and then crashed. `tests/test_wheel_quickstart.py`
   builds the wheel, installs it into a fresh virtual environment, runs the README's
   `swelter init` line from a directory outside the repository, and then runs every command the
-  hint names; it fails rather than skips when it cannot examine the wheel.
+  hint names; it fails rather than skips when it cannot examine the wheel. Its five subprocesses
+  go through one `_run` helper, so the new module costs the suppression ratchet one tracked
+  `S603` rather than five (`SUPPRESSION_CEILING` 27 -> 28, #107).
 
 - **A licensing refusal no longer reaches the operator as "no readings returned".** Landing
   per-location exclusion (#216) had an immediate, measured consequence: on `main` at `1f051c1`,
