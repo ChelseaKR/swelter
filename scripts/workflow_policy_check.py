@@ -32,6 +32,42 @@ _SEMVER = re.compile(r"^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
 # ``stale_exemptions`` now checks the table against the workflows on every run: an exemption that
 # outlives what it excused is a finding, not a leftover.
 _PROTECTED_VERSION_ANNOTATIONS: dict[tuple[str, str, str, str], str] = {}
+#: Actions that SHA-pinning does not actually pin. These wrappers select the program that does the
+#: work through a `version:` input which defaults to "latest", and then run it from a registry --
+#: trufflehog runs `ghcr.io/trufflesecurity/trufflehog:${VERSION}`. So the 40-character SHA and its
+#: trailing semver comment describe the wrapper while the scanner, its detector set, and therefore
+#: what counts as a finding all float. This gate printed "SHA-pinned, exact-versioned" over exactly
+#: that state. It is not hypothetical: the same action in id-churn-sentinel went red on 2026-08-09
+#: with no commit on that side, because upstream shipped 3.96.0 and the next scheduled run picked
+#: it up -- the same release whose Lob detector began matching pytest function names. A floating
+#: scanner can invent findings and can equally stop producing one, with nothing to review either
+#: way. For these actions the `version:` input must be present and an exact version.
+_SCANNER_VERSION_INPUT_ACTIONS = frozenset({"trufflesecurity/trufflehog"})
+#: `version:` is a `with:` input, so it sits below `uses:` with intervening keys and comments.
+_SCANNER_VERSION_LOOKAHEAD = 30
+_SCANNER_VERSION_INPUT = re.compile(r'^\s*version:\s*["\']?v?\d+\.\d+\.\d+["\']?\s*$')
+
+
+def _step_input_problems(action: str, index: int, lines: list[str]) -> list[str]:
+    """Return findings about the `with:` inputs of the step whose `uses:` is at ``index``.
+
+    Split out of ``scan_workflow`` so each per-action input rule can be added without pushing
+    that function past the complexity limit -- the limit is the reason to extract a helper, not
+    a reason to skip a rule.
+    """
+    problems: list[str] = []
+    if action == "actions/checkout":
+        following = "\n".join(lines[index : index + 8])
+        if "persist-credentials: false" not in following:
+            problems.append(f"line {index}: checkout does not disable persisted credentials")
+    if action in _SCANNER_VERSION_INPUT_ACTIONS:
+        scanner_inputs = lines[index : index + _SCANNER_VERSION_LOOKAHEAD]
+        if not any(_SCANNER_VERSION_INPUT.fullmatch(candidate) for candidate in scanner_inputs):
+            problems.append(
+                f"line {index}: {action} does not pin its scanner with an exact "
+                f"version: input, so the SHA pins only the wrapper"
+            )
+    return problems
 
 
 def scan_workflow(path: Path) -> list[str]:
@@ -55,12 +91,7 @@ def scan_workflow(path: Path) -> list[str]:
             )
             if not version_is_documented:
                 problems.append(f"line {index}: {action} has no exact trailing semver comment")
-            if action == "actions/checkout":
-                following = "\n".join(lines[index : index + 8])
-                if "persist-credentials: false" not in following:
-                    problems.append(
-                        f"line {index}: checkout does not disable persisted credentials"
-                    )
+            problems.extend(_step_input_problems(action, index, lines))
         if "continue-on-error: true" in line:
             problems.append(f"line {index}: continue-on-error weakens an automatic gate")
         if "|| true" in line:

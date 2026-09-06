@@ -284,6 +284,49 @@ def test_workflow_policy_rejects_mutable_or_major_only_action_refs(tmp_path: Pat
     assert any("exact trailing semver" in finding for finding in findings)
 
 
+_TRUFFLEHOG_SHA = "20652fbbdefffcdaa493a5bf57ab2ac6b1db715b"
+
+
+def _trufflehog_workflow(tmp_path: Path, name: str, version_line: str) -> Path:
+    workflow = tmp_path / name
+    workflow.write_text(
+        "permissions:\n  contents: read\njobs:\n  scan:\n    steps:\n"
+        f"      - uses: trufflesecurity/trufflehog@{_TRUFFLEHOG_SHA} # v3.97.1\n"
+        "        with:\n"
+        "          path: ./\n"
+        f"{version_line}"
+        "          extra_args: --results=verified,unknown\n",
+        encoding="utf-8",
+    )
+    return workflow
+
+
+def test_workflow_policy_rejects_an_unpinned_trufflehog_scanner(tmp_path: Path) -> None:
+    """A SHA pins the wrapper; the scanner is chosen by `version:`, which defaults to latest.
+
+    Without this rule the gate printed "SHA-pinned, exact-versioned" over a workflow whose
+    detector set could change with no commit in the repository.
+    """
+    findings = workflow_policy_check.scan_workflow(
+        _trufflehog_workflow(tmp_path, "missing.yml", "")
+    )
+    assert any("does not pin its scanner" in finding for finding in findings)
+
+
+def test_workflow_policy_rejects_a_floating_trufflehog_version(tmp_path: Path) -> None:
+    findings = workflow_policy_check.scan_workflow(
+        _trufflehog_workflow(tmp_path, "floating.yml", '          version: "latest"\n')
+    )
+    assert any("does not pin its scanner" in finding for finding in findings)
+
+
+def test_workflow_policy_accepts_an_exactly_pinned_trufflehog_scanner(tmp_path: Path) -> None:
+    findings = workflow_policy_check.scan_workflow(
+        _trufflehog_workflow(tmp_path, "pinned.yml", '          version: "3.97.1"\n')
+    )
+    assert not any("does not pin its scanner" in finding for finding in findings)
+
+
 def _gap_document() -> dict[str, Any]:
     return {
         "schema_version": 1,
