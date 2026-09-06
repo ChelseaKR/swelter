@@ -211,6 +211,16 @@ server uses structured operational logs; real-user monitoring is intentionally N
 reference site collects no client telemetry. The intentionally excluded merge/production-governance
 finding is isolated in #105 and is not claimed as remediated here.
 
+The CI/CD row stays a tracked gap, and the branch ruleset it refers to is now committed as
+[`.github/rulesets/main.json`](.github/rulesets/README.md) rather than existing only as a repository
+setting no commit records. The captured file is what makes the gap legible: six checks are required
+to merge, and `web-tests` — which runs the target the [roadmap](docs/ROADMAP.md) metrics ledger names
+as the AUTO gate for the web interaction contract — is not among them, which is the "strict required
+checks including web-tests" item #105 already tracks. `tests/test_ruleset.py` holds the file to the workflows, so a new pull-request job cannot be
+added without either becoming a required check or being declared, with a reason, as one that is not.
+Committing the ruleset is evidence of intent, not proof of enforcement: `bypass_actors` is recorded
+faithfully, and it says the repository-admin role can bypass every rule.
+
 ## Project documentation
 
 - [Contributing](CONTRIBUTING.md) · [definition of done](DEFINITION_OF_DONE.md) ·
