@@ -113,6 +113,18 @@ Dashboard copy naming the active pack to a resident is **not** shipped here. It 
 resident-facing surface change and needs the accessibility and Spanish review paths any such change
 needs (#106); #236 stays open for it.
 
+**One limitation this inherits and does not fix, stated so it is not mistaken for fixed.**
+`exposure_brief.count_danger_days` resolves its floors with `resolve_thresholds(thresholds)` and
+**no pack**, so it always measures against the heat pack — and `_floor_and_band` raises for any
+parameter outside `heat_index_c` / `pm25_ugm3` / `exposure`. Its docstring says it reuses "the
+exact 'Danger' definition the live alerts feed raises on", which is true only for a heat network.
+A cold network's brief already counts heat-index days today, and a seasonal network's will do the
+same year-round. That gap predates this decision (it arrived with the pack abstraction in
+ADR 0031), and closing it is not mechanical: under a season calendar, "danger days across a
+window" needs the floors *of each day's own pack*, which is a definition question about what a
+multi-pack count means, not a threading change. It should be its own issue and its own ADR, and
+`auto-season` should not be described as making the brief seasonal, because it does not.
+
 A superseding ADR is needed if the pack ever has to change within a month (a declared smoke episode
 overriding the calendar), or if `pack_selection` graduates from a seasonal-only key to something
 every feed carries — which would be a data-schema decision, not a side effect.

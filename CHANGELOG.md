@@ -54,6 +54,15 @@ All notable changes to swelter are recorded here. The format follows
   `_BUILTIN_DEMO_CONFIG_SHA256` moves with the new `NetworkConfig` field, as that pin is designed
   to: it digests the whole dataclass so a copied network cannot satisfy it by keeping the marker.
 
+  **One limitation this inherits and does not fix**, stated so it is not read as fixed:
+  `exposure_brief.count_danger_days` resolves its floors with no pack, so it always measures
+  against heat, and `_floor_and_band` raises for any parameter outside
+  `heat_index_c`/`pm25_ugm3`/`exposure`. A cold network's brief already counts heat-index days
+  today; a seasonal network's will too. That gap arrived with ADR 0031 and closing it is a
+  definition question (what "danger days" means across a window spanning two packs), not a
+  threading change -- ADR 0053 records it as its own future work. No published number moves: the
+  demo network is on the heat pack, where the brief is correct.
+
   Dashboard copy naming the active pack to a resident is not shipped -- it is a resident-facing
   surface change needing the accessibility and Spanish review paths (#106), and #236 stays open for
   it. Roadmap and acceptance rows added as F-32.
