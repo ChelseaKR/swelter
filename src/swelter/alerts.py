@@ -40,7 +40,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Final
 from xml.sax.saxutils import escape
 
@@ -60,6 +60,11 @@ DEFAULT_THRESHOLDS: Final[Mapping[str, float]] = hazard_packs.HEAT_PACK.default_
 #: The Atom ``<category term=...>`` that marks an entry as a "no current reading" record rather than
 #: a danger crossing, so a reader or a bridge can filter the two apart without parsing the title.
 STALE_CATEGORY: Final[str] = "no-current-reading"
+
+#: The PM2.5 averaging window every feed read before hazard packs could choose one. A feed on this
+#: window serializes no ``aqi_window`` key, so an existing consumer sees exactly the bytes it
+#: always saw (ADR 0031, ADR 0050).
+_DEFAULT_AQI_WINDOW: Final[str] = hazard_packs.AQI_WINDOW_HOURLY_MEAN
 
 
 @dataclass(frozen=True)
@@ -205,6 +210,54 @@ class StaleArea:
 
 
 @dataclass(frozen=True)
+class HazardEvent:
+    """Whether several cells rising together currently constitute one named hazard event.
+
+    Published whether or not an event is running, and that is the point. A feed that carried this
+    record only during a smoke episode would let its absence mean two different things -- "checked,
+    no event" and "this pack does not look for events" -- and the reassuring reading is the one
+    swelter must never give by default. So ``active`` is a field, ``qualifying_cells`` states how
+    many cells met the rule when the answer is no, and ``evaluated`` says whether the rule could be
+    evaluated at all.
+
+    ``evaluated=False`` is not ``active=False``. A surface with no readings in the rule's window,
+    or with no bucket ``lookback_hours`` back to compare against, cannot answer the question, and
+    saying "no event" there would be an absence rendered as an all-clear.
+    """
+
+    rule_id: str  # the pack whose rule produced this record
+    parameter: str
+    aqi_window: str  # the averaging window the rule read; the feed names it rather than implying it
+    evaluated: bool
+    active: bool
+    qualifying_cells: int
+    minimum_cells: int
+    floor: float
+    rise: float
+    lookback_hours: int
+    bucket: str  # the hour evaluated
+    reason: str  # why the answer is what it is, in one sentence
+    areas: tuple[str, ...] = ()  # the cell ids that qualified, sorted
+
+    def as_record(self) -> dict[str, object]:
+        return {
+            "rule_id": self.rule_id,
+            "parameter": self.parameter,
+            "aqi_window": self.aqi_window,
+            "evaluated": self.evaluated,
+            "active": self.active,
+            "qualifying_cells": self.qualifying_cells,
+            "minimum_cells": self.minimum_cells,
+            "floor": self.floor,
+            "rise": self.rise,
+            "lookback_hours": self.lookback_hours,
+            "bucket": self.bucket,
+            "reason": self.reason,
+            "areas": list(self.areas),
+        }
+
+
+@dataclass(frozen=True)
 class AlertFeed:
     """The set of currently-active alerts, the areas that have gone quiet, and the feed metadata."""
 
@@ -216,6 +269,13 @@ class AlertFeed:
     # Cells that reported before but not in `bucket` — published so absence is stated, not implied
     # by an empty `alerts` list (ADR 0036).
     stale: tuple[StaleArea, ...] = ()
+    # The pack's event verdict, when the pack defines an event rule. `None` means this pack looks
+    # for no events at all, which is a different statement from "no event is running" and is why
+    # the two are not collapsed into one falsy value.
+    event: HazardEvent | None = None
+    # The PM2.5 averaging window this feed's own alerts were read on, so a consumer never has to
+    # infer it from the numbers. Serialized only when it is not the default -- see `to_json`.
+    aqi_window: str = _DEFAULT_AQI_WINDOW
 
     def for_area(self, area_id: str) -> AlertFeed:
         """A feed narrowed to one published cell — the per-neighborhood subscription view.
@@ -233,6 +293,11 @@ class AlertFeed:
             alerts=kept,
             base_url=self.base_url,
             stale=kept_stale,
+            # The event is network-wide by construction -- it is about several blocks at once --
+            # so it travels into a single-area view unchanged rather than being narrowed away. A
+            # resident subscribed to one block is still in the smoke.
+            event=self.event,
+            aqi_window=self.aqi_window,
         )
 
     def to_json(self) -> dict[str, object]:
@@ -248,6 +313,25 @@ class AlertFeed:
             # the blocks swelter cannot currently see are named (ADR 0036).
             "stale_count": len(self.stale),
             "stale": [s.as_record() for s in self.stale],
+            # Present only for a pack that looks for events. Absent is "this pack has no event
+            # rule"; `{"active": false, ...}` is "checked, and no". Collapsing the two would let a
+            # heat feed's silence read as an all-clear about smoke.
+            **(
+                {
+                    "event": self.event.as_record(),
+                    "event_headline": i18n_alerts.event_headline(self.event, "en"),
+                    "event_headline_es": i18n_alerts.event_headline(self.event, "es"),
+                }
+                if self.event is not None
+                else {}
+            ),
+            # Emitted only when this feed read a window other than the long-standing hourly
+            # mean. ADR 0031's promise is that a network naming no hazard pack produces a
+            # byte-identical feed, and adding a key to every feed would break that for every
+            # existing consumer. Always naming the window would be the better surface and is a
+            # published-surface change with a data-schema decision behind it, not a side effect
+            # of adding a pack.
+            **({"aqi_window": self.aqi_window} if self.aqi_window != _DEFAULT_AQI_WINDOW else {}),
             "stale_note": i18n_alerts.stale_note("en"),
             "stale_note_es": i18n_alerts.stale_note("es"),
             "note": i18n_alerts.note("en"),
@@ -399,7 +483,7 @@ def build_feed(
     """
     active = pack or hazard_packs.HEAT_PACK
     floors = resolve_thresholds(thresholds, active)
-    latest = surface.latest_by_cell()
+    latest = surface.latest_by_cell(aqi_window=active.aqi_window)
     newest = surface.newest_bucket() or ""
     alerts: list[Alert] = []
     stale: list[StaleArea] = []
@@ -459,7 +543,99 @@ def build_feed(
         alerts=tuple(alerts),
         stale=tuple(stale),
         base_url=base_url,
+        event=detect_event(surface, active),
+        aqi_window=active.aqi_window,
     )
+
+
+def detect_event(surface: Surface, pack: hazard_packs.HazardPack) -> HazardEvent | None:
+    """Evaluate the pack's event rule against the surface's newest hour, or ``None`` if it has none.
+
+    Pure and data-derived: "now" is the surface's newest bucket, never the wall clock, so the
+    verdict is reproducible from the same store.
+
+    A cell qualifies when it has a reading in the newest bucket, in the rule's own window, at or
+    above the floor, **and** a reading exactly ``lookback_hours`` earlier that it has risen at
+    least ``rise`` above. Both halves are required, and both are per-cell. One node spiking with
+    flat neighbours therefore produces one qualifying cell and no event, which is the whole reason
+    the rule counts cells rather than readings.
+
+    A cell whose earlier bucket is missing does not qualify, and is not treated as a rise from
+    zero: an absent reading is not a low reading. If *no* cell has a comparable earlier bucket the
+    rule reports ``evaluated=False`` rather than ``active=False``, because a question that could
+    not be asked has not been answered "no".
+    """
+    rule = pack.event_rule
+    if rule is None:
+        return None
+    newest = surface.newest_bucket() or ""
+    history = surface.readings_for(rule.parameter, aqi_window=rule.aqi_window)
+    earlier_bucket = _shift_hours(newest, -rule.lookback_hours)
+
+    qualifying: list[str] = []
+    comparable = 0
+    for cell_id in sorted(history):
+        by_bucket = history[cell_id]
+        current = by_bucket.get(newest)
+        previous = by_bucket.get(earlier_bucket) if earlier_bucket is not None else None
+        if current is None or previous is None:
+            continue
+        comparable += 1
+        if current.mean >= rule.floor and (current.mean - previous.mean) >= rule.rise:
+            qualifying.append(cell_id)
+
+    if earlier_bucket is None or comparable == 0:
+        return HazardEvent(
+            rule_id=pack.pack_id,
+            parameter=rule.parameter,
+            aqi_window=rule.aqi_window,
+            evaluated=False,
+            active=False,
+            qualifying_cells=0,
+            minimum_cells=rule.minimum_cells,
+            floor=rule.floor,
+            rise=rule.rise,
+            lookback_hours=rule.lookback_hours,
+            bucket=newest,
+            reason=(
+                f"not evaluated: no cell has a {rule.aqi_window} reading in both the current hour "
+                f"and the hour {rule.lookback_hours} earlier, so no rise could be measured"
+            ),
+        )
+
+    active = len(qualifying) >= rule.minimum_cells
+    return HazardEvent(
+        rule_id=pack.pack_id,
+        parameter=rule.parameter,
+        aqi_window=rule.aqi_window,
+        evaluated=True,
+        active=active,
+        qualifying_cells=len(qualifying),
+        minimum_cells=rule.minimum_cells,
+        floor=rule.floor,
+        rise=rule.rise,
+        lookback_hours=rule.lookback_hours,
+        bucket=newest,
+        reason=(
+            f"{len(qualifying)} of {comparable} comparable cells rose at least {rule.rise:g} to "
+            f"{rule.floor:g} or above on the {rule.aqi_window} window over {rule.lookback_hours}h; "
+            f"{rule.minimum_cells} are required"
+        ),
+        areas=tuple(qualifying),
+    )
+
+
+def _shift_hours(bucket: str, hours: int) -> str | None:
+    """``bucket`` moved by whole hours, in the same format, or ``None`` if it is not a timestamp.
+
+    ``None`` rather than a guess: an unparseable bucket must not silently become "the same hour",
+    which would compare a cell against itself and report a rise of zero as a measurement.
+    """
+    try:
+        moment = datetime.fromisoformat(bucket.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (moment + timedelta(hours=hours)).strftime("%Y-%m-%dT%H:00:00Z")
 
 
 def _hours_between(earlier: str, later: str) -> int | None:

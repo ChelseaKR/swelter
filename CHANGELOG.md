@@ -9,6 +9,53 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **The wildfire-smoke hazard pack, and the difference between a spiking node and a smoke
+  event** (part of #236). `SMOKE_PACK` and `EventRule` in `src/swelter/hazard_packs.py`, an
+  `aqi_window` selection on `Surface.latest_by_cell`, `HazardEvent` and `detect_event` in
+  `src/swelter/alerts.py`, EN/ES catalog entries, `docs/alerts.md`, and ADR 0050.
+
+  `hazard_packs.py` shipped heat and cold; smoke was deferred, which for a California network is
+  the wrong half of the year. `hazard_pack: smoke` enables it by config alone, and a network that
+  names no pack produces a **byte-identical** feed, asserted by comparing the serialized default
+  feed against the heat feed rather than field by field.
+
+  Three decisions in it, each of which was a way this could have lied:
+
+  **A pack names the PM2.5 averaging window its alerts read, and never falls back.** An hourly
+  mean lags a plume by design, so the smoke pack alerts on the EPA NowCast window and a feed on a
+  non-default window carries `aqi_window` at its root. A cell with no NowCast row -- fewer than
+  three trailing hours exist -- gets no tier at all rather than the hourly mean the feed did not
+  promise. Not tier 0, and not the other number under this one's name. The key is emitted only
+  when the window is not the hourly mean: the first version added it to every feed and
+  `scripts/demo_artifact_check.py` caught the committed `web/alerts.json` no longer matching a
+  fresh replay, which is exactly the byte-identity promise ADR 0031 makes to a network that
+  changed nothing.
+
+  **An event needs several cells that have each risen against their own past.** A cell qualifies
+  at or above 35.5 ug/m3 *and* having risen 20 ug/m3 over three hours; three such cells in one
+  hour make an event. The rise is what makes it an episode rather than a description of the
+  airshed; the cell count is what stops one spiking node declaring one. Only the 35.5 floor is
+  EPA's -- the rise and the cell count are swelter's own, and the pack's citation says so rather
+  than attributing them to a body that never set them.
+
+  **The event rule reads the hourly means, and the record says which window it read.** Found by
+  measurement, not design: `aggregate._nowcast_cells` derives exactly one NowCast row per cell, at
+  that cell's newest bucket, so there is no NowCast reading three hours ago and a rise cannot be
+  measured in that window at all. The first implementation asked for one and reported "no
+  comparable earlier hour" on every surface, including surfaces in an obvious episode. So the pack
+  alerts on NowCast and detects its event on the hourly means, and `HazardEvent.aqi_window` names
+  which is which.
+
+  The verdict is published whether or not an event is running, because a record that appeared only
+  during an episode would let its absence mean both "checked, no event" and "this pack looks for
+  no events". `evaluated: false` is its own answer with its own EN/ES sentence: a surface that
+  cannot answer the question has not answered it "no".
+
+  **Not shipped:** `hazard_pack: auto-season`, which EXP-13 also proposes. Switching packs by
+  calendar month makes the published artifacts depend on the date the pipeline ran, and the gate
+  that holds the committed demo artifacts to a fresh replay would disagree with itself across a
+  month boundary. It needs its own design rather than a half-considered switch.
+
 - **`swelter reproduce` — proving the published surface re-derives from its own frozen inputs**
   (part of #240). New `src/swelter/reproduce.py`, the `reproduce` verb, two new `MANIFEST.json`
   fields, `docs/api.md`, `docs/citability.md`, and ADR 0049.

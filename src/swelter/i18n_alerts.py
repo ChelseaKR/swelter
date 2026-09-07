@@ -127,6 +127,58 @@ def headline(alert: _AlertLike, lang: str = "en") -> str:
     )
 
 
+class _EventLike(Protocol):
+    """Read-only hazard-event fields needed to render a localized headline."""
+
+    @property
+    def evaluated(self) -> bool: ...
+
+    @property
+    def active(self) -> bool: ...
+
+    @property
+    def qualifying_cells(self) -> int: ...
+
+    @property
+    def minimum_cells(self) -> int: ...
+
+    @property
+    def lookback_hours(self) -> int: ...
+
+    @property
+    def bucket(self) -> str: ...
+
+
+def event_headline(event: _EventLike, lang: str = "en") -> str:
+    """Return the hazard-event verdict as one sentence in ``lang``.
+
+    Three sentences, not two, and the third is the one that matters. "No smoke event" and "swelter
+    could not tell whether there is a smoke event" are different statements, and only one of them
+    is reassuring, so an unevaluated rule says so in words rather than sharing the no-event
+    sentence.
+    """
+
+    _ = get_translation(lang).gettext
+    if not event.evaluated:
+        return _(
+            "Smoke event: not determined as of {bucket}. There is no reading from {hours} hours "
+            "earlier to compare against, so no rise could be measured."
+        ).format(bucket=event.bucket, hours=event.lookback_hours)
+    if event.active:
+        return _(
+            "Smoke event in progress as of {bucket}: {count} areas have risen sharply into "
+            "unhealthy air in the same hour."
+        ).format(bucket=event.bucket, count=event.qualifying_cells)
+    return _(
+        "No smoke event as of {bucket}: {count} of the {minimum} areas needed have risen "
+        "sharply into unhealthy air. Individual areas may still be alerting."
+    ).format(
+        bucket=event.bucket,
+        count=event.qualifying_cells,
+        minimum=event.minimum_cells,
+    )
+
+
 def stale_headline(area: _StaleLike, lang: str = "en") -> str:
     """Return one stale area's "no current reading" line in ``lang`` (English by default).
 

@@ -91,3 +91,15 @@ msgstr "{area}: sin lectura actual de exposición combinada de calor y aire{age}
 
 msgid "Areas listed under 'stale' have stopped reporting: swelter cannot tell whether they are safe. An empty 'alerts' list means no currently reporting area crossed a danger floor, not that every area is fine."
 msgstr "Las zonas incluidas en 'stale' han dejado de reportar: swelter no puede saber si son seguras. Una lista 'alerts' vacía significa que ninguna zona que reporta actualmente cruzó un umbral de peligro, no que todas las zonas estén bien."
+
+#, python-brace-format
+msgid "Smoke event: not determined as of {bucket}. There is no reading from {hours} hours earlier to compare against, so no rise could be measured."
+msgstr "Evento de humo: no determinado a las {bucket}. No hay lectura de hace {hours} horas para comparar, por lo que no se pudo medir ningún aumento."
+
+#, python-brace-format
+msgid "Smoke event in progress as of {bucket}: {count} areas have risen sharply into unhealthy air in the same hour."
+msgstr "Evento de humo en curso a las {bucket}: {count} áreas han subido bruscamente a aire insalubre en la misma hora."
+
+#, python-brace-format
+msgid "No smoke event as of {bucket}: {count} of the {minimum} areas needed have risen sharply into unhealthy air. Individual areas may still be alerting."
+msgstr "Sin evento de humo a las {bucket}: {count} de las {minimum} áreas necesarias han subido bruscamente a aire insalubre. Algunas áreas pueden seguir en alerta."

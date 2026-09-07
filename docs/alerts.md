@@ -103,6 +103,61 @@ is not a swelter source parameter, so a node reports wind chill directly. `alert
 a pack's own floor keys (`wind_chill_c` for cold); `swelter doctor` rejects an unknown pack or an
 override key that is not one of the active pack's.
 
+The **smoke pack** is the third, for the half of a California year that heat is not the hazard:
+
+```yaml
+hazard_pack: smoke
+```
+
+| Reading | Floor | Source |
+| --- | --- | --- |
+| PM2.5 AQI, read on the EPA NowCast window | >= 101 ("Unhealthy for Sensitive Groups") | US-EPA AQI 2024 breakpoints |
+
+Three things about it are worth knowing before enabling it, and each is explained in
+[ADR 0050](adr/0050-a-hazard-that-only-one-node-can-see-is-not-an-event.md).
+
+**It reads a different PM2.5 number, and says so.** An hourly mean lags a plume by design, so the
+smoke pack alerts on the EPA **NowCast** window, and the feed carries `aqi_window` at its root. That
+is a selection and not a preference: a cell with no NowCast reading -- fewer than three trailing
+hours exist -- gets no tier at all rather than falling back to the hourly mean the feed did not
+promise. It is not tier 0, and it is not silently the other number.
+
+**It reports whether the network is in a smoke event.** One node reading 300 ug/m3 is a node; it
+might be a barbecue under the sensor. So a smoke feed carries an `event` record:
+
+```json
+"event": {
+  "rule_id": "smoke", "parameter": "pm25_ugm3", "aqi_window": "hourly-mean",
+  "evaluated": true, "active": false,
+  "qualifying_cells": 1, "minimum_cells": 3,
+  "floor": 35.5, "rise": 20.0, "lookback_hours": 3,
+  "reason": "1 of 4 comparable cells rose at least 20 to 35.5 or above ..."
+}
+```
+
+A cell qualifies when it is at or above the floor **and** has risen at least `rise` above its own
+reading `lookback_hours` earlier; an event needs `minimum_cells` of them in the same hour. The rise
+is what makes it an episode rather than a description of the airshed, and the cell count is what
+makes it an event rather than a node. **Only the 35.5 ug/m3 floor is EPA's** -- the rise and the
+cell count are swelter's own, because no published standard sets them, and the pack's citation says
+so.
+
+Note that `aqi_window` inside the event record says `hourly-mean` while the feed's alerts read
+`nowcast`. That is deliberate: NowCast is derived once per cell at its newest hour, so there is no
+NowCast reading three hours ago to measure a rise against. The alerts answer "what is the air right
+now" and the event answers "has it climbed", and each is measured in the window that can answer it.
+
+**"Not determined" is not "no event".** A surface with no cell reporting in both the current hour
+and the lookback hour cannot answer the question, and reports `evaluated: false` with its own
+sentence in EN and ES rather than sharing the no-event one. An area that goes quiet during an
+episode is published as a stale record with no value, exactly as elsewhere (ADR 0036) -- it does not
+keep broadcasting its last tier, and it does not vanish.
+
+`hazard_pack: auto-season`, which EXP-13 also proposes, is **not** shipped: switching packs by
+calendar month would make the published artifacts depend on the date the pipeline ran, and the gate
+that holds the committed demo artifacts to a fresh replay would disagree with itself across a month
+boundary. It needs its own design.
+
 ## The feed
 
 | Path | Returns |
