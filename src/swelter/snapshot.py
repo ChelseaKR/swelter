@@ -40,6 +40,8 @@ from typing import Any
 import yaml
 
 from . import export
+from .config import NetworkConfig, configuration_fingerprint
+from .dictionary import DATA_SCHEMA_VERSION
 from .models import (
     KNOWN_SOURCES,
     RAW,
@@ -121,6 +123,8 @@ class SnapshotManifest:
     release_version: str
     created_at: str
     swelter_version: str
+    data_schema_version: int
+    config_fingerprint: str | None
     record_count: int
     observation_window: tuple[str, str] | None
     files: tuple[ManifestFile, ...]
@@ -138,6 +142,8 @@ class SnapshotManifest:
             "release_version": self.release_version,
             "created_at": self.created_at,
             "swelter_version": self.swelter_version,
+            "data_schema_version": self.data_schema_version,
+            "config_fingerprint": self.config_fingerprint,
             "record_count": self.record_count,
             "observation_window": window,
             "doi": self.doi,
@@ -557,11 +563,19 @@ def build_snapshot(
     now: datetime | None = None,
     data_license: str | None = None,
     data_attribution: str | None = None,
+    config: NetworkConfig | None = None,
 ) -> SnapshotManifest:
     """Freeze the store's raw observations, corrections, and surface into ``out/``.
 
     ``now`` is injectable so a caller (a test, or a reproducible-build script) can pin
     ``created_at`` and get byte-identical output across runs against an unchanged store.
+
+    ``config`` is the network configuration the frozen surface was built with. Only its
+    :func:`~swelter.config.configuration_fingerprint` is recorded — the configuration itself
+    holds precise host coordinates and must never travel inside a published release. Without it
+    the manifest records ``config_fingerprint: null`` and carries a note, and
+    ``swelter reproduce`` reports the release as *indeterminate* rather than reproducing it
+    against whichever configuration happens to be on the machine that asks.
     """
     store_dir = Path(store)
     out_dir = Path(out)
@@ -650,10 +664,18 @@ def build_snapshot(
     timestamps = sorted(o.timestamp for o in raw)
     window = (timestamps[0], timestamps[-1]) if timestamps else None
 
+    if config is None:
+        notes.append(
+            "no network configuration recorded — `swelter reproduce` cannot re-derive this "
+            "release's surface, because it cannot tell which configuration built it"
+        )
+
     manifest = SnapshotManifest(
         release_version=version,
         created_at=created_at,
         swelter_version=_swelter_version(),
+        data_schema_version=DATA_SCHEMA_VERSION,
+        config_fingerprint=configuration_fingerprint(config) if config is not None else None,
         record_count=len(raw),
         observation_window=window,
         files=files,

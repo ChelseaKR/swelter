@@ -47,6 +47,26 @@ were CC0:
 6. Update any JOSS draft against the tagged source and submit only when the maintainer can support the
    review/maintenance commitment.
 
+## Proving a snapshot re-derives
+
+A snapshot's `MANIFEST.json` digests prove nobody edited the frozen files. They say nothing about
+whether the published surface ever followed from the readings shipped beside it. `swelter
+reproduce <snapshot-dir> --config network.yaml` closes that gap: it applies the frozen corrections
+to the frozen raw observations, rebuilds the surface through the same path `swelter rebuild` uses,
+and compares the result byte for byte, writing a receipt (`--receipt`) naming the inputs,
+versions, digests, verdict, and first differing feature.
+
+Three things a citing author should know (ADR 0049, `docs/api.md`).
+
+- **It is an operator check, not a downloader check.** The network configuration is an input to
+  the surface, and it stays out of the release because it holds precise host coordinates. The
+  release records only a fingerprint, so reproducing it needs the operator's `network.yaml`.
+- **A release that cannot be checked exits 2, not 0.** Snapshots written before `MANIFEST.json`
+  carried `data_schema_version` and `config_fingerprint` report `indeterminate`. That is neither a
+  pass nor a failure, and it does not share an exit status with success.
+- **Cross-version reproduction is reported, not attempted.** Rebuilding an older release under a
+  newer swelter would blame the data for a code change.
+
 ## Repository artifacts
 
 | Artifact | Current role | Release requirement |

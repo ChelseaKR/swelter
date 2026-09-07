@@ -940,6 +940,52 @@ verified, and clamps `--keep` to at least one so the newest verified archive is 
 Add `--json` to any of them for the machine-readable form. Exit codes: `0` on success, `1` on any
 refusal or on a verdict of `incomplete`.
 
+## `swelter reproduce` (CLI)
+
+Not an HTTP endpoint. `verify-archive` proves a snapshot's bytes are intact; this proves its
+published surface can be **re-derived** from them. The frozen corrections are applied to the
+frozen raw observations, the result is aggregated through a real store exactly as `swelter
+rebuild` does, and the bytes are compared to the frozen `aggregate.geojson`.
+
+```
+swelter reproduce dist/snapshot --config network.yaml
+swelter reproduce dist/snapshot --json --receipt dist/REPRODUCTION.json
+```
+
+**Exit codes are three-valued, and that is the point (ADR 0049).**
+
+| code | verdict | meaning |
+| --- | --- | --- |
+| `0` | `reproduced` | every required check ran and passed, and the rebuilt surface is byte-identical |
+| `1` | `mismatch` / `refused` | the rebuild ran and differed, or a required input was missing or did not belong to this release |
+| `2` | `indeterminate` | the release does not record the swelter version, data-schema version, or configuration fingerprint a rebuild would need |
+
+`indeterminate` does **not** share exit `0` with success. A release nobody could check has not
+been shown to be sound, and a caller gating on `$? -eq 0` must not be told otherwise. Every
+snapshot written before `MANIFEST.json` carried `data_schema_version` and `config_fingerprint` is
+in this state by construction, and so is a release built by a different swelter version —
+cross-version reproduction is reported, never attempted.
+
+**The configuration is an input, and it is not inside the snapshot.** The surface depends on the
+grid resolution, published node locations, hazard pack, calibration windows and reference
+monitors, all of which live in `network.yaml` — which also holds the precise coordinates a host
+may have declined to publish (hard rule 2). So the release records a SHA-256 fingerprint of the
+configuration and nothing derived from those coordinates, and this verb refuses by name when the
+`--config` it is given is not the one that built the release. That refusal is the honest answer:
+rebuilding against a different configuration would report a configuration change as data rot.
+
+The receipt (`--receipt`, or `--json` on stdout) carries the recorded and running versions, every
+check with `PASS` / `FAIL` / `NOT_APPLICABLE` tallied separately, the frozen and rebuilt surface
+digests and feature counts, and `first_difference` — a JSON path such as
+`$.features[14].properties.exposure`, not a byte offset. It contains no wall clock, so two runs
+against an unchanged snapshot are byte-identical.
+
+Two limits worth stating. The frozen `aggregate.geojson` publishes the *latest* cell-hour per
+cell, so the rebuild alone cannot see an edit to an earlier hour; the `frozen_digests` check —
+which recomputes every file the manifest lists, and reports without stopping the rebuild — is
+what makes such an edit visible. And `MANIFEST.json` does not list itself, so this verb checks a
+release against its own manifest, not against an external attestation.
+
 ## Observed properties
 
 The full set of quantities a node may report. The QC verdict on each reading is one of `ok`,

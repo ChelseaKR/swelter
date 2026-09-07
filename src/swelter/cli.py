@@ -59,6 +59,9 @@ from . import (
 from . import (
     diff as diff_module,
 )
+from . import (
+    reproduce as reproduce_module,
+)
 from .config import (
     LOCATION_PRECISE,
     LOCATION_PUBLIC_PLACE,
@@ -2242,6 +2245,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
             args.doi or None,
             data_license=args.license,
             data_attribution=args.attribution,
+            config=_load_config(args.config),
         )
     except ValueError as exc:
         _err(f"swelter snapshot: {exc}; refusing")
@@ -2255,6 +2259,38 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
         _err(f"  ⚠ {note}")
     print(citation_text.strip())
     return 0
+
+
+def cmd_reproduce(args: argparse.Namespace) -> int:
+    """Rebuild a snapshot's surface from its own frozen inputs and report whether it re-derives.
+
+    Three exit statuses, because there are three answers. 0 is `reproduced`. 1 is a mismatch or a
+    refusal — the reproduction ran and differed, or an input it needed was missing or did not
+    belong to this release. 2 is `indeterminate`: the release does not record the swelter version,
+    the data-schema version, or the configuration fingerprint a reproduction would need, so it has
+    not been shown to be either right or wrong. That case gets its own status rather than sharing
+    0 with success, because a caller gating on `$? -eq 0` must never be told that a release nobody
+    could check is a release that checked out.
+    """
+    try:
+        receipt = reproduce_module.reproduce(
+            Path(args.snapshot),
+            _load_config(args.config),
+            config_path=args.config,
+        )
+    except reproduce_module.ReproduceError as exc:
+        _err(f"swelter reproduce: {exc}")
+        return reproduce_module.EXIT_NOT_REPRODUCED
+    if args.receipt:
+        receipt_path = Path(args.receipt)
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_bytes(receipt.to_json())
+    if args.json:
+        print(receipt.to_json().decode("utf-8"), end="")
+    else:
+        for line in reproduce_module.render(receipt):
+            _err(line)
+    return receipt.exit_code
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -2757,7 +2793,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="override the store's recorded source attribution",
     )
+    add_config(p_snap)
     p_snap.set_defaults(func=cmd_snapshot)
+
+    p_repro = sub.add_parser(
+        "reproduce",
+        help="rebuild a snapshot's surface from its frozen inputs and compare it byte for byte",
+        description=(
+            "`verify-archive` proves the frozen bytes are intact. This proves the published "
+            "surface can be re-derived from them: the frozen corrections are applied to the "
+            "frozen raw observations, the result is aggregated, and the bytes are compared to "
+            "the frozen aggregate.geojson. Exit 0 only when it reproduces; 1 on a mismatch or a "
+            "refusal; 2 when the release does not record the swelter version, data-schema "
+            "version, or network-configuration fingerprint a reproduction would need — which is "
+            "neither a pass nor a failure and does not share an exit status with either. The "
+            "configuration is an input and is deliberately not inside the snapshot (it holds "
+            "precise host coordinates), so the release records only its fingerprint and this "
+            "verb refuses, by name, when the --config it is handed is not the one that built it."
+        ),
+    )
+    p_repro.add_argument("snapshot", help="the snapshot directory written by `swelter snapshot`")
+    add_config(p_repro)
+    p_repro.add_argument(
+        "--receipt", default=None, help="also write the REPRODUCTION receipt JSON here"
+    )
+    p_repro.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_repro.set_defaults(func=cmd_reproduce)
 
     p_verify = sub.add_parser(
         "verify-archive",
