@@ -992,6 +992,58 @@ which recomputes every file the manifest lists, and reports without stopping the
 what makes such an edit visible. And `MANIFEST.json` does not list itself, so this verb checks a
 release against its own manifest, not against an external attestation.
 
+## `swelter package` (CLI)
+
+Not an HTTP endpoint. Renders an existing snapshot as the two descriptors an open-data portal
+harvests: a Frictionless **Data Package** (`datapackage.json`) and a **DCAT** record
+(`dcat.jsonld`). Nothing is pushed anywhere; this writes files (ADR 0051).
+
+```
+swelter package dist/snapshot --out dist/datapackage
+swelter package dist/snapshot --out dist/datapackage --base-url https://example.org/data
+```
+
+The output directory is self-contained, because a Frictionless resource path may not escape the
+package root. It holds `export.csv` (the tabular form of the frozen raw observations), verified
+copies of the snapshot's `observations-raw.json`, `DATA-LICENSE`, `aggregate.geojson`, and
+`source-license-ledger.json` where the release has one, plus the two descriptors.
+
+**Every copy is verified against the snapshot's own `MANIFEST.json` before anything is written.**
+A file whose bytes no longer match its recorded SHA-256 refuses the whole operation, by filename,
+and leaves no output directory behind. Re-hashing the delivered bytes instead would have given a
+tampered release a portal-ready record whose checksum agreed with the tampering.
+
+| refusal | why |
+| --- | --- |
+| a file differs from its manifest digest | a catalog record is a claim that these bytes are that release |
+| `MANIFEST.json` lists no files | a verification that covers nothing reports clean over a release whose every byte was replaced |
+| no `DATA-LICENSE` | a snapshot with no recorded terms is not publishable |
+| a raw row with no numeric value | shared with `swelter reproduce`: a reading that was never recorded cannot become a zero in a portal export |
+
+The Table Schema is generated from `/api/schema.json`'s dictionary in the exact column order
+`export.csv` writes, so changing one dictionary field changes exactly one schema field. A CSV
+column the dictionary does not describe raises rather than being emitted blank.
+
+**Two rules about empty cells, which are not the same rule.** The table declares
+`missingValues: [""]`, so an unmeasured `uncertainty` previews as a gap rather than as zero. But
+`qc_flags` overrides it to `[]`: an empty cell there means QC ran and found nothing suspicious,
+and the table-wide rule would publish that completed check as one nobody performed. Per-field
+`missingValues` is why the descriptor declares Frictionless v2 (`$schema`) rather than
+`profile: tabular-data-package`.
+
+Rights travel per hard rule 6. A licence string swelter can map with certainty (`CC0-1.0`,
+`CC-BY-4.0`, `ODbL-1.0`) gets an SPDX `name`. Anything else — an OpenAQ-derived release, whose
+terms differ location by location — gets the snapshot's own statement in `title` and a `path` to
+the packaged `source-license-ledger.json`, never an invented identifier.
+
+Absence is stated, not implied: a release whose manifest records no observation window gets no
+`dct:temporal` rather than an interval with null endpoints, and without `--base-url` no
+distribution carries a `dcat:accessURL` and the record says so in `swelter:note`. `dct:issued` is
+the snapshot's `created_at`, never the wall clock, so two packagings of one release are
+byte-identical. `dct:title` and `dct:description` are tagged `en`; there is no reviewed Spanish
+catalog text (#106), and an untagged string would let a Spanish-language portal present English as
+its translation.
+
 ## Observed properties
 
 The full set of quantities a node may report. The QC verdict on each reading is one of `ok`,

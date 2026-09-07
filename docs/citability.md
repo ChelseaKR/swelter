@@ -67,6 +67,31 @@ Three things a citing author should know (ADR 0049, `docs/api.md`).
 - **Cross-version reproduction is reported, not attempted.** Rebuilding an older release under a
   newer swelter would blame the data for a code change.
 
+## Handing a release to an open-data portal
+
+A citation makes a snapshot quotable. It does not make it *findable*: a CKAN instance
+(`data.ca.gov`) or a Socrata portal harvests a Frictionless `datapackage.json` or a DCAT record,
+and a release with neither is only reachable by someone who was already sent the link.
+
+`swelter package <snapshot-dir> --out <dir>` writes both, plus a self-contained copy of the
+release's data files and the tabular `export.csv` a portal previews. Three properties matter to a
+citing author (ADR 0051, `docs/api.md`).
+
+- **The digests are the release's own, verified first.** Every file is checked against
+  `MANIFEST.json` before the package is written, and a mismatch refuses the whole operation by
+  filename. The checksums a portal republishes are therefore the ones the release already
+  published, not fresh hashes taken over whatever was on disk.
+- **Rights are not flattened.** A source with per-location terms gets its own statement plus a
+  path to the packaged `source-license-ledger.json`, never a single SPDX identifier swelter
+  invented on its behalf.
+- **Nothing is pushed.** This writes files. Submitting them to a portal is an operator action with
+  its own credentials.
+
+The generated descriptor was validated with `frictionless` 5.19.0 against the bundled demo release
+(151,812 rows, `VALID`). That library is not a project dependency, so the validation is a recorded
+measurement rather than a standing merge gate; adding it as one is tracked in
+[#243](https://github.com/ChelseaKR/swelter/issues/243).
+
 ## Repository artifacts
 
 | Artifact | Current role | Release requirement |

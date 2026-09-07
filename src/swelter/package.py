@@ -151,9 +151,13 @@ _EXPORT_ONLY_COLUMNS: Final[dict[str, dict[str, object]]] = {
     },
 }
 
-#: What ``dct:conformsTo`` points a harvester at: the served schema endpoint's documentation, so
-#: the record names the data-schema version it was written against rather than only the software.
-_SCHEMA_DOC_URL: Final = "https://github.com/ChelseaKR/swelter/blob/main/docs/api.md"
+#: What ``dct:conformsTo`` points a harvester at. Deliberately the document that *defines* what a
+#: data-schema version means and what moving it implies, rather than a heading anchor inside the
+#: API reference: an anchor is generated from a heading's text and silently stops resolving when
+#: the heading is reworded, which would leave the record pointing at a page rather than a
+#: definition without anything failing. The version integer itself travels beside it in
+#: ``swelter:data_schema_version``, where it can be read without parsing a URL.
+_SCHEMA_DOC_URL: Final = "https://github.com/ChelseaKR/swelter/blob/main/docs/VERSIONING.md"
 
 _JSONLD_CONTEXT: Final[dict[str, str]] = {
     "dcat": "http://www.w3.org/ns/dcat#",
@@ -404,7 +408,8 @@ def _dcat_record(
             "@language": "en",
         },
         "dct:issued": str(manifest.get("created_at", "")),
-        "dct:conformsTo": f"{_SCHEMA_DOC_URL}#data-schema-v{DATA_SCHEMA_VERSION}",
+        "dct:conformsTo": _SCHEMA_DOC_URL,
+        "swelter:data_schema_version": manifest.get("data_schema_version", DATA_SCHEMA_VERSION),
         "dct:license": licenses[0].get("name", licenses[0]["title"]),
         "dct:publisher": {"@type": "dct:Agent", "dct:title": str(manifest.get("data_source", ""))},
         "dcat:distribution": [

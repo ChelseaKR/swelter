@@ -70,3 +70,4 @@ evidence of the collision.
 - [ADR 0048: A check that could not run is not a check that passed](0048-a-check-that-could-not-run-is-not-a-check-that-passed.md)
 - [ADR 0049: A release that cannot be checked is not a release that checked out](0049-a-release-that-cannot-be-checked-is-not-a-release-that-checked-out.md)
 - [ADR 0050: A hazard that only one node can see is not an event](0050-a-hazard-that-only-one-node-can-see-is-not-an-event.md)
+- [ADR 0051: A catalog record carries verified digests, or it is not written](0051-a-catalog-record-carries-verified-digests-or-is-not-written.md)
