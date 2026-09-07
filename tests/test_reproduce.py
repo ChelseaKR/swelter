@@ -538,6 +538,54 @@ def test_cli_uses_a_distinct_exit_status_for_indeterminate(release: Path, tmp_pa
     assert rc != 0
 
 
+def test_snapshot_records_no_fingerprint_when_there_is_no_configuration_file(
+    tmp_path: Path,
+) -> None:
+    """`_load_config` substitutes an empty network for a missing file so the pipeline can keep
+    running. An empty network has a perfectly good fingerprint, and writing *that* into a release
+    manifest would publish "built with this configuration" over a file that was never read."""
+    store_dir = tmp_path / "store"
+    _build_store(store_dir, _config())
+    out = tmp_path / "snap"
+    rc = main(
+        [
+            "snapshot",
+            "--store",
+            str(store_dir),
+            "--out",
+            str(out),
+            "--version",
+            "1.0.0",
+            "--config",
+            str(tmp_path / "there-is-no-network-here.yaml"),
+        ]
+    )
+    assert rc == 0
+    doc = json.loads((out / snapshot.MANIFEST_FILENAME).read_text(encoding="utf-8"))
+    assert doc["config_fingerprint"] is None
+    assert doc["config_fingerprint"] != configuration_fingerprint(NetworkConfig())
+    assert any("cannot re-derive" in note for note in doc["notes"])
+
+    # And the release it produced reads as unknown, not as sound and not as rotten.
+    config_path = tmp_path / "network.yaml"
+    config_path.write_text(yaml.safe_dump(NETWORK_DOC), encoding="utf-8")
+    assert main(["reproduce", str(out), "--config", str(config_path)]) == (
+        reproduce.EXIT_INDETERMINATE
+    )
+
+
+def test_reproduce_refuses_a_missing_configuration_by_its_own_name(
+    release: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Not "the configuration does not match" — there is no configuration. Reproducing against
+    the empty substitute would rebuild an empty surface and blame the release for a bad path."""
+    rc = main(["reproduce", str(release), "--config", str(tmp_path / "absent.yaml")])
+    assert rc == reproduce.EXIT_NOT_REPRODUCED
+    err = capsys.readouterr().err
+    assert "no network configuration at" in err
+    assert "is not the one this release was built with" not in err
+
+
 def test_cli_reports_a_snapshot_it_cannot_read_at_all(tmp_path: Path) -> None:
     rc = main(["reproduce", str(tmp_path), "--config", str(tmp_path / "absent.yaml")])
     assert rc == reproduce.EXIT_NOT_REPRODUCED

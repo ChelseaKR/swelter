@@ -974,6 +974,12 @@ configuration and nothing derived from those coordinates, and this verb refuses 
 `--config` it is given is not the one that built the release. That refusal is the honest answer:
 rebuilding against a different configuration would report a configuration change as data rot.
 
+A `--config` path with no file there is refused by its own name — *there is no configuration*,
+which is a different sentence from *the configuration does not match*. For the same reason
+`swelter snapshot --config <missing>` records `config_fingerprint: null` and the "cannot be
+re-derived" note, rather than the fingerprint of the empty network the CLI substitutes for a
+missing file.
+
 The receipt (`--receipt`, or `--json` on stdout) carries the recorded and running versions, every
 check with `PASS` / `FAIL` / `NOT_APPLICABLE` tallied separately, the frozen and rebuilt surface
 digests and feature counts, and `first_difference` — a JSON path such as

@@ -199,6 +199,19 @@ def _print_concerns(errors: list[str], warnings: list[str]) -> None:
         _err(f"swelter: ⚠ {message}")
 
 
+def _config_or_none(path: str) -> NetworkConfig | None:
+    """The configuration at ``path``, or ``None`` when there is no file there.
+
+    Distinct from :func:`_load_config`, which substitutes an empty :class:`NetworkConfig` so the
+    rest of the pipeline can keep running against a network that has not been registered yet.
+    That substitution is right for a pipeline verb and wrong for anything that *records* which
+    configuration was in force: an empty network has a perfectly good fingerprint, and writing it
+    into a release manifest would publish "built with this configuration" over a file that was
+    never read. A caller that needs to tell "no configuration" from "an empty one" asks here.
+    """
+    return _load_config(path) if Path(path).is_file() else None
+
+
 def _load_config(path: str) -> NetworkConfig:
     if Path(path).is_file():
         config, doc = load_config_doc(path)
@@ -2245,7 +2258,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
             args.doi or None,
             data_license=args.license,
             data_attribution=args.attribution,
-            config=_load_config(args.config),
+            config=_config_or_none(args.config),
         )
     except ValueError as exc:
         _err(f"swelter snapshot: {exc}; refusing")
@@ -2272,10 +2285,21 @@ def cmd_reproduce(args: argparse.Namespace) -> int:
     0 with success, because a caller gating on `$? -eq 0` must never be told that a release nobody
     could check is a release that checked out.
     """
+    config = _config_or_none(args.config)
+    if config is None:
+        # Not "the configuration does not match": there is no configuration. `_load_config`
+        # substitutes an empty network for a missing file, and reproducing against that would
+        # rebuild an empty surface and report the difference as a data mismatch — blaming the
+        # release for a path that was never there.
+        _err(
+            f"swelter reproduce: no network configuration at {args.config}; "
+            "a release cannot be re-derived without the configuration that built it"
+        )
+        return reproduce_module.EXIT_NOT_REPRODUCED
     try:
         receipt = reproduce_module.reproduce(
             Path(args.snapshot),
-            _load_config(args.config),
+            config,
             config_path=args.config,
         )
     except reproduce_module.ReproduceError as exc:

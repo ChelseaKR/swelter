@@ -55,6 +55,14 @@ All notable changes to swelter are recorded here. The format follows
   and two absences must never agree), and a frozen reading with no value is refused rather than
   averaged around. The receipt carries no wall clock, so two runs produce identical bytes.
 
+  One more instance of the same defect, found while reviewing the change itself: the CLI's
+  `_load_config` substitutes an *empty* `NetworkConfig` for a missing `network.yaml`, and an empty
+  network has a perfectly good fingerprint — so `swelter snapshot --config <missing>` would have
+  recorded that fingerprint in the manifest as if it identified the configuration that built the
+  release. `snapshot` and `reproduce` now ask `_config_or_none`, so a missing file records `null`
+  plus the note, and `reproduce` refuses it by its own name instead of reporting it as a
+  configuration mismatch.
+
 - **`swelter backup` and `swelter restore` — a recovery drill an operator can rehearse, and a
   receipt they can keep** (part of #245). New `src/swelter/backup.py`, the `backup` and `restore`
   verbs, `docs/api.md`, a "Backup and restore drill" section in

@@ -95,6 +95,14 @@ under 0.3 and calling the difference a mismatch would blame the data for a code 
 - This closes a gap the frozen surface itself creates. `aggregate.geojson` publishes the *latest*
   cell-hour per cell, so an edit to an earlier hour changes no published feature and the rebuild
   alone would report clean. The digest check is what makes such an edit visible.
+- **A missing `network.yaml` records no fingerprint, not the fingerprint of an empty one.** The
+  CLI's `_load_config` substitutes an empty `NetworkConfig` for a missing file so the rest of the
+  pipeline can run against a network nobody has registered yet. That substitution is right for a
+  pipeline verb and wrong for anything that *records* which configuration was in force: an empty
+  network has a perfectly good fingerprint, and writing it into a release manifest would publish
+  "built with this configuration" over a file that was never read. `snapshot` and `reproduce` ask
+  `_config_or_none` instead, and `reproduce` refuses a missing configuration by its own name rather
+  than reporting it as a configuration that does not match.
 - A release whose frozen raw holds a reading with no value is refused rather than averaged around.
 - A release freezing no observations is refused: an empty rebuild equals an empty frozen surface,
   and two absences must never agree (ADR 0048).
