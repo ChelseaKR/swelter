@@ -897,6 +897,49 @@ Exit codes: `0` for a successful comparison, changes or not (a diff is a report,
 for a refusal to compare — different kinds of artifact, an unreadable input, a schema mismatch, or
 two readings this tool cannot tell apart.
 
+## `swelter backup` and `swelter restore` (CLI)
+
+Not HTTP endpoints. The store is one copyable directory; these two verbs make copying it
+checkable. `backup` writes a byte-reproducible tar plus a `BACKUP-MANIFEST.json` member recording
+per-file SHA-256 digests and sizes, the row and node counts, the observation window, the chained
+daily digest head, and the rights envelope. `restore` extracts into a staging directory, verifies
+it there, and moves it into place only on a `verified` verdict.
+
+```
+swelter backup --store store --out backups/2026-09-06.tar
+swelter restore backups/2026-09-06.tar --store store-restored --verify --receipt receipt.json
+swelter restore backups/2026-09-06.tar --verify-only        # the drill, writing no store
+swelter backup --prune backups --keep 4                     # retention, fail-closed
+```
+
+Four properties worth knowing before you build on it (ADR 0048).
+
+**A check that could not run is not a check that passed.** The receipt reports `PASS`, `FAIL` and
+`NOT_APPLICABLE`, and `summary` carries all three as separate integers. A store that was never
+calibrated has no `corrections.yaml`; that is reported as `NOT_APPLICABLE`, so an archive of a
+never-calibrated store cannot look like one whose registry survived.
+
+**The verdict is built from the required checks having run.** `manifest`, `members`,
+`file_digests`, `row_count`, `row_hashes` and `digest_chain` must each be present and `PASS`.
+Counting failures instead would make a verification that skipped a step read as a success.
+
+**Two absences never agree.** A store with no observations is refused at backup time. A rowless
+store records `digest_head: null` rather than the empty string a zero-day fold produces, and a
+`null` on either side of the comparison is a failure, not a match. A restored store missing its
+database fails all three row checks rather than being created empty and passing them.
+
+**A failed drill writes nothing.** The target directory is left exactly as it was, including not
+existing. `--force` is required to replace a non-empty target. Nothing calls `extractall`: a
+member with an absolute path, a `..` segment, or a non-regular type is refused before any byte
+lands.
+
+`--prune` refuses to delete anything at all while any archive in the directory cannot be
+verified, and clamps `--keep` to at least one so the newest verified archive is never deleted.
+`--dry-run` prints the plan.
+
+Add `--json` to any of them for the machine-readable form. Exit codes: `0` on success, `1` on any
+refusal or on a verdict of `incomplete`.
+
 ## Observed properties
 
 The full set of quantities a node may report. The QC verdict on each reading is one of `ok`,

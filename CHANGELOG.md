@@ -9,6 +9,60 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **`swelter backup` and `swelter restore` — a recovery drill an operator can rehearse, and a
+  receipt they can keep** (part of #245). New `src/swelter/backup.py`, the `backup` and `restore`
+  verbs, `docs/api.md`, a "Backup and restore drill" section in
+  `docs/runbooks/operations.md`, and ADR 0048. The store is "one copyable directory" and the
+  runbook said to copy it; nothing checked that a copy was complete, that it restored, or that
+  the rights envelope, the correction registry and the integrity chain survived the trip.
+
+  `swelter backup --store store --out backups/<file>.tar` writes a byte-reproducible tar plus a
+  `BACKUP-MANIFEST.json` member recording per-file SHA-256 digests and sizes, row and node
+  counts, the observation window, the chained daily digest head, and the rights envelope.
+  `swelter restore <archive> --store <dir> --verify` extracts to a staging directory, verifies it
+  there, and moves it into place only on a `verified` verdict, so a failed drill leaves the
+  target exactly as it was — including not existing. `--verify-only` runs the whole drill and
+  writes no store. `swelter backup --prune <dir> --keep N` applies retention.
+
+  Writing it surfaced a defect larger than backups, which is why it carries an ADR.
+  **`verify-archive` exits 0 over a store with no rows** — nothing mismatched, so nothing failed.
+  That is the right answer to "has anything been tampered with" and the wrong answer to "did my
+  backup work", and it composes: the chained digest of zero days folds to the empty string, so an
+  archive of an empty store would record an empty head, a restore would recompute an empty head,
+  the two would compare equal, and every integrity check would report success over no data at
+  all. Three rules now prevent that. A store with no observations is **refused** at backup time.
+  A rowless store records `digest_head: null`, never the empty string, and a `null` on either
+  side is a failure rather than a match. And the restored database file is checked for existence
+  *before* the store is opened, because `open_store` creates one when none exists and would
+  otherwise manufacture the empty store that passes everything — measured: removing that single
+  guard makes `row_hashes` report `PASS` against an archive carrying no database.
+
+  The receipt reports three outcomes, not two: `PASS`, `FAIL`, and `NOT_APPLICABLE`, tallied
+  separately and never folded together. "The store had no `corrections.yaml` when it was
+  archived" is not evidence that a registry survived, and an archive of a never-calibrated store
+  must not be able to look like one whose registry came back intact. The verdict is `verified`
+  only when all six **required** checks (`manifest`, `members`, `file_digests`, `row_count`,
+  `row_hashes`, `digest_chain`) are present and passing — built from the questions having been
+  asked rather than from the absence of failures, because a check that never ran cannot fail.
+
+  Fail-closed throughout. Nothing calls `tarfile.TarFile.extractall`: members are read one at a
+  time and an absolute name, a `..` segment, a symlink or any non-regular entry is refused before
+  a byte is written. A backup refuses a store with an open SQLite journal (a byte copy would
+  capture a torn database), a symlink inside the store, and a `source-metadata.json` that is
+  present but unreadable or incomplete — dropping a broken rights envelope would produce a
+  restored store that looks unencumbered. `--prune` refuses to delete anything at all while any
+  archive in the directory cannot be verified, and clamps `--keep` to at least one.
+
+  Verification is not switchable off; `--verify` is accepted so a runbook line can say so
+  explicitly and changes nothing. Retention is supplied on the command line rather than read from
+  `network.yaml`, because `NetworkConfig` is fingerprinted field-by-field by
+  `is_builtin_demo_web_preview` and adding a typed field to it is a config-schema change that
+  deserves its own review; #245 stays open for that half.
+
+  57 tests in `tests/test_backup.py`, including a full round trip of the committed demo store
+  through `backup`, `restore` and `verify-archive`. Every negative control asserts its sabotage
+  landed in the archive before reading the verdict.
+
 - **The committed mutation baseline the release gate has always required now exists.**
   `make release-readiness` begins with `mutation-baseline-check`, which verifies
   `docs/audits/mutation-baseline.json`. That file was never committed, so the very first

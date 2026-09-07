@@ -65,9 +65,44 @@ labels, data hours, license links, selection deep links, and exported CSV.
    identifying detail.
 4. Update the DPIA and residual-risk register; treat recurrence as a release blocker.
 
+## Backup and restore drill
+
+Run this quarterly, and after any change to ingest, the store layout, or the source terms. It
+needs no engineer: every step is one command and prints its own verdict.
+
+1. **Take a backup.** `swelter backup --store store --out backups/$(date -u +%Y-%m-%d).tar`
+   It refuses an empty store, a store with an open SQLite journal, and a store whose
+   `source-metadata.json` is present but unreadable. A refusal is the drill working.
+2. **Rehearse the restore without touching the live store.**
+   `swelter restore backups/<file>.tar --verify-only --receipt drills/<date>.json`
+   This extracts to a temporary directory, checks it, prints the receipt, and writes no store.
+3. **Read the receipt, including the third column.** It reports `PASS`, `FAIL` and
+   `NOT_APPLICABLE`. `NOT_APPLICABLE` is not a pass: "the store had no corrections.yaml when it
+   was archived" means there was nothing to compare, and if you expected a correction registry to
+   be there, that line is a finding. The verdict is `verified` only when all six required checks
+   ran and passed.
+4. **Restore for real only when you need to.**
+   `swelter restore backups/<file>.tar --store store-restored --verify`
+   A failed verification writes nothing, so the target is left exactly as it was. `--force` is
+   required to replace a non-empty directory.
+5. **Confirm the restored store independently.**
+   `swelter verify-archive --store store-restored` and `swelter doctor --config network.yaml`.
+6. **Apply retention.** `swelter backup --prune backups --keep 4 --dry-run`, read the plan, then
+   run it without `--dry-run`. If it refuses, an archive on that shelf cannot be verified: fix or
+   remove that archive before pruning anything, because a shelf you cannot read is not a shelf
+   you should be deleting from.
+
+Keep the receipts. Two backups of an unchanged store are byte-identical and so are two receipts
+for the same archive, so a receipt that differs from last quarter's means something actually
+changed.
+
+Encryption at rest is not provided: the tarball is plain, and where it is stored is the
+collective's decision. Store it somewhere with the same access control as the store itself.
+
 ## Recovery verification
 
 - `make verify` passes at the recovery commit.
+- The backup drill above completes with a `verified` verdict on the most recent archive.
 - The artifact manifest hashes every emitted file and source/license claims agree across UI,
   `demo.json`, export, and `DATA-LICENSE`.
 - Both route-scoped workers serve the new release and no older owned cache remains active.
