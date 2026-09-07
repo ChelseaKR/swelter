@@ -45,7 +45,7 @@ import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 import yaml
 
@@ -53,7 +53,7 @@ from . import aggregate as aggregate_module
 from . import calibrate
 from .config import NetworkConfig, configuration_fingerprint
 from .dictionary import DATA_SCHEMA_VERSION
-from .models import RAW, Observation
+from .models import QC_OK, RAW, SOURCE_NATIVE, Observation
 from .snapshot import (
     AGGREGATE_FILENAME,
     CORRECTIONS_FILENAME,
@@ -203,6 +203,16 @@ def _read_manifest(snapshot_dir: Path) -> dict[str, Any]:
     return doc
 
 
+def _is_number(value: object) -> TypeGuard[float]:
+    """True only for a real JSON number.
+
+    ``bool`` is a subclass of ``int``, so a plain ``isinstance(value, int | float)`` accepts
+    ``True`` and silently turns it into ``1.0``. Every numeric field read back out of a frozen
+    release goes through here, so a flag can never be re-derived as a measurement.
+    """
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
 def _observations_from_export(payload: bytes) -> list[Observation]:
     """Parse ``observations-raw.json`` back into observations, refusing anything ambiguous."""
     try:
@@ -216,7 +226,7 @@ def _observations_from_export(payload: bytes) -> list[Observation]:
         if not isinstance(record, dict):
             raise ReproduceError(f"{RAW_OBSERVATIONS_FILENAME}[{index}] is not an object")
         value = record.get("value")
-        if not isinstance(value, int | float) or isinstance(value, bool):
+        if not _is_number(value):
             # `export.to_records` writes null for a non-finite value. A row whose measurement is
             # absent cannot be re-derived from, and averaging around it would put a number on the
             # map that no reading supports.
@@ -232,14 +242,13 @@ def _observations_from_export(payload: bytes) -> list[Observation]:
                     parameter=str(record["parameter"]),
                     value=float(value),
                     unit=str(record["unit"]),
-                    source=str(record.get("source", "native")),
+                    source=str(record.get("source", SOURCE_NATIVE)),
                     calibration=str(record.get("calibration", RAW)),
-                    qc=str(record.get("qc", "ok")),
-                    uncertainty=(
-                        float(u)
-                        if isinstance(u := record.get("uncertainty"), int | float)
-                        else None
-                    ),
+                    qc=str(record.get("qc", QC_OK)),
+                    # `_is_number`, not `isinstance(..., int | float)`: `bool` is a subclass of
+                    # `int`, so a JSON `true` here would become a 1-sigma of 1.0 — a published
+                    # uncertainty that no fit ever produced.
+                    uncertainty=(float(u) if _is_number(u := record.get("uncertainty")) else None),
                 )
             )
         except (KeyError, TypeError, ValueError) as exc:

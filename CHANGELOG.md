@@ -63,6 +63,12 @@ All notable changes to swelter are recorded here. The format follows
   plus the note, and `reproduce` refuses it by its own name instead of reporting it as a
   configuration mismatch.
 
+  And a third instance of the same rule, in the release reader itself: `bool` is a subclass of
+  `int` in Python, so the numeric guard accepted a JSON `true` and turned it into a reading of
+  `1.0` — or, in the `uncertainty` field, into a published 1-sigma that no correction ever fitted.
+  Every numeric field read out of a frozen release now goes through one `_is_number` guard that
+  rejects booleans, so a flag cannot be re-derived as a measurement.
+
 - **`swelter backup` and `swelter restore` — a recovery drill an operator can rehearse, and a
   receipt they can keep** (part of #245). New `src/swelter/backup.py`, the `backup` and `restore`
   verbs, `docs/api.md`, a "Backup and restore drill" section in

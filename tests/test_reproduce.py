@@ -355,6 +355,33 @@ def test_a_reading_with_no_value_is_refused_rather_than_averaged_around(release:
     assert any("cannot be reproduced" in r for r in receipt.reasons)
 
 
+@pytest.mark.parametrize("flag", [True, False])
+def test_a_boolean_is_not_a_reading_and_not_an_uncertainty(release: Path, flag: bool) -> None:
+    """`bool` is a subclass of `int`, so a plain numeric check accepts `true` and turns it into
+    1.0 — a value, or a published 1-sigma, that no instrument and no fit ever produced."""
+    path = release / snapshot.RAW_OBSERVATIONS_FILENAME
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    doc["observations"][0]["value"] = flag
+    path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    receipt = reproduce.reproduce(release, _config())
+    assert receipt.verdict == reproduce.VERDICT_REFUSED
+    assert any("cannot be reproduced" in r for r in receipt.reasons)
+
+
+def test_a_boolean_uncertainty_is_read_as_absent_not_as_one_sigma(release: Path) -> None:
+    path = release / snapshot.RAW_OBSERVATIONS_FILENAME
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    for record in doc["observations"]:
+        record["uncertainty"] = True
+    path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    _refresh_manifest_digests(release)
+
+    # A 1-sigma of 1.0 on every raw row would change the rebuilt surface's uncertainty; read as
+    # absent, the release still reproduces exactly.
+    receipt = reproduce.reproduce(release, _config())
+    assert receipt.verdict == reproduce.VERDICT_REPRODUCED
+
+
 def test_a_directory_that_is_not_a_snapshot_raises_rather_than_returning_a_verdict(
     tmp_path: Path,
 ) -> None:
