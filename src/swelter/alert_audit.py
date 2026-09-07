@@ -148,6 +148,14 @@ class AuditedAlert:
     #: split and published a single joined string as if it were one method; and they are method
     #: names (``ols``), not correction version ids. Re-deriving a list from a display string is
     #: the fragile step, so it is not done at all.
+    #:
+    #: Worth recording what a control measured here, because it is not what one would guess.
+    #: Re-introducing *only* the round-trip -- ``", ".join(method.split(", "))`` -- leaves the
+    #: suite **green**, because that round-trip is the identity on any string not containing
+    #: ``", "``. The wrong separator is genuinely unobservable on its own. What the guard test
+    #: catches is the *shape and the name*: a tuple published under a key that claims versions.
+    #: So this is a case where the obvious sabotage cannot fail and the useful one is a different
+    #: mutation entirely.
     calibration_method: str | None = None
     calibrated_against: str | None = None
     nodes: tuple[str, ...] = ()

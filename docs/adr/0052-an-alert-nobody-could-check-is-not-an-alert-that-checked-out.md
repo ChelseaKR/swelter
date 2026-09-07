@@ -110,6 +110,14 @@ not correction *version ids* because that is what the surface publishes; an earl
 field claimed versions and re-split the cell's joined method string on the wrong separator, so it
 neither split nor said what it held.
 
+A control on that correction is worth recording, because it did not behave as expected.
+Re-introducing only the wrong separator — `", ".join(method.split(", "))` — leaves the suite
+**green**: that round-trip is the identity on any string not containing `", "`, so the separator
+error is unobservable in isolation. Only restoring the field's original *shape and name* (a tuple
+published under a key claiming versions) turns the guard red. The first run is the honest
+measurement, and the lesson is that the defect here was never the split — it was publishing a
+value under a name for something else.
+
 A superseding ADR is needed if recall becomes measurable (a denser reference network, or a
 different reference source), if the audit is ever wired to change a threshold, or if pack versions
 become part of the stored surface so a historical alert can be scored against the floors that

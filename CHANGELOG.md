@@ -53,6 +53,15 @@ All notable changes to swelter are recorded here. The format follows
   unverifiable, because the fixture's monitor id is not one `network.yaml` declares. The report
   says exactly that, in the sentence reserved for it.
 
+  Each alert row carries the calibration **method** and the reference it was fitted against,
+  verbatim from the cell. Not "calibration versions", and not a re-split of the cell's joined
+  display string -- the first draft of that field did both, and `aggregate` joins methods with
+  `" / "` so the `", "` split never split. A control on that is worth recording because it
+  surprised me: re-introducing *only* the wrong separator leaves the suite green, since the
+  round-trip is the identity on a string that does not contain the separator. Only restoring the
+  field's original shape and name turns the guard red. The defect was never the split; it was
+  publishing a value under a name for something else.
+
   Roadmap and acceptance rows added as F-31.
 
 - **A snapshot can be handed to an open-data portal** (part of #243). New
