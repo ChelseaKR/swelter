@@ -26,6 +26,7 @@ shares, so two packs can never disagree about what "Danger" means for the same r
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
 
@@ -329,6 +330,117 @@ SMOKE_PACK: Final = HazardPack(
 #: The pack a network gets when it names none.
 DEFAULT_PACK_ID: Final = "heat"
 
+#: ``hazard_pack: auto-season`` — not a pack, a *selector*. It names no thresholds of its own; it
+#: says "read the calendar this network declared and use whichever pack covers the month the data
+#: is about". EXP-13 proposed it and ADR 0050 deferred it, for a reason worth restating: switching
+#: by the wall clock would make the published output depend on the day the pipeline ran, which puts
+#: ``scripts/demo_artifact_check.py`` and the committed artifacts in disagreement across a month
+#: boundary — a calendar bomb inside the merge gate. See :func:`resolve_pack` for what replaced the
+#: wall clock.
+AUTO_SEASON_PACK_ID: Final = "auto-season"
+
+
+@dataclass(frozen=True)
+class SeasonWindow:
+    """One entry in a network's season calendar: which months get which pack.
+
+    A **network** declares this, not swelter. A calendar is a claim about a place's climate — that
+    smoke season runs June to November, that winter is a hazard here at all — and shipping one
+    would mean asserting a climatology for everywhere the software runs. The collective in Fresno
+    and the collective in Duluth do not have the same year, and neither of them needs swelter's
+    opinion about it. So the pack ids are swelter's (they carry the cited thresholds) and the
+    months are the network's.
+    """
+
+    #: Months of the year this window covers, 1-12. Every month must appear exactly once across a
+    #: network's whole calendar; ``config.config_concerns`` rejects a gap or an overlap rather than
+    #: letting an uncovered month fall back to heat in a place that has no summer.
+    months: tuple[int, ...]
+    #: The ``PACKS`` id to use in those months.
+    pack: str
+
+
+class SeasonCalendarError(ValueError):
+    """A calendar that cannot select a pack for some month — refused, never defaulted."""
+
+
+def season_calendar_problems(calendar: Sequence[SeasonWindow]) -> list[str]:
+    """Everything wrong with a season calendar, or an empty list.
+
+    Checked here rather than in ``config`` so the rule lives beside the packs it selects, and so a
+    caller building a calendar in code gets the same refusals a ``network.yaml`` does.
+    """
+    problems: list[str] = []
+    if not calendar:
+        return [
+            "season_calendar: hazard_pack 'auto-season' selects a pack by month, so the network "
+            "must declare which months get which pack; swelter ships no calendar because a "
+            "calendar is a claim about a particular place's climate"
+        ]
+    seen: dict[int, str] = {}
+    for window in calendar:
+        if window.pack not in PACKS:
+            problems.append(
+                f"season_calendar: unknown pack {window.pack!r}; recognized packs: "
+                f"{', '.join(sorted(PACKS))}"
+            )
+        for month in window.months:
+            if not 1 <= month <= 12:
+                problems.append(f"season_calendar: month {month} is not in 1-12")
+                continue
+            if month in seen:
+                problems.append(
+                    f"season_calendar: month {month} is claimed by both {seen[month]!r} and "
+                    f"{window.pack!r}; a month must select exactly one pack"
+                )
+            else:
+                seen[month] = window.pack
+    missing = sorted(set(range(1, 13)) - set(seen))
+    if missing:
+        problems.append(
+            "season_calendar: no pack covers month(s) "
+            f"{', '.join(str(m) for m in missing)}; an uncovered month would fall back to heat, "
+            "which is the wrong answer in a place whose calendar deliberately omits it"
+        )
+    return problems
+
+
+def pack_for_month(calendar: Sequence[SeasonWindow], month: int) -> HazardPack:
+    """The pack a validated calendar selects for ``month``.
+
+    Raises rather than defaulting. ``config_concerns`` rejects an incomplete calendar before any
+    build runs, so reaching this with an uncovered month means the validation was bypassed — and
+    silently alerting on heat in a month a network said was smoke season is exactly the safety
+    surprise :func:`resolve_pack`'s fallback comment warns about.
+    """
+    for window in calendar:
+        if month in window.months:
+            pack = PACKS.get(window.pack)
+            if pack is None:
+                raise SeasonCalendarError(f"season calendar names unknown pack {window.pack!r}")
+            return pack
+    raise SeasonCalendarError(f"season calendar covers no pack for month {month}")
+
+
+def season_surface_parameters(calendar: Sequence[SeasonWindow]) -> tuple[str, ...]:
+    """Every observed parameter any pack in the calendar might need rolled up.
+
+    The union, not the current month's pack alone, and deliberately so: the rollup happens before
+    the month is known (the month comes from the surface, and the surface is what is being built),
+    and a cell that was never aggregated cannot be alerted on later. A network on a smoke/cold
+    calendar therefore carries wind chill through the whole year — a wider surface, not a wrong
+    one, and the alternative is a January in which the cold pack has nothing to read.
+    """
+    seen: dict[str, None] = {}
+    for window in calendar:
+        pack = PACKS.get(window.pack)
+        if pack is None:
+            continue
+        for parameter in pack.surface_parameters():
+            seen.setdefault(parameter, None)
+    return tuple(seen)
+
+
 #: Every shipped pack, keyed by its ``network.yaml: hazard_pack`` id.
 PACKS: Final[dict[str, HazardPack]] = {
     HEAT_PACK.pack_id: HEAT_PACK,
@@ -337,14 +449,62 @@ PACKS: Final[dict[str, HazardPack]] = {
 }
 
 
-def resolve_pack(pack_id: str | None) -> HazardPack:
+def resolve_pack(
+    pack_id: str | None,
+    *,
+    calendar: Sequence[SeasonWindow] = (),
+    month: int | None = None,
+) -> HazardPack:
     """The pack a network selected, or the default heat pack for an unset or unknown id.
 
     Fail-safe on purpose, exactly like :func:`swelter.alerts.resolve_thresholds`: an unknown id
     never crashes a build here — it falls back to heat — because ``config.config_concerns`` /
     ``swelter doctor`` already rejects an unknown ``hazard_pack`` as a hard error *before* any
     build runs, so this branch is only ever reached with a valid id in normal operation.
+
+    ``auto-season`` is the one id that is not a pack. It selects one from ``calendar`` using
+    ``month`` — **the month of the data**, which every caller derives from
+    :meth:`swelter.aggregate.Surface.newest_bucket`, never from the wall clock. That is the whole
+    difference between this and the version ADR 0050 declined to ship: a wall-clock switch makes
+    the published output depend on the day the pipeline ran, so a committed artifact and a fresh
+    replay disagree the moment a month boundary passes, and ``demo-artifacts`` goes red on a
+    calendar rather than on a change. Deriving the month from the data keeps a replay of a fixed
+    store byte-identical forever.
+
+    With no ``month`` — a caller asking "which pack, in general?", such as ``doctor`` validating
+    override keys — an ``auto-season`` network resolves to the default rather than guessing a
+    month; :func:`season_threshold_keys` is what such a caller should use instead.
     """
     if not pack_id:
         return PACKS[DEFAULT_PACK_ID]
+    if pack_id == AUTO_SEASON_PACK_ID:
+        if month is None or not calendar:
+            return PACKS[DEFAULT_PACK_ID]
+        return pack_for_month(calendar, month)
     return PACKS.get(pack_id, PACKS[DEFAULT_PACK_ID])
+
+
+def season_threshold_keys(calendar: Sequence[SeasonWindow]) -> frozenset[str]:
+    """Every floor key any pack in the calendar defines — the keys an auto-season network may set.
+
+    A seasonal network legitimately overrides ``heat_index_c`` *and* ``wind_chill_c``: it uses both
+    packs, in different months. Validating its overrides against a single pack would reject one of
+    them as unknown, which is how a host ends up believing they lowered a danger floor and did not.
+    """
+    keys: set[str] = set()
+    for window in calendar:
+        pack = PACKS.get(window.pack)
+        if pack is not None:
+            keys |= pack.threshold_keys()
+    return frozenset(keys)
+
+
+def month_of(bucket: str) -> int:
+    """The calendar month of an hour bucket (``YYYY-MM-DDTHH:MM:SSZ``).
+
+    Parsed positionally rather than through ``datetime``: every bucket in this project is already
+    canonical UTC written by :func:`swelter.aggregate.hour_bucket`, and a timezone conversion here
+    could only introduce a way for the month to differ from the one printed in the timestamp a
+    reader sees beside it.
+    """
+    return int(bucket[5:7])

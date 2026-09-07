@@ -550,8 +550,17 @@ def aggregate(
     """
     locations = config.public_locations()
     labels = _cell_labels(config)
-    pack = hazard_packs.resolve_pack(config.hazard_pack)
-    wanted = set(parameters) | set(pack.surface_parameters())
+    if config.hazard_pack == hazard_packs.AUTO_SEASON_PACK_ID:
+        # The union across the whole calendar, not the current month's pack. The month is derived
+        # from the surface's newest bucket, and the surface is what is being built here -- so the
+        # rollup happens before the month is knowable, and a parameter that was never aggregated
+        # cannot be alerted on afterwards. A smoke/cold network therefore carries wind chill
+        # through July: a wider surface, not a wrong one, and the alternative is a January whose
+        # cold pack has nothing to read.
+        pack_parameters = hazard_packs.season_surface_parameters(config.season_calendar)
+    else:
+        pack_parameters = hazard_packs.resolve_pack(config.hazard_pack).surface_parameters()
+    wanted = set(parameters) | set(pack_parameters)
     # Provenance lookups for the "show your work" trust view: which reference each node/parameter
     # was calibrated against, and that monitor's human label.
     ref_by_node_param = {(w.node_id, w.parameter): w.reference for w in config.calibration_windows}
