@@ -1037,8 +1037,13 @@ terms differ location by location — gets the snapshot's own statement in `titl
 the packaged `source-license-ledger.json`, never an invented identifier.
 
 Absence is stated, not implied: a release whose manifest records no observation window gets no
-`dct:temporal` rather than an interval with null endpoints, and without `--base-url` no
-distribution carries a `dcat:accessURL` and the record says so in `swelter:note`. `dct:issued` is
+`dct:temporal` rather than an interval with null endpoints; without `--base-url` no distribution
+carries a `dcat:accessURL`; and without `--publisher` there is no `dct:publisher`, because the
+snapshot's `data_source` is who the *readings* came from and for a fetched store that is an
+upstream provider rather than whoever publishes the dataset. Each omission is named in
+`swelter:note`. The attribution statement travels as `swelter:attribution` and `dct:rights` rather
+than as a `contributors[]` entry — that field is for a contributor's name, and this is a sentence
+about terms. `dct:issued` is
 the snapshot's `created_at`, never the wall clock, so two packagings of one release are
 byte-identical. `dct:title` and `dct:description` are tagged `en`; there is no reviewed Spanish
 catalog text (#106), and an untagged string would let a Spanish-language portal present English as

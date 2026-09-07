@@ -2286,7 +2286,10 @@ def cmd_package(args: argparse.Namespace) -> int:
     """
     try:
         result = package_module.build_package(
-            Path(args.snapshot), Path(args.out), base_url=args.base_url or None
+            Path(args.snapshot),
+            Path(args.out),
+            base_url=args.base_url or None,
+            publisher=args.publisher or None,
         )
     except package_module.PackageError as exc:
         _err(f"swelter package: {exc}; refusing")
@@ -2868,6 +2871,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="public base URL the packaged files will be served from; omitted, the DCAT record "
         "carries no access URL rather than a guessed one",
+    )
+    p_pkg.add_argument(
+        "--publisher",
+        default="",
+        help="the agency or collective publishing this dataset; omitted, the DCAT record names "
+        "no publisher rather than naming the source of the readings as one",
     )
     p_pkg.set_defaults(func=cmd_package)
 

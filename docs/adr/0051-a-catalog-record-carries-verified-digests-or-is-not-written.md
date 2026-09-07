@@ -84,7 +84,23 @@ that is not one of the two declared export-only provenance columns, raises rathe
 emitted with an empty description: a schema that silently omitted a column would tell a portal the
 file is narrower than it is, and every row after the omission would be misparsed.
 
-### 6. The record is dated from the snapshot, and tagged `en`
+### 6. No party is named that the release does not record
+
+`dct:publisher` is emitted only when `--publisher` is given. The manifest records a `data_source` —
+who the *readings* came from — and for a fetched store that is an upstream provider, not the
+collective publishing the dataset. Using it as the publisher would be right for a native store and
+wrong for every other one, and a harvester republishes a publisher as the dataset's responsible
+agency. Without the flag the record names nobody and says so in `swelter:note`.
+
+For the same reason the attribution statement is **not** a Frictionless `contributors[]` entry.
+That field's `title` is a contributor's name; `data_attribution` is a sentence about terms ("Real
+readings accessed via OpenAQ; original-provider licenses and attribution vary by location…"), and
+a harvester rendering contributors as authors would credit the sentence to a person. It travels as
+`swelter:attribution` in the descriptor, as `dct:rights` in the catalog record — a statement about
+rights, which is what it is — and in the packaged `DATA-LICENSE` resource. Attribution must not be
+lost in the reshaping (invariant 4), but it must not be reshaped into a claim either.
+
+### 7. The record is dated from the snapshot, and tagged `en`
 
 `dct:issued` and `created` are the snapshot's own `created_at`, never the wall clock, so two
 packagings of one release are byte-identical — including across processes under different

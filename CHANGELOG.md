@@ -35,6 +35,14 @@ All notable changes to swelter are recorded here. The format follows
   `profile: tabular-data-package`. Measured, not assumed: with the override removed, `frictionless`
   5.19.0 reports a `required` constraint error on every unflagged row.
 
+  **No party is named that the release does not record.** `dct:publisher` is emitted only when
+  `--publisher` is given: the manifest's `data_source` is who the *readings* came from, and for a
+  fetched store that is an upstream provider, not the collective publishing the dataset. Naming it
+  as publisher would be right for a native store and wrong for every other one. For the same
+  reason the attribution statement is not a Frictionless `contributors[]` entry -- that field's
+  `title` is a contributor's *name*, and `data_attribution` is a sentence about terms -- so it
+  travels as `swelter:attribution`, as `dct:rights`, and in the packaged `DATA-LICENSE`.
+
   **A per-location source keeps its terms.** Only licence strings this project can map with
   certainty get an SPDX `name`; an OpenAQ-derived release gets the snapshot's own statement plus a
   `path` to the packaged `source-license-ledger.json`, never an invented identifier (hard rule 6).

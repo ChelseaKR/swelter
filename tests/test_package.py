@@ -445,6 +445,47 @@ def test_a_base_url_produces_access_and_download_urls_for_every_distribution(
         assert distribution["dcat:accessURL"] == distribution["dcat:downloadURL"]
 
 
+def test_without_a_publisher_the_record_names_none_rather_than_the_source(
+    tmp_path: Path, release: Path
+) -> None:
+    """`data_source` is who the readings came from. That is not who publishes the dataset.
+
+    For a native store the two happen to coincide; for a fetched store the source is an upstream
+    provider and naming it as publisher asserts a relationship the release does not record. Right
+    half the time is worse than naming nobody.
+    """
+    out = tmp_path / "dp"
+    result = package.build_package(release, out)
+    assert "dct:publisher" not in _dcat(out)
+    assert any("no publishing agency" in note for note in result.notes)
+
+
+def test_a_publisher_given_explicitly_is_the_one_named(tmp_path: Path, release: Path) -> None:
+    out = tmp_path / "dp"
+    result = package.build_package(release, out, publisher="Fullerton Heat Collective")
+    publisher = _dcat(out)["dct:publisher"]
+    assert publisher["dct:title"] == "Fullerton Heat Collective"
+    assert not any("no publishing agency" in note for note in result.notes)
+
+
+def test_the_attribution_statement_is_not_published_as_a_contributor_name(
+    tmp_path: Path, release: Path
+) -> None:
+    """Frictionless `contributors[].title` is a person's name; this is a sentence about terms.
+
+    A harvester that renders contributors as authors would credit the sentence to a person.
+    """
+    out = tmp_path / "dp"
+    package.build_package(release, out)
+    descriptor = _descriptor(out)
+    assert "contributors" not in descriptor
+    assert descriptor["swelter:attribution"]
+    # ...and it still travels, both as a rights statement in the catalog record and as the
+    # packaged DATA-LICENSE file. Attribution must not be lost in the reshaping (invariant 4).
+    assert _dcat(out)["dct:rights"] == descriptor["swelter:attribution"]
+    assert (out / snapshot.DATA_LICENSE_FILENAME).is_file()
+
+
 def test_a_release_with_no_observation_window_publishes_no_temporal_extent(
     tmp_path: Path, release: Path
 ) -> None:

@@ -38,7 +38,10 @@ QC ran and found nothing suspicious, and the table rule would have published tha
 as an unperformed one. A snapshot whose manifest records no observation window gets no
 ``dct:temporal`` — not an interval with null endpoints. Without a ``--base-url`` the distributions
 carry no ``dcat:accessURL``, and the record says so in ``swelter:note`` rather than inventing a
-host.
+host. Without a ``--publisher`` there is no ``dct:publisher``: the snapshot records a
+``data_source`` -- who the *readings* came from -- and for a fetched store that is an upstream
+provider, not the collective publishing the dataset. Naming the source as the publisher would be
+right for a native store and wrong for every other one, which is worse than naming nobody.
 
 Everything here is offline, stdlib-only, and free of the wall clock: ``dct:issued`` is the
 snapshot's own ``created_at``, so two runs against one snapshot are byte-identical.
@@ -380,6 +383,7 @@ def _dcat_record(
     resources: list[dict[str, object]],
     *,
     base_url: str | None,
+    publisher: str | None,
     licenses: list[dict[str, object]],
     notes: list[str],
 ) -> dict[str, object]:
@@ -407,16 +411,21 @@ def _dcat_record(
             ),
             "@language": "en",
         },
+        # The attribution requirement, as a rights statement -- which is what it is. It must
+        # travel with the data (invariant 4), and DCAT has no attribution field, so it goes where
+        # a harvester will look for terms rather than into a field meant for a person's name.
+        "dct:rights": str(manifest.get("data_attribution", "")),
         "dct:issued": str(manifest.get("created_at", "")),
         "dct:conformsTo": _SCHEMA_DOC_URL,
         "swelter:data_schema_version": manifest.get("data_schema_version", DATA_SCHEMA_VERSION),
         "dct:license": licenses[0].get("name", licenses[0]["title"]),
-        "dct:publisher": {"@type": "dct:Agent", "dct:title": str(manifest.get("data_source", ""))},
         "dcat:distribution": [
             _distribution(resource, base_url=base_url, dataset_id=dataset_id)
             for resource in resources
         ],
     }
+    if publisher is not None:
+        record["dct:publisher"] = {"@type": "dct:Agent", "dct:title": publisher}
     temporal = _temporal(manifest)
     if temporal is not None:
         record["dct:temporal"] = {
@@ -479,9 +488,16 @@ def _verified_inputs(snapshot_dir: Path, digests: dict[str, str]) -> _VerifiedIn
     )
 
 
-def _notes(*, base_url: str | None, has_surface: bool) -> list[str]:
+def _notes(*, base_url: str | None, publisher: str | None, has_surface: bool) -> list[str]:
     """What this package does not carry, said out loud rather than left to be inferred."""
     notes: list[str] = []
+    if publisher is None:
+        notes.append(
+            "no --publisher was given, so this record names no publishing agency; the snapshot's "
+            "data_source is the source of the readings, which is not the same party as whoever "
+            "publishes this dataset, and naming it as the publisher would assert a relationship "
+            "the release does not record"
+        )
     if base_url is None:
         notes.append(
             "no --base-url was given, so no distribution carries an access URL; a harvester must "
@@ -588,9 +604,12 @@ def _descriptor(
         "version": release,
         "licenses": licenses,
         "sources": [{"title": str(manifest.get("data_source", ""))}],
-        "contributors": [
-            {"title": str(manifest.get("data_attribution", "")), "role": "contributor"}
-        ],
+        # NOT `contributors`. Frictionless `contributors[].title` is a contributor's *name*, and
+        # `data_attribution` is an attribution *statement* -- for a fetched store, a full sentence
+        # about per-location provider terms. Publishing a sentence in a name field is how a
+        # harvester ends up rendering it as an author. It travels here under a namespaced key, and
+        # in the packaged DATA-LICENSE resource, where it is what it is.
+        "swelter:attribution": str(manifest.get("data_attribution", "")),
         "swelter:data_schema_version": manifest.get("data_schema_version", DATA_SCHEMA_VERSION),
         "swelter:swelter_version": manifest.get("swelter_version"),
         "resources": resources,
@@ -611,6 +630,7 @@ def build_package(
     out: Path,
     *,
     base_url: str | None = None,
+    publisher: str | None = None,
 ) -> PackageResult:
     """Write a self-contained Frictionless package and DCAT record for ``snapshot_dir``.
 
@@ -637,7 +657,7 @@ def build_package(
         attribution=str(manifest.get("data_attribution", "")),
     ).encode("utf-8")
 
-    notes = _notes(base_url=base_url, has_surface=inputs.aggregate is not None)
+    notes = _notes(base_url=base_url, publisher=publisher, has_surface=inputs.aggregate is not None)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     for name, payload in [(EXPORT_CSV_FILENAME, csv_bytes), *inputs.copies()]:
@@ -652,7 +672,14 @@ def build_package(
     )
     (out_dir / DCAT_FILENAME).write_text(
         json.dumps(
-            _dcat_record(manifest, resources, base_url=base_url, licenses=licenses, notes=notes),
+            _dcat_record(
+                manifest,
+                resources,
+                base_url=base_url,
+                publisher=publisher,
+                licenses=licenses,
+                notes=notes,
+            ),
             indent=2,
             sort_keys=True,
         )
