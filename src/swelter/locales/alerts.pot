@@ -84,3 +84,15 @@ msgstr ""
 
 msgid "Areas listed under 'stale' have stopped reporting: swelter cannot tell whether they are safe. An empty 'alerts' list means no currently reporting area crossed a danger floor, not that every area is fine."
 msgstr ""
+
+#, python-brace-format
+msgid "Smoke event: not determined as of {bucket}. There is no reading from {hours} hours earlier to compare against, so no rise could be measured."
+msgstr ""
+
+#, python-brace-format
+msgid "Smoke event in progress as of {bucket}: {count} areas have risen sharply into unhealthy air in the same hour."
+msgstr ""
+
+#, python-brace-format
+msgid "No smoke event as of {bucket}: {count} of the {minimum} areas needed have risen sharply into unhealthy air. Individual areas may still be alerting."
+msgstr ""

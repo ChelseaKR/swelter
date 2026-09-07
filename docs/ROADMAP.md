@@ -70,6 +70,7 @@ both tables and with its referenced tests in the same change.
 | F-26 | EXP-13: multi-hazard packs and a cold pack |
 | F-27 | Reference-monitor co-location adapter |
 | F-28 | Absence is never published as a number |
+| F-29 | EXP-13: wildfire-smoke pack with a NowCast window and a multi-cell event rule |
 
 ## Delivery history
 

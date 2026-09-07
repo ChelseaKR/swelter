@@ -34,6 +34,13 @@ from typing import Final
 #: :mod:`swelter.aggregate` — the dependency only ever points the other way.
 EXPOSURE: Final = "exposure"
 
+#: The two PM2.5 averaging windows, duplicated here as plain strings for the same reason as
+#: :data:`EXPOSURE` -- this leaf module imports nothing from :mod:`swelter.aggregate`, and the
+#: dependency only ever points the other way. They must equal ``aggregate.AQI_WINDOW`` and
+#: ``aggregate.AQI_WINDOW_NOWCAST``, and a test asserts they do.
+AQI_WINDOW_HOURLY_MEAN: Final = "hourly-mean"
+AQI_WINDOW_NOWCAST: Final = "nowcast"
+
 
 @dataclass(frozen=True)
 class Citation:
@@ -60,6 +67,41 @@ class HazardThreshold:
 
 
 @dataclass(frozen=True)
+class EventRule:
+    """When several cells rising together stop being several readings and become one event.
+
+    A single node reading 300 ug/m3 is a node, not a smoke day: it might be a barbecue under the
+    sensor, or a failing ADC. What distinguishes a wildfire-smoke episode from a spiking node is
+    that it happens *across* a neighbourhood at once. So an event needs ``minimum_cells`` distinct
+    published cells at or above ``floor`` in the same hour, each of which has risen by at least
+    ``rise`` against its own reading ``lookback_hours`` earlier.
+
+    The rise is per-cell and against that cell's own past, deliberately. An absolute floor alone
+    would declare an event every hour of a week-long episode, and a network in a chronically poor
+    airshed would sit permanently "in an event" -- which tells a resident nothing.
+
+    Every number here is pack data, not code, so changing what counts as an event is a reviewable
+    diff in this file with a citation attached, exactly like a threshold.
+    """
+
+    parameter: str  # the surface parameter the rule watches
+    #: The averaging window the rule reads, which is deliberately its own field and not the
+    #: pack's. A rule that measures a *rise* needs a series, and the EPA NowCast is not one:
+    #: :func:`swelter.aggregate._nowcast_cells` derives exactly one NowCast row per cell, at that
+    #: cell's most recent bucket, so there is no NowCast reading three hours ago to compare
+    #: against and never will be. So the smoke pack alerts on NowCast (the "right now" tier a
+    #: resident needs) and detects its event on the hourly means (the series a rise is measurable
+    #: in). The two windows are different questions, and the published record names the one it
+    #: used rather than leaving a reader to assume they match.
+    aqi_window: str
+    floor: float  # a cell at or above this, in ``parameter``'s own units, is a candidate
+    rise: float  # ... and must have risen at least this much against its own earlier reading
+    lookback_hours: int  # how far back that earlier reading is taken from
+    minimum_cells: int  # how many candidate cells make it an event rather than a node
+    citation: Citation
+
+
+@dataclass(frozen=True)
 class HazardPack:
     """A named, versioned set of alert floors plus the observed parameters they need aggregated.
 
@@ -71,6 +113,14 @@ class HazardPack:
     version: str  # bumped when a floor or its citation changes, like a correction version
     label: str  # a short human name for the pack
     thresholds: tuple[HazardThreshold, ...]
+    #: Which PM2.5 averaging window this pack's alerts read. Heat and cold read the hourly mean,
+    #: which is what they have always read. Smoke reads the EPA NowCast, because an hourly mean
+    #: lags a plume by design and a resident deciding whether to go outside needs the "right now"
+    #: number. A pack never *falls back* to the other window: a cell without a reading in the
+    #: pack's window raises no alert rather than an alert in a window the feed did not promise.
+    aqi_window: str = AQI_WINDOW_HOURLY_MEAN
+    #: The rule, if any, that turns several cells rising together into one named event.
+    event_rule: EventRule | None = None
     #: Sourced, non-prescriptive pointers to the authority's own public guidance for this hazard —
     #: provenance, not resident-facing copy. Wiring translated guidance text to the dashboard is a
     #: review-gated follow-up (ADR 0031), so nothing here is presented to a resident as advice.
@@ -206,6 +256,76 @@ COLD_PACK: Final = HazardPack(
     ),
 )
 
+#: The smoke pack: PM2.5 read on the EPA NowCast window, with an event rule.
+#:
+#: For a California network this is the hazard after heat season. It watches only PM2.5, because
+#: that is the parameter a low-cost network measures well and the one a smoke day is about; heat
+#: and wind chill are not silently carried over, so a network that selects smoke is told exactly
+#: what it is now alerting on.
+SMOKE_PACK: Final = HazardPack(
+    pack_id="smoke",
+    version="1",
+    label="Wildfire smoke",
+    aqi_window=AQI_WINDOW_NOWCAST,
+    thresholds=(
+        HazardThreshold(
+            key="pm25_aqi",
+            parameter="pm25_ugm3",
+            floor=101.0,
+            citation=Citation(
+                source="US EPA",
+                detail=(
+                    'AQI 101 = "Unhealthy for Sensitive Groups" boundary (2024 PM2.5 '
+                    "breakpoints), read on the NowCast window AirNow publishes as the current "
+                    "hour's air quality"
+                ),
+                url="https://document.airnow.gov/technical-assistance-document-for-the-reporting-of-daily-air-quailty.pdf",
+                last_verified="2026-09-07",
+            ),
+        ),
+    ),
+    event_rule=EventRule(
+        parameter="pm25_ugm3",
+        # Hourly means, not NowCast, and not because hourly means are better: NowCast exists
+        # only at each cell's newest bucket, so a rise across three hours cannot be measured in
+        # it at all. See ``EventRule.aqi_window``.
+        aqi_window=AQI_WINDOW_HOURLY_MEAN,
+        # 35.5 ug/m3 is the EPA breakpoint where the 2024 PM2.5 AQI leaves "Moderate"; a cell at or
+        # above it is a candidate. The rise and the cell count are swelter's own, and are stated as
+        # such rather than dressed up as an EPA rule: no published standard says how many sensors
+        # make a smoke event, because that depends on a network's own density.
+        floor=35.5,
+        rise=20.0,
+        lookback_hours=3,
+        minimum_cells=3,
+        citation=Citation(
+            source="US EPA",
+            detail=(
+                "35.5 ug/m3 is the 2024 PM2.5 breakpoint where the AQI leaves the Moderate band. "
+                "The 20 ug/m3 three-hour rise and the three-cell minimum are swelter's own, "
+                "chosen so one spiking node cannot declare an event; no published standard sets "
+                "them, because they depend on a network's own sensor density"
+            ),
+            url="https://www.epa.gov/system/files/documents/2024-02/pm-naaqs-air-quality-index-fact-sheet.pdf",
+            last_verified="2026-09-07",
+        ),
+    ),
+    guidance=(
+        Citation(
+            source="US EPA / AirNow",
+            detail="Wildfire smoke and your health",
+            url="https://www.airnow.gov/air-quality-and-health/wildfires/",
+            last_verified="2026-09-07",
+        ),
+        Citation(
+            source="US EPA / AirNow",
+            detail="Air Quality Index (AQI) basics",
+            url="https://www.airnow.gov/aqi/aqi-basics/",
+            last_verified="2026-09-07",
+        ),
+    ),
+)
+
 #: The pack a network gets when it names none.
 DEFAULT_PACK_ID: Final = "heat"
 
@@ -213,6 +333,7 @@ DEFAULT_PACK_ID: Final = "heat"
 PACKS: Final[dict[str, HazardPack]] = {
     HEAT_PACK.pack_id: HEAT_PACK,
     COLD_PACK.pack_id: COLD_PACK,
+    SMOKE_PACK.pack_id: SMOKE_PACK,
 }
 
 

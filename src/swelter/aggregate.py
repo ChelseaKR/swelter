@@ -228,21 +228,49 @@ class Surface:
         """
         return max((cell.bucket for cell in self.cells), default=None)
 
-    def latest_by_cell(self) -> dict[str, dict[str, CellReading]]:
+    def latest_by_cell(self, *, aqi_window: str = AQI_WINDOW) -> dict[str, dict[str, CellReading]]:
         """cell_id → parameter → the most recent hourly reading, for the map snapshot.
 
-        NowCast rows are skipped here on purpose: the map snapshot promises the hourly-mean value
-        for `pm25_ugm3` (`aqi_window="hourly-mean"`), and a NowCast reading — tagged
+        By default NowCast rows are skipped: the map snapshot promises the hourly-mean value for
+        `pm25_ugm3` (`aqi_window="hourly-mean"`), and a NowCast reading — tagged
         `aqi_window="nowcast"` — is an alternate, opt-in view (`Surface.to_records`), never a
         silent substitute for it.
+
+        `aqi_window=AQI_WINDOW_NOWCAST` asks for the opposite selection, which is what the smoke
+        hazard pack alerts on: an hourly mean lags a plume by design. **It is a selection and not
+        a preference.** A cell with no NowCast row — fewer than three trailing hours exist, so
+        `models.nowcast_concentration` returned `None` — is simply absent from the result for
+        `pm25_ugm3`; it does not fall back to the hourly mean. Falling back would publish a
+        number from one window under a feed that named the other, which is the same class of
+        error as publishing a stale reading as current. Parameters other than `pm25_ugm3` carry
+        no window and are unaffected by this argument.
         """
         out: dict[str, dict[str, CellReading]] = defaultdict(dict)
         for cell in self.cells:
-            if cell.aqi_window == AQI_WINDOW_NOWCAST:
+            if cell.aqi_window is not None and cell.aqi_window != aqi_window:
                 continue
             current = out[cell.cell_id].get(cell.parameter)
             if current is None or cell.bucket > current.bucket:
                 out[cell.cell_id][cell.parameter] = cell
+        return out
+
+    def readings_for(
+        self, parameter: str, *, aqi_window: str = AQI_WINDOW
+    ) -> dict[str, dict[str, CellReading]]:
+        """cell_id → bucket → reading, for one parameter in one window.
+
+        The history an event rule needs: whether a cell has *risen* cannot be answered from its
+        latest reading alone. Keyed by bucket rather than sorted, because a rule asks for one
+        specific earlier hour and a missing one must read as missing rather than as the nearest
+        available hour, which would silently widen the lookback.
+        """
+        out: dict[str, dict[str, CellReading]] = defaultdict(dict)
+        for cell in self.cells:
+            if cell.parameter != parameter:
+                continue
+            if cell.aqi_window is not None and cell.aqi_window != aqi_window:
+                continue
+            out[cell.cell_id][cell.bucket] = cell
         return out
 
     def snapshot_geojson(self) -> dict[str, object]:
