@@ -427,6 +427,51 @@ recipient, so it carries no privacy weight of its own.
 
 Pin every Action by commit SHA with a `# vN` comment, as above — the swelter repo does the same.
 
+## Checking the alerts afterwards
+
+Every Danger or High alert is a claim. Once a reference-grade monitor has reported for the same
+hour and place, the claim can be checked, and `swelter audit-alerts` does that (ADR 0052).
+
+```
+swelter audit-alerts --store store --config network.yaml \
+  --reference-fixture data/reference/airnow.json \
+  --markdown dist/alert-audit.md --out dist/alert-audit.json
+```
+
+Each historical crossing is paired with the nearest reference reading for the **same parameter**
+within `--max-distance-m` and `--tolerance-s`, and classified:
+
+| verdict | meaning |
+| --- | --- |
+| `confirmed` | the reference reading crossed the same floor |
+| `contradicted` | the reference reading did not |
+| `unverifiable` | there was no reference reading to check it against |
+
+**`unverifiable` is a first-class outcome and never a score.** It is excluded from the precision
+denominator, and a parameter with no scored alerts publishes no precision at all — not `0%`, which
+would read as "every alert was wrong", and not `100%`. The report says which of five distinct
+reasons applies, because they lead somewhere different: no reference measures this parameter at
+all (AirNow publishes no heat index); readings exist but from a monitor `reference_monitors` does
+not declare (a configuration error); the nearest declared monitor publishes no coordinate, so it is
+*unlocatable* rather than far away; no monitor is inside the distance bound; or a monitor is in
+range but reported nothing that hour.
+
+Two things the audit deliberately does not do.
+
+**It does not measure recall.** Reference coverage is far too sparse to say how many real episodes
+the network failed to alert on, and the rendered report carries that sentence rather than leaving a
+precision table to be read as the whole picture.
+
+**It does not change a threshold.** It is evidence for a steward, not a controller. A contradicted
+alert exits `0` — a finding to act on, not a failure of the tool. Exit `1` is reserved for the
+audit not running, including a run with no `--reference-fixture`, which is refused outright rather
+than producing a report in which everything is unverifiable and which looks like it checked
+something.
+
+The 10 km distance bound and the 30-minute pairing tolerance are **swelter's own parameters, not a
+published standard**: no rule states the distance at which a regulatory monitor stops representing
+an airshed. Every run records the values it used, and the report names them as swelter's.
+
 ## Privacy
 
 An alert names a block and a reading, never a person or a device. The schema has no contact field; the
