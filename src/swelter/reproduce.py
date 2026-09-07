@@ -76,6 +76,7 @@ __all__ = [
     "Check",
     "Receipt",
     "ReproduceError",
+    "observations_from_export",
     "render",
     "reproduce",
     "verdict_for",
@@ -213,8 +214,14 @@ def _is_number(value: object) -> TypeGuard[float]:
     return isinstance(value, int | float) and not isinstance(value, bool)
 
 
-def _observations_from_export(payload: bytes) -> list[Observation]:
-    """Parse ``observations-raw.json`` back into observations, refusing anything ambiguous."""
+def observations_from_export(payload: bytes) -> list[Observation]:
+    """Parse ``observations-raw.json`` back into observations, refusing anything ambiguous.
+
+    Public because :mod:`swelter.package` reads the same frozen file to tabulate it. Both callers
+    need the same refusals — a row with no numeric value must not become a zero in a catalog
+    export any more than in a reproduction — so they share one parser rather than two that could
+    drift apart on what they tolerate.
+    """
     try:
         doc = json.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -479,7 +486,7 @@ def _load_frozen_inputs(directory: Path) -> tuple[_Stage, _FrozenInputs | None]:
 
     raw_path = directory / RAW_OBSERVATIONS_FILENAME
     try:
-        raw = _observations_from_export(raw_path.read_bytes())
+        raw = observations_from_export(raw_path.read_bytes())
     except FileNotFoundError:
         checks.append(
             Check("raw_observations", CHECK_FAIL, f"{RAW_OBSERVATIONS_FILENAME} is missing")
