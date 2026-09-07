@@ -126,6 +126,10 @@ def test_the_heat_feed_carries_no_event_key_at_all() -> None:
     payload = _feed(_series(**{"node-01": (5.0, 6.0, 7.0, 8.0)})).to_json()
     assert "event" not in payload
     assert "event_headline" not in payload
+    # And no `aqi_window` either: this feed reads the window it always read, so it serializes
+    # the bytes it always serialized. `scripts/demo_artifact_check.py` is what caught the first
+    # version of this, which added the key to every feed.
+    assert "aqi_window" not in payload
 
 
 # ------------------------------------------------------------------------------------------

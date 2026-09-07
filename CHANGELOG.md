@@ -22,10 +22,14 @@ All notable changes to swelter are recorded here. The format follows
   Three decisions in it, each of which was a way this could have lied:
 
   **A pack names the PM2.5 averaging window its alerts read, and never falls back.** An hourly
-  mean lags a plume by design, so the smoke pack alerts on the EPA NowCast window and the feed
-  carries `aqi_window` at its root. A cell with no NowCast row -- fewer than three trailing hours
-  exist -- gets no tier at all rather than the hourly mean the feed did not promise. Not tier 0,
-  and not the other number under this one's name.
+  mean lags a plume by design, so the smoke pack alerts on the EPA NowCast window and a feed on a
+  non-default window carries `aqi_window` at its root. A cell with no NowCast row -- fewer than
+  three trailing hours exist -- gets no tier at all rather than the hourly mean the feed did not
+  promise. Not tier 0, and not the other number under this one's name. The key is emitted only
+  when the window is not the hourly mean: the first version added it to every feed and
+  `scripts/demo_artifact_check.py` caught the committed `web/alerts.json` no longer matching a
+  fresh replay, which is exactly the byte-identity promise ADR 0031 makes to a network that
+  changed nothing.
 
   **An event needs several cells that have each risen against their own past.** A cell qualifies
   at or above 35.5 ug/m3 *and* having risen 20 ug/m3 over three hours; three such cells in one

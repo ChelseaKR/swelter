@@ -61,6 +61,11 @@ DEFAULT_THRESHOLDS: Final[Mapping[str, float]] = hazard_packs.HEAT_PACK.default_
 #: a danger crossing, so a reader or a bridge can filter the two apart without parsing the title.
 STALE_CATEGORY: Final[str] = "no-current-reading"
 
+#: The PM2.5 averaging window every feed read before hazard packs could choose one. A feed on this
+#: window serializes no ``aqi_window`` key, so an existing consumer sees exactly the bytes it
+#: always saw (ADR 0031, ADR 0050).
+_DEFAULT_AQI_WINDOW: Final[str] = hazard_packs.AQI_WINDOW_HOURLY_MEAN
+
 
 @dataclass(frozen=True)
 class Alert:
@@ -269,8 +274,8 @@ class AlertFeed:
     # the two are not collapsed into one falsy value.
     event: HazardEvent | None = None
     # The PM2.5 averaging window this feed's own alerts were read on, so a consumer never has to
-    # infer it from the numbers.
-    aqi_window: str = "hourly-mean"
+    # infer it from the numbers. Serialized only when it is not the default -- see `to_json`.
+    aqi_window: str = _DEFAULT_AQI_WINDOW
 
     def for_area(self, area_id: str) -> AlertFeed:
         """A feed narrowed to one published cell — the per-neighborhood subscription view.
@@ -320,7 +325,17 @@ class AlertFeed:
                 if self.event is not None
                 else {}
             ),
-            "aqi_window": self.aqi_window,
+            # Emitted only when this feed read a window other than the long-standing hourly
+            # mean. ADR 0031's promise is that a network naming no hazard pack produces a
+            # byte-identical feed, and adding a key to every feed would break that for every
+            # existing consumer. Always naming the window would be the better surface and is a
+            # published-surface change with a data-schema decision behind it, not a side effect
+            # of adding a pack.
+            **(
+                {"aqi_window": self.aqi_window}
+                if self.aqi_window != _DEFAULT_AQI_WINDOW
+                else {}
+            ),
             "stale_note": i18n_alerts.stale_note("en"),
             "stale_note_es": i18n_alerts.stale_note("es"),
             "note": i18n_alerts.note("en"),

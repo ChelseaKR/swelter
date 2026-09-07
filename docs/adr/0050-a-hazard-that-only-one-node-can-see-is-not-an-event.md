@@ -37,8 +37,17 @@ from a smoke feed. It does not fall back to the hourly mean.
 
 Falling back would publish a number from one window under a feed that named the other. That is the
 same class of error as publishing a stale reading as current (ADR 0036, issue #148): the value is
-real, and the sentence around it is false. The feed carries `aqi_window` at its root so a consumer
-never has to infer which number it is reading.
+real, and the sentence around it is false. A feed that read a non-default window carries
+`aqi_window` at its root so a consumer never has to infer which number it is reading.
+
+**It is emitted only when the window is not the hourly mean**, and that is a deliberate second
+decision. The first implementation added the key to every feed, and `scripts/demo_artifact_check.py`
+caught it: the committed `web/alerts.json` no longer matched a fresh replay, because a heat network
+that had changed nothing now serialized one more key. ADR 0031's promise is that a network naming no
+pack produces a byte-identical feed, and that promise is worth more than the marginal clarity of
+naming a window that has never been anything else. Naming it on every feed would be the better
+surface, and it is a published-surface change with a data-schema decision behind it -- not a side
+effect of adding a pack.
 
 ### 2. An event needs several cells that have each risen against their own past
 
