@@ -9,6 +9,66 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **`swelter reproduce` — proving the published surface re-derives from its own frozen inputs**
+  (part of #240). New `src/swelter/reproduce.py`, the `reproduce` verb, two new `MANIFEST.json`
+  fields, `docs/api.md`, `docs/citability.md`, and ADR 0049.
+
+  `swelter snapshot` freezes the raw observations, the correction registry and the surface;
+  `verify-archive` proves those bytes are intact; `restore --verify` proves an archive
+  round-trips. None of them proves the surface can be **re-derived** from its inputs, which is
+  what `docs/citability.md` promises a researcher and what a reviewer is relying on when they
+  quote a Danger count (ADR 0046). `swelter reproduce <snapshot-dir>` applies the frozen
+  corrections to the frozen raw, aggregates the result through a real store exactly as `rebuild`
+  does, and compares the bytes to the frozen `aggregate.geojson`, writing a receipt naming the
+  inputs, the versions, the digests, the verdict, and the first differing feature path.
+
+  Measured against the bundled demo: 151,812 raw observations and 300 corrections re-derive the
+  150-feature surface **byte-identically**, and one edited reading in the latest hour produces a
+  mismatch naming `$.features[14].properties.exposure`.
+
+  **The verdict has four states and only one of them exits zero.** `reproduced` is 0; `mismatch`
+  and `refused` are 1; `indeterminate` is **2**. A release that does not record the swelter
+  version, the data-schema version, or the network-configuration fingerprint a rebuild would need
+  has not been shown to be either sound or rotten — every snapshot written before this change is
+  in that state — and giving it exit 0 would build a gate that cannot fail on precisely the
+  releases it exists to catch. The verdict is computed from the required checks having *run and
+  passed*; `NOT_APPLICABLE` is counted separately and is never a pass (ADR 0048).
+
+  **The network configuration is an input and deliberately stays out of the snapshot.** The
+  surface depends on the grid resolution, the published node locations, the hazard pack, the
+  calibration windows and the reference monitors — and `network.yaml` also holds the precise
+  coordinates a host may have declined to publish (hard rule 2, ADR 0003). So `MANIFEST.json`
+  records a SHA-256 fingerprint of the configuration and nothing else, and `reproduce` refuses by
+  name when the `--config` it is handed is not the one that built the release. Rebuilding against
+  a different configuration would report a configuration change as data rot.
+
+  `MANIFEST.json` gains `data_schema_version` and `config_fingerprint`. A snapshot built without a
+  configuration records `null` **and carries a note saying the release cannot be reproduced**,
+  rather than leaving the absence to be inferred from a missing key. `swelter snapshot` now takes
+  `--config`.
+
+  `reproduce` also recomputes the manifest's own per-file digests as a check that runs without
+  stopping the rebuild, because the frozen surface publishes only the *latest* cell-hour per cell
+  — an edit to an earlier hour changes no published feature, and the rebuild alone would report
+  clean over it. A manifest listing zero files fails that check rather than passing it vacuously.
+  A release freezing no observations is refused (an empty rebuild equals an empty frozen surface,
+  and two absences must never agree), and a frozen reading with no value is refused rather than
+  averaged around. The receipt carries no wall clock, so two runs produce identical bytes.
+
+  One more instance of the same defect, found while reviewing the change itself: the CLI's
+  `_load_config` substitutes an *empty* `NetworkConfig` for a missing `network.yaml`, and an empty
+  network has a perfectly good fingerprint — so `swelter snapshot --config <missing>` would have
+  recorded that fingerprint in the manifest as if it identified the configuration that built the
+  release. `snapshot` and `reproduce` now ask `_config_or_none`, so a missing file records `null`
+  plus the note, and `reproduce` refuses it by its own name instead of reporting it as a
+  configuration mismatch.
+
+  And a third instance of the same rule, in the release reader itself: `bool` is a subclass of
+  `int` in Python, so the numeric guard accepted a JSON `true` and turned it into a reading of
+  `1.0` — or, in the `uncertainty` field, into a published 1-sigma that no correction ever fitted.
+  Every numeric field read out of a frozen release now goes through one `_is_number` guard that
+  rejects booleans, so a flag cannot be re-derived as a measurement.
+
 - **`swelter backup` and `swelter restore` — a recovery drill an operator can rehearse, and a
   receipt they can keep** (part of #245). New `src/swelter/backup.py`, the `backup` and `restore`
   verbs, `docs/api.md`, a "Backup and restore drill" section in

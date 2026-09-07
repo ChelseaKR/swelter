@@ -59,6 +59,9 @@ from . import (
 from . import (
     diff as diff_module,
 )
+from . import (
+    reproduce as reproduce_module,
+)
 from .config import (
     LOCATION_PRECISE,
     LOCATION_PUBLIC_PLACE,
@@ -194,6 +197,19 @@ def _print_concerns(errors: list[str], warnings: list[str]) -> None:
         _err(f"swelter: ✗ {message}")
     for message in warnings:
         _err(f"swelter: ⚠ {message}")
+
+
+def _config_or_none(path: str) -> NetworkConfig | None:
+    """The configuration at ``path``, or ``None`` when there is no file there.
+
+    Distinct from :func:`_load_config`, which substitutes an empty :class:`NetworkConfig` so the
+    rest of the pipeline can keep running against a network that has not been registered yet.
+    That substitution is right for a pipeline verb and wrong for anything that *records* which
+    configuration was in force: an empty network has a perfectly good fingerprint, and writing it
+    into a release manifest would publish "built with this configuration" over a file that was
+    never read. A caller that needs to tell "no configuration" from "an empty one" asks here.
+    """
+    return _load_config(path) if Path(path).is_file() else None
 
 
 def _load_config(path: str) -> NetworkConfig:
@@ -2242,6 +2258,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
             args.doi or None,
             data_license=args.license,
             data_attribution=args.attribution,
+            config=_config_or_none(args.config),
         )
     except ValueError as exc:
         _err(f"swelter snapshot: {exc}; refusing")
@@ -2255,6 +2272,49 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
         _err(f"  ⚠ {note}")
     print(citation_text.strip())
     return 0
+
+
+def cmd_reproduce(args: argparse.Namespace) -> int:
+    """Rebuild a snapshot's surface from its own frozen inputs and report whether it re-derives.
+
+    Three exit statuses, because there are three answers. 0 is `reproduced`. 1 is a mismatch or a
+    refusal — the reproduction ran and differed, or an input it needed was missing or did not
+    belong to this release. 2 is `indeterminate`: the release does not record the swelter version,
+    the data-schema version, or the configuration fingerprint a reproduction would need, so it has
+    not been shown to be either right or wrong. That case gets its own status rather than sharing
+    0 with success, because a caller gating on `$? -eq 0` must never be told that a release nobody
+    could check is a release that checked out.
+    """
+    config = _config_or_none(args.config)
+    if config is None:
+        # Not "the configuration does not match": there is no configuration. `_load_config`
+        # substitutes an empty network for a missing file, and reproducing against that would
+        # rebuild an empty surface and report the difference as a data mismatch — blaming the
+        # release for a path that was never there.
+        _err(
+            f"swelter reproduce: no network configuration at {args.config}; "
+            "a release cannot be re-derived without the configuration that built it"
+        )
+        return reproduce_module.EXIT_NOT_REPRODUCED
+    try:
+        receipt = reproduce_module.reproduce(
+            Path(args.snapshot),
+            config,
+            config_path=args.config,
+        )
+    except reproduce_module.ReproduceError as exc:
+        _err(f"swelter reproduce: {exc}")
+        return reproduce_module.EXIT_NOT_REPRODUCED
+    if args.receipt:
+        receipt_path = Path(args.receipt)
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_bytes(receipt.to_json())
+    if args.json:
+        print(receipt.to_json().decode("utf-8"), end="")
+    else:
+        for line in reproduce_module.render(receipt):
+            _err(line)
+    return receipt.exit_code
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -2757,7 +2817,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="override the store's recorded source attribution",
     )
+    add_config(p_snap)
     p_snap.set_defaults(func=cmd_snapshot)
+
+    p_repro = sub.add_parser(
+        "reproduce",
+        help="rebuild a snapshot's surface from its frozen inputs and compare it byte for byte",
+        description=(
+            "`verify-archive` proves the frozen bytes are intact. This proves the published "
+            "surface can be re-derived from them: the frozen corrections are applied to the "
+            "frozen raw observations, the result is aggregated, and the bytes are compared to "
+            "the frozen aggregate.geojson. Exit 0 only when it reproduces; 1 on a mismatch or a "
+            "refusal; 2 when the release does not record the swelter version, data-schema "
+            "version, or network-configuration fingerprint a reproduction would need — which is "
+            "neither a pass nor a failure and does not share an exit status with either. The "
+            "configuration is an input and is deliberately not inside the snapshot (it holds "
+            "precise host coordinates), so the release records only its fingerprint and this "
+            "verb refuses, by name, when the --config it is handed is not the one that built it."
+        ),
+    )
+    p_repro.add_argument("snapshot", help="the snapshot directory written by `swelter snapshot`")
+    add_config(p_repro)
+    p_repro.add_argument(
+        "--receipt", default=None, help="also write the REPRODUCTION receipt JSON here"
+    )
+    p_repro.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_repro.set_defaults(func=cmd_reproduce)
 
     p_verify = sub.add_parser(
         "verify-archive",

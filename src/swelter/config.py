@@ -289,6 +289,24 @@ def is_builtin_demo_web_preview(config: NetworkConfig) -> bool:
     return hashlib.sha256(encoded).hexdigest() == _BUILTIN_DEMO_CONFIG_SHA256
 
 
+def configuration_fingerprint(config: NetworkConfig) -> str:
+    """A SHA-256 over the whole typed configuration, canonically encoded.
+
+    Recorded by ``swelter snapshot`` so ``swelter reproduce`` can tell "rebuilt from the same
+    inputs" from "rebuilt against a configuration that has since moved". A *digest* and never the
+    configuration itself: ``network.yaml`` holds the precise coordinates a host may have declined
+    to publish (hard rule 2), so nothing derived from them may travel inside a published release.
+
+    It covers every typed field rather than only the ones :func:`swelter.aggregate.aggregate`
+    reads today. A fingerprint narrowed to a subset stops covering a field the moment the surface
+    starts depending on one that was left out, and the failure mode of a too-narrow fingerprint is
+    the bad one: the reproduction runs against different inputs, mismatches, and reads as data rot
+    rather than as a configuration change. Over-strict costs a named, truthful refusal instead.
+    """
+    encoded = json.dumps(asdict(config), sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def snap_to_grid(lat: float, lon: float, grid_m: float) -> tuple[float, float]:
     """Snap a coordinate to the centre of a ``grid_m``-sided cell.
 

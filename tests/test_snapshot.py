@@ -103,6 +103,8 @@ def test_manifest_has_stable_keys_and_hashes_match_recomputation(
         "release_version",
         "created_at",
         "swelter_version",
+        "data_schema_version",
+        "config_fingerprint",
         "record_count",
         "observation_window",
         "doi",
