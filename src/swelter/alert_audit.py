@@ -137,9 +137,19 @@ class AuditedAlert:
     reference_value: float | None = None
     #: Whether the reference reading itself crossed the same floor. ``None`` when unverifiable.
     reference_crossed: bool | None = None
-    #: The calibration version(s) behind the alerting cell, so a contradiction can be traced to
-    #: the fit in force when it was raised rather than the fit in force when it was audited.
-    calibration: tuple[str, ...] = ()
+    #: The calibration method(s) behind the alerting cell and the reference(s) they were fitted
+    #: against, carried **verbatim** from :class:`~swelter.aggregate.CellReading`. A contradiction
+    #: can then be traced to how the value was produced rather than to whatever fit happens to be
+    #: current when the audit runs.
+    #:
+    #: Deliberately the cell's own strings and not a re-parsed list. The first version of this
+    #: field re-split ``cell.method`` on ``", "`` and called the result "calibration versions" --
+    #: two errors at once. ``aggregate`` joins those methods with ``" / "``, so the split never
+    #: split and published a single joined string as if it were one method; and they are method
+    #: names (``ols``), not correction version ids. Re-deriving a list from a display string is
+    #: the fragile step, so it is not done at all.
+    calibration_method: str | None = None
+    calibrated_against: str | None = None
     nodes: tuple[str, ...] = ()
 
     def as_record(self) -> dict[str, object]:
@@ -165,7 +175,8 @@ class AuditedAlert:
             "reference_timestamp": self.reference_timestamp,
             "reference_value": self.reference_value,
             "reference_crossed": self.reference_crossed,
-            "calibration": list(self.calibration),
+            "calibration_method": self.calibration_method,
+            "calibrated_against": self.calibrated_against,
         }
         if self.nodes:
             record["nodes"] = list(self.nodes)
@@ -540,7 +551,8 @@ def audit_alerts(
                     round(pairing.reading.value, 3) if pairing.reading is not None else None
                 ),
                 reference_crossed=crossed,
-                calibration=tuple(cell.method.split(", ")) if cell.method else (),
+                calibration_method=cell.method,
+                calibrated_against=cell.reference,
                 nodes=cell.nodes,
             )
         )

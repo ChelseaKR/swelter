@@ -102,9 +102,13 @@ reserved for it.
 
 The costs: the audit is only as good as the reference series it is handed, and a fixture is an
 operator responsibility. It scores the *current* pack's floors against *historical* readings, so a
-pack whose thresholds changed mid-window is scored against today's — the alert rows carry the
-calibration versions in force so a contradiction can still be traced, but a per-hour pack history
-would need the pack version to be recorded on the surface, which it is not.
+pack whose thresholds changed mid-window is scored against today's — each alert row carries the
+calibration **method** and the reference it was fitted against, verbatim from the cell, so a
+contradiction can still be traced to how the value was produced, but a per-hour pack history would
+need the pack version to be recorded on the surface, which it is not. The row carries methods and
+not correction *version ids* because that is what the surface publishes; an earlier draft of this
+field claimed versions and re-split the cell's joined method string on the wrong separator, so it
+neither split nor said what it held.
 
 A superseding ADR is needed if recall becomes measurable (a denser reference network, or a
 different reference source), if the audit is ever wired to change a threshold, or if pack versions

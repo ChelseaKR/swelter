@@ -317,6 +317,69 @@ def test_a_heat_alert_is_unverifiable_because_no_reference_publishes_a_heat_inde
 # --------------------------------------------------------------------------------------------
 
 
+def test_an_audited_alert_carries_the_cells_own_calibration_strings_verbatim(
+    tmp_path: Path,
+) -> None:
+    """Not re-parsed, and not renamed into something the surface does not publish.
+
+    `aggregate` joins a cell's methods with `" / "` and they are method names, not correction
+    version ids. Carrying the cell's own strings makes both mistakes impossible.
+    """
+    config = _config(
+        {
+            **NETWORK_DOC,
+            "calibration_windows": [
+                {
+                    "node_id": "node-a",
+                    "reference": "060670010",
+                    "parameter": "pm25_ugm3",
+                    "start": "2026-05-01T00:00:00Z",
+                    "end": "2026-05-08T00:00:00Z",
+                }
+            ],
+        }
+    )
+    hours = _hours(2)
+    # Calibrated rows from TWO fits, so `cell.method` is a *joined* string and not a single word.
+    # With a raw-only fixture `cell.method` is None and this test would assert None == None --
+    # exactly the shape where the bug it exists for is impossible to observe.
+    observations = [
+        Observation(
+            node_id="node-a",
+            timestamp=stamp,
+            parameter="pm25_ugm3",
+            value=ALERTING_UGM3,
+            unit="ug/m3",
+            calibration=f"pm25_ugm3.{method}.node-a@2026-05-08-abc123",
+            uncertainty=0.5,
+        )
+        for stamp in hours
+        for method in ("ols", "theilsen")
+    ]
+    surface = _surface(observations, config, tmp_path)
+    by_key = {
+        (cell.cell_id, cell.parameter, cell.bucket): cell
+        for cell in surface.cells
+        if cell.parameter == "pm25_ugm3"
+    }
+    methods = {cell.method for cell in by_key.values()}
+    assert methods == {"ols / theilsen"}, (
+        f"the fixture must produce a joined multi-method string, got {methods}"
+    )
+    audit = alert_audit.audit_alerts(
+        surface, config, _reference(dict.fromkeys(hours, ALERTING_UGM3))
+    )
+    assert audit.alerts
+    for alert in audit.alerts:
+        cell = by_key[(alert.area_id, alert.parameter, alert.bucket)]
+        assert alert.calibration_method == cell.method
+        assert alert.calibrated_against == cell.reference
+    record = audit.alerts[0].as_record()
+    assert "calibration_method" in record
+    assert "calibrated_against" in record
+    assert "calibration" not in record
+
+
 def test_a_proportion_over_zero_trials_raises_rather_than_returning_a_number() -> None:
     with pytest.raises(ValueError, match="undefined"):
         alert_audit.wilson_interval(0, 0)
