@@ -331,11 +331,7 @@ class AlertFeed:
             # existing consumer. Always naming the window would be the better surface and is a
             # published-surface change with a data-schema decision behind it, not a side effect
             # of adding a pack.
-            **(
-                {"aqi_window": self.aqi_window}
-                if self.aqi_window != _DEFAULT_AQI_WINDOW
-                else {}
-            ),
+            **({"aqi_window": self.aqi_window} if self.aqi_window != _DEFAULT_AQI_WINDOW else {}),
             "stale_note": i18n_alerts.stale_note("en"),
             "stale_note_es": i18n_alerts.stale_note("es"),
             "note": i18n_alerts.note("en"),
