@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   trufflehog:
-    name: trufflehog (full history, verified and unknown)
+    name: trufflehog (full history, all three result tiers)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -24,34 +24,56 @@ jobs:
           fetch-depth: 0 # full history -- this scan's whole point is not being diff-scoped
           persist-credentials: false
 
-      # Verified findings are confirmed active. Unknown findings could not be checked against a
-      # provider and must also fail closed; otherwise an API outage would silently weaken the gate.
+      # Two steps, because one `--results` list cannot express what this repository needs.
+      #
+      # TruffleHog sorts every finding into three tiers, and the names are misleading:
+      #
+      #   verified    the provider was asked and said YES -- a live credential.
+      #   unknown     the provider could not be asked (network error, dead host, DNS failure).
+      #   unverified  the provider was asked and said NO -- i.e. a REVOKED credential.
+      #
+      # `unverified` is the tier that matters most for a history scan. Revocation is the normal
+      # end state of a real leak: a key is committed, someone notices, the key is rotated, and
+      # the commit stays in history forever. A configuration that omits `unverified` therefore
+      # cannot fail on the exact incident a full-history sweep exists to find. Measured on this
+      # repository's own history with a real-shaped AWS key pair planted in one commit and
+      # deleted in the next:
+      #
+      #   --results=verified,unknown                     exit 0, planted key not reported
+      #   --results=verified,unknown,unverified          exit 183, AWS finding reported
+      #
+      # `--exclude-detectors` scopes the noise by detector rather than by path, because a path
+      # exclusion turns off scanning where a real credential is most likely to land by accident:
+      # tests/ and fixtures.
+      #
+      # Lob is excluded from both steps. Its detector matches this repository's pytest function
+      # names -- a Lob key is `test_` or `live_` followed by alphanumerics, which is the shape of
+      # every test in tests/ -- and its verifier confirms them because it cannot tell a malformed
+      # key from an unauthorized one. The first run that actually scanned reported 41 of these,
+      # every one a function name. There is no Lob integration here.
       #
       # `path` is what makes this a whole-repository scan. Omitting `base`/`head` does NOT fall
-      # back to scanning everything, which is what the note here used to claim: with all three
-      # unset the action resolves base and head to the same commit and exits 1 on its own guard,
-      # "BASE and HEAD commits are the same. TruffleHog won't scan anything." Every scheduled run
-      # since this workflow was added failed that way, reporting failure while covering zero
-      # commits, which is the worst state for a gate to be in: loud and empty.
+      # back to scanning everything: with all three unset the action resolves base and head to
+      # the same commit and exits 1 on its own guard, "BASE and HEAD commits are the same.
+      # TruffleHog won't scan anything." Every scheduled run for a period failed that way,
+      # reporting failure while covering zero commits -- the worst state for a gate: loud and
+      # empty.
       #
-      # `--fail` and `--no-update` are not passed here. The action's baked-in command already
-      # includes both, and repeating a flag is a hard CLI error ("flag 'fail' cannot be
-      # repeated"), so this would have failed a second time on the first run to get past the
-      # guard above.
+      # `--fail` and `--no-update` are not passed. The action's baked-in command already includes
+      # both, and repeating a flag is a hard CLI error ("flag 'fail' cannot be repeated").
+      # `--object-discovery` is not passed either: it was never a flag but a separate sub-command.
+
+      # Step 1 -- every detector except Lob, across all three tiers.
       #
-      # `--object-discovery` is gone because it was never a flag. It is a separate sub-command
-      # ("sub-module to run: object-discovery"), so passing it to a `git` scan is
-      # "unknown long flag '--object-discovery'". It has been in this file inert, behind an
-      # error that fired earlier.
-      #
-      # Lob is excluded because its detector matches this repo's pytest function names. A Lob key
-      # is `test_` or `live_` followed by alphanumerics, which is also the shape of every test in
-      # tests/, and its verifier confirms them because it cannot tell a malformed key from an
-      # unauthorized one. The first run that actually scanned reported 41 of these, every one a
-      # function name. There is no Lob integration here. Scoped to the one detector rather than
-      # excluding tests/ by path, because fixtures are where a real credential is most likely to
-      # land by accident.
-      - name: TruffleHog (full history)
+      # URI is excluded here, and only here. `tests/test_openaq.py` deliberately contains
+      # `https://user:hunter2@x.example/terms`: it is the fixture for the rule that refuses a
+      # credential-bearing source URL and proves the refusal message never echoes the credential
+      # back into a published ledger. The URI detector cannot verify an RFC 2606 reserved domain
+      # -- DNS fails, so the finding lands in `unknown` -- and the fixture is in history, so it
+      # cannot be removed without rewriting history. Step 2 keeps URI at the two tiers where it
+      # is decidable, so the pair loses only "URI at the unknown tier", which is precisely and
+      # only the class this false positive belongs to.
+      - name: TruffleHog (all tiers, URI deferred to step 2)
         uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
         with:
           path: ./
@@ -60,10 +82,22 @@ jobs:
           # so with this input unset every run pulls whatever image is newest and the v3.97.1
           # comment above describes only the wrapper. That makes this gate non-reproducible in
           # the direction that matters: its detector set, and therefore what counts as a
-          # finding, can change with no commit here. It is not hypothetical — the same action
+          # finding, can change with no commit here. It is not hypothetical -- the same action
           # in id-churn-sentinel went red on 2026-08-09 with nothing changed on our side,
           # because upstream shipped 3.96.0 and the next scheduled run picked it up, and 3.96.0
           # is also the release whose Lob detector began matching pytest function names.
           # Pinned to match the action tag above so the two move together and deliberately.
           version: "3.97.1"
-          extra_args: --results=verified,unknown --exclude-detectors=Lob
+          extra_args: --results=verified,unknown,unverified --exclude-detectors=Lob,URI
+
+      # Step 2 -- URI restored, at the tiers where the answer is a decision rather than an error.
+      # A live credential in a connection string is `verified`; a revoked one is `unverified`.
+      # Both still fail the build here. `!cancelled()` so this runs even when step 1 has already
+      # failed: a job that stops at the first finding hides the second.
+      - name: TruffleHog (URI, at the tiers where it is decidable)
+        if: ${{ !cancelled() }}
+        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        with:
+          path: ./
+          version: "3.97.1"
+          extra_args: --results=verified,unverified --exclude-detectors=Lob
