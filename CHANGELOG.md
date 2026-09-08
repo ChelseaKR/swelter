@@ -436,6 +436,29 @@ All notable changes to swelter are recorded here. The format follows
   which GitHub answers `401` to — that would have turned a rate-limited-but-valid request into an
   outright refusal on every run.
 
+- **The OpenAQ scheme refusal now answers the one question #179's decision turns on.** Every one of
+  the 250 California locations is excluded because the licence catalog's `sourceUrl` is served over
+  plain `http`, and `license_url` requires `https` exactly. Whether the *same* licence resource
+  publishes an `https` URL under a different key decides whether that is a field-mapping fix or a
+  rights-posture decision — and nobody without the `OPENAQ_API_KEY` can see the payload to find out.
+
+  The refusal now carries the answer, either way: *"OpenAQ licence 33 does publish an absolute HTTPS
+  URL under homepageUrl, so this may be a field-mapping fix rather than a rights decision"*, or
+  *"publishes no absolute HTTPS URL under any other top-level field (2 string field(s) inspected;
+  nested objects not inspected)"*. The next scheduled `demo` run prints it with no one holding the
+  key, which is the same route by which #218 produced the root cause in the first place.
+
+  **No rule changed and no entry is admitted.** #179 says in terms not to relax the ledger check to
+  make the fetch pass, and this does not: an `http` `license_url` is still refused, the location is
+  still excluded, and a test asserts both. The note is emitted only when `license_url` is a
+  non-`https` absolute URL, established independently rather than by parsing the refusal's own
+  wording, so it does not attach itself to the unrelated provider/attribution refusal from #216.
+
+  No URL is echoed, per the rule in `_normalized_https_url` — only key names and a count of the
+  fields inspected. The count is the floor: without it, "no HTTPS alternative anywhere" and "the
+  diagnostic stopped reading the payload" would print the same sentence, which is the absence-as-a-
+  measurement defect the message exists to stop.
+
 - **The scheduled full-history secret scan could not fail on a revoked credential.**
   `.github/workflows/trufflehog.yml` ran `--results=verified,unknown`, and those tier names are
   misleading: `verified` means the provider was asked and said yes, `unknown` means the provider
