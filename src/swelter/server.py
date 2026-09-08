@@ -30,7 +30,6 @@ from . import (
     calibrate,
     cooling_centers,
     export,
-    hazard_packs,
     obs,
     qc,
     snapshot,
@@ -408,12 +407,14 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             # `lang="es"` (the /api/alerts.es.xml route) renders the Atom feed via the
             # machine-translated swelter.i18n_alerts catalog; see AlertFeed.to_atom.
             surface = cache.surface_for(ctx.store, ctx.config)
+            pack, selection = alerts.pack_for_surface(ctx.config, surface)
             feed = alerts.build_feed(
                 surface,
                 network=ctx.config.name,
                 base_url=ctx.base_url,
                 thresholds=ctx.config.alert_thresholds or None,
-                pack=hazard_packs.resolve_pack(ctx.config.hazard_pack),
+                pack=pack,
+                pack_selection=selection,
             )
             area = _one(query, "area")
             if area:

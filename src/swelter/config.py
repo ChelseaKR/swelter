@@ -40,7 +40,12 @@ from . import hazard_packs
 DEFAULT_GRID_M = 150.0
 _METRES_PER_DEGREE_LAT = 111_320.0
 WEB_PREVIEW_STATEWIDE_CALIFORNIA = "statewide-california"
-_BUILTIN_DEMO_CONFIG_SHA256 = "7f2f45192a8da95c1070a070a47bb865df3480e6f521065d670781fd056ba1f9"
+#: The fingerprint of the exact generated demo fixture, over every typed field but `web_preview`.
+#: It moves whenever `NetworkConfig` gains a field, because the digest covers the whole dataclass
+#: by design (see `is_builtin_demo_web_preview`) -- and that is the intended cost of a pin that
+#: cannot be satisfied by a copied network that merely kept the marker. Last moved by the
+#: `season_calendar` field: 7f2f4519... -> 52e9ed7d...
+_BUILTIN_DEMO_CONFIG_SHA256 = "52e9ed7d25438fb57f490d81688cbeeaa7a0cbadf55d10597eb3cb3095d374ec"
 _KNOWN_WEB_PREVIEWS: frozenset[str] = frozenset({"", WEB_PREVIEW_STATEWIDE_CALIFORNIA})
 
 #: The only keys `network.yaml` may have at the top level. Anything else is almost always a typo
@@ -58,6 +63,7 @@ _KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "twin_windows",
         "geographic_scope",
         "hazard_pack",
+        "season_calendar",
         "web_preview",
     }
 )
@@ -255,6 +261,11 @@ class NetworkConfig:
     #: The hazard pack this network alerts on (``hazard_packs.PACKS``). ``"heat"`` is the default,
     #: so an unset value reproduces swelter's original heat/air behaviour exactly (ADR 0031).
     hazard_pack: str = hazard_packs.DEFAULT_PACK_ID
+    #: Which months get which pack, when ``hazard_pack`` is ``auto-season``. Declared by the
+    #: network, never by swelter: a calendar is a claim about a particular place's climate, and
+    #: the pack ids are swelter's (they carry the cited thresholds) while the months are not.
+    #: Ignored — and rejected as a configuration error — for any other ``hazard_pack``.
+    season_calendar: tuple[hazard_packs.SeasonWindow, ...] = ()
     #: Optional jurisdiction and boundary identifier used to constrain an imported source.
     geographic_scope: GeographicScope | None = None
     #: Coordinate presentation reserved for the generated worked example's baked web artifacts.
@@ -411,6 +422,22 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
     thresholds = {
         str(k): float(v) for k, v in (doc.get("alert_thresholds") or {}).items() if v is not None
     }
+    season_calendar = tuple(
+        hazard_packs.SeasonWindow(
+            # Months are coerced through int() rather than accepted as written, so a YAML
+            # `months: ["6"]` is the same calendar as `months: [6]`. A value that is not a whole
+            # number is dropped here and reported by `season_calendar_problems` as an uncovered
+            # month, which names the gap rather than the type.
+            months=tuple(
+                int(month)
+                for month in (entry.get("months") or [])
+                if isinstance(month, int | str) and str(month).strip().lstrip("-").isdigit()
+            ),
+            pack=_as_str(entry.get("pack")),
+        )
+        for entry in (doc.get("season_calendar") or [])
+        if isinstance(entry, dict)
+    )
     raw_scope = doc.get("geographic_scope")
     scope_doc = raw_scope if isinstance(raw_scope, dict) else {}
     geographic_scope = (
@@ -432,6 +459,7 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         alert_thresholds=thresholds,
         geographic_scope=geographic_scope,
         hazard_pack=_as_str(doc.get("hazard_pack"), hazard_packs.DEFAULT_PACK_ID),
+        season_calendar=season_calendar,
         web_preview=_as_str(doc.get("web_preview")),
     )
 
@@ -512,7 +540,14 @@ def config_concerns(config: NetworkConfig, doc: dict[str, Any]) -> tuple[list[st
     _web_preview_concerns(config, errors)
     # Validate override keys against the *active* pack, so a cold network is told ``heat_index_c``
     # is unknown and a heat network is told ``wind_chill_c`` is — each against the floors it uses.
-    pack_keys = hazard_packs.resolve_pack(config.hazard_pack).threshold_keys()
+    if config.hazard_pack == hazard_packs.AUTO_SEASON_PACK_ID:
+        # The union across the calendar: a seasonal network uses several packs in different
+        # months and may legitimately override a floor in each. Checking against one pack would
+        # reject the others as unknown, which is how a host comes to believe they lowered a
+        # danger floor and did not.
+        pack_keys = hazard_packs.season_threshold_keys(config.season_calendar)
+    else:
+        pack_keys = hazard_packs.resolve_pack(config.hazard_pack).threshold_keys()
     _threshold_concerns(config, pack_keys, errors)
     _node_field_concerns(config, errors, warnings)
     _window_concerns(config, warnings)
@@ -521,12 +556,28 @@ def config_concerns(config: NetworkConfig, doc: dict[str, Any]) -> tuple[list[st
 
 def _hazard_pack_concerns(config: NetworkConfig, errors: list[str]) -> None:
     """Reject a ``hazard_pack`` that names no shipped pack — a silent fallback to heat would be a
-    safety surprise (a winter network believing it alerts on cold and not doing so)."""
-    if config.hazard_pack not in hazard_packs.PACKS:
-        hint = _did_you_mean(config.hazard_pack, frozenset(hazard_packs.PACKS))
+    safety surprise (a winter network believing it alerts on cold and not doing so).
+
+    ``auto-season`` is accepted as an id and then held to a stricter rule than any pack: its
+    calendar must cover all twelve months exactly once. An incomplete calendar would leave some
+    month resolving to heat, which is the same safety surprise one level down — a network that
+    wrote down a smoke season and gets heat floors in October.
+    """
+    known = frozenset(hazard_packs.PACKS) | {hazard_packs.AUTO_SEASON_PACK_ID}
+    if config.hazard_pack not in known:
+        hint = _did_you_mean(config.hazard_pack, known)
         errors.append(
             f"hazard_pack: unknown pack {config.hazard_pack!r}{hint} — a network must name a "
-            f"shipped hazard pack; recognized packs: {', '.join(sorted(hazard_packs.PACKS))}"
+            f"shipped hazard pack; recognized packs: {', '.join(sorted(known))}"
+        )
+        return
+    if config.hazard_pack == hazard_packs.AUTO_SEASON_PACK_ID:
+        errors.extend(hazard_packs.season_calendar_problems(config.season_calendar))
+    elif config.season_calendar:
+        errors.append(
+            "season_calendar: a calendar is only read when hazard_pack is "
+            f"{hazard_packs.AUTO_SEASON_PACK_ID!r}; this network names "
+            f"{config.hazard_pack!r}, so the calendar would be silently ignored"
         )
 
 

@@ -46,6 +46,7 @@ from xml.sax.saxutils import escape
 
 from . import hazard_packs, i18n_alerts
 from .aggregate import EXPOSURE, CellReading, Surface
+from .config import NetworkConfig
 from .models import EXPOSURE_LEVELS, heat_index_category, wind_chill_category
 
 #: The default network's documented danger floors — the **heat pack** (``hazard_packs.HEAT_PACK``),
@@ -258,6 +259,28 @@ class HazardEvent:
 
 
 @dataclass(frozen=True)
+class PackSelection:
+    """Which pack produced this feed, and what chose it — published only when something chose it.
+
+    A feed built by a network that names one pack needs no such record: the pack is the
+    configuration, and a reader who wants it reads ``network.yaml``. A feed built under
+    ``auto-season`` is different, because the pack changed without the configuration changing, and
+    an alert whose floors moved for a reason nothing on the surface records is an unexplained
+    change in what the network calls dangerous.
+
+    ``month`` is the month of ``bucket`` -- the data's month, not today's. It is published beside
+    the pack id precisely so a reader can check that the switch followed the data.
+    """
+
+    pack_id: str
+    selected_by: str  # "season-calendar"
+    month: int
+
+    def as_record(self) -> dict[str, object]:
+        return {"pack": self.pack_id, "selected_by": self.selected_by, "month": self.month}
+
+
+@dataclass(frozen=True)
 class AlertFeed:
     """The set of currently-active alerts, the areas that have gone quiet, and the feed metadata."""
 
@@ -276,6 +299,10 @@ class AlertFeed:
     # The PM2.5 averaging window this feed's own alerts were read on, so a consumer never has to
     # infer it from the numbers. Serialized only when it is not the default -- see `to_json`.
     aqi_window: str = _DEFAULT_AQI_WINDOW
+    # Present only when something other than the configuration chose the pack -- i.e. a season
+    # calendar. `None` on every other feed, and serialized nowhere, so ADR 0031's byte-identity
+    # promise to a network that named no pack still holds.
+    pack_selection: PackSelection | None = None
 
     def for_area(self, area_id: str) -> AlertFeed:
         """A feed narrowed to one published cell — the per-neighborhood subscription view.
@@ -298,6 +325,7 @@ class AlertFeed:
             # resident subscribed to one block is still in the smoke.
             event=self.event,
             aqi_window=self.aqi_window,
+            pack_selection=self.pack_selection,
         )
 
     def to_json(self) -> dict[str, object]:
@@ -332,6 +360,13 @@ class AlertFeed:
             # published-surface change with a data-schema decision behind it, not a side effect
             # of adding a pack.
             **({"aqi_window": self.aqi_window} if self.aqi_window != _DEFAULT_AQI_WINDOW else {}),
+            # Same rule, same reason: emitted only when a calendar chose the pack. A network that
+            # names one pack, or none, serializes exactly what it always has.
+            **(
+                {"pack_selection": self.pack_selection.as_record()}
+                if self.pack_selection is not None
+                else {}
+            ),
             "stale_note": i18n_alerts.stale_note("en"),
             "stale_note_es": i18n_alerts.stale_note("es"),
             "note": i18n_alerts.note("en"),
@@ -448,6 +483,34 @@ def resolve_thresholds(
     return merged
 
 
+def pack_for_surface(
+    config: NetworkConfig, surface: Surface
+) -> tuple[hazard_packs.HazardPack, PackSelection | None]:
+    """The pack this surface's alerts are read under, and the record of what chose it.
+
+    One place, so every caller that builds a feed -- the CLI, the publish path and the live server
+    -- resolves the season identically. The month comes from
+    :meth:`~swelter.aggregate.Surface.newest_bucket`: the same reference instant the feed stamps
+    itself with, the map's ``latestBucket()``, and the hour ``build_feed`` calls "now". Reading a
+    wall clock here instead would make a replay of a fixed store produce different alerts on
+    different days, which is exactly what ADR 0050 refused to ship.
+
+    A surface with no cells at all has no month, so an ``auto-season`` network falls back to the
+    default pack and publishes **no** selection record -- an honest absence. Publishing a month
+    nothing was measured in would be a date invented to fill a field.
+    """
+    if config.hazard_pack != hazard_packs.AUTO_SEASON_PACK_ID:
+        return hazard_packs.resolve_pack(config.hazard_pack), None
+    newest = surface.newest_bucket()
+    if newest is None:
+        return hazard_packs.resolve_pack(None), None
+    month = hazard_packs.month_of(newest)
+    pack = hazard_packs.resolve_pack(
+        config.hazard_pack, calendar=config.season_calendar, month=month
+    )
+    return pack, PackSelection(pack_id=pack.pack_id, selected_by="season-calendar", month=month)
+
+
 def build_feed(
     surface: Surface,
     *,
@@ -455,6 +518,7 @@ def build_feed(
     base_url: str = "http://localhost:8000",
     thresholds: Mapping[str, float] | None = None,
     pack: hazard_packs.HazardPack | None = None,
+    pack_selection: PackSelection | None = None,
 ) -> AlertFeed:
     """Scan the surface's newest bucket and raise an alert for each danger crossing in it.
 
@@ -545,6 +609,7 @@ def build_feed(
         base_url=base_url,
         event=detect_event(surface, active),
         aqi_window=active.aqi_window,
+        pack_selection=pack_selection,
     )
 
 

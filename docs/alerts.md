@@ -153,10 +153,51 @@ sentence in EN and ES rather than sharing the no-event one. An area that goes qu
 episode is published as a stale record with no value, exactly as elsewhere (ADR 0036) -- it does not
 keep broadcasting its last tier, and it does not vanish.
 
-`hazard_pack: auto-season`, which EXP-13 also proposes, is **not** shipped: switching packs by
-calendar month would make the published artifacts depend on the date the pipeline ran, and the gate
-that holds the committed demo artifacts to a fresh replay would disagree with itself across a month
-boundary. It needs its own design.
+### Switching packs by season
+
+A network whose hazard changes with the year sets `hazard_pack: auto-season` and declares the
+calendar itself:
+
+```yaml
+hazard_pack: auto-season
+season_calendar:
+  - months: [4, 5, 6, 7, 8]
+    pack: heat
+  - months: [9, 10, 11]
+    pack: smoke
+  - months: [12, 1, 2, 3]
+    pack: cold
+```
+
+**The months are the network's; only the packs are swelter's.** A calendar is a claim about a
+particular place's climate — that fire season runs September to November, that winter is a hazard
+here at all — and the collective in Fresno and the collective in Duluth do not have the same year.
+swelter ships the packs, with their cited thresholds, and no calendar.
+
+**The month comes from the data, never from a clock.** It is read from the surface's newest hour —
+the same instant the feed stamps itself with and the map calls "now" — so replaying a fixed store
+selects the same pack forever. This is what [ADR 0050](adr/0050-a-hazard-that-only-one-node-can-see-is-not-an-event.md)
+deferred the feature for: a wall-clock switch would make the committed demo artifacts and a fresh
+replay disagree the moment a month boundary passed, turning the merge gate red on a calendar rather
+than on a change. A surface with no cells at all has no month, so it falls back to the default pack
+and publishes no selection record — rather than a date invented to fill a field.
+
+**The switch is published, because it happened without the configuration changing.** A seasonal
+feed carries `pack_selection` naming the pack, `selected_by: season-calendar`, and the month, so a
+reader can check the switch against the timestamp printed beside it. A network that names a single
+pack — or none — serializes exactly what it always has: `pack_selection` is absent, and ADR 0031's
+byte-identity promise still holds.
+
+Two rules the calendar is held to, both refused by `swelter doctor` before any build runs. It must
+cover **all twelve months, exactly once** — an uncovered month would fall back to heat in a place
+whose calendar deliberately omits it, which is the same safety surprise as a winter network
+believing it alerts on cold and not doing so. And a `season_calendar` on a network that names a
+single pack is an **error**, not something quietly ignored: a calendar nothing reads is a host
+believing they configured a season and did not.
+
+A seasonal surface rolls up the union of every parameter any pack in the calendar needs, all year.
+The rollup happens before the month is knowable — the month comes from the surface being built —
+and a cell that was never aggregated cannot be alerted on later.
 
 ## The feed
 

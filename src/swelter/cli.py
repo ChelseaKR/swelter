@@ -41,7 +41,6 @@ from . import (
     crosswalk,
     export,
     exposure_brief,
-    hazard_packs,
     ingest,
     ingest_server,
     integrity,
@@ -652,12 +651,14 @@ def cmd_alerts(args: argparse.Namespace) -> int:
     with open_store(args.store) as store:
         observations = list(store.all())
         surface = aggregate.aggregate(observations, config)
+    pack, selection = alerts.pack_for_surface(config, surface)
     feed = alerts.build_feed(
         surface,
         network=config.name,
         base_url=args.base_url,
         thresholds=config.alert_thresholds or None,
-        pack=hazard_packs.resolve_pack(config.hazard_pack),
+        pack=pack,
+        pack_selection=selection,
     )
     if args.format == "atom":
         sys.stdout.write(feed.to_atom())
@@ -1241,12 +1242,14 @@ def _write_web_alerts(
     as such."""
     if not web_dir.is_dir():
         return
+    pack, selection = alerts.pack_for_surface(config, surface)
     feed = alerts.build_feed(
         surface,
         network=config.name,
         base_url="",
         thresholds=config.alert_thresholds or None,
-        pack=hazard_packs.resolve_pack(config.hazard_pack),
+        pack=pack,
+        pack_selection=selection,
     )
     terms = data_terms or _default_static_data_terms()
     document = feed.to_json()

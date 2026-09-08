@@ -9,6 +9,64 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **`hazard_pack: auto-season` — a season is a property of the data, not of the run**
+  (completes the selector half of #236). `SeasonWindow`, `season_calendar_problems`,
+  `pack_for_month`, `season_surface_parameters`, `season_threshold_keys` and `month_of` in
+  `src/swelter/hazard_packs.py`; `season_calendar` in `network.yaml`; `alerts.pack_for_surface`
+  and a `pack_selection` record on the feed; `docs/alerts.md` and ADR 0053.
+
+  ADR 0050 declined this on one specific ground: switching by calendar month would make the
+  published artifacts depend on the date the pipeline ran, so the gate holding the committed demo
+  artifacts to a fresh replay would disagree with itself across a month boundary. That objection is
+  answered rather than worked around.
+
+  **The month comes from the surface's newest bucket** -- the same instant the feed stamps itself
+  with and the map calls "now". Nothing in the path reads a wall clock, so replaying a fixed store
+  selects the same pack forever, and the month published beside the feed's own timestamp can be
+  checked against it. Measured: replacing it with `datetime.now().month` turns two tests red, one
+  of them printing today's month inside a record whose data is from October.
+
+  **The calendar is the network's; only the packs are swelter's.** A calendar is a claim about a
+  particular place's climate -- that fire season runs September to November, that winter is a
+  hazard here at all -- and the collective in Fresno and the collective in Duluth do not have the
+  same year. swelter ships packs with cited thresholds and **no calendar**. This is the same line
+  ADR 0050 drew inside the smoke pack, where the EPA breakpoint is EPA's and the three-cell
+  minimum is stated as swelter's own.
+
+  **An incomplete calendar is refused, not defaulted.** `swelter doctor` rejects a calendar that
+  leaves a month uncovered, claims one twice, or names an unknown pack, and `pack_for_month` raises
+  rather than falling back -- an uncovered month resolving to heat in a place whose calendar
+  deliberately omits it is the same safety surprise as a winter network believing it alerts on cold
+  and not doing so. A `season_calendar` on a network that names a single pack is an error too: a
+  calendar nothing reads is a host believing they configured a season and did not.
+
+  **A surface with no cells has no month and publishes none** -- not a date invented to fill a
+  field. **The switch is published** as `pack_selection` (pack, `selected_by: season-calendar`,
+  month), because a pack that changes while `network.yaml` does not is otherwise an unexplained
+  change in what the network calls dangerous. It is emitted only for a seasonal feed, and a network
+  naming one pack or none serializes exactly what it always has -- asserted by comparing serialized
+  feeds rather than field by field, which is the check the smoke pack's first version slipped past.
+
+  **A seasonal surface carries the union of the calendar's parameters all year**, because the
+  rollup happens before the month is knowable and a cell that was never aggregated cannot be
+  alerted on later.
+
+  `_BUILTIN_DEMO_CONFIG_SHA256` moves with the new `NetworkConfig` field, as that pin is designed
+  to: it digests the whole dataclass so a copied network cannot satisfy it by keeping the marker.
+
+  **One limitation this inherits and does not fix**, stated so it is not read as fixed:
+  `exposure_brief.count_danger_days` resolves its floors with no pack, so it always measures
+  against heat, and `_floor_and_band` raises for any parameter outside
+  `heat_index_c`/`pm25_ugm3`/`exposure`. A cold network's brief already counts heat-index days
+  today; a seasonal network's will too. That gap arrived with ADR 0031 and closing it is a
+  definition question (what "danger days" means across a window spanning two packs), not a
+  threading change -- ADR 0053 records it as its own future work. No published number moves: the
+  demo network is on the heat pack, where the brief is correct.
+
+  Dashboard copy naming the active pack to a resident is not shipped -- it is a resident-facing
+  surface change needing the accessibility and Spanish review paths (#106), and #236 stays open for
+  it. Roadmap and acceptance rows added as F-32.
+
 - **Every published alert can now be scored against a reference monitor** (#238). New
   `src/swelter/alert_audit.py`, a `swelter audit-alerts` verb, a section in `docs/alerts.md`, and
   ADR 0052.

@@ -72,3 +72,4 @@ evidence of the collision.
 - [ADR 0050: A hazard that only one node can see is not an event](0050-a-hazard-that-only-one-node-can-see-is-not-an-event.md)
 - [ADR 0051: A catalog record carries verified digests, or it is not written](0051-a-catalog-record-carries-verified-digests-or-is-not-written.md)
 - [ADR 0052: An alert nobody could check is not an alert that checked out](0052-an-alert-nobody-could-check-is-not-an-alert-that-checked-out.md)
+- [ADR 0053: A season is a property of the data, not of the run](0053-a-season-is-a-property-of-the-data-not-of-the-run.md)
