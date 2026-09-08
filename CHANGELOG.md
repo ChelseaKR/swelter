@@ -348,6 +348,36 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **The conformance gate reported "the API refused to answer" in the same words as "this gap issue
+  is closed", and failed on other repositories' traffic.** `scripts/conformance_check.py` resolved
+  every "gap tracked in #N" ledger row against `api.github.com` with **no `Authorization`
+  header**. Unauthenticated GitHub API requests are capped at **60/hour per IP**, and Actions
+  runners share IP pools, so under a busy account the cap is reached by jobs belonging to other
+  repositories entirely.
+
+  Measured here on 2026-09-07: two pull requests failed `make conformance` with `FAIL (1 error(s))`
+  while a third passed the identical gate twice in the same hour, and all three ran the full test
+  suite green. Every gap issue was open; nothing was stale. The damage was not the flake, it was
+  the wording — a 403 was caught and appended to the same error list as a genuinely closed gap, so
+  a reader triaging a red pull request was told the repository's declared posture was stale when in
+  fact nothing had been checked.
+
+  The request now carries `Authorization: Bearer $GITHUB_TOKEN` when the environment supplies one,
+  counting against the repository's own 1,000/hour budget instead of the shared IP cap, and the
+  `checks` job grants `issues: read` and passes the token. The two outcomes are now separate: a new
+  `IssueUnreadable` says *"could not check gap issue #N: api.github.com answered HTTP 403; the
+  unauthenticated rate limit is exhausted … this is not a finding that it is closed"*, while a
+  measured stale gap keeps *"gap issue #N does not resolve to an open issue"*. Both still fail the
+  gate — ADR 0048, a check that could not run is not a check that passed — because making the check
+  optional would trade a confusing red for a green that means nothing.
+
+  Two things found while writing the tests rather than reasoned about. The connection was
+  constructed *outside* the `try`, so a connect-time `OSError` would have left the function as an
+  unhandled traceback rather than as the honest refusal; it is inside now. And a token read as the
+  empty or whitespace string is treated as absent rather than sent as `Authorization: Bearer `,
+  which GitHub answers `401` to — that would have turned a rate-limited-but-valid request into an
+  outright refusal on every run.
+
 - **The scheduled full-history secret scan could not fail on a revoked credential.**
   `.github/workflows/trufflehog.yml` ran `--results=verified,unknown`, and those tier names are
   misleading: `verified` means the provider was asked and said yes, `unknown` means the provider
