@@ -95,6 +95,9 @@ def _request_json(url: str, headers: Mapping[str, str], timeout: float) -> Any:
     # http.client sends no User-Agent of its own, so an adapter that passes no headers would go
     # out anonymous. Identify swelter by default; a caller can still override the header.
     sent = {"User-Agent": USER_AGENT, **dict(headers)}
+    # TLS is not optional here: the scheme/userinfo guard at the top of this function raises on
+    # anything that is not absolute HTTPS, so the host varies and the transport does not.
+    # nosemgrep: httpsconnection-detected (#107)
     connection = http.client.HTTPSConnection(parts.hostname, parts.port, timeout=timeout)
     try:
         connection.request("GET", target, headers=sent)

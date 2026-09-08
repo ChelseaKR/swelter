@@ -115,6 +115,7 @@ def _released_tags() -> list[str]:
         headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(RELEASES_API, headers=headers)
     try:
+        # nosemgrep: dynamic-urllib-use-detected (#107)
         with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 (#107)
             payload: Any = json.load(response)
     except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:

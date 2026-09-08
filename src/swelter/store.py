@@ -119,6 +119,9 @@ class SqliteStore:
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         try:
+            # DDL built at import time from `_TABLE_COLUMNS`, a module constant; no caller text
+            # reaches it, and this is stdlib sqlite3 rather than SQLAlchemy.
+            # nosemgrep: sqlalchemy-execute-raw-query, formatted-sql-query (#107)
             self._conn.execute(_CREATE_TABLE_IF_MISSING)
             for statement in _CREATE_INDEXES:
                 self._conn.execute(statement)
@@ -232,6 +235,9 @@ class SqliteStore:
         if existing_legacy is not None:
             raise sqlite3.OperationalError(f"stale migration table exists: {_LEGACY_TABLE}")
         self._conn.execute(_RENAME_LEGACY_TABLE)
+        # DDL built at import time from `_TABLE_COLUMNS`, a module constant; no caller text
+        # reaches it, and this is stdlib sqlite3 rather than SQLAlchemy.
+        # nosemgrep: sqlalchemy-execute-raw-query, formatted-sql-query (#107)
         self._conn.execute(_CREATE_TABLE)
         self._conn.executemany(
             "INSERT INTO observations "
@@ -333,8 +339,8 @@ class SqliteStore:
         return [_row_to_obs(row) for row in cur.fetchall()]
 
     def all(self) -> Iterator[Observation]:
-        # This is a fixed, parameter-free sqlite3 query (not SQLAlchemy or caller-provided SQL).
-        # nosemgrep: sqlalchemy-execute-raw-query (#107)
+        # A fixed, parameter-free sqlite3 query. No suppression: measured 2026-09-08, the raw-query
+        # rules do not match a literal query string, so one here would exempt nothing (#107).
         cur = self._conn.execute(
             "SELECT node_id, timestamp, parameter, value, unit, source, calibration, qc, "
             "uncertainty, content_hash FROM observations ORDER BY node_id, parameter, timestamp"
@@ -353,8 +359,8 @@ class SqliteStore:
         :meth:`all` — deterministic, and lets a caller fold hashes into daily digests in one pass
         without buffering the whole store.
         """
-        # This is a fixed, parameter-free sqlite3 query (not SQLAlchemy or caller-provided SQL).
-        # nosemgrep: sqlalchemy-execute-raw-query (#107)
+        # A fixed, parameter-free sqlite3 query. No suppression: measured 2026-09-08, the raw-query
+        # rules do not match a literal query string, so one here would exempt nothing (#107).
         cur = self._conn.execute(
             "SELECT node_id, timestamp, parameter, value, unit, source, calibration, qc, "
             "uncertainty, content_hash FROM observations ORDER BY substr(timestamp, 1, 10), "

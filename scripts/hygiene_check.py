@@ -69,7 +69,25 @@ _SUPPRESSION = re.compile(r"#\s*noqa\b|#\s*type:\s*ignore\b|nosemgrep:")
 #: is the only way the claim can be measured. Same permanent pattern as the other
 #: subprocess-driving tests and gate scripts, and it costs one suppression rather than two because
 #: both runs go through a single loop.
-SUPPRESSION_CEILING = 29
+#: 29 -> 32: `make security-semgrep` stopped excluding five rules repository-wide, and the seven
+#: lines those exclusions were written for now carry their own `# nosemgrep:` with their own
+#: reason. Measured 2026-09-08 against the pinned Semgrep, by stripping every inline comment and
+#: rerunning: **9 findings on 7 lines** (`store.py`'s two DDL `execute` calls each match both
+#: `formatted-sql-query` and `sqlalchemy-execute-raw-query`), of which 7 were reachable only
+#: because of the blanket list; the other 2 already carried an inline comment. Put the comments
+#: back and the scan reports 0, so every one of them is load-bearing.
+#:
+#: Two of the four inline `nosemgrep` comments already in the tree hid *nothing*.
+#: `SqliteStore.all` and `SqliteStore.iter_rows` pass a string *literal* to `execute`, and
+#: neither raw-query rule fires on those lines even with every suppression removed -- so they
+#: exempted no finding while reading as live exceptions in this inventory. They are deleted
+#: here. The one on `SqliteStore.read` stays: that query is built with an f-string and the rule
+#: does fire on it.
+#:
+#: The count is +5 for the new site-local exemptions and -2 for the dead ones. This is the direction
+#: #107 asks for even though the number goes up: a `--exclude-rule` exempts every future site
+#: silently, a `# nosemgrep:` exempts one line and makes the next one fail the gate.
+SUPPRESSION_CEILING = 32
 
 
 def _tracked_files(*dirs: str) -> list[Path]:
