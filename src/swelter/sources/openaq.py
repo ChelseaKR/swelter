@@ -208,6 +208,82 @@ def _deduplicated_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]
     return out
 
 
+def _license_url_alternative_note(detail: dict[str, Any], license_url: str) -> str:
+    """Answer, in the refusal itself, whether the licence resource offers an HTTPS URL elsewhere.
+
+    #179's root cause is that OpenAQ serves ``sourceUrl`` over plain ``http``, and every one of
+    the 250 California locations is refused on that one property. The decision about what to do
+    turns on a question nobody with the API key has answered: **does the same licence resource
+    publish an ``https`` URL under a different key?** If it does, this is a mapping fix and there
+    is no rights-posture decision to make. If it does not, the three options in #179 are the real
+    set. Either answer is worth having, and neither needs anyone to hold the key -- the next
+    scheduled ``demo`` run prints it.
+
+    This changes no rule and admits no entry. It is emitted only when ``license_url`` is a
+    non-``https`` absolute URL, and it is deliberately independent of the refusal's own wording
+    rather than parsing it: the fact asserted here is one this function establishes itself.
+
+    **No URL is echoed**, per ``_normalized_https_url``'s rule -- only key names and a count. The
+    count is the floor: without it "no https alternative" and "nothing was inspected" would print
+    the same sentence, which is the defect this repository keeps finding in other people's code.
+    Only top-level string values are inspected, and the note says so, so a nested URL is reported
+    as unexamined rather than as absent.
+    """
+    try:
+        scheme = urlsplit(license_url).scheme
+    except ValueError:
+        return ""
+    if not scheme or scheme == "https":
+        return ""
+    strings = {
+        key: value
+        for key, value in detail.items()
+        if isinstance(key, str) and isinstance(value, str)
+    }
+    https_keys = sorted(
+        key
+        for key, value in strings.items()
+        if key != "sourceUrl" and _is_absolute_https(value.strip())
+    )
+    if https_keys:
+        return (
+            f"diagnostic for #179: OpenAQ licence {detail.get('id')} does publish an absolute "
+            f"HTTPS URL under {', '.join(https_keys)}, so this may be a field-mapping fix rather "
+            f"than a rights decision"
+        )
+    return (
+        f"diagnostic for #179: OpenAQ licence {detail.get('id')} publishes no absolute HTTPS URL "
+        f"under any other top-level field ({len(strings)} string field(s) inspected; nested "
+        f"objects not inspected)"
+    )
+
+
+def _record_rejection(
+    rejections: list[str], exc: ValueError, detail: dict[str, Any], license_url: str
+) -> None:
+    """Add one location's refusal reason, and the #179 diagnostic when the scheme is the cause.
+
+    The rule, not the license id: the location is already named beside this reason, and identical
+    text across locations is what lets a whole-state refusal collapse to "247 x <this rule>"
+    instead of 247 lines that each say it once. The diagnostic is deduplicated on the same
+    principle -- one licence resource produces one note however many locations cite it.
+    """
+    for line in (str(exc), _license_url_alternative_note(detail, license_url)):
+        if line and line not in rejections:
+            rejections.append(line)
+
+
+def _is_absolute_https(value: str) -> bool:
+    """Whether ``value`` parses as an absolute ``https`` URL naming a host."""
+    if not value:
+        return False
+    try:
+        parsed = urlsplit(value)
+        return parsed.scheme == "https" and bool(parsed.hostname)
+    except ValueError:
+        return False
+
+
 def build_license_ledger(
     locations: list[dict[str, Any]],
     catalog: dict[int, dict[str, Any]],
@@ -292,11 +368,7 @@ def build_license_ledger(
             try:
                 _normalize_entry(candidate)
             except ValueError as exc:
-                # The rule, not the license id: the location is already named beside this reason,
-                # and identical text across locations is what lets a whole-state refusal collapse
-                # to "247 x <this rule>" instead of 247 lines that each say it once.
-                if str(exc) not in rejections:
-                    rejections.append(str(exc))
+                _record_rejection(rejections, exc, detail, candidate["license_url"])
                 continue
             entries.append(candidate)
             location_entries += 1

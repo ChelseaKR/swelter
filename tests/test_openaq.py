@@ -792,3 +792,123 @@ def test_exclusion_summary_ranks_reasons_by_how_many_locations_hit_them() -> Non
     assert openaq._exclusion_summary({"excluded_locations": []}) == (
         "no exclusion reasons were recorded"
     )
+
+
+def _http_catalog(license_id: int = 33, **extra: Any) -> dict[int, dict[str, Any]]:
+    """The live shape behind #179: the licence resolves, and its `sourceUrl` is plain HTTP."""
+    catalog = _catalog(license_id)
+    catalog[license_id]["sourceUrl"] = "http://www.usa.gov/government-copyright"
+    catalog[license_id].update(extra)
+    return catalog
+
+
+def test_a_scheme_refusal_also_answers_whether_an_https_field_exists() -> None:  # #179
+    """The one fact #179's decision turns on, printed by the run that refuses.
+
+    Every California location is refused because `sourceUrl` is served over `http`. Whether the
+    same licence resource publishes an `https` URL under another key decides whether that is a
+    field-mapping fix or a rights-posture decision, and nobody without the API key can see it.
+    The refusal now carries the answer either way.
+    """
+    excluded_reason = openaq.build_license_ledger(
+        [_location(1)],
+        _http_catalog(homepageUrl="https://www.usa.gov/government-copyright"),
+        fetched_at="2026-09-08T00:00:00Z",
+    )["excluded_locations"][0]["reason"]
+    assert "its scheme is 'http'" in excluded_reason
+    assert "does publish an absolute HTTPS URL under homepageUrl" in excluded_reason
+    assert "field-mapping fix rather than a rights decision" in excluded_reason
+
+
+def test_no_https_alternative_is_stated_with_the_number_of_fields_inspected() -> None:  # #179
+    """A clean negative and an unread payload must not print the same sentence.
+
+    The count is the floor. Without it a diagnostic that had stopped reading the payload would
+    report the same clean negative as one that read it and found nothing -- an absence rendered
+    as a measurement, inside the message written to stop exactly that.
+    """
+    reason = openaq.build_license_ledger(
+        [_location(1)], _http_catalog(), fetched_at="2026-09-08T00:00:00Z"
+    )["excluded_locations"][0]["reason"]
+    assert "publishes no absolute HTTPS URL under any other top-level field" in reason
+    # `name` and `sourceUrl` are strings; `id` is an int and is not counted.
+    assert "(2 string field(s) inspected; nested objects not inspected)" in reason
+
+
+def test_the_diagnostic_never_echoes_a_url() -> None:  # #179
+    """`_normalized_https_url`'s rule: a refused URL is never logged, only named categorically.
+
+    A licence URL is harmless, but the refusal path is shared with URLs refused *for embedding
+    credentials*, and a diagnostic that prints values would print those too.
+    """
+    reason = openaq.build_license_ledger(
+        [_location(1)],
+        _http_catalog(
+            homepageUrl="https://example.org/secret-path",
+            docsUrl="https://example.org/another",
+        ),
+        fetched_at="2026-09-08T00:00:00Z",
+    )["excluded_locations"][0]["reason"]
+    assert "docsUrl, homepageUrl" in reason
+    assert "example.org" not in reason
+    assert "://" not in reason
+
+
+def test_the_diagnostic_is_silent_when_the_scheme_is_not_what_refused_the_entry() -> None:  # #179
+    """It answers one question and must not attach itself to unrelated refusals.
+
+    Here `sourceUrl` is a perfectly good HTTPS URL and the entry is refused for having neither a
+    provider nor an attribution -- the #216 case. A note about HTTPS alternatives there would be
+    noise in a tally whose whole value is that identical text collapses.
+    """
+    reason = openaq.build_license_ledger(
+        [_location(1, provider={}, licenses=[{"id": 33, "attribution": {}}])],
+        _catalog(),
+        fetched_at="2026-09-08T00:00:00Z",
+    )["excluded_locations"][0]["reason"]
+    assert "diagnostic for #179" not in reason
+
+
+def test_the_diagnostic_does_not_admit_an_entry_or_change_a_rule() -> None:  # #179
+    """The guard is unchanged: an http `license_url` is still refused and still excludes.
+
+    This is the assertion that keeps the change a diagnostic. #179 says in terms "do not relax
+    the ledger check to make the fetch pass", and a note appended to a refusal is only safe while
+    the refusal still happens.
+    """
+    ledger = openaq.build_license_ledger(
+        [_location(1)],
+        _http_catalog(homepageUrl="https://www.usa.gov/government-copyright"),
+        fetched_at="2026-09-08T00:00:00Z",
+    )
+    assert ledger["entries"] == []
+    assert [row["location_id"] for row in ledger["excluded_locations"]] == [1]
+
+
+def test_the_statewide_refusal_carries_the_diagnostic_to_the_operator() -> None:  # #179
+    """The delivery path, not just the string.
+
+    A diagnostic that is built and never printed answers nothing. `demo` sees only what `fetch`
+    raises, so this asserts the note survives per-location exclusion, the frequency tally, and
+    the statewide refusal -- and that the tally still collapses, which is what makes 250
+    identical exclusions one sentence rather than 250.
+    """
+    dark = [_location(i) for i in (1, 2, 3)]
+
+    def _no_network(*_: object, **__: object) -> object:  # pragma: no cover - must never run
+        raise AssertionError("no per-location request may be made once every location is excluded")
+
+    with (
+        mock.patch.object(openaq, "_locations", return_value=dark),
+        mock.patch.object(openaq, "_license_catalog", return_value=_http_catalog()),
+        mock.patch.object(openaq, "_get_json", _no_network),
+        pytest.raises(SourceError) as refusal,
+    ):
+        openaq.fetch("key", throttle_s=0)
+    message = str(refusal.value)
+    assert "licensed none of its 3 California locations" in message
+    assert "its scheme is 'http'" in message
+    assert "diagnostic for #179" in message
+    # One tallied reason for all three, not three lines.
+    assert message.count("diagnostic for #179") == 1
+    assert "3 x " in message
