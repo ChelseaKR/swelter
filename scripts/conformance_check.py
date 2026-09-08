@@ -5,6 +5,15 @@ The table is intentionally a small machine-readable contract: every vendored sta
 once, states use one of the three canonical shapes, and a linked gap names the same GitHub issue
 in its label and URL. In GitHub Actions, public issue state is also checked so a stale/closed gap
 cannot silently remain the repository's declared posture.
+
+That issue check sends an **authenticated** request when ``GITHUB_TOKEN`` is set. It used to send
+none, and an unauthenticated ``api.github.com`` request is capped at 60/hour *per IP* across every
+job sharing a runner IP pool -- so the gate failed on other repositories' traffic, and both
+outcomes reached the reader as one line. Two outcomes are now worded apart:
+:class:`IssueUnreadable` means the API did not answer and nothing about the issue is known;
+returning ``False`` means GitHub answered and the declared gap is stale. Both still fail the gate
+-- ADR 0048, a check that could not run is not a check that passed -- but they are not the same
+fact and they do not send a reader to the same place.
 """
 
 from __future__ import annotations
@@ -185,25 +194,90 @@ def semantic_evidence_problems(rows: list[LedgerRow], root: Path = ROOT) -> list
     return problems
 
 
+class IssueUnreadable(RuntimeError):
+    """The API did not answer, so nothing is known about the issue.
+
+    Distinct from ``_issue_is_open`` returning ``False``. That is a *measurement* -- GitHub
+    answered and the issue is closed, or the number is a pull request -- and it means the
+    repository's declared posture is stale. This exception means the check did not happen. Both
+    fail the gate (ADR 0048: a check that could not run is not a check that passed), and they are
+    kept apart because they send a reader somewhere entirely different: one to edit the README,
+    one to re-run the job.
+    """
+
+
+def _issue_request_headers() -> dict[str, str]:
+    """The request headers, carrying a token when the environment supplies one.
+
+    Unauthenticated ``api.github.com`` requests are capped at 60/hour **per IP**, and GitHub
+    Actions runners share IP pools, so under a busy account this gate fails on strangers' traffic
+    -- measured on this repository on 2026-09-07, when two pull requests failed here while a third
+    passed the identical check twice in the same hour. An authenticated request is counted against
+    the token's own 1,000/hour repository budget instead, which no other repository's jobs can
+    spend.
+    """
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "swelter-conformance",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _rate_limit_note(response: http.client.HTTPResponse) -> str:
+    """Name the rate limit when the refusal is one, because the remedy differs.
+
+    A 403 whose ``x-ratelimit-remaining`` is ``0`` is a quota exhaustion that a token fixes; a 403
+    without it is an authorization problem that a token does not. Reporting them the same way is
+    how the last incident here read as a code defect for a full triage cycle.
+    """
+    remaining = response.getheader("x-ratelimit-remaining")
+    if remaining is None:
+        return ""
+    if remaining == "0":
+        authenticated = "authenticated" if os.environ.get("GITHUB_TOKEN") else "unauthenticated"
+        return f"; the {authenticated} rate limit is exhausted (x-ratelimit-remaining: 0)"
+    return f"; x-ratelimit-remaining: {remaining}"
+
+
 def _issue_is_open(number: int) -> bool:
-    connection = http.client.HTTPSConnection("api.github.com", timeout=20)
+    """Whether gap issue ``number`` resolves to an open issue.
+
+    Raises :class:`IssueUnreadable` when the API did not answer. Never returns ``False`` for a
+    question it could not ask.
+    """
+    # Construction is inside the `try` on purpose: a resolver or socket failure that surfaces here
+    # rather than at `request()` would otherwise leave this function by an unhandled `OSError`,
+    # and the caller only catches `IssueUnreadable`. A gate that crashes on a network blip is not
+    # meaningfully better than one that calls it a closed issue.
+    connection: http.client.HTTPSConnection | None = None
     try:
+        connection = http.client.HTTPSConnection("api.github.com", timeout=20)
         connection.request(
             "GET",
             f"/repos/ChelseaKR/swelter/issues/{number}",
-            headers={
-                "Accept": "application/vnd.github+json",
-                "User-Agent": "swelter-conformance",
-            },
+            headers=_issue_request_headers(),
         )
         response = connection.getresponse()
         if response.status != 200:
-            raise RuntimeError(f"GitHub returned HTTP {response.status}")
+            response.read()
+            raise IssueUnreadable(
+                f"could not check gap issue #{number}: api.github.com answered HTTP "
+                f"{response.status}{_rate_limit_note(response)}. Nothing was learned about "
+                f"#{number}; this is not a finding that it is closed."
+            )
         doc = json.loads(response.read().decode("utf-8"))
     except (OSError, http.client.HTTPException, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"could not resolve issue #{number}: {exc}") from exc
+        raise IssueUnreadable(
+            f"could not check gap issue #{number}: {exc}. Nothing was learned about "
+            f"#{number}; this is not a finding that it is closed."
+        ) from exc
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
     return isinstance(doc, dict) and doc.get("state") == "open" and "pull_request" not in doc
 
 
@@ -216,7 +290,7 @@ def main() -> int:
         for number in sorted({row.issue for row in rows if row.issue is not None}):
             try:
                 is_open = _issue_is_open(number)
-            except RuntimeError as exc:
+            except IssueUnreadable as exc:
                 errors.append(str(exc))
                 continue
             if not is_open:

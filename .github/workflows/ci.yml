@@ -25,6 +25,15 @@ jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # `make conformance` resolves every "gap tracked in #N" row against the live issue. It used
+      # to ask api.github.com with no credentials, and an unauthenticated request is capped at
+      # 60/hour per IP across every job sharing a runner IP pool — so this gate failed on other
+      # repositories' traffic (measured on this repository, 2026-09-07). Reading a public issue
+      # needs `issues: read`; a job-level block replaces the workflow-level one, so `contents:
+      # read` is restated here rather than inherited.
+      issues: read
     # `make verify-core` is the long one: 20 gates plus the full pytest suite. Measured on this
     # repository it takes 16-25 minutes (runs 33715839075 16m20s, 33992964515 17m39s,
     # 34039001734 20m56s, 33992912300 25m03s), so a 15-minute cap cancelled it mid-suite — and a
@@ -50,6 +59,11 @@ jobs:
         run: uv sync --locked
 
       - name: Python, documentation, and policy gates
+        env:
+          # Consumed by `make conformance` alone, to authenticate its per-issue lookups against
+          # the repository's own 1,000/hour budget instead of the shared unauthenticated 60/hour
+          # IP cap. Read-only: the job requests no write scope.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make verify-core
 
       - name: Authenticate the standards pin against canonical upstream
