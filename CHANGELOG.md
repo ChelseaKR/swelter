@@ -9,6 +9,63 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **A snapshot can be handed to an open-data portal** (part of #243). New
+  `src/swelter/package.py`, a `swelter package` verb, `docs/api.md`, `docs/citability.md`, and
+  ADR 0051.
+
+  A citation makes a release quotable; it does not make it findable. CKAN (`data.ca.gov`) and
+  Socrata harvest a Frictionless `datapackage.json` or a DCAT record, and a swelter release had
+  neither. `swelter package <snapshot-dir> --out <dir>` writes both, plus `export.csv` and
+  verified copies of the release's own data files, into one self-contained harvestable directory.
+  Nothing is pushed anywhere.
+
+  **The digests are the release's own, verified before anything is written.** Every file is read
+  out of the snapshot and its SHA-256 compared against `MANIFEST.json` first; a mismatch refuses
+  the whole operation by filename and leaves no output directory behind. Re-hashing the bytes on
+  the way past would have been one line shorter and would have handed a tampered release a
+  portal-ready record whose checksum agreed with the tampering. A manifest that lists no files is
+  refused for the same reason `reproduce` refuses one.
+
+  **Two rules about empty cells, and they are not the same rule.** The Table Schema declares
+  `missingValues: [""]`, so an unmeasured `uncertainty` previews as a gap and not as a zero. But
+  `qc_flags` overrides it to `[]`: an empty cell there means QC ran and found nothing suspicious,
+  and the table-wide rule would have published that completed check as one nobody performed --
+  the same defect as a failed read counted as zero, pointing the other way. Per-field
+  `missingValues` is why the descriptor declares Frictionless **v2** rather than
+  `profile: tabular-data-package`. Measured, not assumed: with the override removed, `frictionless`
+  5.19.0 reports a `required` constraint error on every unflagged row.
+
+  **No party is named that the release does not record.** `dct:publisher` is emitted only when
+  `--publisher` is given: the manifest's `data_source` is who the *readings* came from, and for a
+  fetched store that is an upstream provider, not the collective publishing the dataset. Naming it
+  as publisher would be right for a native store and wrong for every other one. For the same
+  reason the attribution statement is not a Frictionless `contributors[]` entry -- that field's
+  `title` is a contributor's *name*, and `data_attribution` is a sentence about terms -- so it
+  travels as `swelter:attribution`, as `dct:rights`, and in the packaged `DATA-LICENSE`.
+
+  **A per-location source keeps its terms.** Only licence strings this project can map with
+  certainty get an SPDX `name`; an OpenAQ-derived release gets the snapshot's own statement plus a
+  `path` to the packaged `source-license-ledger.json`, never an invented identifier (hard rule 6).
+
+  The Table Schema is generated from `/api/schema.json`'s dictionary in the exact column order
+  `export.csv` writes, and a CSV column the dictionary does not describe raises rather than being
+  emitted blank -- a silently omitted column would tell a portal the file is narrower than it is
+  and misparse every row after it. A release with no observation window publishes no
+  `dct:temporal` rather than an interval with null endpoints; without `--base-url` no distribution
+  carries an access URL and the record says so. `dct:issued` is the snapshot's `created_at`, never
+  the wall clock, so two packagings of one release are byte-identical across processes under
+  different `PYTHONHASHSEED` values.
+
+  Validated with `frictionless` 5.19.0 against the bundled demo release (151,812 rows, every
+  resource `VALID`) and parsed as JSON-LD with `rdflib` (58 triples). Neither library is a project
+  dependency, so those are recorded measurements rather than a standing merge gate; the
+  `frictionless validate` CI step and the EN/ES catalog strings named in #243's scope are not
+  shipped here and #243 stays open for them.
+
+  `reproduce.observations_from_export` became public in the same change: `package` reads the same
+  frozen file, and both callers need the same refusals -- a row with no numeric value must not
+  become a zero in a portal export any more than in a reproduction.
+
 - **The wildfire-smoke hazard pack, and the difference between a spiking node and a smoke
   event** (part of #236). `SMOKE_PACK` and `EventRule` in `src/swelter/hazard_packs.py`, an
   `aqi_window` selection on `Surface.latest_by_cell`, `HazardEvent` and `detect_event` in

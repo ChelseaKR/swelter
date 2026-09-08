@@ -60,6 +60,9 @@ from . import (
     diff as diff_module,
 )
 from . import (
+    package as package_module,
+)
+from . import (
     reproduce as reproduce_module,
 )
 from .config import (
@@ -2274,6 +2277,32 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_package(args: argparse.Namespace) -> int:
+    """Render an existing snapshot as a Frictionless Data Package plus a DCAT catalog record.
+
+    Refuses rather than degrades. A snapshot whose bytes disagree with its own MANIFEST.json, or
+    that carries no DATA-LICENSE, gets no catalog record at all: a portal that harvested one would
+    republish the digest and the terms as facts about data nobody had checked.
+    """
+    try:
+        result = package_module.build_package(
+            Path(args.snapshot),
+            Path(args.out),
+            base_url=args.base_url or None,
+            publisher=args.publisher or None,
+        )
+    except package_module.PackageError as exc:
+        _err(f"swelter package: {exc}; refusing")
+        return 1
+    _err(
+        f"swelter: packaged {result.record_count} observation(s) into {result.out_dir} "
+        f"({len(result.resources)} resource(s))"
+    )
+    for note in result.notes:
+        _err(f"  ⚠ {note}")
+    return 0
+
+
 def cmd_reproduce(args: argparse.Namespace) -> int:
     """Rebuild a snapshot's surface from its own frozen inputs and report whether it re-derives.
 
@@ -2819,6 +2848,37 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_config(p_snap)
     p_snap.set_defaults(func=cmd_snapshot)
+
+    p_pkg = sub.add_parser(
+        "package",
+        help="render a snapshot as a Frictionless Data Package plus a DCAT record for portals",
+        description=(
+            "Writes a self-contained, harvestable directory: `datapackage.json` (resources, a "
+            "Table Schema generated from the served data dictionary, per-resource SHA-256), "
+            "`dcat.jsonld` (a `dcat:Dataset` with one `dcat:Distribution` per resource), the "
+            "tabular `export.csv`, and verified copies of the snapshot's own data files. Every "
+            "copy is checked against the snapshot's MANIFEST.json first, so a release whose "
+            "bytes have drifted from its manifest is refused rather than given a clean catalog "
+            "record. Nothing is pushed to any portal; this writes files."
+        ),
+    )
+    p_pkg.add_argument("snapshot", help="the snapshot directory written by `swelter snapshot`")
+    p_pkg.add_argument(
+        "--out", default="dist/datapackage", help="directory to write the package into"
+    )
+    p_pkg.add_argument(
+        "--base-url",
+        default="",
+        help="public base URL the packaged files will be served from; omitted, the DCAT record "
+        "carries no access URL rather than a guessed one",
+    )
+    p_pkg.add_argument(
+        "--publisher",
+        default="",
+        help="the agency or collective publishing this dataset; omitted, the DCAT record names "
+        "no publisher rather than naming the source of the readings as one",
+    )
+    p_pkg.set_defaults(func=cmd_package)
 
     p_repro = sub.add_parser(
         "reproduce",

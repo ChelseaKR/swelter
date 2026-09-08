@@ -62,7 +62,14 @@ _SUPPRESSION = re.compile(r"#\s*noqa\b|#\s*type:\s*ignore\b|nosemgrep:")
 #: subprocesses (build, venv, install, `init`, and each command `init` hints), which would have
 #: been five suppressions; they go through a single `_run` helper instead, so the module costs
 #: one. Same permanent pattern as the other subprocess-driving tests and gate scripts.
-SUPPRESSION_CEILING = 28
+#: 28 -> 29: one fixed-argv `S603` in tests/test_package.py. `swelter package`'s output is
+#: claimed to be byte-identical across runs, and a determinism claim tested twice inside one
+#: interpreter proves nothing -- both renders share that process's string-hash seed. The test
+#: therefore runs the packager as two subprocesses under different `PYTHONHASHSEED` values, which
+#: is the only way the claim can be measured. Same permanent pattern as the other
+#: subprocess-driving tests and gate scripts, and it costs one suppression rather than two because
+#: both runs go through a single loop.
+SUPPRESSION_CEILING = 29
 
 
 def _tracked_files(*dirs: str) -> list[Path]:
