@@ -723,10 +723,28 @@ def crossing(
 ) -> tuple[str, float] | None:
     """Return ``(severity_name, floor)`` if this reading crosses its threshold, else ``None``.
 
-    Public so other modules can reuse the exact same danger-threshold test instead of
-    re-deriving it — :mod:`swelter.exposure_brief` calls this once per hour to build the
-    historical "N Danger days" count from the same floors and band names the live alerts feed
-    uses, so the two views of "danger" can never silently drift apart.
+    Public so other modules can reuse the exact same danger-threshold *test* instead of re-deriving
+    it — :mod:`swelter.exposure_brief` calls this once per hour to build the historical "N Danger
+    days" count, and :mod:`swelter.alert_audit` calls it once per stored reading rather than
+    reimplementing a second comparison the audit could then score a threshold nobody ships against.
+
+    **The test is shared; the floor table is the caller's**, and that is the whole of what this
+    guarantees. This docstring used to add that the two views of danger "can never silently drift
+    apart", which was one claim too many: ``exposure_brief`` resolves the *heat* pack's floors
+    whatever pack the network runs, so on a smoke network the feed raises no heat-index alert on an
+    hour the brief counts as a Danger day. Sharing the comparison stops the two from disagreeing
+    about *where* a band begins; it cannot stop them being handed different tables. See
+    ``count_danger_days``, which now states which table it uses.
+
+    One asymmetry worth knowing before adding a parameter here. The ``wind_chill_c`` branch reads
+    its floor with ``.get`` and returns ``None`` when the key is absent, deliberately, so a caller
+    reusing a heat-pack floor table gets no crossing rather than a crash. The other three branches
+    subscript directly and raise ``KeyError`` on a floor table without their key. That is currently
+    unreachable — ``build_feed`` iterates ``pack.alerting_parameters()``, ``alert_audit._crossings``
+    filters to the same set, and ``exposure_brief`` only ever passes heat-pack floors, which carry
+    all three keys — so it is a hazard for the next caller, not a live defect, and it is recorded
+    here rather than "fixed" into a silent ``None`` that would publish "no danger" for a table that
+    simply had no floor to check.
     """
     aqi = reading.aqi
     category = reading.category

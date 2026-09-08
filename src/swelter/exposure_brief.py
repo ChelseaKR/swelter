@@ -3,9 +3,11 @@ with sourced canopy/AC-access/redlining context alongside it.
 
 This is the historical, per-area sibling of :mod:`swelter.alerts` — alerts answer "is this cell
 in danger *right now*"; this module answers "how often has it been" over whatever history the
-store holds, using the exact same danger-threshold definitions (:func:`swelter.alerts.crossing`,
-:data:`swelter.alerts.DEFAULT_THRESHOLDS`) so the two views of "danger" can never quietly drift
-apart. It reuses the copy-a-summary pattern the merged network-brief feature
+store holds, using the same danger-threshold *test* (:func:`swelter.alerts.crossing`) rather than
+a second implementation of it. The **table** it hands that test is the heat pack's, whatever pack
+the network runs, so on a non-heat network this count and the live feed are not the same
+measurement — see :func:`count_danger_days`, which states which floors it used and why closing
+that is a definition question. It reuses the copy-a-summary pattern the merged network-brief feature
 (``web/app.js`` — "Copy a summary of the whole network") established for the *network* scale, at
 the *neighborhood* scale, and adds the sourced context an organizer needs for testimony or a
 funding ask: how much tree canopy an area has, whether area households may lack AC, and whether
@@ -44,8 +46,10 @@ from .models import EXPOSURE_LEVELS, parse_timestamp
 from .redlining_layer import RedliningCell, RedliningLayerSet
 
 #: The parameter this module counts "Danger" days on. Heat is the tier the roadmap item names
-#: ("this block ran Danger N days this month") and the one NWS name that means the same thing in
-#: both the live alerts feed and this historical count.
+#: ("this block ran Danger N days this month"), and on a heat network "Danger" is the same NWS band
+#: in both the live alerts feed and this historical count. On a smoke or cold network the feed does
+#: not alert on heat index at all, so the two are not the same measurement there — the count states
+#: the floor and band it used, and :func:`count_danger_days` records why that gap is open.
 DEFAULT_PARAMETER: Final = "heat_index_c"
 
 
@@ -120,11 +124,33 @@ def count_danger_days(
 ) -> dict[str, DangerDayCount]:
     """For every published cell, count how many calendar days a parameter crossed its danger floor.
 
-    Reuses :func:`swelter.alerts.crossing` and :func:`swelter.alerts.resolve_thresholds` — the
-    exact "Danger" definition the live alerts feed raises on — instead of re-deriving a second
-    threshold table. A day counts once it has *any* hour at or above the floor. A cell that never
-    reported this parameter is simply absent from the result (not zero-filled): "zero Danger
-    days" and "no data" are different claims, and collapsing them would be dishonest.
+    Reuses :func:`swelter.alerts.crossing` and :func:`swelter.alerts.resolve_thresholds` instead of
+    re-deriving a second threshold table. A day counts once it has *any* hour at or above the
+    floor. A cell that never reported this parameter is simply absent from the result (not
+    zero-filled): "zero Danger days" and "no data" are different claims, and collapsing them would
+    be dishonest.
+
+    **The floors are the heat pack's, whatever pack the network is configured on.**
+    ``resolve_thresholds(thresholds)`` is called with no pack, so it merges the caller's overrides
+    onto :data:`swelter.hazard_packs.HEAT_PACK`, and ``_floor_and_band`` refuses any parameter
+    outside ``heat_index_c`` / ``pm25_ugm3`` / ``exposure``. This docstring used to say the count
+    used "the exact 'Danger' definition the live alerts feed raises on"; that is true of a heat
+    network and false of any other, so it has been narrowed to what the code does.
+
+    Measured on a smoke-pack network with one 41.0 °C heat-index hour: ``build_feed`` raises **0**
+    alerts (``smoke.alerting_parameters()`` is ``('pm25_ugm3',)`` — the feed does not look at heat
+    index at all) while this function reports **1** Danger day at the heat pack's 39.4 °C floor.
+    Nothing published is wrong -- every record carries the ``floor`` and ``severity`` it was
+    measured against, so it describes itself -- but the two numbers are not the same measurement
+    and the docstring should not have said they were.
+
+    Closing the gap is a definition question rather than a threading change, and it is not settled
+    here: under a season calendar, "danger days across a window" needs the floors of *each day's
+    own* pack, and whether a window spanning two seasons is one count or two is a product call. A
+    fixed non-heat network has no such ambiguity but does raise a second one -- whether a heat-index
+    count is refused outright for a network whose feed never alerts on heat, or kept with its floor
+    stated. Both are recorded against the hazard-pack work rather than decided in a docstring.
+    ``tests/test_exposure_brief.py`` pins the current behaviour and names the day it becomes wrong.
 
     A crossing is counted whatever its QC state — a spike that turns out to be the onset of a real
     event is exactly the hour a resident needs to see, and dropping it would repeat the mistake
