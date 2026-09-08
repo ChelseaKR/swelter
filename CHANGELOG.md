@@ -478,6 +478,12 @@ All notable changes to swelter are recorded here. The format follows
   shared `crossing` call does and does not guarantee: it stops the two views disagreeing about
   *where a band begins*; it cannot stop them being handed different tables.
 
+  The claim lived in **three** places, and the third was found by the negative control rather than
+  by review: `exposure_brief`'s own module docstring said the two views "can never quietly drift
+  apart", and `DEFAULT_PARAMETER`'s comment called heat "the one NWS name that means the same thing
+  in both the live alerts feed and this historical count". When a disclosure is corrected in one
+  place the same sentence is usually somewhere else; grep for it.
+
   Closing the gap is a definition question and is deliberately not settled -- under a season
   calendar, "danger days across a window" needs the floors of each day's own pack, and whether a
   window spanning two seasons is one count or two is a product call; a fixed non-heat network
