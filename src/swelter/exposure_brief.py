@@ -120,11 +120,33 @@ def count_danger_days(
 ) -> dict[str, DangerDayCount]:
     """For every published cell, count how many calendar days a parameter crossed its danger floor.
 
-    Reuses :func:`swelter.alerts.crossing` and :func:`swelter.alerts.resolve_thresholds` — the
-    exact "Danger" definition the live alerts feed raises on — instead of re-deriving a second
-    threshold table. A day counts once it has *any* hour at or above the floor. A cell that never
-    reported this parameter is simply absent from the result (not zero-filled): "zero Danger
-    days" and "no data" are different claims, and collapsing them would be dishonest.
+    Reuses :func:`swelter.alerts.crossing` and :func:`swelter.alerts.resolve_thresholds` instead of
+    re-deriving a second threshold table. A day counts once it has *any* hour at or above the
+    floor. A cell that never reported this parameter is simply absent from the result (not
+    zero-filled): "zero Danger days" and "no data" are different claims, and collapsing them would
+    be dishonest.
+
+    **The floors are the heat pack's, whatever pack the network is configured on.**
+    ``resolve_thresholds(thresholds)`` is called with no pack, so it merges the caller's overrides
+    onto :data:`swelter.hazard_packs.HEAT_PACK`, and ``_floor_and_band`` refuses any parameter
+    outside ``heat_index_c`` / ``pm25_ugm3`` / ``exposure``. This docstring used to say the count
+    used "the exact 'Danger' definition the live alerts feed raises on"; that is true of a heat
+    network and false of any other, so it has been narrowed to what the code does.
+
+    Measured on a smoke-pack network with one 41.0 °C heat-index hour: ``build_feed`` raises **0**
+    alerts (``smoke.alerting_parameters()`` is ``('pm25_ugm3',)`` — the feed does not look at heat
+    index at all) while this function reports **1** Danger day at the heat pack's 39.4 °C floor.
+    Nothing published is wrong -- every record carries the ``floor`` and ``severity`` it was
+    measured against, so it describes itself -- but the two numbers are not the same measurement
+    and the docstring should not have said they were.
+
+    Closing the gap is a definition question rather than a threading change, and it is not settled
+    here: under a season calendar, "danger days across a window" needs the floors of *each day's
+    own* pack, and whether a window spanning two seasons is one count or two is a product call. A
+    fixed non-heat network has no such ambiguity but does raise a second one -- whether a heat-index
+    count is refused outright for a network whose feed never alerts on heat, or kept with its floor
+    stated. Both are recorded against the hazard-pack work rather than decided in a docstring.
+    ``tests/test_exposure_brief.py`` pins the current behaviour and names the day it becomes wrong.
 
     A crossing is counted whatever its QC state — a spike that turns out to be the onset of a real
     event is exactly the hour a resident needs to see, and dropping it would repeat the mistake

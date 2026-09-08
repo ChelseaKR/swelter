@@ -3,7 +3,9 @@ sourced context by cell, and never fabricates a line for context it doesn't have
 
 from __future__ import annotations
 
-from swelter import aggregate, exposure_brief
+import pytest
+
+from swelter import aggregate, alerts, exposure_brief, hazard_packs
 from swelter.ac_access_layer import ACAccessCell
 from swelter.ac_access_layer import from_cells as ac_from_cells
 from swelter.config import NetworkConfig, NodeConfig
@@ -312,3 +314,69 @@ def test_a_cell_that_never_crossed_gets_no_evidence_line() -> None:
     assert brief is not None
     assert brief.danger.danger_days == 0
     assert len(brief.lines()) == 1
+
+
+def test_the_danger_day_count_uses_heat_pack_floors_whatever_pack_the_network_runs() -> None:
+    """A known gap, pinned, with the condition under which this test becomes wrong.
+
+    `count_danger_days` calls `resolve_thresholds(thresholds)` with no pack, so it always merges
+    onto `HEAT_PACK` and `_floor_and_band` refuses any parameter outside heat index, PM2.5 and
+    exposure. The live feed resolves the *network's* pack. On a smoke network the two therefore
+    measure different things, and until 2026-09-08 `count_danger_days`' docstring said they were
+    "the exact 'Danger' definition the live alerts feed raises on".
+
+    Measured here rather than argued: one 41.0 C heat-index hour, one smoke-pack network.
+
+    **This test fails the day `count_danger_days` learns to resolve the network's own pack, and
+    that failure is the instruction** -- when it does, delete this and update the docstring it
+    guards. Closing the gap is a definition question (which day's pack governs a window spanning
+    two seasons; whether a heat-index count is refused outright for a network whose feed never
+    alerts on heat), not a threading change, so it is deliberately not settled here.
+    """
+    surface = _surface(
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-07-04T20:00:00Z", value=41.0, calibration="v1"
+        )
+    )
+    smoke = hazard_packs.PACKS["smoke"]
+    # The feed the resident actually sees on a smoke network: heat index is not in its parameter
+    # set at all, so no alert is raised on this hour.
+    assert smoke.alerting_parameters() == ("pm25_ugm3",)
+    assert alerts.build_feed(surface, pack=smoke).alerts == ()
+
+    # The brief, on the same surface, counts the day -- against the heat pack's floor.
+    count = exposure_brief.count_danger_days(surface, parameter="heat_index_c")[_CELL_ID]
+    assert count.danger_days == 1
+    assert count.floor == hazard_packs.HEAT_PACK.default_floors()["heat_index_c"]
+    assert count.severity == "Danger"
+    # The published record is not wrong, and this is why the gap is a claim defect rather than a
+    # data defect: it states the floor and band it was measured against, so it describes itself.
+    record = count.as_record()
+    assert record["floor"] == count.floor
+    assert record["severity"] == "Danger"
+
+
+def test_the_shared_crossing_test_is_not_a_promise_about_the_floor_table() -> None:
+    """The other half of the same claim, and the reason the docstring narrowed.
+
+    `alerts.crossing` guarantees the two views agree about *where a band begins*. It cannot
+    guarantee they were handed the same table, and a smoke pack's table has no heat-index floor at
+    all. Asserting the raise pins that this is a hard refusal rather than a silent `None`, which
+    would publish "no danger" for a table that simply had no floor to check.
+
+    Not reachable from any shipped caller -- `build_feed` iterates `pack.alerting_parameters()`,
+    `alert_audit._crossings` filters to the same set, and `exposure_brief` only ever passes
+    heat-pack floors. Recorded as a hazard for the next caller, not claimed as a live defect.
+    """
+    surface = _surface(
+        make_obs(
+            parameter="heat_index_c", timestamp="2026-07-04T20:00:00Z", value=41.0, calibration="v1"
+        )
+    )
+    [reading] = [cell for cell in surface.cells if cell.parameter == "heat_index_c"]
+    smoke_floors = alerts.resolve_thresholds(None, hazard_packs.PACKS["smoke"])
+    assert "heat_index_c" not in smoke_floors
+    with pytest.raises(KeyError):
+        alerts.crossing("heat_index_c", reading, smoke_floors)
+    # The wind-chill branch is deliberately the tolerant one, and stays that way.
+    assert alerts.crossing("wind_chill_c", reading, smoke_floors) is None

@@ -459,6 +459,41 @@ All notable changes to swelter are recorded here. The format follows
   diagnostic stopped reading the payload" would print the same sentence, which is the absence-as-a-
   measurement defect the message exists to stop.
 
+- **A danger-day count said it used the live feed's own definition of Danger, and on a non-heat
+  network it does not.** `exposure_brief.count_danger_days` calls `resolve_thresholds(thresholds)`
+  with no pack, so it always merges onto the heat pack, and `_floor_and_band` refuses any parameter
+  outside heat index, PM2.5 and exposure. Its docstring claimed the count reused "the exact
+  'Danger' definition the live alerts feed raises on", and `alerts.crossing` added that the two
+  views "can never silently drift apart". Both are true of a heat network and of no other.
+
+  Measured, not argued: on a smoke-pack network with one 41.0 degC heat-index hour, `build_feed`
+  raises **0** alerts -- `smoke.alerting_parameters()` is `('pm25_ugm3',)`, so the feed does not
+  look at heat index at all -- while `count_danger_days` reports **1** Danger day at the heat
+  pack's 39.4 degC floor.
+
+  **Nothing published is wrong and no behaviour changed.** Every `DangerDayCount` record already
+  carries the `floor` and `severity` it was measured against, so it describes itself; the defect
+  was in what the code claimed about itself, which this repository's own contract says to remove
+  rather than leave standing. The docstrings now state which floor table is used and what the
+  shared `crossing` call does and does not guarantee: it stops the two views disagreeing about
+  *where a band begins*; it cannot stop them being handed different tables.
+
+  Closing the gap is a definition question and is deliberately not settled -- under a season
+  calendar, "danger days across a window" needs the floors of each day's own pack, and whether a
+  window spanning two seasons is one count or two is a product call; a fixed non-heat network
+  raises a second one, whether a heat-index count is refused outright for a network whose feed
+  never alerts on heat. Two tests pin the current behaviour, and the first says in terms that it
+  fails the day the count learns to resolve the network's own pack, which is the day both it and
+  the docstring are rewritten.
+
+  Recorded while probing, and **not** claimed as a live defect: three of `crossing`'s four
+  parameter branches subscript their floor directly and raise `KeyError` on a table without their
+  key, while the `wind_chill_c` branch reads its floor with `.get` for exactly that reason. No
+  shipped caller can reach it -- `build_feed` iterates the pack's own parameters, `alert_audit`
+  filters to the same set, and the brief only ever passes heat-pack floors, which carry all three
+  of its keys. It is a hazard for the next caller, written into the docstring rather than "fixed"
+  into a silent `None` that would publish "no danger" for a table that had no floor to check.
+
 - **The scheduled full-history secret scan could not fail on a revoked credential.**
   `.github/workflows/trufflehog.yml` ran `--results=verified,unknown`, and those tier names are
   misleading: `verified` means the provider was asked and said yes, `unknown` means the provider
