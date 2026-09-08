@@ -559,6 +559,44 @@ All notable changes to swelter are recorded here. The format follows
   `version: "3.97.1"` now matches the pinned action tag, so the wrapper and the scanner move
   together and deliberately.
 
+### Security
+
+- **`make security-semgrep` no longer excludes five rules from the whole repository**
+  (narrows #107; the register stays open). The scan carried
+  `--exclude-rule` for `sqlalchemy-execute-raw-query`, `formatted-sql-query`,
+  `httpsconnection-detected`, `dynamic-urllib-use-detected` and
+  `python37-compatibility-importlib2`, with a comment arguing each was a categorical false
+  positive here.
+
+  Every one of those arguments was true of the seven lines they were written for and says nothing
+  about a line nobody has written yet. A repository-wide `--exclude-rule` exempts the next raw
+  query, the next `HTTPSConnection` and the next `urlopen` exactly as silently as it exempts
+  these — and it does it with no diff, no review and no entry in the suppression inventory.
+
+  Each of the seven sites now carries its own `# nosemgrep:` naming its own rule and its own
+  reason, so an eighth site fails the gate instead of inheriting an exemption. Measured with the
+  pinned Semgrep 1.169.0 over 349 tracked files and 510 rules, by stripping every inline comment
+  and rerunning: the scan reports **9 findings on 7 lines** — `SqliteStore.__init__`'s and the
+  migration's `execute` calls each match *both* `formatted-sql-query` and
+  `sqlalchemy-execute-raw-query`. Seven of those nine were reachable only because of the blanket
+  list. Put the comments back and the scan reports **zero**, so every exemption is load-bearing
+  and none is doing more than its own line.
+
+  **Two of the four inline `nosemgrep` comments already in the tree were exempting nothing.**
+  `SqliteStore.all` and `SqliteStore.iter_rows` pass a string *literal* to `execute`; the
+  raw-query rules match a constructed query, so those two comments read as live exceptions in
+  the inventory while suppressing no finding. They are deleted and replaced by a sentence saying
+  so. The one on `SqliteStore.read`, three methods away, stays: that query really is built with
+  an f-string and the rule really does fire on it, which the same control confirms.
+
+  The count of nine is worth stating rather than the count of sites: this change was drafted
+  against an estimate of six, and only running the control produced the real figure.
+
+  `scripts/hygiene_check.py`'s `SUPPRESSION_CEILING` moves 29 → 32 (+5 site-local exemptions,
+  −2 dead ones). The number goes up and the exposure goes down, which is the direction #107 asks
+  for: a `--exclude-rule` is an unbounded exemption nothing counts, a `# nosemgrep:` is one line
+  that the inventory does count.
+
 ## [0.2.0] - 2026-09-06
 
 ### Added

@@ -255,6 +255,8 @@ def _issue_is_open(number: int) -> bool:
     # meaningfully better than one that calls it a closed issue.
     connection: http.client.HTTPSConnection | None = None
     try:
+        # A hardcoded host over TLS; the scheme is not caller-supplied.
+        # nosemgrep: httpsconnection-detected (#107)
         connection = http.client.HTTPSConnection("api.github.com", timeout=20)
         connection.request(
             "GET",
