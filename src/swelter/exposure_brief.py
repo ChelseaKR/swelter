@@ -3,9 +3,11 @@ with sourced canopy/AC-access/redlining context alongside it.
 
 This is the historical, per-area sibling of :mod:`swelter.alerts` — alerts answer "is this cell
 in danger *right now*"; this module answers "how often has it been" over whatever history the
-store holds, using the exact same danger-threshold definitions (:func:`swelter.alerts.crossing`,
-:data:`swelter.alerts.DEFAULT_THRESHOLDS`) so the two views of "danger" can never quietly drift
-apart. It reuses the copy-a-summary pattern the merged network-brief feature
+store holds, using the same danger-threshold *test* (:func:`swelter.alerts.crossing`) rather than
+a second implementation of it. The **table** it hands that test is the heat pack's, whatever pack
+the network runs, so on a non-heat network this count and the live feed are not the same
+measurement — see :func:`count_danger_days`, which states which floors it used and why closing
+that is a definition question. It reuses the copy-a-summary pattern the merged network-brief feature
 (``web/app.js`` — "Copy a summary of the whole network") established for the *network* scale, at
 the *neighborhood* scale, and adds the sourced context an organizer needs for testimony or a
 funding ask: how much tree canopy an area has, whether area households may lack AC, and whether
@@ -44,8 +46,10 @@ from .models import EXPOSURE_LEVELS, parse_timestamp
 from .redlining_layer import RedliningCell, RedliningLayerSet
 
 #: The parameter this module counts "Danger" days on. Heat is the tier the roadmap item names
-#: ("this block ran Danger N days this month") and the one NWS name that means the same thing in
-#: both the live alerts feed and this historical count.
+#: ("this block ran Danger N days this month"), and on a heat network "Danger" is the same NWS band
+#: in both the live alerts feed and this historical count. On a smoke or cold network the feed does
+#: not alert on heat index at all, so the two are not the same measurement there — the count states
+#: the floor and band it used, and :func:`count_danger_days` records why that gap is open.
 DEFAULT_PARAMETER: Final = "heat_index_c"
 
 
