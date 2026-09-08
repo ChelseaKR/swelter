@@ -72,6 +72,7 @@ both tables and with its referenced tests in the same change.
 | F-28 | Absence is never published as a number |
 | F-29 | EXP-13: wildfire-smoke pack with a NowCast window and a multi-cell event rule |
 | F-30 | Portal-harvestable data package and DCAT catalog record |
+| F-31 | Alert hindcast audit against reference monitors |
 
 ## Delivery history
 

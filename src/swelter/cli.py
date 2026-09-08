@@ -54,6 +54,9 @@ from . import (
     web_preview,
 )
 from . import (
+    alert_audit as alert_audit_module,
+)
+from . import (
     backup as backup_module,
 )
 from . import (
@@ -2277,6 +2280,71 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_audit_alerts(args: argparse.Namespace) -> int:
+    """Score every historical alert in the store against reference-monitor readings.
+
+    Exit 0 whenever the audit *ran*, whatever it found: a contradicted alert is a finding to act
+    on, not a failure of the tool, and a caller gating on `$? -eq 0` must not be told an audit
+    that reported contradictions did not happen. Exit 1 is reserved for the audit not running.
+    """
+    from .sources import airnow
+
+    config = _load_config(args.config)
+    if not args.reference_fixture:
+        _err(
+            "swelter audit-alerts: --reference-fixture is required; there is no reference series "
+            "to score against without one, and an audit with no references would report every "
+            "alert unverifiable while looking like it had checked them"
+        )
+        return 1
+    try:
+        payload = json.loads(Path(args.reference_fixture).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        _err(
+            f"swelter audit-alerts: cannot read --reference-fixture {args.reference_fixture}: {exc}"
+        )
+        return 1
+    references = airnow.parse_series(payload, parameter=args.parameter)
+
+    with open_store(args.store) as store:
+        surface = aggregate.aggregate(store.all(), config)
+    audit = alert_audit_module.audit_alerts(
+        surface,
+        config,
+        references,
+        since=args.since or None,
+        until=args.until or None,
+        max_distance_m=args.max_distance_m,
+        tolerance_s=args.tolerance_s,
+    )
+
+    if args.json:
+        print(json.dumps(audit.as_record(), indent=2, sort_keys=True))
+    else:
+        print(alert_audit_module.render_markdown(audit).rstrip())
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(audit.as_record(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    if args.markdown:
+        markdown = Path(args.markdown)
+        markdown.parent.mkdir(parents=True, exist_ok=True)
+        markdown.write_text(alert_audit_module.render_markdown(audit), encoding="utf-8")
+
+    scored = sum(score.scored for score in audit.scores)
+    unverifiable = sum(score.unverifiable for score in audit.scores)
+    _err(
+        f"swelter: audited {len(audit.alerts)} alert(s) — {scored} scored, "
+        f"{unverifiable} unverifiable"
+    )
+    for score in audit.scores:
+        if score.precision_note:
+            _err(f"  ⚠ {score.precision_note}")
+    return 0
+
+
 def cmd_package(args: argparse.Namespace) -> int:
     """Render an existing snapshot as a Frictionless Data Package plus a DCAT catalog record.
 
@@ -2848,6 +2916,49 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_config(p_snap)
     p_snap.set_defaults(func=cmd_snapshot)
+
+    p_audit = sub.add_parser(
+        "audit-alerts",
+        help="score every historical alert against reference-monitor readings",
+        description=(
+            "Every published Danger or High alert is a claim. Once a reference monitor has "
+            "reported for the same hour and place, the claim can be checked. This pairs each "
+            "historical crossing with the nearest reference reading and classifies it as "
+            "confirmed, contradicted, or unverifiable. Unverifiable is a first-class outcome: "
+            "it is excluded from precision, and a parameter with no scored alerts reports no "
+            "precision at all rather than 0% or 100%. Recall is not measured -- reference "
+            "coverage is far too sparse to say what the network missed."
+        ),
+    )
+    add_store(p_audit)
+    add_config(p_audit)
+    p_audit.add_argument(
+        "--reference-fixture",
+        default="",
+        help="committed AirNow-shaped JSON payload to score against (required; offline)",
+    )
+    p_audit.add_argument(
+        "--parameter", default="pm25_ugm3", help="reference parameter in the fixture"
+    )
+    p_audit.add_argument("--since", default="", help="earliest alert hour to audit (ISO-8601 UTC)")
+    p_audit.add_argument("--until", default="", help="latest alert hour to audit (ISO-8601 UTC)")
+    p_audit.add_argument(
+        "--max-distance-m",
+        type=float,
+        default=alert_audit_module.DEFAULT_MAX_DISTANCE_M,
+        help="how far a monitor may sit from a cell and still speak about it (swelter's own "
+        "parameter, not a published standard)",
+    )
+    p_audit.add_argument(
+        "--tolerance-s",
+        type=float,
+        default=colocate.DEFAULT_TOLERANCE_S,
+        help="how far a reference reading may sit from the alert hour",
+    )
+    p_audit.add_argument("--out", default=None, help="also write the audit JSON here")
+    p_audit.add_argument("--markdown", default=None, help="also write the rendered report here")
+    p_audit.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p_audit.set_defaults(func=cmd_audit_alerts)
 
     p_pkg = sub.add_parser(
         "package",

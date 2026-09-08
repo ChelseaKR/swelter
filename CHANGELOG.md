@@ -9,6 +9,61 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **Every published alert can now be scored against a reference monitor** (#238). New
+  `src/swelter/alert_audit.py`, a `swelter audit-alerts` verb, a section in `docs/alerts.md`, and
+  ADR 0052.
+
+  Calibration publishes evidence for *values*. Nothing published evidence for *alerts*, and an
+  alert is the loudest claim swelter makes -- it goes onto a lobby card, into an Atom feed, and in
+  front of a resident deciding whether to go outside. A collective handing that to a public-health
+  partner (#229) will be asked how often it was wrong.
+
+  **`unverifiable` is a first-class outcome and is never a score.** An alert with no reference
+  reading in range was not confirmed and was not contradicted; it was not checked. It is counted
+  in its own column, excluded from the precision denominator, and a parameter with no scored
+  alerts publishes no precision at all -- not `0.0`, which reads as "every alert this network
+  raised was wrong", and not `1.0`. Both wrong answers were available and both are worse than
+  none. Measured rather than argued: changing the denominator to include unverifiable alerts makes
+  the suite report `precision=0.0` over three alerts nobody checked, and two tests catch it.
+
+  **Five reasons an alert could not be checked, kept apart because they lead somewhere different.**
+  No reference measures this parameter at all; readings exist but from a monitor
+  `reference_monitors` does not declare (a configuration error, not a coverage gap); the nearest
+  declared monitor publishes no coordinate; nothing is inside the distance bound; a monitor is in
+  range but reported nothing that hour. The third is separate on purpose -- defaulting a missing
+  `lat`/`lon` to `0, 0` puts the monitor in the Gulf of Guinea and rules it out on distance, which
+  publishes "checked, too far" over "we do not know where it is". That mutation was run and the
+  reason text changed exactly that way.
+
+  **The crossing test is the shipped one.** A historical alert is `alerts.crossing` applied to a
+  stored cell -- the same function the live feed and `exposure_brief`'s danger-day count call --
+  and the reference reading goes through the same call on a cell differing only in its value.
+  Substituting a plausible direct comparison against the AQI floor turns confirmed alerts into
+  contradicted ones, and two tests catch that too.
+
+  Recall is not measured and the rendered report says so in its own section: reference coverage is
+  far too sparse to say what the network missed, and a precision table alone must not be read as
+  the whole picture. The 10 km distance bound and 30-minute pairing tolerance are swelter's own
+  parameters, not a published standard, and every run records the values it used. A contradicted
+  alert exits `0` -- it is a finding, not a tool failure -- and exit `1` is reserved for the audit
+  not running, including a run with no `--reference-fixture`, which is refused rather than
+  producing a report in which everything is unverifiable and which looks like it checked something.
+
+  Run against the bundled demo with the committed AirNow fixture, all 25,774 alerts come back
+  unverifiable, because the fixture's monitor id is not one `network.yaml` declares. The report
+  says exactly that, in the sentence reserved for it.
+
+  Each alert row carries the calibration **method** and the reference it was fitted against,
+  verbatim from the cell. Not "calibration versions", and not a re-split of the cell's joined
+  display string -- the first draft of that field did both, and `aggregate` joins methods with
+  `" / "` so the `", "` split never split. A control on that is worth recording because it
+  surprised me: re-introducing *only* the wrong separator leaves the suite green, since the
+  round-trip is the identity on a string that does not contain the separator. Only restoring the
+  field's original shape and name turns the guard red. The defect was never the split; it was
+  publishing a value under a name for something else.
+
+  Roadmap and acceptance rows added as F-31.
+
 - **A snapshot can be handed to an open-data portal** (part of #243). New
   `src/swelter/package.py`, a `swelter package` verb, `docs/api.md`, `docs/citability.md`, and
   ADR 0051.
