@@ -347,7 +347,13 @@ def test_the_danger_day_count_uses_heat_pack_floors_whatever_pack_the_network_ru
     # The brief, on the same surface, counts the day -- against the heat pack's floor.
     count = exposure_brief.count_danger_days(surface, parameter="heat_index_c")[_CELL_ID]
     assert count.danger_days == 1
-    assert count.floor == hazard_packs.HEAT_PACK.default_floors()["heat_index_c"]
+    # A literal, not `HEAT_PACK.default_floors()["heat_index_c"]`: a fixture computed from the
+    # value under test moves with it and can never catch a wrong one. The two assertions below
+    # pin the literal to the heat pack and show the smoke pack has no such floor at all, which is
+    # the fact this test is actually about.
+    assert count.floor == 39.4
+    assert hazard_packs.HEAT_PACK.default_floors()["heat_index_c"] == 39.4
+    assert "heat_index_c" not in smoke.default_floors()
     assert count.severity == "Danger"
     # The published record is not wrong, and this is why the gap is a claim defect rather than a
     # data defect: it states the floor and band it was measured against, so it describes itself.
