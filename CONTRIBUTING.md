@@ -133,5 +133,14 @@ not.
 Open a GitHub issue for normal defects and documentation gaps. Use the private reporting path in
 [`SECURITY.md`](SECURITY.md) for suspected vulnerabilities or sensitive location/data exposure.
 
+## Commercial solicitation
+
+Issues here are not open to bids. They are design records — written so a decision is
+reconstructable later — not scope documents for outside quoting, and unsolicited offers to
+implement one for a fee will be declined.
+
+Contributions through the normal fork-and-PR process are welcome, and `good first issue` is the
+place to start.
+
 Last verified: 2026-07-16. Recheck cadence: every release and whenever the toolchain, merge gate,
 license boundary, or product rules change.
