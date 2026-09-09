@@ -14,14 +14,63 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_ACTIONS = ROOT / "docs" / "audits" / "dora" / "actions.json"
 DEFAULT_ISSUES = ROOT / "docs" / "audits" / "dora" / "issues.json"
 DEFAULT_SNAPSHOT = ROOT / "docs" / "audits" / "dora" / "snapshot.json"
 DEFAULT_MARKDOWN = ROOT / "docs" / "DORA.md"
+DEFAULT_WORKFLOW = ROOT / ".github" / "workflows" / "dora.yml"
 
 FAILED_CONCLUSIONS = frozenset({"failure", "timed_out", "action_required", "startup_failure"})
 REWORK_TITLE = re.compile(r"^(?:fix(?:\([^)]+\))?[!:]?|FIX-\d+\b)", re.IGNORECASE)
+
+#: The one call that makes `.github/workflows/dora.yml` the DORA workflow. `publication_route`
+#: refuses rather than answering over a file it no longer recognises: "this workflow has no way
+#: to publish" and "this reader stopped understanding the workflow" produce the same word
+#: otherwise, and only one of them is a fact about the repository.
+_GENERATE_INVOCATION = "dora_evidence.py generate"
+
+#: Actions whose whole purpose is to put a file back into the repository or onto the site.
+#: Names are matched on the `owner/repo` part of `uses:`, before any `@sha`.
+_PUBLISHING_ACTIONS = frozenset(
+    {
+        "peter-evans/create-pull-request",
+        "stefanzweifel/git-auto-commit-action",
+        "endbug/add-and-commit",
+        "ad-m/github-push-action",
+        "actions/deploy-pages",
+        "actions/upload-pages-artifact",
+        "jamesives/github-pages-deploy-action",
+    }
+)
+
+#: Shell fragments that move a file out of the runner and somewhere a reader can reach it.
+_PUBLISHING_COMMANDS = ("git push", "gh pr create", "gh release create", "gh release upload")
+
+#: Permissions a job would need before any of the above could succeed. Read as a *capability*:
+#: a workflow granted none of these cannot write the evidence anywhere durable whatever binary
+#: it invokes, which is the half of the question a list of spellings cannot close.
+_PUBLISHING_SCOPES = ("contents", "pages")
+
+#: Where a reader can find the window the scheduled run computes. This sentence is derived from
+#: the workflow rather than written by hand: the one it replaced -- "Scheduled CI will produce
+#: the first complete retained snapshot." -- described a step `dora.yml` has never had, and sat
+#: on the committed evidence for eight weeks of successful weekly runs (#267).
+RETENTION_NOTES: dict[str, str] = {
+    "build-artifact": (
+        "The scheduled run retains a complete window every week, but no step in "
+        ".github/workflows/dora.yml writes it back into this repository, so that window "
+        "reaches only a 90-day build artifact and this committed collection stays "
+        "incomplete until publication is configured (#267)."
+    ),
+    "repository": (
+        "The scheduled run writes its retained window back into this repository, so a "
+        "committed collection that is still incomplete is one no scheduled run has "
+        "replaced yet."
+    ),
+}
 
 
 class EvidenceError(ValueError):
@@ -594,8 +643,9 @@ def render_markdown(
         lines.extend(
             [
                 "> **Evidence incomplete — no performance tier is claimed.** " + reason,
-                "> Scheduled CI now collects complete row-level evidence; a maintainer must review",
-                "> commit a complete dated snapshot before replacing this fail-closed baseline.",
+                "> A maintainer must review a complete dated snapshot and commit it before this",
+                "> fail-closed baseline is replaced. The sentence above says where the scheduled",
+                "> run's own window can be read; it is checked against the workflow file.",
                 "",
             ]
         )
@@ -645,7 +695,10 @@ def generate(args: argparse.Namespace) -> None:
 
 
 def coverage_summary(
-    snapshot: Mapping[str, Any], actions: Mapping[str, Any], issues: Mapping[str, Any]
+    snapshot: Mapping[str, Any],
+    actions: Mapping[str, Any],
+    issues: Mapping[str, Any],
+    route: str | None = None,
 ) -> str:
     """Say what this run actually verified, so a vacuous PASS cannot read like a full one.
 
@@ -664,14 +717,144 @@ def coverage_summary(
         if isinstance(metric, dict) and metric.get("status") != "unavailable"
     )
     state = "complete" if snapshot.get("collection_complete") else "INCOMPLETE"
+    where = "" if route is None else f", scheduled window reaches {route}"
     return (
         f"{len(actions['records'])} deployment run(s), {len(issues['records'])} incident(s), "
-        f"{computed}/{len(metrics)} metric(s) computed, collection {state}"
+        f"{computed}/{len(metrics)} metric(s) computed, collection {state}{where}"
     )
+
+
+def _permission_scopes(value: Any) -> set[str]:
+    """The scopes a `permissions:` block grants at write level, as a set of scope names.
+
+    GitHub accepts three shapes and two of them are strings: `write-all`, `read-all`, and a
+    mapping of scope to level. `read-all` and an absent block both grant nothing writable.
+    """
+    if value == "write-all":
+        return set(_PUBLISHING_SCOPES)
+    if not isinstance(value, dict):
+        return set()
+    return {scope for scope, level in value.items() if isinstance(level, str) and level == "write"}
+
+
+def _workflow_document(workflow: Path) -> tuple[str, dict[str, Any]]:
+    """Read a workflow file and refuse anything :func:`publication_route` cannot answer over."""
+    try:
+        text = workflow.read_text(encoding="utf-8")
+        document = yaml.safe_load(text)
+    except (OSError, yaml.YAMLError) as exc:
+        raise EvidenceError(f"{workflow}: cannot read the DORA workflow ({exc})") from exc
+    if not isinstance(document, dict):
+        raise EvidenceError(f"{workflow}: the DORA workflow is not a mapping")
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict) or not jobs:
+        raise EvidenceError(f"{workflow}: the DORA workflow declares no jobs")
+    return text, document
+
+
+def _step_publishes(step: Mapping[str, Any]) -> bool:
+    """True when one step could move a generated file somewhere a reader can reach it."""
+    uses = step.get("uses")
+    if isinstance(uses, str) and uses.split("@", 1)[0].strip().lower() in _PUBLISHING_ACTIONS:
+        return True
+    run = step.get("run")
+    if isinstance(run, str):
+        collapsed = " ".join(run.lower().split())
+        return any(command in collapsed for command in _PUBLISHING_COMMANDS)
+    return False
+
+
+def publication_route(workflow: Path) -> str:
+    """Where a snapshot generated by ``workflow`` can be read: ``repository`` or ``build-artifact``.
+
+    ``build-artifact`` is the narrower answer and is only returned when *nothing* in the file
+    can move a generated file out of the runner:
+
+    * no job grants ``contents: write`` or ``pages: write`` -- the capability half, which closes
+      whatever binary a step invokes; and
+    * no step uses a publishing action or runs a publishing command -- the spelling half, which
+      catches a step holding a token from somewhere else.
+
+    Either half alone flips the answer to ``repository``, because the sentence this decides is
+    an assertion that publication does *not* happen, and the cheap mistake to make is to keep
+    asserting it after a route appears.
+
+    Two floors, because a reader that has stopped understanding the file returns exactly what a
+    workflow with no publication route returns:
+
+    * the file must parse into a mapping with at least one job holding at least one step;
+    * it must still contain :data:`_GENERATE_INVOCATION`, the call that makes it this workflow.
+    """
+    text, document = _workflow_document(workflow)
+    jobs = document["jobs"]
+    workflow_scopes = _permission_scopes(document.get("permissions"))
+    steps_read = 0
+    route = "build-artifact"
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            raise EvidenceError(f"{workflow}: a job is not a mapping")
+        scopes = _permission_scopes(job["permissions"]) if "permissions" in job else workflow_scopes
+        if scopes & set(_PUBLISHING_SCOPES):
+            route = "repository"
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            raise EvidenceError(f"{workflow}: job {job.get('name', '?')!r} declares no steps")
+        for step in steps:
+            if not isinstance(step, dict):
+                raise EvidenceError(f"{workflow}: a step is not a mapping")
+            steps_read += 1
+            if _step_publishes(step):
+                route = "repository"
+    if steps_read == 0:
+        raise EvidenceError(f"{workflow}: the DORA workflow declares no steps")
+    if _GENERATE_INVOCATION not in text:
+        raise EvidenceError(
+            f"{workflow}: no {_GENERATE_INVOCATION!r} call — this is not the workflow whose "
+            "publication route the committed evidence describes"
+        )
+    return route
+
+
+def _validate_retention_note(
+    documents: Mapping[str, Mapping[str, Any]], workflow: Path
+) -> str | None:
+    """Hold an incomplete collection's stated reason to the workflow that would complete it.
+
+    The committed evidence says why it is incomplete, and the second half of that sentence is a
+    claim about a mechanism -- the kind of claim that goes false without anything changing in
+    the file that carries it. So it is not written by hand: :func:`publication_route` reads
+    ``dora.yml`` and :data:`RETENTION_NOTES` supplies the sentence, and the reason has to end
+    with it. Adding a publishing step to the workflow therefore fails this check until the
+    sentence is updated, and so does deleting one.
+
+    Returns the route it resolved, or ``None`` when every collection is complete and the
+    question does not arise.
+    """
+    incomplete = {
+        kind: document
+        for kind, document in documents.items()
+        if not document["collection"]["complete"]
+    }
+    if not incomplete:
+        return None
+    route = publication_route(workflow)
+    expected = RETENTION_NOTES[route]
+    for kind, document in incomplete.items():
+        reason = str(document["collection"].get("reason", ""))
+        if not reason.endswith(expected):
+            raise EvidenceError(
+                f"{kind}: the incomplete-collection reason does not end with the sentence "
+                f"{workflow.name} supports (route {route!r}). Expected it to end with: "
+                f"{expected!r}"
+            )
+    return route
 
 
 def check(args: argparse.Namespace) -> str:
     expected, actions, issues = build_snapshot(args.actions, args.issues)
+    route = _validate_retention_note(
+        {"github_actions": actions, "github_issues": issues}, args.dora_workflow
+    )
     actual = _read_json(args.snapshot)
     if actual != expected:
         raise EvidenceError(
@@ -684,7 +867,7 @@ def check(args: argparse.Namespace) -> str:
         raise EvidenceError(f"{args.markdown}: missing generated ledger ({exc})") from exc
     if actual_markdown != expected_markdown:
         raise EvidenceError(f"{args.markdown}: ledger differs from retained inputs; regenerate it")
-    return coverage_summary(expected, actions, issues)
+    return coverage_summary(expected, actions, issues, route)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -706,6 +889,7 @@ def _parser() -> argparse.ArgumentParser:
         command_parser.add_argument("--issues", type=Path, default=DEFAULT_ISSUES)
         command_parser.add_argument("--snapshot", type=Path, default=DEFAULT_SNAPSHOT)
         command_parser.add_argument("--markdown", type=Path, default=DEFAULT_MARKDOWN)
+        command_parser.add_argument("--dora-workflow", type=Path, default=DEFAULT_WORKFLOW)
     return parser
 
 

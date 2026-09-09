@@ -559,6 +559,31 @@ All notable changes to swelter are recorded here. The format follows
   `version: "3.97.1"` now matches the pinned action tag, so the wrapper and the scanner move
   together and deliberately.
 
+- **The committed DORA evidence promised a publication step `dora.yml` has never had** (part of
+  #267; the `cancelled`-conclusion half of that issue stays open). `docs/audits/dora/actions.json`
+  and `issues.json` explained their `complete: false` state with *"Scheduled CI will produce the
+  first complete retained snapshot."* — carried through into `snapshot.json` for all five metrics
+  and into the `docs/DORA.md` banner. `.github/workflows/dora.yml` writes to `dist/dora` and
+  uploads a 90-day build artifact; it has no commit, no pull request and no `contents: write`, so
+  no scheduled run can produce that snapshot. It has run weekly and successfully since
+  2026-07-20, and the sentence had been on the one artifact whose job is to say what is not known
+  since 2026-07-17.
+
+  The reason now says where that window can actually be read, and it is no longer hand-written.
+  `publication_route()` reads the workflow and answers `build-artifact` or `repository`;
+  `RETENTION_NOTES` supplies the matching sentence, and `dora-evidence` refuses a committed reason
+  that does not end with it. So adding a publishing step to `dora.yml` fails the gate until the
+  sentence is updated, and so does removing one.
+
+  `build-artifact` is returned only when nothing in the file can move a generated file out of the
+  runner: no job grants `contents: write` or `pages: write` — the capability half, which closes
+  whatever binary a step invokes — **and** no step uses a publishing action or runs a publishing
+  command. Either half alone answers `repository`, because the sentence being decided is an
+  assertion that publication does *not* happen. Four floors keep "I found no route" apart from "I
+  stopped understanding this file": an unreadable or non-mapping workflow, one with no jobs, one
+  with no steps, and one that no longer invokes `dora_evidence.py generate` are each refused
+  rather than answered. `make dora-evidence` now prints the route it resolved.
+
 ### Security
 
 - **`make security-semgrep` no longer excludes five rules from the whole repository**
