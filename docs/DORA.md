@@ -6,11 +6,12 @@ generated from retained GitHub Actions and incident-issue JSON, not from memory 
 hand-maintained deployment counts.
 
 Owner: maintainer. Evidence window: 2026-07-03T00:00:00Z through 2026-07-17T07:00:00Z.
-Combined input SHA-256: `135ded7ddd14dfda63f977cd9f75bf9d43e8df97baf8bfdcac45c902b2e55a93`.
+Combined input SHA-256: `e0c1609a7cdcf76521dd210c9cd9def0067b89b6e4ff17b3a4998f0d03c1d0bf`.
 
-> **Evidence incomplete — no performance tier is claimed.** The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. Scheduled CI will produce the first complete retained snapshot.
-> Scheduled CI now collects complete row-level evidence; a maintainer must review
-> commit a complete dated snapshot before replacing this fail-closed baseline.
+> **Evidence incomplete — no performance tier is claimed.** The previously reported aggregate counts had no retained row-level query output; they were retired rather than reverse-engineered. The scheduled run retains a complete window every week, but no step in .github/workflows/dora.yml writes it back into this repository, so that window reaches only a 90-day build artifact and this committed collection stays incomplete until publication is configured (#267).
+> A maintainer must review a complete dated snapshot and commit it before this
+> fail-closed baseline is replaced. The sentence above says where the scheduled
+> run's own window can be read; it is checked against the workflow file.
 
 | Metric | Portfolio target | Baseline | Result |
 | --- | --- | --- | --- |
