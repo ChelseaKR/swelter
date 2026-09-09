@@ -74,7 +74,7 @@ jobs:
       # is decidable, so the pair loses only "URI at the unknown tier", which is precisely and
       # only the class this false positive belongs to.
       - name: TruffleHog (all tiers, URI deferred to step 2)
-        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
         with:
           path: ./
           # Pinning the action by SHA does NOT pin the scanner. The action's `version` input
@@ -96,7 +96,7 @@ jobs:
       # failed: a job that stops at the first finding hides the second.
       - name: TruffleHog (URI, at the tiers where it is decidable)
         if: ${{ !cancelled() }}
-        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
         with:
           path: ./
           version: "3.97.1"
