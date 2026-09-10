@@ -420,14 +420,37 @@ def test_the_history_scan_is_not_secretly_a_one_commit_scan() -> None:
 
 def test_every_scan_step_pins_the_scanner_not_only_the_wrapper() -> None:
     """A SHA on `uses:` pins the wrapper; `version:` chooses the image that does the scanning,
-    and it defaults to `latest`. Adding a second step is the easy place to forget it."""
+    and it defaults to `latest`. Adding a second step is the easy place to forget it.
+
+    The expected version is **derived from each step's own `# vX.Y.Z` comment**, not written
+    here. It used to be the literal ``"3.97.1"`` in three places -- the `uses:` comment, the
+    `version:` input, and this assertion -- and Dependabot moves exactly one of them. That made
+    every scanner bump red for a reason that reads like a supply-chain finding and is really a
+    stale literal in a test, and it put a maintainer one edit away from "fixing" the gate by
+    bumping the number here instead of in the workflow. Derived, the wrapper and the scanner
+    are held to each other and a bump needs one edit, in the file the pin lives in.
+    """
     raw = _SECRET_SCAN_WORKFLOW.read_text(encoding="utf-8")
     steps = _scanner_steps()
     assert len(steps) == raw.count("uses: trufflesecurity/trufflehog@")
-    for step in steps:
-        assert step["with"]["version"] == "3.97.1"
+    assert steps, "no trufflesecurity/trufflehog step found; this reader has stopped working"
+
+    # One `# vX.Y.Z` comment per pinned step, in file order, so each step is compared with the
+    # tag written beside its own SHA rather than with whatever tag appears first.
+    tags = re.findall(r"uses: trufflesecurity/trufflehog@[0-9a-f]{40}\s*#\s*v(\d+\.\d+\.\d+)", raw)
+    assert len(tags) == len(steps), (
+        f"{len(steps)} pinned step(s) but {len(tags)} `# vX.Y.Z` comment(s); every pin needs "
+        "the tag written beside it, because that is what the scanner version is checked against"
+    )
+    for step, tag in zip(steps, tags, strict=True):
         assert re.fullmatch(r"trufflesecurity/trufflehog@[0-9a-f]{40}", str(step["uses"]))
-    assert raw.count("# v3.97.1") == len(steps)
+        assert step["with"]["version"] == tag, (
+            f"the wrapper is pinned at v{tag} and the scanner image at "
+            f"{step['with']['version']!r}; a SHA on `uses:` does not pin what does the scanning"
+        )
+    # Every step's tag is the same one: two steps on different scanner builds would make the
+    # pair's combined result irreproducible even though each half is pinned.
+    assert len(set(tags)) == 1, f"scanner steps pinned at different versions: {sorted(set(tags))}"
 
 
 def _gap_document() -> dict[str, Any]:
