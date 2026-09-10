@@ -135,3 +135,12 @@ Open a GitHub issue for normal defects and documentation gaps. Use the private r
 
 Last verified: 2026-07-16. Recheck cadence: every release and whenever the toolchain, merge gate,
 license boundary, or product rules change.
+
+## Commercial solicitation
+
+Issues here are not open to bids. They are design records, written so a decision is
+reconstructable later, rather than scope documents for outside quoting. Unsolicited offers to
+implement one for a fee will be declined.
+
+Contributions through the normal fork-and-PR process are welcome, and `good first issue` is the
+place to start.
