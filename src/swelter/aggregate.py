@@ -39,18 +39,29 @@ A cell with no numeric uncertainty says why, in ``uncertainty_note``, instead of
 a physical quantity — so its note identifies which component (heat or air) bounds the published
 level; a NowCast cell's note says the blend has no derivable combined sigma; a cell with an unknown
 member sigma says how many members were unknown.
+
+Finally, every cell carries ``history_context``: where this hour's value sits in *this cell's own*
+recorded distribution for the same calendar month (issue #241, see :func:`attach_history_context`).
+No external climatology and no model — the network's own record, with its sample size shown, or an
+explicit ``null`` and a reason when the record is too thin to be a baseline.
 """
 
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+from bisect import bisect_left, insort
+from collections import defaultdict, deque
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
-from typing import NamedTuple
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta
+from typing import Final, NamedTuple
 
 from . import hazard_packs
-from .config import NetworkConfig
+from .config import (
+    DEFAULT_HISTORY_MIN_HOURS,
+    DEFAULT_HISTORY_WINDOW_DAYS,
+    NetworkConfig,
+)
 from .models import (
     QC_SUSPICIOUS,
     QC_UNMAPPABLE,
@@ -76,6 +87,115 @@ AQI_WINDOW = "hourly-mean"
 #: The EPA NowCast alternate window (see `_nowcast_cells`) — a distinct, never-conflated tag. The
 #: 3-hour floor and 12-hour cap it requires live in `models.nowcast_concentration`.
 AQI_WINDOW_NOWCAST = "nowcast"
+
+#: ``history_context.basis`` when every hour behind the percentile is a calibrated hour *and* the
+#: hour being described is calibrated too. The strongest baseline this project can publish.
+HISTORY_BASIS_CALIBRATED: Final = "calibrated"
+
+#: ``history_context.basis`` when the baseline is **not** calibrated-only — either the described
+#: hour is provisional, or too few calibrated hours are recorded to reach the minimum, so
+#: uncalibrated hours are included. Rendered as provisional wherever it is shown.
+HISTORY_BASIS_RAW: Final = "raw"
+
+#: The tie rule, stated once and published in the data dictionary rather than left to be inferred.
+HISTORY_TIE_RULE: Final = (
+    "percentile = 100 x (recorded hours strictly below this value) / n_hours. An earlier hour "
+    "equal to this value counts as not-below, so a value equal to every hour behind it reports "
+    "0.0 and a value above every one of them reports 100.0."
+)
+
+#: What ``history_context`` is a distribution *of*, stated once. The hours are strictly earlier
+#: than the hour being described, so a published record's context never changes as the archive
+#: grows past it.
+HISTORY_WINDOW_RULE: Final = (
+    "The distribution is this cell's own earlier recorded hours for the same parameter, in the "
+    "same calendar month (any year), within history_window_days before this hour. The hour being "
+    "described is not one of them, and no later hour is either — a record's context is fixed when "
+    "it is written."
+)
+
+#: Absence codes. Three, not one, because only the first is resolved by waiting for more data,
+#: and a refusal that merges causes hides the one a reader could act on. Published on the record
+#: beside the sentence so a consumer branches on the code and a person reads the note.
+HISTORY_ABSENT_THIN: Final = "thin_history"
+HISTORY_ABSENT_ORDINAL: Final = "ordinal_layer"
+HISTORY_ABSENT_SINGLE_WINDOW: Final = "single_window_reading"
+
+#: Every absence code, in the order they are documented. The data dictionary publishes this list,
+#: so a consumer switching on the code is told the whole vocabulary rather than discovering it.
+HISTORY_ABSENCE_CODES: Final = (
+    HISTORY_ABSENT_THIN,
+    HISTORY_ABSENT_ORDINAL,
+    HISTORY_ABSENT_SINGLE_WINDOW,
+)
+
+#: Too few earlier hours to be a baseline. Formatted with the counts, and it is the one absence
+#: reason that more data resolves — which is why it does not share a sentence with the two below.
+_HISTORY_NOTE_THIN: Final = (
+    "no percentile: this cell has {n} earlier recorded {parameter} hour(s) in this calendar month "
+    "within {window_days} days, and {minimum} are required — a distribution this thin would read "
+    "as a baseline without being one"
+)
+
+#: The derived ordinal layer never gets a percentile, for the same reason it never gets a sigma.
+_HISTORY_NOTE_ORDINAL: Final = (
+    "no percentile: {parameter} is an ordinal tier derived from other parameters, not a measured "
+    "quantity, so the share of hours below it would describe how often the tier recurs rather "
+    "than how unusual this hour is; read the percentile on the component parameters instead"
+)
+
+#: Exactly one NowCast reading is derived per cell (see `_nowcast_cells`), so no amount of waiting
+#: builds a NowCast distribution. Its own sentence, because "wait for more data" is the wrong
+#: action here and is exactly what the thin-history sentence would tell a reader to do.
+_HISTORY_NOTE_SINGLE_WINDOW: Final = (
+    "no percentile: exactly one {window} reading is derived per cell, so there is no recorded "
+    "{window} distribution to place it in; the hourly-mean record for the same bucket carries one"
+)
+
+
+@dataclass(frozen=True)
+class HistoryAbsence:
+    """Why one reading has no ``history_context``: a stable code plus the sentence for a person.
+
+    Both halves are published. The code is what a consumer branches on — the three causes lead to
+    three different actions, and only ``thin_history`` is answered by waiting — and the note is
+    what a reader is shown when nothing translates the code for them.
+    """
+
+    code: str
+    note: str
+
+    def as_record(self) -> dict[str, object]:
+        return {"code": self.code, "note": self.note}
+
+
+@dataclass(frozen=True)
+class HistoryContext:
+    """Where one reading sits in its own cell's recorded distribution for that calendar month.
+
+    The honest local baseline: no external climatology, no model, just the network's own record
+    with its sample size shown (:data:`HISTORY_WINDOW_RULE`, :data:`HISTORY_TIE_RULE`).
+    """
+
+    percentile: float  # 0..100, the share of `n_hours` strictly below this reading
+    n_hours: int  # how many earlier recorded hours the percentile is over
+    window_start: str  # the earliest of those hours (ISO-8601 UTC bucket)
+    basis: str  # HISTORY_BASIS_CALIBRATED or HISTORY_BASIS_RAW
+
+    @property
+    def provisional(self) -> bool:
+        """True when the baseline is not calibrated-only, and must be shown as provisional."""
+        return self.basis != HISTORY_BASIS_CALIBRATED
+
+    def as_record(self) -> dict[str, object]:
+        # One decimal place: enough to separate adjacent hours in a multi-hundred-hour record,
+        # not so much that it implies a precision the sample size does not support.
+        return {
+            "percentile": round(self.percentile, 1),
+            "n_hours": self.n_hours,
+            "window_start": self.window_start,
+            "basis": self.basis,
+        }
 
 
 def hour_bucket(timestamp: str) -> str:
@@ -121,6 +241,12 @@ class CellReading:
     # cleaner value existed — empty for a trusted or clean-provisional cell (ADR 0029).
     qc_flags: tuple[str, ...] = ()
     nodes: tuple[str, ...] = ()  # the node id(s) published into this cell (for the data download)
+    # Where this hour sits in this cell's own recorded distribution for the same calendar month
+    # (#241). Exactly one of the two is set: a context, or the absence and why. Filled by
+    # `attach_history_context`, which runs at the end of `aggregate` once every cell — including
+    # the derived ones — exists, so no cell is left without an answer of either kind.
+    history_context: HistoryContext | None = None
+    history_context_reason: HistoryAbsence | None = None
 
     def as_record(self) -> dict[str, object]:
         record: dict[str, object] = {
@@ -139,6 +265,18 @@ class CellReading:
             ),
             "aqi": self.aqi,
             "category": self.category,
+            # Both keys are always written, never omitted, so a consumer reads one stable shape
+            # and can tell "this cell has no baseline, and here is why" from "this build predates
+            # the field" — the same reason `range_note` and `qc_verdicts.emitted` are published
+            # rather than dropped when empty.
+            "history_context": (
+                None if self.history_context is None else self.history_context.as_record()
+            ),
+            "history_context_reason": (
+                None
+                if self.history_context_reason is None
+                else self.history_context_reason.as_record()
+            ),
         }
         if self.nodes:
             record["nodes"] = list(self.nodes)
@@ -572,6 +710,13 @@ def aggregate(
     cells = _build_cells(buckets, labels)
     cells.extend(_exposure_cells(cells))
     cells.extend(_nowcast_cells(cells))
+    # Last, so the derived layers are in the list and get their own (refusing) verdicts rather
+    # than a silently missing key.
+    cells = attach_history_context(
+        cells,
+        min_hours=config.history_min_hours,
+        window_days=config.history_window_days,
+    )
     cells.sort(key=lambda c: (c.cell_id, c.bucket, c.parameter))
     return Surface(interval="hour", cells=tuple(cells))
 
@@ -704,4 +849,182 @@ def _nowcast_cells(cells: list[CellReading]) -> list[CellReading]:
                 nodes=latest.nodes,
             )
         )
+    return out
+
+
+def _percentile_of(sorted_values: Sequence[float], value: float) -> float:
+    """The share of ``sorted_values`` strictly below ``value``, as a percentage.
+
+    The tie rule in one line (:data:`HISTORY_TIE_RULE`): ``bisect_left`` is the count of entries
+    strictly less than ``value``, so an earlier hour that equals it is not counted as below it.
+    """
+    return 100.0 * bisect_left(sorted_values, value) / len(sorted_values)
+
+
+class _WindowEntry(NamedTuple):
+    """One earlier hour still inside the lookback window, oldest first."""
+
+    moment: datetime
+    bucket: str
+    mean: float
+
+
+def _history_from_window(
+    cell: CellReading,
+    calibrated: list[float],
+    calibrated_window: deque[_WindowEntry],
+    every: list[float],
+    every_window: deque[_WindowEntry],
+    *,
+    min_hours: int,
+    window_days: int,
+) -> tuple[HistoryContext | None, HistoryAbsence | None]:
+    """Choose the basis for one reading and place it, or refuse and say why.
+
+    Calibrated first, and only when *this* reading is calibrated too: placing a raw value in a
+    calibrated distribution compares two different measurements under one number. Falling back to
+    every recorded hour is the honest second choice, and it is labelled ``raw`` so nothing reads it
+    as the calibrated baseline.
+    """
+    floor = max(min_hours, 1)
+    if not cell.provisional and len(calibrated) >= floor:
+        return (
+            HistoryContext(
+                percentile=_percentile_of(calibrated, cell.mean),
+                n_hours=len(calibrated),
+                window_start=calibrated_window[0].bucket,
+                basis=HISTORY_BASIS_CALIBRATED,
+            ),
+            None,
+        )
+    if len(every) >= floor:
+        return (
+            HistoryContext(
+                percentile=_percentile_of(every, cell.mean),
+                n_hours=len(every),
+                window_start=every_window[0].bucket,
+                basis=HISTORY_BASIS_RAW,
+            ),
+            None,
+        )
+    return (
+        None,
+        HistoryAbsence(
+            HISTORY_ABSENT_THIN,
+            _HISTORY_NOTE_THIN.format(
+                n=len(every),
+                parameter=cell.parameter,
+                window_days=window_days,
+                minimum=floor,
+            ),
+        ),
+    )
+
+
+def _history_for_month_series(
+    series: Sequence[CellReading], *, min_hours: int, window_days: int
+) -> list[tuple[HistoryContext | None, HistoryAbsence | None]]:
+    """Walk one cell/parameter/window/calendar-month series in time order, placing each hour.
+
+    Two sliding windows are maintained side by side — every recorded hour, and the calibrated
+    subset — each as a chronological deque (for ``window_start``) plus a sorted list of values
+    (for the percentile). Each hour is placed against the hours *already* in those windows and
+    only then added to them, which is what makes a published record's context final: it is
+    computed from hours strictly earlier than itself, so nothing recorded later can move it.
+    """
+    horizon = timedelta(days=window_days)
+    every: list[float] = []
+    calibrated: list[float] = []
+    every_window: deque[_WindowEntry] = deque()
+    calibrated_window: deque[_WindowEntry] = deque()
+    out: list[tuple[HistoryContext | None, HistoryAbsence | None]] = []
+    for cell in series:
+        moment = parse_timestamp(cell.bucket)
+        while every_window and moment - every_window[0].moment > horizon:
+            dropped = every_window.popleft()
+            every.pop(bisect_left(every, dropped.mean))
+        while calibrated_window and moment - calibrated_window[0].moment > horizon:
+            dropped = calibrated_window.popleft()
+            calibrated.pop(bisect_left(calibrated, dropped.mean))
+        out.append(
+            _history_from_window(
+                cell,
+                calibrated,
+                calibrated_window,
+                every,
+                every_window,
+                min_hours=min_hours,
+                window_days=window_days,
+            )
+        )
+        entry = _WindowEntry(moment, cell.bucket, cell.mean)
+        every_window.append(entry)
+        insort(every, cell.mean)
+        if not cell.provisional:
+            calibrated_window.append(entry)
+            insort(calibrated, cell.mean)
+    return out
+
+
+def attach_history_context(
+    cells: Sequence[CellReading],
+    *,
+    min_hours: int = DEFAULT_HISTORY_MIN_HOURS,
+    window_days: int = DEFAULT_HISTORY_WINDOW_DAYS,
+) -> list[CellReading]:
+    """Return ``cells`` with ``history_context`` (or a refusal reason) filled in on every one.
+
+    Deterministic and offline: the answer depends only on the cells handed in, never on the wall
+    clock, a fetch, or an external climatology. Two kinds of cell never get a percentile, and each
+    says so in its own words rather than sharing the thin-history sentence, because "wait for more
+    data" is the right action for exactly one of the three:
+
+    * the derived ``exposure`` layer, whose mean is an ordinal tier rather than a measured
+      quantity — the same reason it publishes no sigma (:func:`_exposure_cells`);
+    * a NowCast reading, of which exactly one is derived per cell (:func:`_nowcast_cells`), so no
+      recorded NowCast distribution exists or ever will. Placing it against the hourly-mean
+      distribution instead would publish a number from one window under a field that named the
+      other, which is the error :meth:`Surface.latest_by_cell` already refuses to make.
+
+    Series are keyed by cell, parameter, AQI window **and calendar month**, so a June hour is never
+    compared against an August one, and a network with two years of record compares June against
+    both Junes.
+    """
+    by_series: dict[tuple[str, str, str, int], list[CellReading]] = defaultdict(list)
+    for cell in cells:
+        if cell.parameter == EXPOSURE or cell.aqi_window == AQI_WINDOW_NOWCAST:
+            continue
+        month = parse_timestamp(cell.bucket).month
+        by_series[(cell.cell_id, cell.parameter, cell.aqi_window or "", month)].append(cell)
+
+    verdicts: dict[
+        tuple[str, str, str, str], tuple[HistoryContext | None, HistoryAbsence | None]
+    ] = {}
+    for series in by_series.values():
+        series.sort(key=lambda c: c.bucket)
+        placed = _history_for_month_series(series, min_hours=min_hours, window_days=window_days)
+        for cell, placement in zip(series, placed, strict=True):
+            verdicts[(cell.cell_id, cell.parameter, cell.aqi_window or "", cell.bucket)] = placement
+
+    out: list[CellReading] = []
+    for cell in cells:
+        verdict: tuple[HistoryContext | None, HistoryAbsence | None]
+        if cell.parameter == EXPOSURE:
+            verdict = (
+                None,
+                HistoryAbsence(
+                    HISTORY_ABSENT_ORDINAL, _HISTORY_NOTE_ORDINAL.format(parameter=EXPOSURE)
+                ),
+            )
+        elif cell.aqi_window == AQI_WINDOW_NOWCAST:
+            verdict = (
+                None,
+                HistoryAbsence(
+                    HISTORY_ABSENT_SINGLE_WINDOW,
+                    _HISTORY_NOTE_SINGLE_WINDOW.format(window=AQI_WINDOW_NOWCAST),
+                ),
+            )
+        else:
+            verdict = verdicts[(cell.cell_id, cell.parameter, cell.aqi_window or "", cell.bucket)]
+        out.append(replace(cell, history_context=verdict[0], history_context_reason=verdict[1]))
     return out

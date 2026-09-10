@@ -38,8 +38,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Final
 
+from . import i18n_alerts
 from .ac_access_layer import ACAccessCell, ACAccessLayerSet
-from .aggregate import EXPOSURE, CellReading, Surface
+from .aggregate import EXPOSURE, CellReading, HistoryAbsence, HistoryContext, Surface
 from .alerts import crossing, resolve_thresholds
 from .context_layers import ContextCell, ContextLayerSet
 from .models import EXPOSURE_LEVELS, parse_timestamp
@@ -223,6 +224,13 @@ class ExposureBrief:
     canopy: ContextCell | None = None
     ac_access: ACAccessCell | None = None
     redlining: RedliningCell | None = None
+    #: Where this area's most recent reading of the brief's parameter sits in its own recorded
+    #: distribution for that calendar month (#241), or why there is no such baseline. Unlike the
+    #: three context layers above, this one is never simply left out: "we have no local baseline"
+    #: is the answer a resident asking "is this normal?" needs, and silence reads as "it is".
+    history: HistoryContext | None = None
+    history_reason: HistoryAbsence | None = None
+    history_bucket: str | None = None  # the hour the context above describes
 
     def lines(self) -> list[str]:
         """Plain-language, factual, sourced lines — no framing beyond what each source states."""
@@ -242,6 +250,17 @@ class ExposureBrief:
                 f"provisional readings, which swelter publishes but has not calibrated, and "
                 f"{d.danger_days_qc_flagged} rest only on readings QC flagged as suspicious "
                 f"(a spike or a flatline)."
+            )
+        if self.history_bucket is not None:
+            # Rendered through the alert catalog rather than written again here: one wording for
+            # the local baseline, whichever surface a reader meets it on.
+            lines.append(
+                i18n_alerts.history_line(
+                    self.area,
+                    self.history,
+                    None if self.history_reason is None else self.history_reason.code,
+                    "en",
+                )
             )
         if self.canopy is not None:
             c = self.canopy
@@ -277,6 +296,11 @@ class ExposureBrief:
             "lat": self.lat,
             "lon": self.lon,
             "danger": self.danger.as_record(),
+            "history_bucket": self.history_bucket,
+            "history_context": None if self.history is None else self.history.as_record(),
+            "history_context_reason": (
+                None if self.history_reason is None else self.history_reason.as_record()
+            ),
             "text": self.lines(),
         }
         if self.canopy is not None:
@@ -319,12 +343,14 @@ def build_briefs(
     a canopy dataset still gets briefs, just without the AC-access/redlining sentences (ADR 0014).
     """
     danger_counts = count_danger_days(surface, parameter=parameter, thresholds=thresholds)
+    latest = surface.latest_by_cell()
     canopy_by_cell = canopy.by_cell_id() if canopy is not None else {}
     ac_by_cell = ac_access.by_cell_id() if ac_access is not None else {}
     redlining_by_cell = redlining.by_cell_id() if redlining is not None else {}
 
     briefs: dict[str, ExposureBrief] = {}
     for cell_id, danger in danger_counts.items():
+        newest = latest.get(cell_id, {}).get(parameter)
         briefs[cell_id] = ExposureBrief(
             area_id=cell_id,
             area=danger.label or cell_id,
@@ -334,6 +360,9 @@ def build_briefs(
             canopy=canopy_by_cell.get(cell_id),
             ac_access=ac_by_cell.get(cell_id),
             redlining=redlining_by_cell.get(cell_id),
+            history=None if newest is None else newest.history_context,
+            history_reason=None if newest is None else newest.history_context_reason,
+            history_bucket=None if newest is None else newest.bucket,
         )
     return briefs
 

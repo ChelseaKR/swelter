@@ -45,7 +45,7 @@ from typing import Final
 from xml.sax.saxutils import escape
 
 from . import hazard_packs, i18n_alerts
-from .aggregate import EXPOSURE, CellReading, Surface
+from .aggregate import EXPOSURE, CellReading, HistoryAbsence, HistoryContext, Surface
 from .config import NetworkConfig
 from .models import EXPOSURE_LEVELS, heat_index_category, wind_chill_category
 
@@ -90,6 +90,30 @@ class Alert:
     provisional: bool  # built from an uncalibrated reading — published, but flagged
     aqi: int | None = None
     nodes: tuple[str, ...] = ()
+    # Copied from the cell this alert was raised on: where this hour sits in the area's own
+    # recorded distribution for the same calendar month, or why there is no such baseline (#241).
+    # Exactly one is set, always — an alert never simply omits the question.
+    history_context: HistoryContext | None = None
+    history_context_reason: HistoryAbsence | None = None
+
+    @property
+    def history_line(self) -> str:
+        """The historical-percentile sentence, in English — or the absence, in its own words."""
+        return self.history_line_in("en")
+
+    @property
+    def history_line_es(self) -> str:
+        """The Spanish history sentence — machine-drafted, see :mod:`swelter.i18n_alerts`."""
+        return self.history_line_in("es")
+
+    def history_line_in(self, lang: str) -> str:
+        """The history sentence in ``lang``. One renderer, so the feed and the brief agree."""
+        return i18n_alerts.history_line(
+            self.area,
+            self.history_context,
+            None if self.history_context_reason is None else self.history_context_reason.code,
+            lang,
+        )
 
     @property
     def id(self) -> str:
@@ -124,6 +148,18 @@ class Alert:
             "provisional": self.provisional,
             "headline": self.headline(),
             "headline_es": self.headline_es,
+            # Both keys always written, never omitted: a consumer reads one stable shape and can
+            # tell "no baseline here, and here is why" from "this build predates the field".
+            "history_context": (
+                None if self.history_context is None else self.history_context.as_record()
+            ),
+            "history_context_reason": (
+                None
+                if self.history_context_reason is None
+                else self.history_context_reason.as_record()
+            ),
+            "history_line": self.history_line,
+            "history_line_es": self.history_line_es,
         }
         if self.aqi is not None:
             record["aqi"] = self.aqi
@@ -419,6 +455,10 @@ class AlertFeed:
         for alert in self.alerts:
             entry_id = f"{self_url}#{alert.id}"
             headline = alert.headline(lang)
+            # The title stays exactly the crossing, so an existing reader's entry list does not
+            # change shape; the local baseline is a second sentence in the summary, which is where
+            # a reader looks for context rather than for the verdict.
+            summary = f"{headline} {alert.history_line_in(lang)}"
             lines.extend(
                 [
                     "  <entry>",
@@ -427,7 +467,7 @@ class AlertFeed:
                     f"    <updated>{escape(alert.bucket)}</updated>",
                     f'    <category term="{escape(alert.parameter)}"/>',
                     f'    <category term="{escape(alert.severity)}"/>',
-                    f"    <summary>{escape(headline)}</summary>",
+                    f"    <summary>{escape(summary)}</summary>",
                     f"    <georss:point>{alert.lat} {alert.lon}</georss:point>",
                     "  </entry>",
                 ]
@@ -598,6 +638,8 @@ def build_feed(
                     provisional=reading.provisional,
                     aqi=reading.aqi if parameter == "pm25_ugm3" else None,
                     nodes=reading.nodes,
+                    history_context=reading.history_context,
+                    history_context_reason=reading.history_context_reason,
                 )
             )
     return AlertFeed(

@@ -103,3 +103,22 @@ msgstr "Evento de humo en curso a las {bucket}: {count} áreas han subido brusca
 #, python-brace-format
 msgid "No smoke event as of {bucket}: {count} of the {minimum} areas needed have risen sharply into unhealthy air. Individual areas may still be alerting."
 msgstr "Sin evento de humo a las {bucket}: {count} de las {minimum} áreas necesarias han subido bruscamente a aire insalubre. Algunas áreas pueden seguir en alerta."
+
+msgid " That baseline is not calibrated-only, so read it as provisional."
+msgstr " Esa base de referencia no es solo de datos calibrados, así que léela como provisional."
+
+#, python-brace-format
+msgid "{area}: this hour is above {percentile} of the {n_hours} earlier hour(s) this area has recorded in the same calendar month, back to {window_start}.{provisional}"
+msgstr "{area}: esta hora supera al {percentile} de las {n_hours} hora(s) anteriores registradas en esta zona en el mismo mes del calendario, desde {window_start}.{provisional}"
+
+#, python-brace-format
+msgid "{area}: no local baseline for this hour yet — too few comparable hours are recorded here to say whether this is normal."
+msgstr "{area}: todavía no hay una base de referencia local para esta hora: se han registrado aquí muy pocas horas comparables para decir si esto es normal."
+
+#, python-brace-format
+msgid "{area}: no local baseline for this hour — this is a combined tier derived from other readings, not a measured quantity; the heat and air entries carry their own."
+msgstr "{area}: no hay una base de referencia local para esta hora: es un nivel combinado derivado de otras lecturas, no una magnitud medida; las entradas de calor y aire tienen la suya."
+
+#, python-brace-format
+msgid "{area}: no local baseline for this hour — only one NowCast reading is derived per area, so there is no recorded NowCast distribution to compare it against."
+msgstr "{area}: no hay una base de referencia local para esta hora: solo se deriva una lectura NowCast por zona, así que no hay una distribución NowCast registrada con la que compararla."
