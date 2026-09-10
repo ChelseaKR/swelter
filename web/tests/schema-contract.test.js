@@ -90,6 +90,57 @@ test("an alerts feed carrying a stale area validates, and one without `stale` do
   assert.equal(validate(payload), false, "schema should reject a feed with no `stale` array");
 });
 
+test("an alert carries its area's own historical baseline, or says why it has none", () => {
+  // #241. The committed `web/alerts.json` is a quiet feed — zero alerts — so it cannot exercise
+  // an alert's required fields at all: a fixture that never contains the thing under test proves
+  // nothing about it. This builds one. The Python half is
+  // `tests/test_history_context.py::test_an_alert_carries_the_context_of_the_cell_it_was_raised_on`.
+  const { validate } = validatorFor("alerts.schema.json");
+  const payload = readJson(WEB, "alerts.json");
+  const alert = {
+    id: "38.5681,-121.4945|heat_index_c",
+    area_id: "38.5681,-121.4945",
+    area: "Walnut & 3rd",
+    lat: 38.5681,
+    lon: -121.4945,
+    parameter: "heat_index_c",
+    bucket: "2026-06-08T00:00:00Z",
+    value: 41.2,
+    unit: "°C",
+    severity: "Danger",
+    threshold: 39.4,
+    provisional: false,
+    headline: "Walnut & 3rd: heat index is in the Danger range (41.2 °C), as of 2026-06-08.",
+    history_context: {
+      percentile: 92.3,
+      n_hours: 168,
+      window_start: "2026-06-01T00:00:00Z",
+      basis: "calibrated",
+    },
+    history_context_reason: null,
+    history_line: "Walnut & 3rd: this hour is above 92.3% of the 168 earlier hour(s)…",
+    history_line_es: "Walnut & 3rd: esta hora supera al 92.3% de las 168 hora(s) anteriores…",
+  };
+  payload.count = 1;
+  payload.alerts = [alert];
+  assertValid(validate, payload, "alerts feed with a historical baseline");
+
+  const absent = JSON.parse(JSON.stringify(payload));
+  absent.alerts[0].history_context = null;
+  absent.alerts[0].history_context_reason = {
+    code: "thin_history",
+    note: "no percentile: this cell has 4 earlier recorded heat_index_c hour(s)…",
+  };
+  assertValid(validate, absent, "alerts feed whose area has no baseline yet");
+
+  delete payload.alerts[0].history_context_reason;
+  assert.equal(
+    validate(payload),
+    false,
+    "an alert that simply omits the question must not pass as complete",
+  );
+});
+
 test("a stale record that reports a value or a severity fails validation", () => {
   // A "no current reading" record must not carry something a consumer could plot as the current
   // condition — a last-known value standing in for the missing one is the defect this record type
@@ -160,6 +211,58 @@ test("a cell carrying qc_flags validates against the surface schema", () => {
   payload.cells[0].provisional = true;
   payload.cells[0].qc_flags = ["spike"]; // a provisional-because-suspicious cell carries its verdict
   assertValid(validate, payload, "surface with a qc_flags cell");
+});
+
+test("every committed surface cell answers the history question one way or the other", () => {
+  // #241: `history_context` and `history_context_reason` are BOTH always written, and exactly one
+  // of them is null. That is what lets a reader tell "this cell has no baseline, and here is why"
+  // from "this build predates the field" without a version check. The Python half is
+  // `tests/test_history_context.py::test_every_surface_record_carries_both_keys_whatever_the_answer`.
+  const payload = readJson(WEB, "sample-surface.json");
+  const seen = new Set();
+  for (const cell of payload.cells) {
+    assert.ok("history_context" in cell, `${cell.cell_id} is missing history_context`);
+    assert.ok("history_context_reason" in cell, `${cell.cell_id} is missing the reason key`);
+    const hasContext = cell.history_context !== null;
+    const hasReason = cell.history_context_reason !== null;
+    assert.notEqual(hasContext, hasReason, `${cell.cell_id} must have exactly one of the two`);
+    seen.add(hasContext ? cell.history_context.basis : cell.history_context_reason.code);
+  }
+  // Not a count: the identities. A fixture that exercised only the happy path would leave the
+  // absence branches unread by anything.
+  for (const state of ["calibrated", "raw", "ordinal_layer", "single_window_reading"]) {
+    assert.ok(seen.has(state), `the committed demo must exercise ${state}`);
+  }
+});
+
+test("a cell whose history_context is missing a field fails validation", () => {
+  const { validate } = validatorFor("sample-surface.schema.json");
+  const payload = readJson(WEB, "sample-surface.json");
+  const withContext = payload.cells.find((cell) => cell.history_context !== null);
+  assert.ok(withContext, "the fixture must contain a cell that has a history_context");
+  delete withContext.history_context.n_hours;
+  assert.equal(
+    validate(payload),
+    false,
+    "a percentile published without its sample size is not a baseline",
+  );
+});
+
+test("a history basis outside the calibrated/raw enum fails validation", () => {
+  const { validate } = validatorFor("sample-surface.schema.json");
+  const payload = readJson(WEB, "sample-surface.json");
+  const withContext = payload.cells.find((cell) => cell.history_context !== null);
+  withContext.history_context.basis = "modelled"; // no external model ever backs this field
+  assert.equal(validate(payload), false, "schema should reject an off-contract history basis");
+});
+
+test("an absence reason outside the three documented codes fails validation", () => {
+  const { validate } = validatorFor("sample-surface.schema.json");
+  const payload = readJson(WEB, "sample-surface.json");
+  const withReason = payload.cells.find((cell) => cell.history_context_reason !== null);
+  assert.ok(withReason, "the fixture must contain a cell with no baseline");
+  withReason.history_context_reason.code = "unknown";
+  assert.equal(validate(payload), false, "schema should reject an undocumented absence code");
 });
 
 test("a cell whose qc_flags value is outside the spike/flatline enum fails validation", () => {

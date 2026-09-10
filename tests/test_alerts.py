@@ -362,6 +362,12 @@ def test_alert_record_carries_only_public_fields() -> None:
         "provisional",
         "headline",
         "headline_es",
+        # Aggregate context about the block, never about anyone in it: where this hour sits in
+        # the block's own record, or why there is no such baseline, plus the two sentences (#241).
+        "history_context",
+        "history_context_reason",
+        "history_line",
+        "history_line_es",
         "aqi",
         "nodes",
     }
