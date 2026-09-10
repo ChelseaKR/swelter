@@ -79,15 +79,16 @@ jobs:
           path: ./
           # Pinning the action by SHA does NOT pin the scanner. The action's `version` input
           # defaults to "latest" and it runs `ghcr.io/trufflesecurity/trufflehog:${VERSION}`,
-          # so with this input unset every run pulls whatever image is newest and the v3.97.1
-          # comment above describes only the wrapper. That makes this gate non-reproducible in
-          # the direction that matters: its detector set, and therefore what counts as a
-          # finding, can change with no commit here. It is not hypothetical -- the same action
-          # in id-churn-sentinel went red on 2026-08-09 with nothing changed on our side,
-          # because upstream shipped 3.96.0 and the next scheduled run picked it up, and 3.96.0
-          # is also the release whose Lob detector began matching pytest function names.
+          # so with this input unset every run pulls whatever image is newest and the version
+          # comment on the `uses:` line above describes only the wrapper. That makes this gate
+          # non-reproducible in the direction that matters: its detector set, and therefore
+          # what counts as a finding, can change with no commit here. It is not hypothetical
+          # -- the same action in id-churn-sentinel went red on 2026-08-09 with nothing
+          # changed on our side, because upstream shipped 3.96.0 and the next scheduled run
+          # picked it up, and 3.96.0 is also the release whose Lob detector began matching
+          # pytest function names.
           # Pinned to match the action tag above so the two move together and deliberately.
-          version: "3.97.1"
+          version: "3.97.2"
           extra_args: --results=verified,unknown,unverified --exclude-detectors=Lob,URI
 
       # Step 2 -- URI restored, at the tiers where the answer is a decision rather than an error.
@@ -99,5 +100,5 @@ jobs:
         uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
         with:
           path: ./
-          version: "3.97.1"
+          version: "3.97.2"
           extra_args: --results=verified,unverified --exclude-detectors=Lob

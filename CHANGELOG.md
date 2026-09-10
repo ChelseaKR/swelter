@@ -622,6 +622,22 @@ All notable changes to swelter are recorded here. The format follows
   for: a `--exclude-rule` is an unbounded exemption nothing counts, a `# nosemgrep:` is one line
   that the inventory does count.
 
+- **The secret scanner is pinned to 3.97.2, and the pin is now a relation instead of a literal in
+  three places.** Dependabot moves the `uses:` SHA and its `# vX.Y.Z` comment; the `version:` input
+  that chooses the scanner *image* is a separate value it does not touch, and
+  `test_every_scan_step_pins_the_scanner_not_only_the_wrapper` held a third copy of the number.
+  So every scanner bump arrived red, on an assertion whose message reads like a supply-chain
+  finding and whose real cause is a stale literal in a test — and a maintainer was one edit away
+  from "fixing" it by bumping the number in the test rather than in the workflow, which is exactly
+  the unpinned-scanner state the gate exists to prevent.
+
+  The expected version is now read from each step's own `# vX.Y.Z` comment, so the wrapper and the
+  scanner are held to each other and a bump is one edit in the file the pin lives in. Two floors
+  came with it: the number of `# vX.Y.Z` comments must equal the number of pinned steps (a pin with
+  no tag beside it would otherwise be compared against nothing), and all steps must name the same
+  version, because two scanner builds in one job make the pair's combined result irreproducible
+  even though each half is pinned.
+
 ## [0.2.0] - 2026-09-06
 
 ### Added
