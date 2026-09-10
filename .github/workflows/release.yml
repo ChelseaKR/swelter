@@ -157,7 +157,7 @@ jobs:
 
       - name: Install Grype
         id: grype
-        uses: anchore/scan-action/download-grype@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        uses: anchore/scan-action/download-grype@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           cache-db: false
 
@@ -453,7 +453,7 @@ jobs:
           fi
 
       - name: Upload the internally verified candidate as a private draft
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           body_path: dist/RELEASE_NOTES.md
           draft: true

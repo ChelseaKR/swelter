@@ -179,6 +179,7 @@ def test_dora_snapshot_is_deterministic_and_digest_bound(tmp_path: Path) -> None
         issues=issues_path,
         snapshot=tmp_path / "snapshot.json",
         markdown=tmp_path / "DORA.md",
+        dora_workflow=dora_evidence.DEFAULT_WORKFLOW,
     )
     dora_evidence.generate(generated)
     dora_evidence.check(generated)
@@ -262,6 +263,145 @@ def test_the_committed_dora_gate_reports_its_own_coverage() -> None:
             issues=dora_evidence.DEFAULT_ISSUES,
             snapshot=dora_evidence.DEFAULT_SNAPSHOT,
             markdown=dora_evidence.DEFAULT_MARKDOWN,
+            dora_workflow=dora_evidence.DEFAULT_WORKFLOW,
         )
     )
     assert "metric(s) computed" in detail and "deployment run(s)" in detail
+    assert "scheduled window reaches build-artifact" in detail
+
+
+_WORKFLOW_WITH_NO_PUBLICATION_ROUTE = """
+name: DORA evidence
+on:
+  schedule:
+    - cron: "17 13 * * 1"
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@0000000000000000000000000000000000000000
+      - name: Generate
+        run: python scripts/dora_evidence.py generate --out-dir dist/dora
+      - uses: actions/upload-artifact@0000000000000000000000000000000000000000
+"""
+
+
+def _workflow(tmp_path: Path, body: str) -> Path:
+    path = tmp_path / "dora.yml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_the_committed_evidence_says_where_the_scheduled_window_can_actually_be_read() -> None:
+    """The live defect, asserted against the unmodified tree.
+
+    ``docs/audits/dora/*.json`` said ``Scheduled CI will produce the first complete retained
+    snapshot`` from 2026-07-17 until this test landed. ``dora.yml`` has run weekly and
+    successfully since 2026-07-20 and has never had a step that writes anything back into the
+    repository -- so the sentence described a mechanism the workflow does not contain, on the
+    one artifact whose whole job is to say what is and is not known (#267).
+    """
+    route = dora_evidence.publication_route(dora_evidence.DEFAULT_WORKFLOW)
+    assert route == "build-artifact"
+    for path in (dora_evidence.DEFAULT_ACTIONS, dora_evidence.DEFAULT_ISSUES):
+        document = json.loads(path.read_text(encoding="utf-8"))
+        collection = document["collection"]
+        assert collection["complete"] is False, path
+        assert collection["reason"].endswith(dora_evidence.RETENTION_NOTES[route]), path
+
+
+def test_a_publication_route_of_any_kind_changes_the_sentence_the_evidence_must_carry(
+    tmp_path: Path,
+) -> None:
+    """Three independent routes, and the capability one is the half a spelling list cannot close.
+
+    A job granted ``contents: write`` can commit the snapshot whatever binary it invokes, so the
+    permission alone is enough to make ``build-artifact`` a false claim; the two action/command
+    routes catch a step holding a token from somewhere else.
+    """
+    assert (
+        dora_evidence.publication_route(_workflow(tmp_path, _WORKFLOW_WITH_NO_PUBLICATION_ROUTE))
+        == "build-artifact"
+    )
+
+    granted = _WORKFLOW_WITH_NO_PUBLICATION_ROUTE.replace("contents: read", "contents: write")
+    assert dora_evidence.publication_route(_workflow(tmp_path, granted)) == "repository"
+
+    pages = _WORKFLOW_WITH_NO_PUBLICATION_ROUTE.replace(
+        "      - uses: actions/upload-artifact@0000000000000000000000000000000000000000",
+        "      - uses: peter-evans/create-pull-request@1111111111111111111111111111111111111111",
+    )
+    assert dora_evidence.publication_route(_workflow(tmp_path, pages)) == "repository"
+
+    pushed = _WORKFLOW_WITH_NO_PUBLICATION_ROUTE.replace(
+        "        run: python scripts/dora_evidence.py generate --out-dir dist/dora",
+        "        run: |\n"
+        "          python scripts/dora_evidence.py generate --out-dir docs/audits/dora\n"
+        "          git   push  origin main\n",
+    )
+    assert dora_evidence.publication_route(_workflow(tmp_path, pushed)) == "repository"
+
+
+def test_a_workflow_the_reader_no_longer_recognises_is_refused_not_called_artifact_only(
+    tmp_path: Path,
+) -> None:
+    """``build-artifact`` is the answer a reader returns when it understands the file and finds
+    no route, and it is also what a reader that has stopped parsing returns. Four floors keep
+    the two apart, because only one of them is a fact about this repository."""
+    missing = tmp_path / "absent.yml"
+    with pytest.raises(dora_evidence.EvidenceError, match="cannot read"):
+        dora_evidence.publication_route(missing)
+
+    with pytest.raises(dora_evidence.EvidenceError, match="not a mapping"):
+        dora_evidence.publication_route(_workflow(tmp_path, "- just\n- a list\n"))
+
+    with pytest.raises(dora_evidence.EvidenceError, match="no jobs"):
+        dora_evidence.publication_route(_workflow(tmp_path, "name: DORA evidence\njobs: {}\n"))
+
+    renamed = _WORKFLOW_WITH_NO_PUBLICATION_ROUTE.replace(
+        "python scripts/dora_evidence.py generate", "python scripts/other_thing.py build"
+    )
+    with pytest.raises(dora_evidence.EvidenceError, match="this is not the workflow"):
+        dora_evidence.publication_route(_workflow(tmp_path, renamed))
+
+
+def test_an_incomplete_reason_that_predates_the_workflow_is_refused_and_a_complete_one_is_not(
+    tmp_path: Path,
+) -> None:
+    """The refusal needs the case it must let through beside it: a *complete* collection is not
+    asked where its window can be read, because it is already here."""
+    workflow = _workflow(tmp_path, _WORKFLOW_WITH_NO_PUBLICATION_ROUTE)
+    retired = "Scheduled CI will produce the first complete retained snapshot."
+
+    stale = _retained(kind="github_actions", endpoint="/actions", records=[])
+    stale["collection"] = {
+        "complete": False,
+        "collected_at": "2026-01-15T00:01:00Z",
+        "reason": retired,
+    }
+    complete = _retained(kind="github_issues", endpoint="/issues", records=[])
+    with pytest.raises(dora_evidence.EvidenceError, match="does not end with the sentence"):
+        dora_evidence._validate_retention_note(
+            {"github_actions": stale, "github_issues": complete}, workflow
+        )
+
+    stale["collection"]["reason"] = (
+        "Something happened. " + dora_evidence.RETENTION_NOTES["build-artifact"]
+    )
+    assert (
+        dora_evidence._validate_retention_note(
+            {"github_actions": stale, "github_issues": complete}, workflow
+        )
+        == "build-artifact"
+    )
+
+    complete_only = _retained(kind="github_actions", endpoint="/actions", records=[])
+    assert (
+        dora_evidence._validate_retention_note(
+            {"github_actions": complete_only, "github_issues": complete}, workflow
+        )
+        is None
+    )
