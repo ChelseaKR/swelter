@@ -7,6 +7,8 @@ from pathlib import Path
 import pytest
 
 from swelter.config import (
+    DEFAULT_HISTORY_MIN_HOURS,
+    DEFAULT_HISTORY_WINDOW_DAYS,
     NetworkConfig,
     NodeConfig,
     config_concerns,
@@ -389,3 +391,58 @@ def test_config_concerns_warns_on_unresolved_calibration_window_references() -> 
     assert errors == []
     assert any("node_id 'node-99'" in w for w in warnings)
     assert any("reference 'ref-99'" in w for w in warnings)
+
+
+# -- the two history_context settings (#241) ---------------------------------------------------
+
+_HISTORY_DEFAULTS = {
+    "history_min_hours": DEFAULT_HISTORY_MIN_HOURS,
+    "history_window_days": DEFAULT_HISTORY_WINDOW_DAYS,
+}
+
+
+@pytest.mark.parametrize("key", sorted(_HISTORY_DEFAULTS))
+@pytest.mark.parametrize(
+    ("value", "why"),
+    [
+        (0, "zero asks for a percentile over an empty distribution"),
+        (-5, "a negative count of hours or days means nothing"),
+        (72.5, "a fraction would be truncated, so the host's number would not be the one used"),
+        ("seventy-two", "not a number at all"),
+        (True, "a YAML boolean is not a count, even though Python calls it an int"),
+        (None, "written but empty is a mistake, not an absence"),
+    ],
+)
+def test_a_history_setting_that_would_silently_revert_is_refused(
+    key: str, value: object, why: str
+) -> None:
+    """`swelter doctor` refuses rather than quietly falling back — the promise the host docs make.
+    Read off the raw document, because only there is "written wrong" distinguishable from
+    "not written"."""
+    doc: dict[str, object] = {"name": "n", key: value}
+    errors, _warnings = config_concerns(parse_config(doc), doc)
+    mine = [error for error in errors if error.startswith(f"{key}:")]
+    assert len(mine) == 1, why
+    assert f"default of {_HISTORY_DEFAULTS[key]}" in mine[0]
+
+
+def test_an_absent_or_valid_history_setting_raises_no_concern() -> None:
+    for doc in (
+        {"name": "n"},
+        {"name": "n", "history_min_hours": 168, "history_window_days": 365},
+        {"name": "n", "history_min_hours": 1},  # the smallest usable value is accepted
+    ):
+        errors, _warnings = config_concerns(parse_config(doc), doc)
+        assert not [error for error in errors if error.startswith("history_")], doc
+    config = parse_config({"history_min_hours": 168, "history_window_days": 365})
+    assert (config.history_min_hours, config.history_window_days) == (168, 365)
+
+
+def test_an_unusable_history_setting_parses_to_the_default_it_names() -> None:
+    """`parse_config` stays total, like every other field: the default applies, and the refusal
+    above is what tells the host. A silently truncated 72.5 would be the worse failure."""
+    for bad in (72.5, "seventy-two", True, None, [1], float("inf")):
+        config = parse_config({"history_min_hours": bad, "history_window_days": bad})
+        assert config.history_min_hours == DEFAULT_HISTORY_MIN_HOURS, bad
+        assert config.history_window_days == DEFAULT_HISTORY_WINDOW_DAYS, bad
+    assert parse_config({}).history_min_hours == DEFAULT_HISTORY_MIN_HOURS

@@ -87,15 +87,17 @@ def test_a_cell_below_the_minimum_emits_null_with_a_reason() -> None:
     surface = aggregate.aggregate(_hours([20.0, 21.0, 22.0]), _config(min_hours=5))
     records = [r for r in surface.to_records() if r["parameter"] == "temp_c"]
     assert len(records) == 3
+    notes: list[str] = []
     for record in records:
         assert record["history_context"] is None
         reason = record["history_context_reason"]
         assert isinstance(reason, dict)
         assert reason["code"] == HISTORY_ABSENT_THIN
         assert "are required" in reason["note"]
+        notes.append(reason["note"])
     # The note counts what is actually there, so a reader can see how far off the minimum it is.
-    assert "0 earlier recorded temp_c hour(s)" in records[0]["history_context_reason"]["note"]
-    assert "2 earlier recorded temp_c hour(s)" in records[2]["history_context_reason"]["note"]
+    assert "0 earlier recorded temp_c hour(s)" in notes[0]
+    assert "2 earlier recorded temp_c hour(s)" in notes[2]
 
 
 def test_the_issues_own_example_of_a_thin_record_gets_no_percentile() -> None:
@@ -334,6 +336,7 @@ def test_an_alert_carries_the_context_of_the_cell_it_was_raised_on() -> None:
     alert = feed.alerts[0]
     newest = _readings(surface, "heat_index_c")[-1]
     assert alert.history_context == newest.history_context
+    assert newest.history_context is not None, "fixture must give the alerting hour a baseline"
     record = alert.as_record()
     assert record["history_context"] == newest.history_context.as_record()
     assert record["history_line"] == alert.history_line
@@ -358,6 +361,7 @@ def test_the_brief_always_states_the_local_baseline_or_its_absence() -> None:
     assert any("no local baseline" in line for line in thin_brief.lines())
     assert any("this hour is above" in line for line in rich_brief.lines())
     record = rich_brief.as_record()
+    assert rich_brief.history is not None
     assert record["history_context"] == rich_brief.history.as_record()
     assert record["history_context_reason"] is None
     assert record["history_bucket"] == rich_brief.history_bucket
@@ -382,6 +386,30 @@ def test_the_data_dictionary_publishes_the_rules_from_the_running_constants() ->
     ]
     assert block["defaults"]["history_min_hours"] == DEFAULT_HISTORY_MIN_HOURS
     assert block["defaults"]["history_window_days"] == DEFAULT_HISTORY_WINDOW_DAYS
+
+
+def test_the_schema_refuses_a_cell_that_simply_omits_the_question() -> None:
+    """The two keys are `required` in `schemas/sample-surface.schema.json`, not merely described.
+    A build that stopped emitting them would otherwise validate, and a consumer would read the
+    silence as "this cell has no baseline" — the one thing the pair exists to prevent."""
+    import json
+    from pathlib import Path
+
+    import jsonschema
+
+    root = Path(__file__).resolve().parents[1]
+    if root.name == "mutants":
+        root = root.parent
+    schema = json.loads(
+        (root / "schemas" / "sample-surface.schema.json").read_text(encoding="utf-8")
+    )
+    payload = json.loads((root / "web" / "sample-surface.json").read_text(encoding="utf-8"))
+    jsonschema.validate(payload, schema)  # the committed artifact is the positive control
+    for key in ("history_context", "history_context_reason"):
+        stripped = json.loads(json.dumps(payload))
+        del stripped["cells"][0][key]
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(stripped, schema)
 
 
 def test_the_committed_demo_surface_exercises_every_state() -> None:
