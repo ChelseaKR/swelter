@@ -440,8 +440,11 @@ def test_an_absent_or_valid_history_setting_raises_no_concern() -> None:
 
 def test_an_unusable_history_setting_parses_to_the_default_it_names() -> None:
     """`parse_config` stays total, like every other field: the default applies, and the refusal
-    above is what tells the host. A silently truncated 72.5 would be the worse failure."""
-    for bad in (72.5, "seventy-two", True, None, [1], float("inf")):
+    above is what tells the host. A silently truncated fraction would be the worse failure.
+
+    100.5, not 72.5: 72.5 truncates to 72, which *is* the min-hours default, so a truncating
+    reader would pass that half of this assertion by coincidence."""
+    for bad in (100.5, "seventy-two", True, None, [1], float("inf")):
         config = parse_config({"history_min_hours": bad, "history_window_days": bad})
         assert config.history_min_hours == DEFAULT_HISTORY_MIN_HOURS, bad
         assert config.history_window_days == DEFAULT_HISTORY_WINDOW_DAYS, bad
