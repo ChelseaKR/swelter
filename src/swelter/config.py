@@ -38,14 +38,34 @@ import yaml
 from . import hazard_packs
 
 DEFAULT_GRID_M = 150.0
+
+#: Default minimum number of earlier recorded hours a cell/parameter needs, in the same calendar
+#: month and inside the window, before ``history_context`` publishes a percentile for it (#241).
+#: Three days of hours: low enough that a network standing up this season sees the field work,
+#: high enough that the case the issue names as fabrication — a cell with 40 recorded hours — gets
+#: no percentile. Lives here rather than in ``aggregate`` because it is a network setting; the
+#: rules it feeds are stated in :mod:`swelter.aggregate`.
+DEFAULT_HISTORY_MIN_HOURS: Final = 72
+
+#: Default how far back, in days, ``history_context`` may reach from the hour it describes. Two
+#: years, so "the same calendar month" spans more than one year of record once a network has one,
+#: and an archive that grows without bound does not silently start comparing today against a
+#: decade-old climate.
+DEFAULT_HISTORY_WINDOW_DAYS: Final = 730
+
 _METRES_PER_DEGREE_LAT = 111_320.0
 WEB_PREVIEW_STATEWIDE_CALIFORNIA = "statewide-california"
 #: The fingerprint of the exact generated demo fixture, over every typed field but `web_preview`.
 #: It moves whenever `NetworkConfig` gains a field, because the digest covers the whole dataclass
 #: by design (see `is_builtin_demo_web_preview`) -- and that is the intended cost of a pin that
 #: cannot be satisfied by a copied network that merely kept the marker. Last moved by the
-#: `season_calendar` field: 7f2f4519... -> 52e9ed7d...
-_BUILTIN_DEMO_CONFIG_SHA256 = "52e9ed7d25438fb57f490d81688cbeeaa7a0cbadf55d10597eb3cb3095d374ec"
+#: `history_min_hours`/`history_window_days` fields (#241): 52e9ed7d... -> f6427a5d...; before
+#: them by `season_calendar`: 7f2f4519... -> 52e9ed7d...
+#: Recompute it from the committed fixture, never by hand:
+#:   python -c "import hashlib,json;from dataclasses import asdict;from swelter.config import
+#:   load_config;p=asdict(load_config('network.yaml'));p.pop('web_preview');
+#:   print(hashlib.sha256(json.dumps(p,sort_keys=True,separators=(',',':')).encode()).hexdigest())"
+_BUILTIN_DEMO_CONFIG_SHA256 = "f6427a5da9cc5653a20626949107310d2e903d9552e6419547c2082554708e67"
 _KNOWN_WEB_PREVIEWS: frozenset[str] = frozenset({"", WEB_PREVIEW_STATEWIDE_CALIFORNIA})
 
 #: The only keys `network.yaml` may have at the top level. Anything else is almost always a typo
@@ -65,6 +85,8 @@ _KNOWN_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
         "hazard_pack",
         "season_calendar",
         "web_preview",
+        "history_min_hours",
+        "history_window_days",
     }
 )
 #: Snap to the publication grid. The default, and the only safe default.
@@ -271,6 +293,17 @@ class NetworkConfig:
     #: Coordinate presentation reserved for the generated worked example's baked web artifacts.
     #: The stored fixture, live API, and host-facing node previews continue to use ``nodes``.
     web_preview: str = ""
+    #: How many earlier recorded hours a cell/parameter needs, in the same calendar month, before
+    #: ``history_context`` publishes a percentile for it (#241). Below this the surface publishes
+    #: ``history_context: null`` and the reason. A network with a long archive should raise it;
+    #: lowering it does not make a thin record into a baseline, it only publishes one.
+    history_min_hours: int = DEFAULT_HISTORY_MIN_HOURS
+    #: How far back, in days, ``history_context`` may reach from the hour it describes. Bounds an
+    #: archive that grows without limit, so today is not silently compared against a decade-old
+    #: climate. Whatever it is set to, the hours actually used are published as ``n_hours`` and
+    #: ``window_start`` on every record, so no reader has to know this setting to judge a
+    #: percentile.
+    history_window_days: int = DEFAULT_HISTORY_WINDOW_DAYS
 
     def node(self, node_id: str) -> NodeConfig | None:
         return next((n for n in self.nodes if n.node_id == node_id), None)
@@ -352,6 +385,23 @@ def _as_str(value: Any, default: str = "") -> str:
 
 def _as_float(value: Any) -> float | None:
     return None if value is None else float(value)
+
+
+def _as_history_int(value: Any, default: int) -> int:
+    """A whole-number history setting, or ``default`` when it is absent or not a whole number.
+
+    Falling back rather than raising keeps ``parse_config`` total, the way every other field here
+    is; the *reported* mistake is `_history_concerns`'s, which reads the raw document and can tell
+    "absent" from "written wrong". Silently coercing ``72.5`` to ``72`` would be the worse failure:
+    a host would believe a setting took effect that never did.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float | str):
+        return default
+    try:
+        number = float(value)
+    except ValueError:
+        return default
+    return int(number) if number.is_integer() else default
 
 
 def load_config(path: str | Path) -> NetworkConfig:
@@ -461,6 +511,10 @@ def parse_config(doc: dict[str, Any]) -> NetworkConfig:
         hazard_pack=_as_str(doc.get("hazard_pack"), hazard_packs.DEFAULT_PACK_ID),
         season_calendar=season_calendar,
         web_preview=_as_str(doc.get("web_preview")),
+        history_min_hours=_as_history_int(doc.get("history_min_hours"), DEFAULT_HISTORY_MIN_HOURS),
+        history_window_days=_as_history_int(
+            doc.get("history_window_days"), DEFAULT_HISTORY_WINDOW_DAYS
+        ),
     )
 
 
@@ -549,9 +603,35 @@ def config_concerns(config: NetworkConfig, doc: dict[str, Any]) -> tuple[list[st
     else:
         pack_keys = hazard_packs.resolve_pack(config.hazard_pack).threshold_keys()
     _threshold_concerns(config, pack_keys, errors)
+    _history_concerns(doc, errors)
     _node_field_concerns(config, errors, warnings)
     _window_concerns(config, warnings)
     return errors, warnings
+
+
+def _history_concerns(doc: dict[str, Any], errors: list[str]) -> None:
+    """Reject a `history_context` setting that would silently revert to its default.
+
+    Read off the raw document rather than the typed config, because that is the only place the
+    difference between "not set" and "set to something `parse_config` could not use" survives —
+    and only the second is a mistake. A host who writes ``history_min_hours: 0`` has asked for a
+    percentile over an empty distribution; refusing loudly is the only answer that does not end
+    with a fabricated baseline on a published surface.
+    """
+    for key, default in (
+        ("history_min_hours", DEFAULT_HISTORY_MIN_HOURS),
+        ("history_window_days", DEFAULT_HISTORY_WINDOW_DAYS),
+    ):
+        if key not in doc:
+            continue
+        value = doc[key]
+        usable = _as_history_int(value, default)
+        if usable != value or usable < 1:
+            errors.append(
+                f"{key}: {value!r} is not a whole number of "
+                f"{'hours' if key.endswith('hours') else 'days'} of 1 or more — it would be "
+                f"ignored and the default of {default} would stay in effect without saying so"
+            )
 
 
 def _hazard_pack_concerns(config: NetworkConfig, errors: list[str]) -> None:

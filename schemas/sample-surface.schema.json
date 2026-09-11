@@ -33,7 +33,9 @@
         "provisional",
         "uncertainty",
         "aqi",
-        "category"
+        "category",
+        "history_context",
+        "history_context_reason"
       ],
       "additionalProperties": true,
       "properties": {
@@ -57,6 +59,32 @@
         },
         "aqi": { "type": ["integer", "null"] },
         "category": { "type": ["string", "null"] },
+        "history_context": {
+          "type": ["object", "null"],
+          "description": "Where this hour's value sits in this same cell's own recorded distribution for the same calendar month (#241) — the network's own record, never an external climatology or a model. `null` whenever no percentile may be published honestly, and then `history_context_reason` carries the code and the sentence. Both keys are always written, so one shape reads the same everywhere.",
+          "required": ["percentile", "n_hours", "window_start", "basis"],
+          "additionalProperties": false,
+          "properties": {
+            "percentile": { "type": "number", "minimum": 0, "maximum": 100 },
+            "n_hours": { "type": "integer", "minimum": 1 },
+            "window_start": { "type": "string", "format": "date-time" },
+            "basis": {
+              "type": "string",
+              "enum": ["calibrated", "raw"],
+              "description": "`raw` means the baseline is not calibrated-only — the reading is provisional, or too few calibrated hours are recorded — and must be rendered as provisional wherever it is shown."
+            }
+          }
+        },
+        "history_context_reason": {
+          "type": ["object", "null"],
+          "description": "Why there is no `history_context`, when there is none. Three codes rather than one, because only `thin_history` is resolved by recording more hours: `ordinal_layer` is the derived `exposure` tier, which is not a measured quantity, and `single_window_reading` is the one NowCast reading derived per cell, which has no recorded distribution to sit in.",
+          "required": ["code", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "enum": ["thin_history", "ordinal_layer", "single_window_reading"] },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        },
         "nodes": { "type": "array", "items": { "type": "string" } },
         "method": { "type": "string" },
         "reference": { "type": "string" },

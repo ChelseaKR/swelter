@@ -60,7 +60,11 @@
         "severity",
         "threshold",
         "provisional",
-        "headline"
+        "headline",
+        "history_context",
+        "history_context_reason",
+        "history_line",
+        "history_line_es"
       ],
       "additionalProperties": true,
       "properties": {
@@ -80,6 +84,34 @@
         "threshold": { "type": "number" },
         "provisional": { "type": "boolean" },
         "headline": { "type": "string", "minLength": 1 },
+        "history_context": {
+          "type": ["object", "null"],
+          "description": "Where this hour's value sits in this same area's own recorded distribution for the same calendar month (#241) — the same object the surface record carries. `null` whenever no percentile may be published honestly, and then `history_context_reason` says which of three reasons applies.",
+          "required": ["percentile", "n_hours", "window_start", "basis"],
+          "additionalProperties": false,
+          "properties": {
+            "percentile": { "type": "number", "minimum": 0, "maximum": 100 },
+            "n_hours": { "type": "integer", "minimum": 1 },
+            "window_start": { "type": "string", "format": "date-time" },
+            "basis": {
+              "type": "string",
+              "enum": ["calibrated", "raw"],
+              "description": "`raw` means the baseline is not calibrated-only, and the rendered sentence says so."
+            }
+          }
+        },
+        "history_context_reason": {
+          "type": ["object", "null"],
+          "description": "Why there is no `history_context`, when there is none. Three codes rather than one, because only `thin_history` is resolved by recording more hours.",
+          "required": ["code", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "code": { "type": "string", "enum": ["thin_history", "ordinal_layer", "single_window_reading"] },
+            "note": { "type": "string", "minLength": 1 }
+          }
+        },
+        "history_line": { "type": "string", "minLength": 1 },
+        "history_line_es": { "type": "string", "minLength": 1 },
         "aqi": { "type": "integer" },
         "nodes": { "type": "array", "items": { "type": "string" } }
       }

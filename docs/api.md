@@ -549,6 +549,62 @@ derived from calibrated hourly means, so calling it provisional would say "uncal
 not true. What it lacks is an error bar, and it now says so
 ([ADR 0037](adr/0037-absence-is-never-published-as-a-number.md)).
 
+#### `history_context` — where this hour sits in the cell's own record
+
+Every surface record carries two more keys, and **both are always written**, so one shape reads the
+same everywhere: `history_context` (an object, or `null`) and `history_context_reason` (`null`, or
+an object). Exactly one of the two is null.
+
+```json
+"history_context": {
+  "percentile": 92.3,
+  "n_hours": 1340,
+  "window_start": "2026-06-01T00:00:00Z",
+  "basis": "calibrated"
+},
+"history_context_reason": null
+```
+
+Read it as *"this hour is above 92.3% of the 1,340 earlier hours this cell has recorded in the same
+calendar month"*. It is the network's own record and nothing else: no external climatology, no
+model, no regional baseline.
+
+- **The distribution.** This cell's own earlier recorded hours for the same parameter, in the same
+  calendar month (any year), within `history_window_days` before this hour. The hour being
+  described is not one of them, and neither is any later hour — so a record's context is fixed when
+  it is written and does not drift as the archive grows past it.
+- **The tie rule.** `percentile = 100 × (hours strictly below this value) / n_hours`. An earlier
+  hour equal to this value counts as not-below, so a value equal to every hour behind it reports
+  `0.0` and a value above every one of them reports `100.0`.
+- **`basis`.** `"calibrated"` when this reading and every hour behind it are calibrated;
+  `"raw"` when the baseline is not calibrated-only — the reading is provisional, or too few
+  calibrated hours are recorded to reach the minimum. A `"raw"` baseline is rendered as provisional
+  wherever it is shown, including in the alerts feed's sentence.
+- **`history_min_hours` / `history_window_days`** are `network.yaml` settings (defaults `72` and
+  `730`). You never need to know the serving network's values: `n_hours` and `window_start` are on
+  every record.
+
+When no percentile may be published, the record says which of three things is true, because only
+one of them is answered by waiting for more data:
+
+| `history_context_reason.code` | Means | Resolves by |
+| --- | --- | --- |
+| `thin_history` | Fewer than `history_min_hours` earlier hours are recorded for this cell, parameter and month | recording more hours |
+| `ordinal_layer` | The `exposure` layer's value is an ordinal tier derived from other parameters, not a measured quantity — the same reason it publishes no `uncertainty` | never; read the component parameters' own context |
+| `single_window_reading` | Exactly one NowCast reading is derived per cell, so no recorded NowCast distribution exists | never; the hourly-mean record for the same bucket carries one |
+
+`history_context_reason.note` is the same fact as a sentence. `GET /api/schema.json` publishes the
+whole vocabulary — the field list, both rules, the `basis` values, the absence codes, and the
+defaults — generated from the same constants the rollup runs on.
+
+```json
+"history_context": null,
+"history_context_reason": {
+  "code": "thin_history",
+  "note": "no percentile: this cell has 40 earlier recorded heat_index_c hour(s) in this calendar month within 730 days, and 72 are required — a distribution this thin would read as a baseline without being one"
+}
+```
+
 ### `GET /api/health.json`
 
 The network's sensor health, from the same QC the pipeline runs on the raw stream — what the

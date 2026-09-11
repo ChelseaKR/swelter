@@ -9,6 +9,43 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **`history_context` — "is this normal here?", answered from the network's own record** (#241).
+  Every surface cell, every alert, and every `swelter brief` now carries where that hour's value
+  sits in *that same cell's* recorded distribution for the same calendar month: `percentile`,
+  `n_hours`, `window_start`, and `basis`. `attach_history_context`, `HistoryContext` and
+  `HistoryAbsence` in `src/swelter/aggregate.py`; `history_min_hours` / `history_window_days` in
+  `network.yaml`; a generated `history_context` block in `/api/schema.json`; EN/ES sentences in
+  the alerts catalog; `docs/api.md`.
+
+  **No external climatology and no model.** The distribution is this cell's own earlier recorded
+  hours for the same parameter, in the same calendar month, within `history_window_days`. Nothing
+  is imported, interpolated, or borrowed from a neighbouring cell.
+
+  **A published record's context is final.** Only hours *strictly earlier* than the hour being
+  described enter its distribution, so a record written today reads the same next year, and
+  `swelter diff` shows a moved percentile only where a reading actually moved.
+
+  **The tie rule is stated, not inferred**: `percentile = 100 × (hours strictly below) / n_hours`,
+  so a value equal to every hour behind it reports `0.0` and a value above all of them reports
+  `100.0`. It is published in `/api/schema.json` alongside the window rule.
+
+  **Absence is three answers, not one.** Below `history_min_hours` (default 72) a cell publishes
+  `history_context: null` and a `history_context_reason` of `{code, note}`. The three codes are
+  `thin_history` (recording more hours fixes it), `ordinal_layer` (the derived `exposure` tier is
+  not a measured quantity — the same reason it publishes no `uncertainty`) and
+  `single_window_reading` (exactly one NowCast reading is derived per cell, so no NowCast
+  distribution exists). Merging them into one sentence would tell two thirds of readers to wait
+  for data that will never help.
+
+  **A baseline that is not calibrated-only says so.** `basis: "raw"` covers both a provisional
+  reading and a cell with too few calibrated hours, and every surface that renders the sentence
+  marks it provisional. A raw value is never placed in a calibrated distribution.
+
+  Additive under `docs/VERSIONING.md`: new keys on an existing response object, nothing removed,
+  renamed, or retyped, and **no `DATA_SCHEMA_VERSION` bump** — that integer moves only for a
+  breaking change to the observation fields, the CSV column set/order, or a QC verdict's meaning,
+  and none of those changed. See "Compatibility decisions" in that file.
+
 - **`hazard_pack: auto-season` — a season is a property of the data, not of the run**
   (completes the selector half of #236). `SeasonWindow`, `season_calendar_problems`,
   `pack_for_month`, `season_surface_parameters`, `season_threshold_keys` and `month_of` in

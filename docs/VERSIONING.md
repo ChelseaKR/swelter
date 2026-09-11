@@ -248,6 +248,32 @@ object") they are **MINOR**, not breaking.
   `/v1.1/Locations`, join the service document. Adding an endpoint, a query parameter with a safe
   default, and a field to a response object are all explicitly MINOR above.
 
+### `history_context` on surface cells and alerts — MINOR, and `DATA_SCHEMA_VERSION` stays at 2
+
+Every `/api/surface.json?hours=N` record, every alert in `/api/alerts.json`, and every
+`swelter brief` gains two keys: `history_context` (an object with `percentile`, `n_hours`,
+`window_start` and `basis`, or `null`) and `history_context_reason` (`null`, or an object with
+`code` and `note`). The alerts feed additionally gains `history_line` / `history_line_es`, and the
+Atom `<summary>` carries that sentence after the existing headline — the `<title>` is unchanged.
+`/api/schema.json` gains a generated `history_context` block. `/api/surface.geojson` is
+**untouched**: the map snapshot's property set does not move.
+
+These are additions to existing response objects, with no key removed, renamed, or retyped, so
+they are **MINOR** under "Public API — what counts as breaking" above.
+
+**`DATA_SCHEMA_VERSION` does not move, and that is the rule rather than a judgement call.** "The
+published data dictionary and `data_schema_version`" says the integer moves only when a change to
+the *observation fields*, the *CSV column set/order*, or a *QC verdict's meaning* would be MAJOR.
+`history_context` is a derived surface field: no observation field changed, `export._CSV_FIELDS`
+is byte-identical, and no verdict changed meaning. Bumping it anyway would be worse than
+cosmetic — that integer is the pin an integrator watches for a breaking schema change, and
+`reproduce`'s cross-version check and `diff`'s schema-skew refusal both read it, so a bump would
+make every snapshot taken before this change report a skew that did not happen.
+
+Two `network.yaml` settings arrive with it, `history_min_hours` (default `72`) and
+`history_window_days` (default `730`). Configuration is not either published surface, and both
+defaults preserve the behaviour of a network that sets neither — which is every existing one.
+
 ### Cell `uncertainty` means the cell's standard error — future MAJOR if redefined
 
 Every calibrated surface cell's `uncertainty` field (on `/api/surface.json` records and the

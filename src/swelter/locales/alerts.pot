@@ -96,3 +96,22 @@ msgstr ""
 #, python-brace-format
 msgid "No smoke event as of {bucket}: {count} of the {minimum} areas needed have risen sharply into unhealthy air. Individual areas may still be alerting."
 msgstr ""
+
+msgid " That baseline is not calibrated-only, so read it as provisional."
+msgstr ""
+
+#, python-brace-format
+msgid "{area}: this hour is above {percentile} of the {n_hours} earlier hour(s) this area has recorded in the same calendar month, back to {window_start}.{provisional}"
+msgstr ""
+
+#, python-brace-format
+msgid "{area}: no local baseline for this hour yet — too few comparable hours are recorded here to say whether this is normal."
+msgstr ""
+
+#, python-brace-format
+msgid "{area}: no local baseline for this hour — this is a combined tier derived from other readings, not a measured quantity; the heat and air entries carry their own."
+msgstr ""
+
+#, python-brace-format
+msgid "{area}: no local baseline for this hour — only one NowCast reading is derived per area, so there is no recorded NowCast distribution to compare it against."
+msgstr ""
