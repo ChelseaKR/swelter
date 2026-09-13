@@ -13,10 +13,11 @@
     "test:unit": "npm run i18n:check && node --test \"tests/**/*.test.js\"",
     "test:browser": "playwright test --config playwright.config.cjs",
     "test:pa11y": "node tests/run-pa11y.cjs",
-    "test:lighthouse": "node tests/run-lighthouse.cjs && node tests/performance-baseline.cjs --check",
+    "test:lighthouse": "node tests/run-lighthouse.cjs",
+    "test:performance-baseline": "node tests/performance-baseline.cjs --check",
     "performance:baseline": "node tests/performance-baseline.cjs --write",
-    "test:a11y": "npm run test:browser && npm run test:pa11y && npm run test:lighthouse",
-    "verify": "npm run test:unit && npm run test:a11y"
+    "test:a11y": "node tests/run-web-gates.cjs test:browser test:pa11y test:lighthouse test:performance-baseline",
+    "verify": "node tests/run-web-gates.cjs test:unit test:browser test:pa11y test:lighthouse test:performance-baseline"
   },
   "dependencies": {
     "messageformat": "4.0.0"

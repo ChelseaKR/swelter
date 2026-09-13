@@ -666,6 +666,28 @@ All notable changes to swelter are recorded here. The format follows
   with no steps, and one that no longer invokes `dora_evidence.py generate` are each refused
   rather than answered. `make dora-evidence` now prints the route it resolved.
 
+- **A failed browser gate no longer hides the verdicts behind it.** `web/package.json` chained
+  independent checks with `&&` — `test:a11y` was `test:browser && test:pa11y && test:lighthouse`,
+  and `test:lighthouse` was `run-lighthouse && performance-baseline --check` — so a failure
+  anywhere stopped the step and every later check reported nothing, indistinguishably from passing
+  (#282). Measured on 2026-09-11: Lighthouse failed on runner noise and the page-weight check never
+  ran; a re-run passed Lighthouse and only then did the byte check fail deterministically
+  (`/ total_bytes regressed 194513 -> 221077`).
+
+  `web/tests/run-web-gates.cjs` now runs every named gate, prints each one's own PASS/FAIL, and exits
+  non-zero if any failed — `scripts/run_gates.sh` for the dashboard. `test:a11y` and `verify` go
+  through it, and the page-weight check is its own script, `test:performance-baseline`, so it
+  reports on every run. Its one dependency is on an artifact, not a verdict: Lighthouse CI writes
+  its reports during `collect`, before asserting, and the byte check already refuses loudly when
+  they are missing. A gate whose exit status cannot be read (a child killed by a signal reports
+  `status: null`) is a failure, and an empty, unknown, or repeated gate list is refused before
+  anything runs. `web/tests/run-web-gates.unit.test.js` drives a failing first gate and asserts the
+  later ones still ran, and fails if any browser-gate script reintroduces `&&`.
+
+  **Left as it is, on purpose:** `test:unit` is still `i18n:check && node --test …`. Both halves
+  are deterministic and reproduce locally, unlike the wall-clock checks this change is about, and
+  that script is the `web-tests` job's whole command.
+
 ### Security
 
 - **`make security-semgrep` no longer excludes five rules from the whole repository**
