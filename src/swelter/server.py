@@ -530,7 +530,17 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             target = (web_root / rel).resolve()
             # Boundary-correct containment check — a lexical startswith() would let a sibling
             # directory sharing the web-dir name prefix (e.g. web-secret) escape the root.
-            if not target.is_relative_to(web_root) or not target.is_file():
+            if not target.is_relative_to(web_root):
+                self._safe_error(404, "not found")
+                return
+            if target.is_dir():
+                # `do_GET` strips the trailing slash, so a published page directory such as
+                # `/planner/` arrives here as a directory. Serving its index is what a static
+                # host does for one, and it is what keeps the dashboard's link to that page
+                # from 404ing when the same `web/` tree is served by `swelter serve` rather
+                # than by GitHub Pages. Still inside the containment check above.
+                target = target / "index.html"
+            if not target.is_file():
                 self._safe_error(404, "not found")
                 return
             content_type, _ = mimetypes.guess_type(str(target))

@@ -406,6 +406,37 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **`/sensors/` linked to a page that 404s, and nothing on the site linked to `/planner/`.**
+  Measured live on 2026-09-13: `https://chelseakr.github.io/swelter/sensors/` emitted
+  `href="sensors/"`, which a browser resolves against that page to
+  `https://chelseakr.github.io/swelter/sensors/sensors/` — 404. The markup is correct at the site
+  root and wrong on every copy of it, because the deploy builds page 2 by copying page 1's own
+  files one directory deeper. `web/app.js` recomputes the href at runtime, so the broken link was
+  only ever served to crawlers, to readers with JavaScript off, and to every reader in the window
+  before boot. `scripts/pages_seo.py` now writes each route's cross-route anchors for the depth
+  that route is served from (`relative_route_href`, `rewrite_route_links`), the same computation
+  `wireSourceSwitch` makes in the browser.
+
+  `/planner/` returned 200, was in `sitemap.xml`, and carried a correct canonical, description and
+  complete Open Graph — and **no page on the site linked to it**. Crawling every internal link from
+  `/` and from `/sensors/` reached `./`, in-page fragments, `sensors/`, assets and two off-site
+  links, and nothing else. A page reachable only from the sitemap gets essentially no readers and
+  no internal link equity. The dashboard footer now links to it from both data routes, beside the
+  other on-site items and above the off-site ones, and `swelter serve` serves a published page
+  directory's index so that link does not 404 for a self-hosted instance either.
+
+  **The gate that would have caught both on the day they shipped.** `pages_seo.py crawl` resolves
+  every internal href on every rendered page against the route serving it and requires a file that
+  is really there, and requires every sitemap URL to have an inbound link from another rendered
+  page. It runs at PR time through `make seo` against a model of the deployed layout, and again in
+  the Pages job against the finished artifact immediately before upload, where there is no model in
+  it at all. The route set is read from the tree rather than from a list beside it — so a new page
+  that nobody added to `PUBLISHED_ROUTES`, which is exactly how `/planner/` shipped with no
+  canonical and no card, is itself a finding — the generated files it has to know about are read
+  from the publisher's own list in `swelter.cli`, and the deployed `sitemap.xml` is compared against
+  what the published routes generate rather than read as the truth. Both sweeps refuse a collapsed
+  input: a link check over one page, or over an empty file set, passes forever and proves nothing.
+
 - **The conformance gate reported "the API refused to answer" in the same words as "this gap issue
   is closed", and failed on other repositories' traffic.** `scripts/conformance_check.py` resolved
   every "gap tracked in #N" ledger row against `api.github.com` with **no `Authorization`

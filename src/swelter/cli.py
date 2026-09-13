@@ -1879,7 +1879,9 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
 #: complete history.
 _EXPORT_WINDOW_HOURS = 24 * 7
 
-_PUBLISH_FILES = (
+#: Read by `scripts/pages_seo.py crawl`, which has to know that `export.csv` and
+#: `DATA-LICENSE` are linked from the dashboard footer and arrive only with a publish.
+PUBLISH_FILES = (
     "sample-surface.json",
     "demo.json",
     "sample-health.json",
@@ -2047,7 +2049,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
     data_hour = surface.newest_bucket() or ""
     written = _write_publish_manifest(
-        web_dir, _PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
+        web_dir, PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
     )
     _err(
         f"swelter publish: wrote {len(written)} files "
