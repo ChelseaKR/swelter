@@ -433,6 +433,32 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Fixed
 
+- **`a11y-advisory` stops deciding merges on runner noise, and its Lighthouse reports are
+  actually retained.** `web/lighthouserc.cjs` ran Lighthouse once per route and asserted
+  `total-blocking-time <= 200`. Over 137 retained runs of the job, TBT on `/` was p50 54 ms, max
+  202 ms, and on `/sensors/` p50 52 ms, max 257.5 ms: two failures in 137 on diffs that could not
+  have moved it, including PR #262, whose diff contained no `web/` file (#266). LCP is exposed the
+  same way (one run at 2730 ms against 2500 ms).
+
+  Lighthouse now runs **three times per route and every assertion reads the median**. The
+  aggregation is pinned in the file, not inherited: LHCI 0.15.1 defaults `aggregationMethod` to
+  `optimistic`, which for a `max*` budget reads the *best* run, so adding runs without pinning it
+  would have loosened every budget while the file still said 200 ms. **No budget changed.**
+  `web/tests/lighthouserc.unit.test.js` fails if the method is removed, if any single assertion
+  overrides it, if the run count drops below three or goes even, or if a budget moves.
+
+  The job's evidence step named `web/.lighthouseci`, but that is a hidden directory and
+  `actions/upload-artifact` skips hidden files by default, so **0 of 135 retained artifacts
+  contained a Lighthouse report**; `if-no-files-found: warn` never fired because the other two
+  paths matched. The step now sets `include-hidden-files: true`, and
+  `tests/test_workflow_artifacts.py` fails any upload step in any workflow that names a
+  dot-directory without it.
+
+  **Not changed: the name.** `a11y-advisory` is a required check in ruleset `protect-main`, has no
+  `continue-on-error` (which `scripts/workflow_policy_check.py` forbids), and blocks merges. It is
+  not advisory and should not become advisory. Renaming it is a live-settings change, so it is left
+  to the maintainer; the pull request for #266 gives the exact commands and their order.
+
 - **`/sensors/` linked to a page that 404s, and nothing on the site linked to `/planner/`.**
   Measured live on 2026-09-13: `https://chelseakr.github.io/swelter/sensors/` emitted
   `href="sensors/"`, which a browser resolves against that page to

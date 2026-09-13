@@ -258,5 +258,10 @@ jobs:
             web/test-results
             web/.lighthouseci
             web/performance-baseline.candidate.json
+          # `.lighthouseci` is a hidden directory, and upload-artifact skips hidden files unless told
+          # otherwise, so every Lighthouse report this step names was silently dropped: 0 of 135
+          # retained artifacts contained one, and `if-no-files-found: warn` never fired because the
+          # other two paths matched (#266).
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 30
