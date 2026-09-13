@@ -9,6 +9,30 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **DORA's failure set can now see a job killed by its own timeout.** A job killed by its own
+  `timeout-minutes` concludes `cancelled`, never `timed_out` — measured on `gtfs-scorecard` run
+  34162993774, whose job ran 45 minutes to the second against `timeout-minutes: 45` and concluded
+  `cancelled`, after eleven consecutive scheduled runs had died that way while every sweep read the
+  result as no signal. `scripts/dora_evidence.py` selected failures out of four `conclusion`
+  values, so such a run left both the numerator and the denominator of `change_fail_rate` and
+  opened no recovery event.
+
+  Widening the conclusion set would have been worse: all 38 cancelled `pages.yml` runs in this
+  repository's history returned `total_count: 0` from the jobs endpoint — evicted out of the
+  pending queue before a runner existed — and counting them would have put a false 12.5% on a
+  metric whose alert threshold is 15%. GitHub distinguishes the two in exactly one place, the
+  check-run annotation on the job, so retention now collects each cancelled run's jobs and their
+  annotations and stores the classified cause. A cancelled run whose cause was not collected stops
+  retention rather than being scored as a non-failure. Retained schema `1` → `2`; see
+  [ADR 0054](docs/adr/0054-a-run-killed-by-its-own-timeout-is-a-failed-deployment.md).
+
+  **Every terminal outcome now reaches a decision, and the count is a gate output.** An unmapped
+  `conclusion` used to disappear from both totals; it now makes `change_fail_rate` and
+  `failed_deployment_recovery_time` `unavailable`, naming the runs. `failure_mode_coverage()`
+  reports 11 of 11 non-success terminal outcomes reaching a decision — 5 scored as change failures,
+  4 as non-attempts, 2 refusing out loud — against 4 of 11 before, and `dora-evidence: PASS` prints
+  it on every run.
+
 - **A deploy-staleness sentinel, and an honest answer about which staleness it measures.**
   `scripts/deploy_staleness.py`, `tests/test_deploy_staleness.py` and a weekly
   `.github/workflows/deploy-staleness.yml`. Nothing in this repository has ever looked at the
