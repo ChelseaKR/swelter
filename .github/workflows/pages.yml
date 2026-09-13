@@ -197,6 +197,12 @@ jobs:
           # readings, so it gets a canonical and a card but no Dataset graph.
           uv run python scripts/pages_seo.py static-page --web-dir web/planner --route /planner/
           uv run python scripts/pages_seo.py sitemap --output web/sitemap.xml
+          # Last gate before upload, and the only one that reads the artifact as it will be
+          # served: every internal link on every rendered page has to resolve to a file that is
+          # really there, and every sitemap URL has to be reachable by following links from
+          # another page. `make seo` runs the same check at PR time against a model of this
+          # layout; this run has no model in it.
+          uv run python scripts/pages_seo.py crawl --web-dir web
       - name: Stamp the exact deployed source identity on both routes
         run: |
           SOURCE_TIMESTAMP="$(git show -s --format=%cI "${GITHUB_SHA}")"

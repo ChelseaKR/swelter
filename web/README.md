@@ -150,6 +150,20 @@ one source. The same build writes `/swelter/sitemap.xml`. `node scripts/render_s
 regenerates the deterministic SVG social-card source from the committed California basemap; keep its
 1280×640 PNG raster in sync when the card changes.
 
+Each route serves the same shell from a different depth — the deploy builds `/sensors/` by copying
+the root page's own files one directory down — so the same build rewrites the cross-route anchors
+(`#switch-cams`, `#switch-sensors`, `#footer-planner-link`) for the route each copy is served from.
+The committed markup carries the root's hrefs, which is what a self-hosted instance serves.
+
+`pages_seo.py crawl` is the check on that. It resolves every internal href on every rendered page
+against the route serving it and requires a file that is really there, and it requires every
+sitemap URL to have an inbound link from another rendered page — a page reachable only from the
+sitemap gets no readers. `make seo` runs it at PR time against a model of the deployed layout; the
+Pages job runs it again on the finished artifact immediately before upload, where nothing is
+modelled. Its route set is read from the tree, so a new page directory that nothing added to
+`PUBLISHED_ROUTES` — and which would therefore ship with no canonical, no card and no sitemap
+entry — fails the same gate.
+
 ## Deployment and release identity
 
 Every Pages build writes `version.json` and a `swelter-build-commit` meta tag on both `/` and
