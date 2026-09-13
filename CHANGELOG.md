@@ -9,6 +9,33 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **A deploy-staleness sentinel, and an honest answer about which staleness it measures.**
+  `scripts/deploy_staleness.py`, `tests/test_deploy_staleness.py` and a weekly
+  `.github/workflows/deploy-staleness.yml`. Nothing in this repository has ever looked at the
+  published site, so every claim it makes about chelseakr.github.io/swelter/ has been a claim about
+  `main` wearing the live site's name.
+
+  The measurement is taken from the **GitHub deployment record**, not `pages.yml`'s run history: a
+  `github-pages` deployment exists because bytes were published and it names the commit they came
+  from, while a run list cannot distinguish a publish from a run that finished having published a
+  fallback.
+
+  **Two numbers, not one.** `pages.yml` republishes `main` daily to refresh the real readings, so
+  the deployed commit is usually `main`'s head and a commit-distance check alone would read zero
+  forever while a dead cron served week-old readings under a page that calls them current. The
+  sentinel reports commit distance (visitor-visible commits only) and time since the last
+  successful publish as separate verdicts, the second armed only by a `schedule:` block the
+  publisher actually declares — delete the cron and the age verdict disarms itself.
+
+  **And a third question it refuses to answer.** A run that restored a cached store and fell back
+  from OpenAQ to CAMS publishes fresh bytes containing old readings, and nothing in the deployment
+  record can see that. The report names this rather than letting a deployment timestamp read as a
+  statement about reading freshness.
+
+  It publishes nothing: no `pages: write`, no `id-token: write`, no deploy credential, and it
+  dispatches no workflow. Its output is an issue; the run goes red only when the comparison cannot
+  be made at all (ADR 0048).
+
 - **`hazard_pack: auto-season` — a season is a property of the data, not of the run**
   (completes the selector half of #236). `SeasonWindow`, `season_calendar_problems`,
   `pack_for_month`, `season_surface_parameters`, `season_threshold_keys` and `month_of` in

@@ -1,0 +1,150 @@
+# Is the observatory a visitor gets at chelseakr.github.io/swelter/ the one this repository has?
+#
+# Nothing here has ever asked. This repository has no `live-integrity.yml` and no scheduled job
+# that reaches the published URL, so every claim it makes about the live site is a claim about
+# `main` wearing the live site's name. Two repositories in this portfolio were caught out by
+# exactly that gap on 2026-09-13: `afterward` merged canonical tags across 9,046 pages that never
+# reached a reader, and `evals.chelseakr.com` served a 2026-07-12 build for 63 days with every
+# gate green throughout, because none of them was asking.
+#
+# Two things can be stale here and they fail differently. `pages.yml` republishes `main` daily to
+# refresh the real readings, so the deployed *commit* is usually `main`'s head -- and a
+# commit-distance check alone would read zero forever while a dead cron served week-old readings
+# under a page that calls them current. scripts/deploy_staleness.py therefore reports two separate
+# numbers, and its own report names the third question it cannot answer (how old the readings
+# inside the last successful publish are, which only the served artifact could say).
+#
+# This workflow publishes NOTHING. It cannot: no `pages: write`, no `id-token: write`, no deploy
+# credential of any kind, and it neither dispatches `pages.yml` nor touches any publish setting.
+# It only reports the distance.
+#
+# The output is an issue, not a red run. A scheduled workflow that failed whenever a deploy was
+# overdue would be a check nobody reads by the second month. This run goes red only when the
+# comparison cannot be made at all: no github-pages deployment in the history, none reporting a
+# successful status, a deployed commit this clone does not contain, a history that has diverged,
+# or a missing publisher workflow. A detector that cannot tell must look broken rather than report
+# a comfortable zero (ADR 0048).
+#
+# Every action is pinned to a full 40-character commit SHA already in use elsewhere in this
+# repository, with the exact trailing semver comment scripts/workflow_policy_check.py requires.
+name: deploy staleness sentinel
+
+on:
+  schedule:
+    # Mondays, 16:52 UTC. Weekly rather than daily: the thresholds this measures are 3 and 14 days,
+    # so asking hourly would only produce the same answer 168 times. The minute is not shared with
+    # any other workflow in this repository or the portfolio.
+    - cron: "52 16 * * 1"
+  workflow_dispatch:
+    inputs:
+      max_age_days:
+        description: "Days an unpublished visitor-visible commit may wait before this reports"
+        required: false
+        default: "14"
+        type: string
+
+# Least privilege at the workflow level; the one job grants itself what it needs (CICD-04).
+permissions: {}
+
+# This workflow writes (files, updates or closes one issue): never cancel a run mid-write, and
+# never let a manual dispatch race the Monday schedule onto the same issue.
+concurrency:
+  group: deploy-staleness
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: measure how far the published observatory is behind main
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read # the checkout, and the git history the comparison walks
+      deployments: read # which commit the published build was made from
+      issues: write # the report itself; nothing here writes anywhere else
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Required, not incidental. On a shallow clone an older deployed commit is simply absent,
+          # `git log <deployed>..origin/main` prints nothing, and the site reads as up to date.
+          # scripts/deploy_staleness.py refuses that case rather than reporting it as zero -- this
+          # is what keeps it from having to.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Measure the distance
+        id: measure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_AGE_DAYS: ${{ inputs.max_age_days || '14' }}
+          REPOSITORY: ${{ github.repository }}
+        # Deliberately a bare `python3` rather than `uv sync`: scripts/deploy_staleness.py imports
+        # only the standard library and nothing from src/swelter, so the sentinel needs no
+        # dependency resolution and cannot be broken by one.
+        #
+        # The `if` is how a refusal reaches the reporting step below, which turns it into the red
+        # run, instead of ending the job here with no explanation attached. It is not an error
+        # suppressor: `measured=false` is written to the step outputs on that path and the next
+        # step exits 1 on it.
+        run: |
+          set -euo pipefail
+          if python3 scripts/deploy_staleness.py \
+              --repo "$REPOSITORY" \
+              --head origin/main \
+              --max-age-days "$MAX_AGE_DAYS" \
+              > "$RUNNER_TEMP/report.txt" 2> "$RUNNER_TEMP/error.txt"; then
+            echo "the comparison was made; see the report below"
+          else
+            echo "::warning title=The staleness comparison was refused::see the error below"
+          fi
+          cat "$RUNNER_TEMP/report.txt" "$RUNNER_TEMP/error.txt"
+
+      - name: File, update or close the report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MEASURED: ${{ steps.measure.outputs.measured }}
+          OVERDUE: ${{ steps.measure.outputs.overdue }}
+          TITLE: "The published observatory is behind main"
+        run: |
+          set -euo pipefail
+
+          existing=$(gh issue list --repo "$REPOSITORY" --state open \
+            --json number,title --jq "[.[] | select(.title == env.TITLE)] | .[0].number // empty")
+
+          if [ "$MEASURED" != "true" ]; then
+            echo "::error::the staleness comparison could not be made; see the report above"
+            exit 1
+          fi
+
+          if [ "$OVERDUE" != "true" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --repo "$REPOSITORY" --reason completed \
+                --comment "The published observatory is no longer overdue. ${RUN_URL}"
+              echo "closed #$existing"
+            else
+              echo "not overdue; no open report to close"
+            fi
+            exit 0
+          fi
+
+          {
+            echo '```'
+            cat "$RUNNER_TEMP/report.txt"
+            echo '```'
+            echo
+            echo "A code verdict and a refresh verdict are separate findings with separate causes:"
+            echo "a merge that never reached a reader, and a publisher that stopped running."
+            echo "Neither is a statement about how old the published readings are."
+            echo
+            echo "Measured by \`scripts/deploy_staleness.py\` in ${RUN_URL}."
+            echo "This sentinel holds no publishing credential and deploys nothing."
+          } > "$RUNNER_TEMP/body.md"
+
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+            echo "updated #$existing"
+          else
+            gh issue create --repo "$REPOSITORY" --title "$TITLE" \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi
