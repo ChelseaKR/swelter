@@ -223,13 +223,18 @@ test("the machine-translation notice is first in <main>, in both languages, with
   assert.match(html, /<select id="lang-select"[^>]*>[\s\S]*?<option value="en">English<\/option>/, "the menu the notice points to offers English");
 });
 
-test("the notice reads the same in every catalog: Spanish half in Spanish, English half in English", () => {
-  for (const locale of ["en", "es"]) {
-    const strings = catalog(locale);
-    assert.match(strings["mt-notice-es"], /^Traducción automática, sin revisión humana\./, locale);
-    assert.match(strings["mt-notice-en"], /^Machine-translated, not reviewed by a person\./, locale);
-    assert.match(strings["mt-notice-switch-es"], /^Consulte la versión en inglés/, locale);
-    assert.match(strings["mt-notice-switch-en"], /^See the English version/, locale);
+test("the Spanish catalog renders the notice's Spanish half in Spanish and its English half in English", () => {
+  // The notice shows only while es.json is active, so es.json is what a reader sees: both halves,
+  // each in its own language. en.json holds the English source of every key, as it does for all
+  // keys, which is also what keeps the reading-level gate scoring English as English.
+  const es = catalog("es");
+  assert.match(es["mt-notice-es"], /^Traducción automática, sin revisión humana\./);
+  assert.match(es["mt-notice-en"], /^Machine-translated, not reviewed by a person\./);
+  assert.match(es["mt-notice-switch-es"], /^Consulte la versión en inglés/);
+  assert.match(es["mt-notice-switch-en"], /^See the English version/);
+  const en = catalog("en");
+  for (const key of ["mt-notice-es", "mt-notice-en"]) {
+    assert.match(en[key], /^Machine-translated, not reviewed by a person\./, key);
   }
 });
 
