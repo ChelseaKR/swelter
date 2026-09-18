@@ -20,6 +20,8 @@ flowchart LR
   G --> B["Browser observatory"]
   B --> LS["localStorage\npreferences + public-cell watches"]
   B --> CS["Route-scoped service-worker CacheStorage"]
+  B -->|"reference host only; not under GPC/DNT/opt-out"| GA["Google Analytics 4\npage counts, origin+path"]
+  B --> OO["localStorage\nanalytics opt-out flag"]
   U["Optional browser geolocation"] -->|"in-memory nearest-cell calculation only"| B
 ```
 
@@ -38,12 +40,16 @@ flowchart LR
 | Browser preferences | Restore language, units, display, last public cell, comparison, shortcut choice, watch thresholds | `localStorage` key `swelter.prefs`; same-origin scripts/user | Until in-app “clear settings,” browser site-data deletion, or eviction | Not sent by application code; selected cell/time/parameter/comparison may also appear in URL fragment |
 | Browser notification state | Notify once when an on-device watch crosses while page is open | In-memory set plus browser permission | Session memory only; browser owns permission retention | No push/subscriber list |
 | Offline shell and same-origin data responses | PWA/offline behavior | Route-scoped service worker using origin-wide CacheStorage with a scope-derived prefix | Current release until browser deletion/eviction; activation deletes older caches owned by the same route scope | Remains on the user's device; may include third-party-licensed public environmental data |
-| URL fragment | Bookmark/share parameter, time, selected public cell, comparison | Address bar/history/share target | Browser/user-controlled | Public if the user shares it; fragments are not sent in HTTP requests |
+| URL fragment | Bookmark/share parameter, time, selected public cell, comparison | Address bar/history/share target | Browser/user-controlled | Public if the user shares it; fragments are not sent in HTTP requests and are stripped from what Google Analytics receives |
+| Google Analytics 4 page counts (ADR 0055) | Count visits to the reference site's pages | Google LLC (US), owner's GA4 property; loaded only on `chelseakr.github.io/swelter/`, never under GPC/DNT/opt-out | 14 months in the property; `_ga`/`_ga_CMSGSNGC9P` cookies up to two years outside the EEA/UK/CH, none inside them | Never published; origin+path, title, referring origin, browser/device data, approximate location from IP; no place, search, watch, or setting |
+| Analytics opt-out flag | Remember a visitor's "Opt out of analytics" choice | `localStorage` key `swelter.analytics-opt-out`; same-origin scripts/user | Until "Opt back in", browser site-data deletion, or eviction; "Clear saved settings" deliberately leaves it | Not sent anywhere |
 
 ## Data minimization decisions
 
-- No account, analytics identifier, advertising id, contact list, background push subscription, or
-  raw browser location is collected.
+- No account, advertising id, contact list, background push subscription, or raw browser location is
+  collected. The only analytics identifier is Google's `_ga` cookie from GA4 page counts on the
+  reference host (ADR 0055), which is not set in the EEA/UK/CH or under GPC/DNT/opt-out, and is
+  never joined to a place, search, watch, or setting.
 - Observation records cannot contain a person or coordinate. Exact node placement and credentials
   remain separate operator data.
 - Watches store a public cell, parameter, threshold, and UI preferences—not a person or raw
@@ -52,5 +58,5 @@ flowchart LR
   license the artifact honestly.
 
 Owner: maintainer for the reference site; hosting collective for a deployed network. Last verified:
-2026-07-16. Recheck cadence: every release and whenever a field, provider, storage mechanism,
+2026-09-17. Recheck cadence: every release and whenever a field, provider, storage mechanism,
 browser permission, cache, or publication path changes.

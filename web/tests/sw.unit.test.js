@@ -21,6 +21,7 @@ function loadWorker({
   cached,
   fetchImpl = async () => new Response("network"),
   putImpl = async () => undefined,
+  source = WORKER_SOURCE,
 } = {}) {
   const listeners = new Map();
   const opened = [];
@@ -66,7 +67,7 @@ function loadWorker({
     },
   };
 
-  vm.runInNewContext(WORKER_SOURCE, context, { filename: "sw.js" });
+  vm.runInNewContext(source, context, { filename: "sw.js" });
 
   function dispatchFetch(url = `${scope}app.js`) {
     const waits = [];
@@ -95,7 +96,20 @@ function loadWorker({
     return waits;
   }
 
-  return { added, dispatchFetch, dispatchInstall, opened, puts };
+  // Dispatch a fetch without requiring an answer: a cross-origin request must get none.
+  function dispatchRaw(url) {
+    let answered = false;
+    listeners.get("fetch")({
+      request: { method: "GET", url },
+      respondWith() {
+        answered = true;
+      },
+      waitUntil() {},
+    });
+    return answered;
+  }
+
+  return { added, dispatchFetch, dispatchInstall, dispatchRaw, opened, puts };
 }
 
 test("install precaches the MF2 loader and every generated runtime module", async () => {
@@ -264,4 +278,34 @@ test("uncached offline shell request resolves to a defined 503 response", async 
   const response = await event.response;
   assert.equal(response.status, 503);
   assert.equal(await response.text(), "Offline — this asset isn't cached yet.");
+});
+
+test("cross-origin requests (Google Analytics, ADR 0055) are never answered from or written to the cache", async () => {
+  const worker = loadWorker({ cached: new Response("cached") });
+  for (const url of [
+    "https://www.googletagmanager.com/gtag/js?id=G-CMSGSNGC9P",
+    "https://region1.google-analytics.com/g/collect?v=2&tid=G-CMSGSNGC9P",
+    "https://example.test.evil/swelter/app.js",
+  ]) {
+    assert.equal(worker.dispatchRaw(url), false, url);
+  }
+  assert.deepEqual(worker.opened, []);
+  assert.deepEqual(worker.puts, []);
+  // Same-origin requests are still served.
+  assert.equal(worker.dispatchRaw("https://example.test/swelter/analytics.js"), true);
+});
+
+test("cross-origin negative control: without the origin check the worker would answer for Google", () => {
+  const guard = "  if (new URL(url).origin !== OWN_ORIGIN) return;\n";
+  assert.equal(WORKER_SOURCE.split(guard).length - 1, 1, "the origin guard must occur exactly once");
+  const source = WORKER_SOURCE.replace(guard, "");
+  assert.notEqual(source, WORKER_SOURCE);
+  const worker = loadWorker({ cached: new Response("cached"), source });
+  assert.equal(worker.dispatchRaw("https://www.googletagmanager.com/gtag/js?id=G-CMSGSNGC9P"), true);
+});
+
+test("install precaches the analytics loader with the rest of the offline shell", async () => {
+  const worker = loadWorker({ fetchImpl: async () => Response.json([]) });
+  await Promise.all(worker.dispatchInstall());
+  assert.ok(worker.added.includes("analytics.js"));
 });

@@ -119,7 +119,10 @@ def test_planner_is_accessible_and_collects_no_personal_or_location_fields() -> 
     assert not page.unlabelled_radios
     assert not page.disallowed_inputs
     assert {"name", "email", "address", "location"}.isdisjoint(page.radios)
-    assert page.local_scripts == ["planner.js"]
+    # planner.js, plus the site's one first-party analytics loader (ADR 0055), which
+    # reads no answer: web/tests/analytics.unit.test.js runs it, and the storage and
+    # network checks below still hold for planner.js itself.
+    assert page.local_scripts == ["../analytics.js", "planner.js"]
     assert page.local_styles == ["planner.css"]
 
 

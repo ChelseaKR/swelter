@@ -248,8 +248,9 @@ is linked from the repository. Open work is never hidden inside a passing state.
 | Responsible-Tech Framework | Applies — gap tracked in [#106](https://github.com/ChelseaKR/swelter/issues/106) |
 
 For observability, the deployed artifact uses the static-site tier; the optional CLI/self-hosted
-server uses structured operational logs; real-user monitoring is intentionally N/A because the
-reference site collects no client telemetry. The intentionally excluded merge/production-governance
+server uses structured operational logs; real-user monitoring is intentionally N/A. The reference
+site's only client telemetry is Google Analytics 4 page counts (ADR 0055): GPC, Do Not Track and a
+footer opt-out are honoured, ad features are off, and no place, search, or setting is sent. The intentionally excluded merge/production-governance
 finding is isolated in #105 and is not claimed as remediated here.
 
 The CI/CD row stays a tracked gap, and the branch ruleset it refers to is now committed as
