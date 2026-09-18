@@ -56,3 +56,14 @@ updates:
       - "javascript"
     cooldown:
       default-days: 7
+
+# Not covered by any entry above, because Dependabot has no ecosystem for these
+# pins. Renovate's default `pyenv`, `nvm` and `github-actions` managers proposed
+# bumps to them until renovate.json was scoped to the standards bump (#295). They
+# are now a manual check:
+#   - `.python-version` (the local / uv interpreter), when adopting a new Python
+#     minor
+#   - `web/.nvmrc` (read by pages.yml via `node-version-file`), and the literal
+#     `node-version:` inputs to actions/setup-node in ci.yml and release.yml
+#   - the `version:` input to astral-sh/setup-uv and the `cosign-release:` input
+#     to sigstore/cosign-installer in release.yml
