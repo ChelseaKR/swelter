@@ -7,8 +7,8 @@ The three acceptance clauses on the issue, each with a named test here:
 * a synthetic store with a known distribution yields the expected percentile within rounding,
   identically across runs — :func:`test_a_known_distribution_yields_the_expected_percentile` and
   :func:`test_the_same_store_yields_byte_identical_context_across_runs`;
-* raw-only history is labelled ``basis: raw`` and rendered as provisional wherever shown —
-  :func:`test_raw_only_history_is_labelled_raw` and
+* raw-only history is labeled ``basis: raw`` and rendered as provisional wherever shown —
+  :func:`test_raw_only_history_is_labeled_raw` and
   :func:`test_a_raw_basis_is_rendered_as_provisional_in_every_language`.
 
 Everything here is offline and deterministic: no wall clock, no fetch, no climatology.
@@ -203,10 +203,10 @@ def test_an_hour_outside_the_window_is_not_in_the_distribution() -> None:
     assert newest_narrow is None
 
 
-# -- clause 3: raw-only history is labelled, and shown as provisional -------------------------
+# -- clause 3: raw-only history is labeled, and shown as provisional -------------------------
 
 
-def test_raw_only_history_is_labelled_raw() -> None:
+def test_raw_only_history_is_labeled_raw() -> None:
     surface = aggregate.aggregate(
         _hours([20.0 + i for i in range(11)], calibrated=False), _config(min_hours=10)
     )
@@ -216,7 +216,7 @@ def test_raw_only_history_is_labelled_raw() -> None:
     assert context.provisional is True
 
 
-def test_calibrated_history_is_labelled_calibrated() -> None:
+def test_calibrated_history_is_labeled_calibrated() -> None:
     surface = aggregate.aggregate(_hours([20.0 + i for i in range(11)]), _config(min_hours=10))
     context = _readings(surface)[-1].history_context
     assert context is not None

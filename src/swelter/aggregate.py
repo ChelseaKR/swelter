@@ -883,7 +883,7 @@ def _history_from_window(
 
     Calibrated first, and only when *this* reading is calibrated too: placing a raw value in a
     calibrated distribution compares two different measurements under one number. Falling back to
-    every recorded hour is the honest second choice, and it is labelled ``raw`` so nothing reads it
+    every recorded hour is the honest second choice, and it is labeled ``raw`` so nothing reads it
     as the calibrated baseline.
     """
     floor = max(min_hours, 1)

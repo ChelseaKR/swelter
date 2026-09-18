@@ -272,7 +272,7 @@ make every snapshot taken before this change report a skew that did not happen.
 
 Two `network.yaml` settings arrive with it, `history_min_hours` (default `72`) and
 `history_window_days` (default `730`). Configuration is not either published surface, and both
-defaults preserve the behaviour of a network that sets neither — which is every existing one.
+defaults preserve the behavior of a network that sets neither — which is every existing one.
 
 ### Cell `uncertainty` means the cell's standard error — future MAJOR if redefined
 

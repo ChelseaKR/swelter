@@ -252,7 +252,7 @@ test("a history basis outside the calibrated/raw enum fails validation", () => {
   const { validate } = validatorFor("sample-surface.schema.json");
   const payload = readJson(WEB, "sample-surface.json");
   const withContext = payload.cells.find((cell) => cell.history_context !== null);
-  withContext.history_context.basis = "modelled"; // no external model ever backs this field
+  withContext.history_context.basis = "modeled"; // no external model ever backs this field
   assert.equal(validate(payload), false, "schema should reject an off-contract history basis");
 });
 
