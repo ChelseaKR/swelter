@@ -1218,6 +1218,22 @@ footer code {
   margin: 0.4rem 0 0;
 }
 
+/* The footer's "Opt out of analytics" control (ADR 0055), styled like the settings button so
+   it never falls back to the user agent's button colours, which fail contrast in dark mode. */
+.analytics-choice {
+  margin: 0.5rem 0 0;
+}
+
+.analytics-choice button {
+  font: inherit;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
 .shortcuts {
   margin-top: 0.6rem;
 }

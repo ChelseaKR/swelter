@@ -50,7 +50,10 @@ The primary boundaries are:
   cell; raw coordinates are neither transmitted by app code nor persisted. `localStorage` holds
   display preferences, public cell selections/comparisons, and watch thresholds until the user
   clears them. A route-scoped service worker caches same-origin shell/data responses for offline
-  use. There is no analytics, account, advertising SDK, or background push service.
+  use and ignores cross-origin requests. There is no account, advertising SDK, or background push
+  service. On the reference site only, `web/analytics.js` loads Google Analytics 4 page counts
+  (ADR 0055): never under Global Privacy Control, Do Not Track, or the footer opt-out, with ad
+  features off and the page address sent without its fragment or query string.
 
 Observation data is environmental, but exact host coordinates, OpenAQ API keys, node HMAC keys,
 workflow identity, source-license integrity, calibration evidence, and the untampered raw archive

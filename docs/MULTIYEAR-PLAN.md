@@ -354,7 +354,8 @@ ADR log or the roadmap's non-goals, and each needs a superseding ADR before it i
   accuracy claim for coarse model sources; no public exact host coordinates by default
   (`ROADMAP.md` non-goals).
 - No shipped Parquet/Arrow backend, multi-writer cluster, mobile app, account system, or client
-  analytics/RUM (`ROADMAP.md` non-goals).
+  RUM (`ROADMAP.md` non-goals). GA4 page counts on the reference site are the one analytics
+  exception (ADR 0055).
 - No claim of current manual assistive-technology or independent Spanish signoff until #106 has a
   dated reviewer artifact.
 

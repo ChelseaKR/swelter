@@ -87,7 +87,8 @@ and browser flows.
 
 **What do we commit to?** Exact coordinates/keys stay operator-local; precise publication is host
 opt-in; browser location is explicit, in-memory, and optional; preferences/watches remain same-origin
-and user-clearable; no analytics/account/background push; disclose irreversible open copies.
+and user-clearable; no account/background push; analytics limited to ADR 0055's GA4 page counts
+(GPC/DNT/opt-out honoured, no place or setting sent); disclose irreversible open copies.
 
 **How is it enforced?**
 

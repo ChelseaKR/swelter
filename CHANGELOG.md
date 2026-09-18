@@ -9,6 +9,18 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **Google Analytics 4 page counts on the reference site, with an opt-out.** `web/analytics.js`
+  loads GA4 (`G-CMSGSNGC9P`) on the dashboard, `/sensors/`, and the planner, only over HTTPS on
+  `chelseakr.github.io/swelter/`, and never under Global Privacy Control, Do Not Track, or the new
+  footer "Opt out of analytics" button (remembered as `swelter.analytics-opt-out`, outside
+  `swelter.prefs`). Consent Mode v2 denies the three ad signals everywhere and analytics storage in
+  the EEA, UK and CH; Google signals and ad personalization are off; `page_location` is origin plus
+  path, so the `#…` place state never reaches Google. The service worker now ignores cross-origin
+  requests. A "Privacy and analytics" footer section (English and Spanish) describes it, and the
+  "no analytics / no tracking" claims across the README, SECURITY, ROADMAP, architecture and audit
+  documents are corrected, with a new DPIA decision. See
+  [ADR 0055](docs/adr/0055-google-analytics-4-on-the-public-pages.md).
+
 - **DORA's failure set can now see a job killed by its own timeout.** A job killed by its own
   `timeout-minutes` concludes `cancelled`, never `timed_out` — measured on `gtfs-scorecard` run
   34162993774, whose job ran 45 minutes to the second against `timeout-minutes: 45` and concluded

@@ -4373,6 +4373,61 @@ function clearPendingLocationView() {
   delete pendingView.c;
 }
 
+// -- analytics opt-out (ADR 0055) ---------------------------------------------
+
+// The footer's "Opt out of analytics" control. web/analytics.js owns the opt-out flag and publishes
+// `swelterAnalytics` only when a GA4 measurement ID is configured, so with no ID there is no control
+// at all. The flag lives outside `swelter.prefs`, so "Clear saved settings" never undoes an opt-out.
+// The status line remembers which message it shows, so a language switch re-renders it in place.
+const ANALYTICS_STATUS = {
+  signal: () => t("analytics-signal"),
+  "no-storage": () => t("analytics-no-storage"),
+  "is-out": () => t("analytics-is-out"),
+  "opted-out": () => t("analytics-opted-out"),
+  "back-in": () => t("analytics-back-in"),
+};
+let analyticsStatus = null;
+
+function renderAnalyticsChoice() {
+  const box = $("#analytics-choice");
+  const button = $("#analytics-toggle");
+  const status = $("#analytics-status");
+  if (!box || !button || !status) return;
+  const api = globalThis.swelterAnalytics;
+  if (!api) {
+    box.hidden = true;
+    return;
+  }
+  button.textContent = api.isOptedOut() ? t("analytics-opt-in") : t("analytics-opt-out");
+  button.hidden = api.blockedBySignal || !api.storageAvailable();
+  status.textContent = analyticsStatus ? ANALYTICS_STATUS[analyticsStatus]() : "";
+  box.hidden = false;
+}
+
+function toggleAnalyticsOptOut() {
+  const api = globalThis.swelterAnalytics;
+  if (!api) return;
+  const optingOut = !api.isOptedOut();
+  if (!api.setOptedOut(optingOut)) analyticsStatus = "no-storage";
+  else analyticsStatus = optingOut ? "opted-out" : "back-in";
+  renderAnalyticsChoice();
+}
+
+function wireAnalyticsChoice() {
+  const api = globalThis.swelterAnalytics;
+  if (api) {
+    if (api.blockedBySignal) analyticsStatus = "signal";
+    else if (!api.storageAvailable()) analyticsStatus = "no-storage";
+    else if (api.isOptedOut()) analyticsStatus = "is-out";
+    $("#analytics-toggle")?.addEventListener("click", toggleAnalyticsOptOut);
+  } else {
+    // analytics.js loads after this file (index.html) and announces itself once it has run.
+    // With no measurement ID it never does, and the control stays hidden.
+    document.addEventListener("swelter:analytics", wireAnalyticsChoice, { once: true });
+  }
+  renderAnalyticsChoice();
+}
+
 // -- saved settings (on-device transparency + control) -----------------------
 
 // Plain statement of what swelter has stored in THIS browser right now — the community-owned, no-
@@ -4693,6 +4748,7 @@ function wireControls() {
     savePref("lang", requested);
     localizeDocumentMetadata();
     renderDemoContract();
+    renderAnalyticsChoice();
     render();
   });
   $("#unit-f").addEventListener("click", () => setUnit("F"));
@@ -4899,6 +4955,7 @@ async function init() {
   wireSort();
   wireObservatory();
   wireControls();
+  wireAnalyticsChoice();
   wireWatch();
   wireSourceSwitch();
   wireOnline();
