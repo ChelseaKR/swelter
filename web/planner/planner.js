@@ -221,3 +221,44 @@
   printButton.addEventListener("click", () => window.print());
   updateProgress();
 })();
+
+// The footer's "Opt out of analytics" control (ADR 0055). ../analytics.js owns the flag and
+// publishes `swelterAnalytics` only when a GA4 measurement ID is configured; with no ID the control
+// stays hidden. The planner is English-only, so its messages live here rather than in the catalogs.
+(() => {
+  "use strict";
+
+  const box = document.querySelector("#analytics-choice");
+  const button = document.querySelector("#analytics-toggle");
+  const status = document.querySelector("#analytics-status");
+  const api = globalThis.swelterAnalytics;
+  if (!box || !button || !status || !api) return;
+
+  const messages = {
+    signal: "Analytics is off. Your browser sends Global Privacy Control or Do Not Track.",
+    "no-storage":
+      "This browser blocks site storage, so it cannot keep your choice. Global Privacy Control or Do Not Track keeps analytics off.",
+    "is-out": "You opted out. This site does not load Google Analytics in this browser.",
+    "opted-out":
+      "You opted out. From the next page you open, this site will not load Google Analytics in this browser.",
+    "back-in": "You opted back in. Analytics starts again on the next page you open.",
+  };
+
+  function render(message) {
+    button.textContent = api.isOptedOut() ? "Opt back in" : "Opt out of analytics";
+    button.hidden = api.blockedBySignal || !api.storageAvailable();
+    status.textContent = message ? messages[message] : "";
+    box.hidden = false;
+  }
+
+  button.addEventListener("click", () => {
+    const optingOut = !api.isOptedOut();
+    if (!api.setOptedOut(optingOut)) render("no-storage");
+    else render(optingOut ? "opted-out" : "back-in");
+  });
+
+  if (api.blockedBySignal) render("signal");
+  else if (!api.storageAvailable()) render("no-storage");
+  else if (api.isOptedOut()) render("is-out");
+  else render("");
+})();

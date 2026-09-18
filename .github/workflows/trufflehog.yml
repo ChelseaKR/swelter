@@ -74,7 +74,7 @@ jobs:
       # is decidable, so the pair loses only "URI at the unknown tier", which is precisely and
       # only the class this false positive belongs to.
       - name: TruffleHog (all tiers, URI deferred to step 2)
-        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
           path: ./
           # Pinning the action by SHA does NOT pin the scanner. The action's `version` input
@@ -88,7 +88,7 @@ jobs:
           # picked it up, and 3.96.0 is also the release whose Lob detector began matching
           # pytest function names.
           # Pinned to match the action tag above so the two move together and deliberately.
-          version: "3.97.2"
+          version: "3.97.4"
           extra_args: --results=verified,unknown,unverified --exclude-detectors=Lob,URI
 
       # Step 2 -- URI restored, at the tiers where the answer is a decision rather than an error.
@@ -97,8 +97,8 @@ jobs:
       # failed: a job that stops at the first finding hides the second.
       - name: TruffleHog (URI, at the tiers where it is decidable)
         if: ${{ !cancelled() }}
-        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
           path: ./
-          version: "3.97.2"
+          version: "3.97.4"
           extra_args: --results=verified,unverified --exclude-detectors=Lob

@@ -1,7 +1,7 @@
 """California jurisdiction test backed by a checked-in U.S. Census boundary.
 
 The geometry is the U.S. Census Bureau TIGERweb States layer, January 1, 2025 vintage, simplified
-to 0.0002 degrees (at most about 22 metres of latitude) for a small deterministic runtime asset.
+to 0.0002 degrees (at most about 22 meters of latitude) for a small deterministic runtime asset.
 It is a seven-part MultiPolygon, so coastal islands are represented instead of being approximated
 by the statewide bounding box.
 """

@@ -90,7 +90,7 @@ def test_spike_not_contaminated_by_range_fault() -> None:
     ]
     flagged = {o.timestamp: o.qc for o in qc.apply(series)}
     assert flagged["2026-06-01T02:00:00Z"] == "range"  # the real fault
-    assert flagged["2026-06-01T01:00:00Z"] == "ok"  # valid neighbours not mislabeled as spikes
+    assert flagged["2026-06-01T01:00:00Z"] == "ok"  # valid neighbors not mislabeled as spikes
     assert flagged["2026-06-01T03:00:00Z"] == "ok"
 
 

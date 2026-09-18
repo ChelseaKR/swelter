@@ -78,7 +78,7 @@ CLASS_CONTRADICTED: Final = "contradicted"
 CLASS_UNVERIFIABLE: Final = "unverifiable"
 
 #: How far a regulatory monitor may sit from a published cell and still be treated as speaking
-#: about it, in metres. **This is swelter's own choice, not a standard**, and it is stated as such
+#: about it, in meters. **This is swelter's own choice, not a standard**, and it is stated as such
 #: wherever it is published: no published rule says at what distance a PM2.5 monitor stops
 #: representing an airshed, because it depends on terrain, sources and the day's meteorology. It is
 #: a parameter for exactly that reason, and a run records the value it used.
@@ -281,13 +281,13 @@ def wilson_interval(successes: int, trials: int, *, z: float = _Z_95) -> tuple[f
         raise ValueError("a proportion over zero trials is undefined, not 0.0")
     proportion = successes / trials
     denominator = 1.0 + z * z / trials
-    centre = (proportion + z * z / (2 * trials)) / denominator
+    center = (proportion + z * z / (2 * trials)) / denominator
     spread = (
         z
         * math.sqrt(proportion * (1 - proportion) / trials + z * z / (4 * trials * trials))
         / denominator
     )
-    return (max(0.0, centre - spread), min(1.0, centre + spread))
+    return (max(0.0, center - spread), min(1.0, center + spread))
 
 
 @dataclass(frozen=True)

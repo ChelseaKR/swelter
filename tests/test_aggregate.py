@@ -350,7 +350,7 @@ def test_an_unknown_member_sigma_never_shrinks_the_published_error_bar() -> None
 
 
 def test_a_cell_with_an_unknown_member_sigma_publishes_no_number_and_says_why() -> None:
-    # The rollup's own defence, tested where the bug lived. `Observation` now refuses a calibrated
+    # The rollup's own defense, tested where the bug lived. `Observation` now refuses a calibrated
     # row with no uncertainty, so this state cannot be reached from the shipped pipeline; it is
     # simulated here at the accumulator to prove the rollup still refuses to invent an error bar if
     # some future writer, import path, or restored archive gets one past that boundary (#147).

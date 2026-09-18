@@ -2,8 +2,8 @@
 # Run every make target named on the command line, and report each one's result.
 #
 # Why this exists. The aggregate gates used to be prerequisite lists, and make
-# stops a prerequisite list at the first failure. That is the right behaviour
-# for a build, where step 4 needs step 3's output, and the wrong behaviour for
+# stops a prerequisite list at the first failure. That is the right behavior
+# for a build, where step 4 needs step 3's output, and the wrong behavior for
 # a gate set, where the checks are independent: one unfixable dependency
 # advisory in the npm toolchain meant OSV-Scanner failed and semgrep, the
 # secret scan, and the workflow policy check then never ran at all -- silently,

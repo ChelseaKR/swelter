@@ -18,6 +18,7 @@ const SHELL = [
   "styles.css",
   "observatory.css",
   "i18n-runtime.mjs",
+  "analytics.js",
   "app.js",
   "manifest.webmanifest",
   "icon-512.png",
@@ -61,9 +62,14 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Cross-origin requests (Google Analytics' gtag.js and its measurement pings, ADR 0055) go straight to
+// the network: this worker never caches, replays, or answers for another origin.
+const OWN_ORIGIN = new URL(self.registration.scope).origin;
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = event.request.url;
+  if (new URL(url).origin !== OWN_ORIGIN) return;
 
   // Live data: network-first, fall back to cache, then to a DEFINED offline response. Returning
   // undefined to respondWith would surface a raw browser error page.

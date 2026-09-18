@@ -46,7 +46,7 @@ def test_parse_maps_values_as_raw() -> None:
     }
     # Honesty: community low-cost sensors are uncalibrated, so every value stays RAW (provisional).
     assert all(o.calibration == RAW for o in obs)
-    assert all(o.timestamp.endswith("Z") for o in obs)  # "2026-... ..." normalised to canonical UTC
+    assert all(o.timestamp.endswith("Z") for o in obs)  # "2026-... ..." normalized to canonical UTC
     pm = next(o for o in obs if o.parameter == "pm25_ugm3")
     assert pm.value == 12.3 and pm.unit == "ug/m3"
 

@@ -102,9 +102,10 @@ i18n:  ## Mechanical i18n gates: gettext/MF2 catalogs, parity, tags, UTF-8, CLDR
 	uv run python scripts/i18n_parity.py
 	uv run python scripts/i18n_cldr_pin_check.py
 
-seo:  ## Validate Pages metadata inputs and the GitHub project-site crawl policy
+seo:  ## Validate Pages metadata inputs, the crawl policy, and the internal link graph
 	uv run python scripts/pages_seo.py check --template web/index.html
 	uv run python scripts/pages_seo.py check --template web/planner/index.html
+	uv run python scripts/pages_seo.py crawl --web-dir web
 
 hygiene:  ## No bare TODO/FIXME/HACK; every noqa/type:ignore is coded (CQ-34/CQ-35)
 	uv run python scripts/hygiene_check.py

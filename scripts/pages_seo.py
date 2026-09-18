@@ -10,13 +10,16 @@ URL, social metadata, and a license-correct Dataset description can be generated
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import posixpath
 import re
 import sys
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
 from html import escape
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -34,6 +37,45 @@ KNOWN_ROUTES = ("/", "/sensors/")
 # observations that page does not publish.
 STATIC_ROUTES = ("/planner/",)
 PUBLISHED_ROUTES = KNOWN_ROUTES + STATIC_ROUTES
+
+#: Routes the deploy builds by copying the root page instead of from a committed directory, with
+#: the subdirectories it copies alongside the top-level files. `.github/workflows/pages.yml`
+#: ("Page 2") runs `find web -maxdepth 1 -type f -exec cp {} web/sensors/`, then `cp -r web/i18n`
+#: and `cp -r web/vendor`, then publishes that route's own data files into it. Every one of those
+#: routes therefore serves the *same document one directory deeper*, which is why an href written
+#: relative to the site root is correct on `/` and a 404 on the copy. Before a deploy there is no
+#: built directory to read, so this states what the deploy will put there; once one exists, the
+#: built directory is read instead and this is not consulted.
+SYNTHESIZED_ROUTES: dict[str, tuple[str, ...]] = {"/sensors/": ("i18n", "vendor")}
+
+#: Anchors in the dashboard shell that point at another published route, and the route each
+#: reaches. `web/app.js` (`wireSourceSwitch`) recomputes the first two at runtime; a crawler, a
+#: reader with JavaScript off, and every reader before boot get the static markup, so the build
+#: has to write the right href for the route the copy is served from.
+ROUTE_LINKS: dict[str, str] = {
+    "switch-cams": "/",
+    "switch-sensors": "/sensors/",
+    "footer-planner-link": "/planner/",
+}
+
+#: Build outputs and installed trees that are not part of the published artifact.
+IGNORED_WEB_DIRECTORIES = frozenset({".lighthouseci", "node_modules", "test-results"})
+
+#: Element attributes that carry a URL the reader's browser will actually request.
+_URL_ATTRIBUTES: dict[str, str] = {
+    "a": "href",
+    "iframe": "src",
+    "img": "src",
+    "link": "href",
+    "script": "src",
+    "source": "src",
+}
+
+#: Resolution result for an href that names something outside this project site's own path —
+#: a root-absolute path on a shared origin, or a `../` chain that walks above the site root.
+#: It is a different failure from "the file is not there", and is reported as one.
+UNRESOLVABLE = "«outside this project site»"
+
 _TITLE_PATTERN = re.compile(r"<title(?:\s[^>]*)?>.*?</title>", re.DOTALL)
 _DESCRIPTION_PATTERN = re.compile(
     r'<meta\s+name="description"[^>]*\scontent="[^"]*"[^>]*/?>', re.DOTALL
@@ -189,6 +231,55 @@ def canonical_url(base_url: str, route: str) -> str:
         raise ValueError(f"unknown public route: {route}")
     base = normalize_base_url(base_url)
     return base if route == "/" else f"{base}{route.strip('/')}/"
+
+
+def relative_route_href(from_route: str, to_route: str) -> str:
+    """Return the href that reaches ``to_route`` from a document served at ``from_route``.
+
+    Base-path-agnostic, like the runtime equivalent in ``web/app.js``: the deployed site lives
+    under ``/swelter/`` on a shared origin, and a self-hosted instance does not, so neither the
+    markup nor this may name an absolute path. Depth is the whole problem — ``sensors/`` is the
+    right href from ``/`` and resolves to ``/sensors/sensors/`` from ``/sensors/``.
+    """
+    for value in (from_route, to_route):
+        if value not in PUBLISHED_ROUTES:
+            raise ValueError(f"unknown public route: {value}")
+    if from_route == to_route:
+        return "./"
+    up = "../" * len([segment for segment in from_route.split("/") if segment])
+    tail = to_route.strip("/")
+    return f"{up}{tail}/" if tail else up
+
+
+def _replace_href(tag: str, href: str) -> str:
+    """Swap one tag's href for a literal value.
+
+    A callable replacement keeps the href literal; passing it as a template would read a
+    backslash sequence in it as a group reference.
+    """
+
+    return re.sub(r'href="[^"]*"', lambda _match: f'href="{href}"', tag, count=1)
+
+
+def rewrite_route_links(html: str, route: str) -> str:
+    """Point every cross-route anchor in one built page at the route it actually reaches.
+
+    Fails closed. An anchor this cannot find, or one with no href to replace, is a template
+    change that silently turns the rewrite into a no-op, and a rewrite that no-ops looks exactly
+    like a correct page until someone clicks the link.
+    """
+    for anchor_id, target in ROUTE_LINKS.items():
+        pattern = re.compile(rf'<a\b[^>]*\bid="{re.escape(anchor_id)}"[^>]*?>')
+        tags = pattern.findall(html)
+        if len(tags) != 1:
+            raise ValueError(
+                f'template must carry exactly one <a id="{anchor_id}">, found {len(tags)}'
+            )
+        if 'href="' not in tags[0]:
+            raise ValueError(f'<a id="{anchor_id}"> carries no href to rewrite')
+        rewritten = _replace_href(tags[0], relative_route_href(route, target))
+        html = html.replace(tags[0], rewritten, 1)
+    return html
 
 
 def resolve_source(web_dir: Path, explicit_source: str | None = None) -> str:
@@ -512,7 +603,7 @@ def _static_metadata_block(*, base_url: str, route: str, title: str, description
     """Discovery metadata for a published page that is not a data surface.
 
     Deliberately narrower than :func:`_metadata_block`. It carries no JSON-LD, because the
-    only graph this project emits describes readings and their licence, and a page that
+    only graph this project emits describes readings and their license, and a page that
     publishes no readings must not claim to. It also does NOT rewrite the page's title or
     description: those are correct in source for a static page, whereas a data surface's are
     only truthful once the deployed fallback is known.
@@ -613,6 +704,11 @@ def write_page_metadata(
         raise ValueError(f"{index} must contain exactly one {SEO_START}/{SEO_END} block")
     if len(_TITLE_PATTERN.findall(html)) != 1 or len(_DESCRIPTION_PATTERN.findall(html)) != 1:
         raise ValueError(f"{index} must contain exactly one title and meta description")
+    # Every deployed route serves this same shell from a different depth, so the cross-route
+    # anchors have to be written for the directory this copy is served from before anything
+    # else is injected. `/sensors/index.html` shipped with the root page's `href="sensors/"`,
+    # which resolves to `/sensors/sensors/` and 404s.
+    html = rewrite_route_links(html, route)
     spec = _contract_source_spec(web_dir, source)
     title = f"<title>{escape(spec.page_title)}</title>"
     html = _TITLE_PATTERN.sub(lambda _match: title, html)
@@ -633,8 +729,8 @@ def write_page_metadata(
     return source
 
 
-def write_sitemap(output: Path, *, base_url: str = DEFAULT_BASE_URL) -> None:
-    """Write every stable, crawlable route; transient application state is never a URL.
+def sitemap_document(base_url: str = DEFAULT_BASE_URL) -> bytes:
+    """Render every stable, crawlable route; transient application state is never a URL.
 
     That includes the static routes. The planner is a stable public URL that Pages has been
     serving all along, and leaving it out of the sitemap did not keep it private, only
@@ -649,8 +745,258 @@ def write_sitemap(output: Path, *, base_url: str = DEFAULT_BASE_URL) -> None:
         ET.SubElement(url, f"{{{namespace}}}loc").text = canonical_url(base_url, route)
     tree = ET.ElementTree(root)
     ET.indent(tree, space="  ")
+    rendered = io.BytesIO()
+    tree.write(rendered, encoding="utf-8", xml_declaration=True)
+    return rendered.getvalue()
+
+
+def write_sitemap(output: Path, *, base_url: str = DEFAULT_BASE_URL) -> None:
+    """Write the stable Pages sitemap."""
+
     output.parent.mkdir(parents=True, exist_ok=True)
-    tree.write(output, encoding="utf-8", xml_declaration=True)
+    output.write_bytes(sitemap_document(base_url))
+
+
+class _LinkParser(HTMLParser):
+    """Collect every URL the browser will request while rendering one page."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.urls: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attribute = _URL_ATTRIBUTES.get(tag)
+        if attribute is None:
+            return
+        self.urls.extend(value for key, value in attrs if key == attribute and value)
+
+
+def _publish_filenames() -> frozenset[str]:
+    """The files ``swelter publish`` bakes into a route directory, read from the publisher.
+
+    ``export.csv`` and ``DATA-LICENSE`` are linked from the dashboard footer and exist only
+    after a deploy has run, so a crawl of the committed tree has to know they are coming.
+    Reading the list from ``swelter.cli`` rather than restating it here keeps this check from
+    carrying a second copy that can fall quietly behind the thing it describes.
+    """
+
+    from swelter.cli import PUBLISH_FILES
+
+    return frozenset(PUBLISH_FILES)
+
+
+def _files_under(directory: Path) -> set[str]:
+    """Every file under ``directory``, relative and POSIX, skipping non-published trees."""
+
+    found: set[str] = set()
+    if not directory.is_dir():
+        return found
+    stack = [directory]
+    while stack:
+        for entry in stack.pop().iterdir():
+            if entry.is_dir():
+                if entry.name not in IGNORED_WEB_DIRECTORIES:
+                    stack.append(entry)
+            elif entry.is_file():
+                found.add(entry.relative_to(directory).as_posix())
+    return found
+
+
+def route_documents(web_dir: Path) -> dict[str, str]:
+    """Return the HTML served at every published route, read from the tree itself.
+
+    A committed directory contributes the route its own ``index.html`` serves. A synthesized
+    route serves the root document until a deploy has actually copied it, at which point the
+    copy on disk is authoritative. Nothing here reads a list of routes maintained beside the
+    site: a page that exists is a page this crawl has to account for, and a page nobody listed
+    is exactly how ``/planner/`` shipped live with no canonical, no card and no sitemap entry.
+    """
+
+    root = web_dir / "index.html"
+    if not root.is_file():
+        raise ValueError(f"no published site to crawl: {root} does not exist")
+    documents = {"/": root.read_text(encoding="utf-8")}
+    for entry in sorted(web_dir.iterdir()):
+        if not entry.is_dir() or entry.name in IGNORED_WEB_DIRECTORIES:
+            continue
+        index = entry / "index.html"
+        if index.is_file():
+            documents[f"/{entry.name}/"] = index.read_text(encoding="utf-8")
+    for route in SYNTHESIZED_ROUTES:
+        if route in documents:
+            continue
+        # Not built yet. What the deploy will serve here is the root document with its
+        # cross-route anchors rewritten for this depth, which is exactly what
+        # write_page_metadata does to the copy — so that is what gets crawled. Once a deploy
+        # has run, the copy is on disk and no model is applied to it at all.
+        documents[route] = rewrite_route_links(documents["/"], route)
+    return documents
+
+
+def rendered_paths(web_dir: Path) -> set[str]:
+    """Every site-root-relative file path the deployed artifact serves.
+
+    The tree is the source of truth. A directory the publisher has already written carries
+    ``publish-manifest.json``, and then only what is really on disk counts; a directory it has
+    not written yet gets the publisher's own declared output added, because that is what the
+    deploy will put there.
+    """
+
+    baked = _publish_filenames()
+    paths = _files_under(web_dir)
+    if "publish-manifest.json" not in paths:
+        paths |= baked
+    for route, copied in SYNTHESIZED_ROUTES.items():
+        prefix = route.strip("/")
+        if f"{prefix}/index.html" in paths:
+            continue  # a real deploy built this route; the walk above already holds the truth
+        names = {entry.name for entry in web_dir.iterdir() if entry.is_file()}
+        for subtree in copied:
+            names |= {f"{subtree}/{name}" for name in _files_under(web_dir / subtree)}
+        paths |= {f"{prefix}/{name}" for name in names | baked}
+    return paths
+
+
+def resolve_internal_link(route: str, href: str, *, base_url: str) -> str | None:
+    """Return the file ``href`` reaches from ``route``, relative to the site root.
+
+    ``None`` means the link leaves this site — a fragment, a ``mailto:``, an absolute URL on
+    another host — and is not this gate's business. :data:`UNRESOLVABLE` means it names
+    something this project site cannot serve at all. A directory target resolves to the
+    ``index.html`` the host serves for it, because that is the file that has to exist.
+    """
+
+    href = href.strip()
+    if not href or href.startswith("#"):
+        return None
+    parts = urlsplit(href)
+    base = urlsplit(normalize_base_url(base_url))
+    if parts.scheme or parts.netloc:
+        if (parts.scheme, parts.netloc) != (base.scheme, base.netloc):
+            return None
+        if not parts.path.startswith(base.path):
+            return UNRESOLVABLE  # a sibling project site's path on this shared origin
+        target = parts.path[len(base.path) :]
+    elif parts.path.startswith("/"):
+        # Root-absolute on a project site drops the `/swelter/` prefix the whole site lives
+        # under, so it lands on the shared origin rather than on this project.
+        return UNRESOLVABLE
+    else:
+        target = posixpath.join(route.lstrip("/"), parts.path)
+    directory = target in ("", ".", "..") or target.endswith(("/", "/.", "/.."))
+    normalized = posixpath.normpath(target) if target else ""
+    if normalized in (".", "/"):
+        normalized = ""
+    if normalized == ".." or normalized.startswith("../"):
+        return UNRESOLVABLE
+    if directory:
+        return f"{normalized}/index.html" if normalized else "index.html"
+    return normalized
+
+
+def _index_path(route: str) -> str:
+    """The file a static host serves for one route."""
+
+    return "index.html" if route == "/" else f"{route.strip('/')}/index.html"
+
+
+def _sweep_problems(documents: dict[str, str], paths: set[str]) -> list[str]:
+    """Refuse a crawl whose inputs collapsed, or whose page set is not the published one.
+
+    A gate whose input silently became empty passes forever, and a page nobody listed in
+    ``PUBLISHED_ROUTES`` gets no canonical, no card and no sitemap entry.
+    """
+
+    problems: list[str] = []
+    if len(documents) <= 1:
+        problems.append(
+            f"the page sweep collapsed to {len(documents)} rendered page(s); a crawl over one "
+            "page or none would prove nothing"
+        )
+    if len(paths) <= len(documents):
+        problems.append(
+            f"the file sweep collapsed to {len(paths)} file(s) for {len(documents)} page(s); a "
+            "link check against that set would prove nothing"
+        )
+    for route in sorted(set(PUBLISHED_ROUTES) - set(documents)):
+        problems.append(f"published route {route} renders no page")
+    for route in sorted(set(documents) - set(PUBLISHED_ROUTES)):
+        problems.append(
+            f"{route} renders a page but is not in PUBLISHED_ROUTES, so it gets no canonical "
+            "URL, no social card and no sitemap entry"
+        )
+    return problems
+
+
+def _link_problems(
+    documents: dict[str, str], paths: set[str], *, base_url: str
+) -> tuple[list[str], dict[str, set[str]]]:
+    """Check every internal link, and record which routes link to which."""
+
+    problems: list[str] = []
+    routes_by_index = {_index_path(route): route for route in documents}
+    inbound: dict[str, set[str]] = {route: set() for route in documents}
+    for route in sorted(documents):
+        parser = _LinkParser()
+        parser.feed(documents[route])
+        internal = 0
+        for href in parser.urls:
+            target = resolve_internal_link(route, href, base_url=base_url)
+            if target is None:
+                continue
+            internal += 1
+            if target == UNRESOLVABLE:
+                problems.append(f"{route} links to {href!r}, which is not on this project site")
+            elif target not in paths:
+                problems.append(
+                    f"{route} links to {href!r}, which resolves to /{target} — nothing is "
+                    "rendered there"
+                )
+            elif target in routes_by_index:
+                inbound[routes_by_index[target]].add(route)
+        if internal == 0:
+            problems.append(f"{route} carries no internal links; the link sweep found nothing")
+    return problems, inbound
+
+
+def _sitemap_problems(web_dir: Path, inbound: dict[str, set[str]], *, base_url: str) -> list[str]:
+    """Every sitemap URL must be reachable by following links from another rendered page."""
+
+    problems: list[str] = []
+    urls = {canonical_url(base_url, route): route for route in PUBLISHED_ROUTES}
+    sitemap = web_dir / "sitemap.xml"
+    # The deployed file is compared against what `write_sitemap` produces rather than parsed
+    # for its URLs: reading a committed list back and checking that list against itself is how
+    # a gate ends up unable to fail. A drifted or hand-edited sitemap is the finding.
+    if sitemap.is_file() and sitemap.read_bytes() != sitemap_document(base_url):
+        problems.append(
+            f"{sitemap} is not what the published routes generate; regenerate it with "
+            "`pages_seo.py sitemap` rather than editing it"
+        )
+    if not urls:
+        return [*problems, "the sitemap sweep found no URLs to check for inbound links"]
+    for url, route in urls.items():
+        if not inbound.get(route, set()) - {route}:
+            problems.append(
+                f"{url} is in the sitemap and no other rendered page links to it; a page "
+                "reachable only from the sitemap gets no readers and no internal link equity"
+            )
+    return problems
+
+
+def crawl_problems(web_dir: Path, *, base_url: str = DEFAULT_BASE_URL) -> list[str]:
+    """Return every broken internal link and every orphaned sitemap URL in a rendered site.
+
+    Two defects shipped to the live site because nothing checked either of them: ``/sensors/``
+    served the root page's ``href="sensors/"``, which resolves to ``/sensors/sensors/`` and
+    404s, and ``/planner/`` was in the sitemap with no page on the site linking to it.
+    """
+
+    documents = route_documents(web_dir)
+    paths = rendered_paths(web_dir)
+    problems = _sweep_problems(documents, paths)
+    link_problems, inbound = _link_problems(documents, paths, base_url=base_url)
+    return [*problems, *link_problems, *_sitemap_problems(web_dir, inbound, base_url=base_url)]
 
 
 def check_template(template: Path) -> list[str]:
@@ -705,6 +1051,12 @@ def _parser() -> argparse.ArgumentParser:
     sitemap.add_argument("--output", type=Path, required=True)
     sitemap.add_argument("--base-url", default=DEFAULT_BASE_URL)
 
+    crawl = subparsers.add_parser(
+        "crawl", help="resolve every internal link and find pages nothing links to"
+    )
+    crawl.add_argument("--web-dir", type=Path, required=True)
+    crawl.add_argument("--base-url", default=DEFAULT_BASE_URL)
+
     check = subparsers.add_parser("check", help="validate the source template and crawl policy")
     check.add_argument("--template", type=Path, default=Path("web/index.html"))
     return parser
@@ -725,6 +1077,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "sitemap":
         write_sitemap(args.output, base_url=args.base_url)
         print(f"pages-seo: wrote {args.output}")
+        return 0
+    if args.command == "crawl":
+        problems = crawl_problems(args.web_dir, base_url=args.base_url)
+        if problems:
+            for problem in problems:
+                print(f"pages-seo: FAIL: {problem}", file=sys.stderr)
+            return 1
+        pages = len(route_documents(args.web_dir))
+        print(f"pages-seo: every internal link on {pages} rendered pages resolves, none orphaned")
         return 0
 
     errors = check_template(args.template)

@@ -137,7 +137,7 @@ test("localeDirection — recognizes RTL language tags while keeping shipped loc
   assert.equal(app.localeDirection("he-IL"), "rtl");
 });
 
-test("localizeDocumentMetadata — preserves Pages metadata on catalogue failure", async () => {
+test("localizeDocumentMetadata — preserves Pages metadata on catalog failure", async () => {
   const app = await freshApp();
   app.document.title = "Source-aware Pages title";
   app.state.strings = {};
@@ -174,7 +174,7 @@ test("loadStrings — the latest language request wins an out-of-order race", as
   assert.equal(app.document.documentElement.dir, "ltr");
 });
 
-test("loadStrings — a failed swap retains the prior catalogue and document language", async () => {
+test("loadStrings — a failed swap retains the prior catalog and document language", async () => {
   const app = await freshApp();
   app.state.strings = { language: "Español" };
   app.document.documentElement.lang = "es";
@@ -1500,7 +1500,7 @@ test("coverageLine — a model-backed source counts grid cells, not sensors", as
   assert.match(app.coverageLine(), /^Model cells with values this hour: .*2.* of .*2.*\.$/);
   assert.doesNotMatch(app.coverageLine(), /sensor/i);
 
-  // A source with real hardware declares no override and keeps the catalogue's sensor wording.
+  // A source with real hardware declares no override and keeps the catalog's sensor wording.
   app.state.demo = { source: {} };
   assert.match(app.coverageLine(), /^Sensors reporting now: .*2.* of .*2.*\.$/);
 });
@@ -1572,4 +1572,117 @@ test("provenanceText — a confirmed cell with no error bar says why instead of 
   assert.doesNotMatch(withoutNumber, /Give or take/);
   assert.match(withoutNumber, /no combined error bar/);
   assert.match(withoutNumber, /1 of 2/);
+});
+
+// -- analytics opt-out control (ADR 0055) ---------------------------------------------------------
+
+function fakeAnalytics({ blockedBySignal = false, storage = true, optedOut = false, refuse = false } = {}) {
+  const calls = [];
+  let out = optedOut;
+  return {
+    calls,
+    api: {
+      blockedBySignal,
+      storageAvailable: () => storage,
+      isOptedOut: () => out,
+      setOptedOut(value) {
+        calls.push(value);
+        if (refuse) return false;
+        out = value;
+        return true;
+      },
+    },
+  };
+}
+
+async function appWithEnglish() {
+  const app = await freshApp();
+  app.state.strings = JSON.parse(
+    require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "i18n", "en.json"), "utf8"),
+  );
+  return app;
+}
+
+test("analytics control — hidden when no measurement ID published the API", async () => {
+  const app = await appWithEnglish();
+  delete app.swelterAnalytics;
+  app.wireAnalyticsChoice();
+  assert.equal(app.document.querySelector("#analytics-choice").hidden, true);
+});
+
+test("analytics control — offers the opt-out, then toggles and says what happened", async () => {
+  const app = await appWithEnglish();
+  const fake = fakeAnalytics();
+  app.swelterAnalytics = fake.api;
+  app.wireAnalyticsChoice();
+  const box = app.document.querySelector("#analytics-choice");
+  const button = app.document.querySelector("#analytics-toggle");
+  const status = app.document.querySelector("#analytics-status");
+  assert.equal(box.hidden, false);
+  assert.equal(button.hidden, false);
+  assert.equal(button.textContent, "Opt out of analytics");
+  assert.equal(status.textContent, "");
+
+  app.toggleAnalyticsOptOut();
+  assert.deepEqual(fake.calls, [true]);
+  assert.equal(button.textContent, "Opt back in");
+  assert.match(status.textContent, /^You opted out\. From the next page you open/);
+
+  app.toggleAnalyticsOptOut();
+  assert.deepEqual(fake.calls, [true, false]);
+  assert.equal(button.textContent, "Opt out of analytics");
+  assert.match(status.textContent, /^You opted back in\./);
+});
+
+test("analytics control — explains GPC/DNT and blocked storage instead of offering a dead button", async () => {
+  const signaled = await appWithEnglish();
+  signaled.swelterAnalytics = fakeAnalytics({ blockedBySignal: true }).api;
+  signaled.wireAnalyticsChoice();
+  assert.equal(signaled.document.querySelector("#analytics-toggle").hidden, true);
+  assert.match(
+    signaled.document.querySelector("#analytics-status").textContent,
+    /Global Privacy Control or Do Not Track/,
+  );
+
+  const blocked = await appWithEnglish();
+  blocked.swelterAnalytics = fakeAnalytics({ storage: false }).api;
+  blocked.wireAnalyticsChoice();
+  assert.equal(blocked.document.querySelector("#analytics-toggle").hidden, true);
+  assert.match(blocked.document.querySelector("#analytics-status").textContent, /blocks site storage/);
+
+  const refused = await appWithEnglish();
+  refused.swelterAnalytics = fakeAnalytics({ refuse: true }).api;
+  refused.wireAnalyticsChoice();
+  refused.toggleAnalyticsOptOut();
+  assert.match(refused.document.querySelector("#analytics-status").textContent, /blocks site storage/);
+  assert.equal(refused.document.querySelector("#analytics-toggle").textContent, "Opt out of analytics");
+});
+
+test("analytics control — a returning opted-out visitor sees Opt back in, and Clear saved settings keeps it", async () => {
+  const app = await appWithEnglish();
+  const fake = fakeAnalytics({ optedOut: true });
+  app.swelterAnalytics = fake.api;
+  app.wireAnalyticsChoice();
+  assert.equal(app.document.querySelector("#analytics-toggle").textContent, "Opt back in");
+  assert.match(app.document.querySelector("#analytics-status").textContent, /^You opted out\./);
+  app.clearSettings();
+  assert.deepEqual(fake.calls, []);
+  assert.equal(fake.api.isOptedOut(), true);
+});
+
+test("analytics control — wires itself when analytics.js announces itself after app.js", async () => {
+  const app = await appWithEnglish();
+  delete app.swelterAnalytics;
+  const listeners = [];
+  app.document.addEventListener = (type, handler, options) => listeners.push({ type, handler, options });
+  app.wireAnalyticsChoice();
+  assert.equal(app.document.querySelector("#analytics-choice").hidden, true);
+  assert.equal(listeners.length, 1);
+  assert.equal(listeners[0].type, "swelter:analytics");
+  assert.equal(listeners[0].options.once, true);
+
+  app.swelterAnalytics = fakeAnalytics().api;
+  listeners[0].handler();
+  assert.equal(app.document.querySelector("#analytics-choice").hidden, false);
+  assert.equal(app.document.querySelector("#analytics-toggle").textContent, "Opt out of analytics");
 });

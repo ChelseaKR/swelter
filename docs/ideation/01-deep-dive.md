@@ -65,7 +65,7 @@ These are observations from the code, cited; the fix/expansion files turn them i
 3. **QC can erase the event it exists to catch.** `aggregate.aggregate()` drops QC-rejected values
    entirely ("never place a QC-rejected value on the map, even as provisional",
    `aggregate.py:231-232`), while `qc._series_flags` flags any point departing >150 µg/m³ from its
-   two neighbours as `spike` and any 6 identical consecutive values as `flatline`
+   two neighbors as `spike` and any 6 identical consecutive values as `flatline`
    (`qc.py:34-44,77-87`). A sharp wildfire-smoke onset edge or a calm stretch reading a genuine
    0.0 six hours running is plausibly mislabeled — and then vanishes from the map rather than
    showing as provisional. Thresholds are hardcoded, not per-network config.

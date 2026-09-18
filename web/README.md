@@ -52,7 +52,7 @@ published California routes include the basemap. List and Table always expose ev
 the overview represents nearby Map targets as one group.
 
 Air-quality severity is conveyed by **text and pattern**, never color alone. Cells with only
-uncalibrated readings are labelled **provisional**, never shown as confirmed fact. The time slider,
+uncalibrated readings are labeled **provisional**, never shown as confirmed fact. The time slider,
 history window, tabs, and exposure braid are keyboard operable; the selected time and linked-view
 changes are exposed as text/status output.
 
@@ -149,6 +149,20 @@ path reads the baked attribution on pre-contract artifacts and fails if it canno
 one source. The same build writes `/swelter/sitemap.xml`. `node scripts/render_social_card.mjs`
 regenerates the deterministic SVG social-card source from the committed California basemap; keep its
 1280×640 PNG raster in sync when the card changes.
+
+Each route serves the same shell from a different depth — the deploy builds `/sensors/` by copying
+the root page's own files one directory down — so the same build rewrites the cross-route anchors
+(`#switch-cams`, `#switch-sensors`, `#footer-planner-link`) for the route each copy is served from.
+The committed markup carries the root's hrefs, which is what a self-hosted instance serves.
+
+`pages_seo.py crawl` is the check on that. It resolves every internal href on every rendered page
+against the route serving it and requires a file that is really there, and it requires every
+sitemap URL to have an inbound link from another rendered page — a page reachable only from the
+sitemap gets no readers. `make seo` runs it at PR time against a model of the deployed layout; the
+Pages job runs it again on the finished artifact immediately before upload, where nothing is
+modeled. Its route set is read from the tree, so a new page directory that nothing added to
+`PUBLISHED_ROUTES` — and which would therefore ship with no canonical, no card and no sitemap
+entry — fails the same gate.
 
 ## Deployment and release identity
 

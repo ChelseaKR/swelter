@@ -189,7 +189,7 @@ def to_observations(
     which is which, and swelter's ``Observation`` has no field that could carry the distinction —
     so the boundary is here, where the response is still a response and not yet a record. ``now``
     defaults to the wall clock precisely because a caller who forgets it must get the safe
-    behaviour: an explicit reference instant is for tests and for reproducing a past fetch, never
+    behavior: an explicit reference instant is for tests and for reproducing a past fetch, never
     an opt-in to clipping.
 
     The clip is a comparison against a real instant, not a rule about the data, so it is the one

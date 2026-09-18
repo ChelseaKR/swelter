@@ -795,7 +795,7 @@ def test_exclusion_summary_ranks_reasons_by_how_many_locations_hit_them() -> Non
 
 
 def _http_catalog(license_id: int = 33, **extra: Any) -> dict[int, dict[str, Any]]:
-    """The live shape behind #179: the licence resolves, and its `sourceUrl` is plain HTTP."""
+    """The live shape behind #179: the license resolves, and its `sourceUrl` is plain HTTP."""
     catalog = _catalog(license_id)
     catalog[license_id]["sourceUrl"] = "http://www.usa.gov/government-copyright"
     catalog[license_id].update(extra)
@@ -806,7 +806,7 @@ def test_a_scheme_refusal_also_answers_whether_an_https_field_exists() -> None: 
     """The one fact #179's decision turns on, printed by the run that refuses.
 
     Every California location is refused because `sourceUrl` is served over `http`. Whether the
-    same licence resource publishes an `https` URL under another key decides whether that is a
+    same license resource publishes an `https` URL under another key decides whether that is a
     field-mapping fix or a rights-posture decision, and nobody without the API key can see it.
     The refusal now carries the answer either way.
     """
@@ -838,7 +838,7 @@ def test_no_https_alternative_is_stated_with_the_number_of_fields_inspected() ->
 def test_the_diagnostic_never_echoes_a_url() -> None:  # #179
     """`_normalized_https_url`'s rule: a refused URL is never logged, only named categorically.
 
-    A licence URL is harmless, but the refusal path is shared with URLs refused *for embedding
+    A license URL is harmless, but the refusal path is shared with URLs refused *for embedding
     credentials*, and a diagnostic that prints values would print those too.
     """
     reason = openaq.build_license_ledger(

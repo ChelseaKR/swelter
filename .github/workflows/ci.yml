@@ -13,7 +13,7 @@ permissions:
 
 # CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref. The key carries the event as
 # well as the ref, because a bare `${{ github.ref }}` on a busy `main` makes consecutive pushes
-# supersede each other: the older commit's run is cancelled before a job is dispatched, so that
+# supersede each other: the older commit's run is canceled before a job is dispatched, so that
 # commit never gets a verdict and the branch looks green on the strength of a run that never
 # happened. Pull-request runs share one slot per ref and do supersede each other, which is the
 # saving this is for; every push keeps its own slot, keyed by the commit it is a verdict about.
@@ -36,8 +36,8 @@ jobs:
       issues: read
     # `make verify-core` is the long one: 20 gates plus the full pytest suite. Measured on this
     # repository it takes 16-25 minutes (runs 33715839075 16m20s, 33992964515 17m39s,
-    # 34039001734 20m56s, 33992912300 25m03s), so a 15-minute cap cancelled it mid-suite — and a
-    # cancelled job reports no verdict at all rather than a failure. 45 leaves room for a slow
+    # 34039001734 20m56s, 33992912300 25m03s), so a 15-minute cap canceled it mid-suite — and a
+    # canceled job reports no verdict at all rather than a failure. 45 leaves room for a slow
     # runner while still bounding a genuine hang far below Actions' six-hour default.
     timeout-minutes: 45
     steps:
@@ -47,7 +47,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
       - name: Set up Node
@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
       - name: Set up Node
@@ -172,7 +172,7 @@ jobs:
 
       - name: Upload Semgrep SARIF
         if: ${{ always() && hashFiles('dist/security/semgrep.sarif') != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           sarif_file: dist/security/semgrep.sarif
           category: semgrep
@@ -191,7 +191,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: true
       - name: Install locked Python environment
@@ -258,5 +258,10 @@ jobs:
             web/test-results
             web/.lighthouseci
             web/performance-baseline.candidate.json
+          # `.lighthouseci` is a hidden directory, and upload-artifact skips hidden files unless told
+          # otherwise, so every Lighthouse report this step names was silently dropped: 0 of 135
+          # retained artifacts contained one, and `if-no-files-found: warn` never fired because the
+          # other two paths matched (#266).
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 30

@@ -35,7 +35,7 @@ Three layers, from cheapest to most thorough:
    `make verify`). It is pure Python, needs no browser, and is deterministic. Twelve checks hold
    the structural floor the dashboard promises: `<html lang>`, a non-empty `<title>`, exactly one
    `<h1>`, the `main`/`header` landmarks, a skip link that targets a real in-page id, every form
-   control labelled, a semantic data-table shell, every `<img>` carrying `alt`, no
+   control labeled, a semantic data-table shell, every `<img>` carrying `alt`, no
    positive `tabindex`, a language switch, a `prefers-reduced-motion` CSS rule, and a visible
    focus indicator. A regression on any of the twelve fails the build. They all currently pass.
    The gate cannot judge computed color contrast or live ARIA semantics — that is what the next

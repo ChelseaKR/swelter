@@ -127,7 +127,7 @@ The full merge gate (`make verify`) runs formatting, lint, strict typing,
 the accessibility and internationalization checks, and the full test suite
 with a 90% branch-coverage floor.
 
-# Acknowledgements
+# Acknowledgments
 
 `swelter` builds on open data and open infrastructure: OpenAQ, Open-Meteo
 (Copernicus CAMS), Sensor.Community, US EPA air-sensor correction research,

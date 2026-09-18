@@ -187,7 +187,7 @@ class StoreAndForward:
     # -- persistence (guarded so the module is import-safe on CPython) --------------------------
 
     def _enforce_cap(self):
-        # Amortised O(1): only when the cached count reaches the cap do we read + rewrite, and
+        # Amortized O(1): only when the cached count reaches the cap do we read + rewrite, and
         # then we trim a whole batch (~10%) at once, so the costly flash rewrite is rare even
         # through a long outage instead of happening on every single append once full.
         if self.max_records <= 0 or self._count < self.max_records:

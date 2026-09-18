@@ -18,6 +18,8 @@ from urllib.parse import urlsplit
 
 import pytest
 
+from swelter.cli import PUBLISH_FILES
+
 ROOT = Path(__file__).resolve().parent.parent
 if TYPE_CHECKING:
     from scripts import pages_seo
@@ -26,6 +28,8 @@ else:
     # script is not an installed runtime module, so load it from the checkout just as CI does.
     sys.path.insert(0, str(ROOT))
     pages_seo = importlib.import_module("scripts.pages_seo")
+
+BASE = "https://chelseakr.github.io/swelter/"
 
 
 class _MetadataParser(HTMLParser):
@@ -318,7 +322,7 @@ def test_the_planner_gets_a_canonical_and_a_card_but_no_dataset(tmp_path: Path) 
     the planner does not have. Sharing a link to it previewed as a bare URL.
 
     It must not carry the Dataset graph. The only structured data this project emits
-    describes readings and their licence, and the planner publishes no readings; claiming
+    describes readings and their license, and the planner publishes no readings; claiming
     otherwise would be a claim the page cannot support.
     """
     web_dir = _planner_template(tmp_path)
@@ -432,3 +436,310 @@ def test_gate_rejects_project_path_robots_file(tmp_path: Path) -> None:
     errors = pages_seo.check_template(web_dir / "index.html")
     assert len(errors) == 1
     assert "cannot control this GitHub Pages project site" in errors[0]
+
+
+# --------------------------------------------------------------------------------------------
+# The internal link graph.
+#
+# Two discoverability defects reached the live site because nothing checked either of them.
+# `/sensors/` served the root page's own `href="sensors/"`, which resolves to
+# `/sensors/sensors/` and returns 404; and `/planner/` was in `sitemap.xml`, fully marked up,
+# with no page on the site linking to it. Both are invisible to every metadata check above,
+# because both pages' metadata was correct.
+# --------------------------------------------------------------------------------------------
+
+_ANCHOR_IDS = re.compile(r'<a\b[^>]*\bid="([^"]+)"[^>]*\bhref="([^"]*)"')
+
+
+def _publish_into(directory: Path) -> None:
+    """Write what ``swelter publish`` bakes into one route directory, from its own list."""
+
+    surface = {
+        "interval": "hour",
+        "buckets": ["2026-07-08T11:00:00Z", "2026-07-08T12:00:00Z"],
+        "cells": [{"parameter": "pm25_ugm3"}, {"parameter": "temp_c"}],
+        "attribution": "Synthetic demonstration data — no real sensors.",
+    }
+    contract = {
+        "schema_version": 1,
+        "source": {
+            "id": "synthetic",
+            "name": {"en": "Synthetic demonstration"},
+            "tagline": {"en": "A clearly labeled synthetic demonstration."},
+            "calibration": {"en": "No calibration; the values are generated."},
+            "geography": {"en": "No real geography."},
+            "upstream": [{"name": "Swelter demo generator", "url": "https://example.invalid/"}],
+            "license": {
+                "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+                "conditions_of_access": {"en": "Public domain."},
+                "credit_text": {"en": "Swelter contributors; synthetic data."},
+            },
+        },
+    }
+    written = {
+        "sample-surface.json": json.dumps(surface),
+        "demo.json": json.dumps(contract),
+    }
+    for name in PUBLISH_FILES:
+        (directory / name).write_text(written.get(name, "placeholder\n"), encoding="utf-8")
+    # Its presence is how `rendered_paths` knows this directory was really published, and that
+    # only what is on disk counts for it.
+    (directory / "publish-manifest.json").write_text(
+        json.dumps({"files": [{"path": name} for name in PUBLISH_FILES]}), encoding="utf-8"
+    )
+
+
+def _deployed_site(tmp_path: Path) -> Path:
+    """Build the artifact ``.github/workflows/pages.yml`` uploads, from the committed sources.
+
+    Page 2 has no committed directory: the deploy copies the root page's own top-level files
+    into ``web/sensors/`` and publishes that route's data into it. That copy is the whole reason
+    a link written relative to the site root breaks, so a check that never renders it would be
+    checking a layout this project does not publish.
+    """
+
+    web = tmp_path / "web"
+    shutil.copytree(
+        ROOT / "web",
+        web,
+        ignore=shutil.ignore_patterns(*sorted(pages_seo.IGNORED_WEB_DIRECTORIES)),
+    )
+    sensors = web / "sensors"
+    sensors.mkdir()
+    for entry in sorted(web.iterdir()):
+        if entry.is_file():
+            shutil.copyfile(entry, sensors / entry.name)
+    shutil.copytree(web / "i18n", sensors / "i18n")
+    _publish_into(web)
+    _publish_into(sensors)
+    pages_seo.write_page_metadata(web, route="/")
+    pages_seo.write_page_metadata(sensors, route="/sensors/")
+    pages_seo.write_static_page_metadata(web / "planner", route="/planner/")
+    pages_seo.write_sitemap(web / "sitemap.xml")
+    return web
+
+
+def _anchor_hrefs(page: Path) -> dict[str, str]:
+    html = page.read_text(encoding="utf-8")
+    return {
+        anchor_id: href
+        for anchor_id, href in _ANCHOR_IDS.findall(html)
+        if anchor_id in pages_seo.ROUTE_LINKS
+    }
+
+
+def _urls(html: str) -> list[str]:
+    parser = pages_seo._LinkParser()
+    parser.feed(html)
+    return parser.urls
+
+
+def test_every_internal_link_in_the_published_artifact_resolves(tmp_path: Path) -> None:
+    """Every href on every rendered page must reach a file the deploy actually serves."""
+
+    web = _deployed_site(tmp_path)
+    documents = pages_seo.route_documents(web)
+    paths = pages_seo.rendered_paths(web)
+    internal = [
+        target
+        for route, html in documents.items()
+        for href in _urls(html)
+        if (target := pages_seo.resolve_internal_link(route, href, base_url=BASE)) is not None
+    ]
+
+    # A gate whose input silently became empty passes forever, so none of these three numbers
+    # is taken on trust just because the code that produced it ran.
+    assert len(documents) > 1, "the page sweep collapsed; it would prove nothing"
+    assert len(paths) > len(documents), "the file sweep collapsed; it would prove nothing"
+    assert len(internal) > 1, "the link sweep collapsed; it would prove nothing"
+    assert set(documents) == set(pages_seo.PUBLISHED_ROUTES)
+
+    assert pages_seo.crawl_problems(web) == []
+
+
+def test_each_route_gets_the_cross_route_hrefs_for_its_own_depth(tmp_path: Path) -> None:
+    """Both routes serve the same shell one directory apart, so the hrefs cannot be the same."""
+
+    web = _deployed_site(tmp_path)
+    assert _anchor_hrefs(web / "index.html") == {
+        "switch-cams": "./",
+        "switch-sensors": "sensors/",
+        "footer-planner-link": "planner/",
+    }
+    assert _anchor_hrefs(web / "sensors" / "index.html") == {
+        "switch-cams": "../",
+        "switch-sensors": "./",
+        "footer-planner-link": "../planner/",
+    }
+
+
+def test_a_root_relative_cross_route_href_on_the_copy_fails_the_crawl(tmp_path: Path) -> None:
+    """The defect exactly as it shipped: /sensors/ carried the root page's own href."""
+
+    web = _deployed_site(tmp_path)
+    assert pages_seo.crawl_problems(web) == []
+
+    copy = web / "sensors" / "index.html"
+    before = copy.read_bytes()
+    copy.write_text(
+        copy.read_text(encoding="utf-8").replace(
+            '<a id="switch-sensors" href="./"', '<a id="switch-sensors" href="sensors/"'
+        ),
+        encoding="utf-8",
+    )
+    # A sabotage that silently no-ops reads exactly like a pass, so prove it landed first.
+    assert copy.read_bytes() != before
+    assert '<a id="switch-sensors" href="sensors/"' in copy.read_text(encoding="utf-8")
+
+    problems = pages_seo.crawl_problems(web)
+    assert any("sensors/sensors/index.html" in problem for problem in problems), problems
+
+    copy.write_bytes(before)
+    assert pages_seo.crawl_problems(web) == []
+
+
+def test_a_page_only_the_sitemap_links_to_fails_the_crawl(tmp_path: Path) -> None:
+    """The planner's inbound links are its only ones; dropping them must turn this red."""
+
+    web = _deployed_site(tmp_path)
+    assert pages_seo.crawl_problems(web) == []
+
+    pages = (web / "index.html", web / "sensors" / "index.html")
+    originals = {page: page.read_bytes() for page in pages}
+    for page in pages:
+        html = page.read_text(encoding="utf-8")
+        stripped = re.sub(r'<a id="footer-planner-link".*?</a>', "", html, flags=re.DOTALL)
+        assert stripped != html, f"the sabotage did not apply to {page}"
+        page.write_text(stripped, encoding="utf-8")
+    for page in pages:
+        assert 'id="footer-planner-link"' not in page.read_text(encoding="utf-8")
+
+    problems = pages_seo.crawl_problems(web)
+    assert any("/planner/" in problem and "sitemap" in problem for problem in problems), problems
+
+    for page, data in originals.items():
+        page.write_bytes(data)
+    assert pages_seo.crawl_problems(web) == []
+
+
+def test_a_rendered_page_no_route_list_knows_about_is_reported(tmp_path: Path) -> None:
+    """How /planner/ shipped with no canonical, no card and no sitemap entry: nobody listed it."""
+
+    web = _deployed_site(tmp_path)
+    extra = web / "guide"
+    extra.mkdir()
+    (extra / "index.html").write_text(
+        '<html lang="en"><body><a href="../">Home</a></body></html>', encoding="utf-8"
+    )
+    problems = pages_seo.crawl_problems(web)
+    assert any("/guide/" in problem and "sitemap entry" in problem for problem in problems), (
+        problems
+    )
+
+
+def test_the_crawl_refuses_a_sweep_whose_input_collapsed() -> None:
+    """Neither an empty page set nor an empty file set is evidence of anything."""
+
+    assert pages_seo._sweep_problems({}, set()) != []
+    assert any(
+        "page sweep collapsed" in problem
+        for problem in pages_seo._sweep_problems({"/": "<html></html>"}, {"index.html"})
+    )
+    assert any(
+        "file sweep collapsed" in problem
+        for problem in pages_seo._sweep_problems(
+            dict.fromkeys(pages_seo.PUBLISHED_ROUTES, "<html></html>"), {"index.html"}
+        )
+    )
+
+
+def test_the_sitemap_check_refuses_an_empty_url_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Inbound-link coverage over zero URLs is not inbound-link coverage."""
+
+    monkeypatch.setattr(pages_seo, "PUBLISHED_ROUTES", ())
+    problems = pages_seo._sitemap_problems(tmp_path, {}, base_url=BASE)
+    assert any("found no URLs" in problem for problem in problems), problems
+
+
+def test_a_sitemap_that_drifts_from_the_published_routes_is_reported(tmp_path: Path) -> None:
+    """The deployed file is compared against what the routes generate, not read as the truth."""
+
+    web = _deployed_site(tmp_path)
+    sitemap = web / "sitemap.xml"
+    before = sitemap.read_bytes()
+    sitemap.write_text(
+        sitemap.read_text(encoding="utf-8").replace(f"{BASE}planner/", f"{BASE}invented/"),
+        encoding="utf-8",
+    )
+    assert sitemap.read_bytes() != before
+    problems = pages_seo.crawl_problems(web)
+    assert any("regenerate it" in problem for problem in problems), problems
+
+    sitemap.write_bytes(before)
+    assert pages_seo.crawl_problems(web) == []
+
+
+@pytest.mark.parametrize(
+    ("from_route", "to_route", "href"),
+    [
+        ("/", "/", "./"),
+        ("/", "/sensors/", "sensors/"),
+        ("/", "/planner/", "planner/"),
+        ("/sensors/", "/", "../"),
+        ("/sensors/", "/sensors/", "./"),
+        ("/sensors/", "/planner/", "../planner/"),
+        ("/planner/", "/sensors/", "../sensors/"),
+    ],
+)
+def test_cross_route_hrefs_are_derived_from_route_depth(
+    from_route: str, to_route: str, href: str
+) -> None:
+    assert pages_seo.relative_route_href(from_route, to_route) == href
+
+
+def test_the_committed_shell_is_already_correct_as_served_at_the_site_root() -> None:
+    """The template's own hrefs are the root's. Only the copies need rewriting."""
+
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    assert pages_seo.rewrite_route_links(html, "/") == html
+    assert pages_seo.rewrite_route_links(html, "/sensors/") != html
+
+
+def test_rewrite_route_links_refuses_a_template_that_lost_an_anchor() -> None:
+    """A rewrite that quietly no-ops looks like a correct page until someone clicks the link."""
+
+    html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    renamed = html.replace('id="footer-planner-link"', 'id="footer-planner-gone"')
+    assert renamed != html
+    with pytest.raises(ValueError, match="exactly one"):
+        pages_seo.rewrite_route_links(renamed, "/sensors/")
+
+    hrefless = html.replace('<a id="switch-sensors" href="sensors/"', '<a id="switch-sensors"')
+    assert hrefless != html
+    with pytest.raises(ValueError, match="no href to rewrite"):
+        pages_seo.rewrite_route_links(hrefless, "/sensors/")
+
+
+@pytest.mark.parametrize(
+    ("route", "href", "target"),
+    [
+        ("/", "#explore", None),
+        ("/", "https://ko-fi.com/T6T6GMYTU", None),
+        ("/", "sensors/", "sensors/index.html"),
+        ("/sensors/", "sensors/", "sensors/sensors/index.html"),
+        ("/sensors/", "../", "index.html"),
+        ("/sensors/", "../planner/", "planner/index.html"),
+        ("/sensors/", "export.csv", "sensors/export.csv"),
+        ("/planner/", f"{BASE}icon.svg", "icon.svg"),
+        # A project site is one path on a shared origin: neither of these reaches it.
+        ("/", "/planner/", pages_seo.UNRESOLVABLE),
+        ("/", "https://chelseakr.github.io/afterward/", pages_seo.UNRESOLVABLE),
+        ("/sensors/", "../../", pages_seo.UNRESOLVABLE),
+    ],
+)
+def test_internal_links_resolve_against_the_route_that_serves_them(
+    route: str, href: str, target: str | None
+) -> None:
+    assert pages_seo.resolve_internal_link(route, href, base_url=BASE) == target

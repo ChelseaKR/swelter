@@ -8,7 +8,7 @@
 > "quote" and preference as a **hypothesis to validate**, never as evidence of
 > demand or proof that a feature is wanted. This is consistent with how the project
 > labels its synthetic data (see [`audits/methodology.md`](audits/methodology.md))
-> and how the prior synthetic study was labelled
+> and how the prior synthetic study was labeled
 > ([`research/user-research-panel.md`](research/user-research-panel.md)).
 >
 > Everything a persona "values today" maps to a feature that **actually exists in
@@ -51,7 +51,7 @@ exist in the repo as of this date.
 
 ## Method
 
-- **Sampling frame.** swelter's real stakeholder universe, organised by
+- **Sampling frame.** swelter's real stakeholder universe, organized by
   *relationship to the product*, not by demographics:
   - **Live & Use** — residents who live the heat-and-air exposure: a heat-vulnerable
     elder, a parent of an asthmatic child, a Spanish-first renter, a low-income
@@ -60,7 +60,7 @@ exist in the repo as of this date.
     data/ops steward, a calibration lead, an accessibility-and-language keeper.
   - **Decide & Respond** — institutions that act on the data: a public-health
     department epidemiologist, a city heat-response official, a community-based
-    EJ organiser.
+    EJ organizer.
   - **Assure & Audit** — independent scrutiny: an accessibility auditor, a
     sensor-skeptic ex-regulatory scientist, a responsible-tech/privacy auditor, an
     open-data/standards steward from the Sensor.Community / OpenAQ ecosystem.
@@ -129,7 +129,7 @@ exist in the repo as of this date.
 | **B4** | **Lucía, 29** | Host & Steward · accessibility & language keeper | Keep es parity real, not machine output | New health/guidance copy risks shipping English-first and stranding es |
 | **C1** | **Dr. Awad, 48** | Decide & Respond · county climate-health epidemiologist | Target outreach to the hottest, smokiest blocks | Wants block-level *and* a defensible non-regulatory caveat in one place |
 | **C2** | **Mateo, 52** | Decide & Respond · city heat-response official / CHO | Site cooling resources and name worst blocks publicly | Heat index is published provisional in the demo — no calibrated heat fact to state |
-| **C3** | **Renata, 44** | Decide & Respond · CBO / tenants'-association EJ organiser | Turn readings into an advocacy ask a landlord/agency can't dodge | The data is open and honest, but there's no plain-language neighborhood brief to hand over |
+| **C3** | **Renata, 44** | Decide & Respond · CBO / tenants'-association EJ organizer | Turn readings into an advocacy ask a landlord/agency can't dodge | The data is open and honest, but there's no plain-language neighborhood brief to hand over |
 | **D1** | **Grace, 37** | Assure & Audit · accessibility auditor, screen-reader user | Confirm the WCAG 2.2 AA claim is lived, not asserted | Structural gate is real; she wants the manual SR/contrast pass surfaced as an artifact |
 | **D2** | **Alex, 51** | Assure & Audit · ex-regulatory scientist, sensor skeptic | Catch any place the map overstates certainty | Hourly AQI from EPA 24-h breakpoints — wants the window disclosure everywhere it's shown |
 | **D3** | **Imani, 40** | Assure & Audit · responsible-tech / privacy auditor | Verify "no PII, coarse by default" by construction | Verifiable in code and the DPIA; wants the precise-opt-in consent trail easier to inspect |
@@ -147,7 +147,7 @@ exist in the repo as of this date.
 ### A1 — Eleanor, 78 (low vision + hand tremor, top-floor apartment, no AC)
 - **Goal:** decide if it's safe to walk three blocks to the store this afternoon.
 - **Values today:** the dashboard **defaults to the List view**, not the map, and
-  she can switch units to **°F**; severity is in **words and pattern, not colour
+  she can switch units to **°F**; severity is in **words and pattern, not color
   alone**; the **"use my location → nearest location"** button finds her block
   without typing; nothing asks her to log in.
 - **Gets stuck:** the heat reading on her block is **provisional** (the demo
@@ -239,7 +239,7 @@ exist in the repo as of this date.
   scanning** by construction (hard rule 1); and `ABOUT-THE-NETWORK.md` explains all
   this in neighbor-language he can read.
 - **Gets stuck:** he has to *trust* that the published coordinate is the cell
-  centre and not his porch — the guarantee is in code and the DPIA, but he can't see
+  center and not his porch — the guarantee is in code and the DPIA, but he can't see
   it as a host.
 - **Wants next:** a host-facing "this is exactly what the public map and API
   publish about your node" preview, so coarse-by-default is visible, not asserted.
@@ -272,7 +272,7 @@ exist in the repo as of this date.
   against — the same sparsity that motivates the whole project.[^gaps] Without a
   reference, every node stays raw/provisional.
 - **Wants next:** a "no local reference" path — guidance/tooling for transfer
-  calibration (a travelling reference-grade unit, or co-locating one node at a
+  calibration (a traveling reference-grade unit, or co-locating one node at a
   distant AQS/AirNow site and chaining), with the provenance recorded honestly.
 - **Adopts if:** she can calibrate without a monitor next door. **Walks if:**
   calibration assumes a reference she'll never have.
@@ -326,7 +326,7 @@ exist in the repo as of this date.
 - **Adopts if:** he can state a calibrated heat figure. **Walks if:** all heat is
   provisional.
 
-### C3 — Renata, 44 (CBO / tenants'-association EJ organiser)
+### C3 — Renata, 44 (CBO / tenants'-association EJ organizer)
 - **Goal:** turn readings into an advocacy ask a landlord or agency can't dodge.
 - **Values today:** the data is **exportable with no account and its actual source terms**, the network is
   **community-owned with a right to leave**, and the **alerts feed** documents
@@ -350,7 +350,7 @@ exist in the repo as of this date.
 - **Goal:** confirm the WCAG 2.2 AA claim is lived, not a badge.
 - **Values today:** accessibility is a **merge-blocking CI gate** (12 structural
   checks), there's a committed **ACR/VPAT 2.5 (Rev 508)**, the map has a **real
-  data-table + list equivalent**, severity is never colour alone, and the project is
+  data-table + list equivalent**, severity is never color alone, and the project is
   candid (it self-marks cognitive load only "Partially Supports"). This is the rare
   case of the documented best practice actually shipped.[^a11y-dataviz]
 - **Gets stuck:** the structural gate can't judge computed contrast or live ARIA;
@@ -400,7 +400,7 @@ exist in the repo as of this date.
   `nextLink`, source-aware CSV/JSON, and a **Datasette-openable** store —
   and swelter already **ingests real Sensor.Community (Stuttgart) and OpenAQ
   (California) data** through the same pipeline, dropping the SDS011 999.9 µg/m³
-  over-range sentinel honestly. This is the FAIR, harmonised posture OpenAQ
+  over-range sentinel honestly. This is the FAIR, harmonized posture OpenAQ
   models.[^openaq]
 - **Gets stuck:** ingestion *from* those networks is proven; he hasn't seen the
   round-trip *back* — a swelter network published so an OpenAQ/Sensor.Community
@@ -548,7 +548,7 @@ The prior synthetic study ([`research/user-research-panel.md`](research/user-res
 "use my location," °F/°C, on-screen uncertainty, default List view, SensorThings
 pagination, the alerts and cooling-center features). That is the right use of this
 method: **a hypothesis generator that lowers the cost of real discovery**, not a
-substitute for it. Do **not** prioritise off this document alone — use it to design
+substitute for it. Do **not** prioritize off this document alone — use it to design
 the questions for, and reduce the cost of, interviews with real community members.
 
 ➡️ Continue to the triaged, research-backed backlog: [`RESEARCH-ROADMAP.md`](RESEARCH-ROADMAP.md).
@@ -580,11 +580,11 @@ reused here.
 [^cdc-heatrisk]: CDC pairs HeatRisk with the Air Quality Index for clinical/public guidance. https://www.cdc.gov/heat-health/hcp/clinical-guidance/how-to-use-the-heatrisk-tool-and-air-quality-index.html *(repo POSITIONING)*
 [^imperial]: Imperial County (IVAN / Comité Cívico del Valle) community-owned network; equipment-ownership transfer to the community is the documented survival factor. IVAN, https://ivan-imperial.org/about ; performance study, https://pmc.ncbi.nlm.nih.gov/articles/PMC7309036/ ; durability, https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7037815/ *(repo POSITIONING)*
 [^aot]: Array of Things (Chicago) wound down — ~$2,500/node too costly to scale, nodes outlived design life; a successor Microsoft bus-shelter network ended in <2 years. MIT Tech Review, https://www.technologyreview.com/2022/08/19/1057848/array-of-things-goes-global/ ; Chicago Sun-Times, https://chicago.suntimes.com/environment/2025/09/11/chicago-air-pollution-monitor-sensors-public-health-environmental-justice
-[^openaq]: OpenAQ aggregates and harmonises open AQ data (FAIR); reference monitors since 2015, air sensors since 2021; 2B+ points across 134 countries (Sep 2025). https://openaq.org/about/ ; data platform, https://openaq.org/about/initiatives/openaq-data-platform/
+[^openaq]: OpenAQ aggregates and harmonizes open AQ data (FAIR); reference monitors since 2015, air sensors since 2021; 2B+ points across 134 countries (Sep 2025). https://openaq.org/about/ ; data platform, https://openaq.org/about/initiatives/openaq-data-platform/
 [^trust]: EPA-convened experts tie sensor-data uncertainty to public distrust; publishing uncertainty + QC flags is the documented antidote. https://pubs.acs.org/doi/10.1021/acsestair.4c00125 *(repo POSITIONING)*
 [^propublica]: ProPublica built its own neighborhood toxic-air analysis because official data couldn't answer the question. https://www.propublica.org/article/whats-polluting-the-air-not-even-the-epa-can-say *(repo POSITIONING)*
 [^research-qa]: Low-cost sensor data is held back for lacking calibration/QA/traceability; the field wants raw + processed data with machine-readable (FAIR) provenance. https://pmc.ncbi.nlm.nih.gov/articles/PMC11534011/ ; https://www.openaire.eu/how-to-make-your-data-fair *(repo POSITIONING)*
-[^a11y-dataviz]: Accessible data viz: provide a screen-reader data-table equivalent for every non-trivial chart, never colour alone, add a plain-text summary. USWDS, https://designsystem.digital.gov/components/data-visualizations/ ; TPGi, https://www.tpgi.com/making-data-visualizations-accessible/
+[^a11y-dataviz]: Accessible data viz: provide a screen-reader data-table equivalent for every non-trivial chart, never color alone, add a plain-text summary. USWDS, https://designsystem.digital.gov/components/data-visualizations/ ; TPGi, https://www.tpgi.com/making-data-visualizations-accessible/
 [^lep]: Language access for LEP residents is a health-equity and civil-rights obligation (EO 13166, Title VI), sharpest in climate disasters. EPA LEP, https://www.epa.gov/lep ; Just Solutions, https://justsolutionscollective.org/language-justice-in-climate-disasters-state-models-addressing-title-vi-gaps/ ; SEHN, https://www.sehn.org/sehn/2024/7/22/let-me-say-my-word-let-me-understand-yours-language-access-and-translation-for-socio-environmental-justice
 [^ada]: DOJ 2024 ADA Title II rule makes WCAG 2.1 AA load-bearing for state/local government web content. *(repo POSITIONING / ROADMAP Phase 5.4)*
 [^capa]: CAPA Strategies / NOAA NIHHIS Heat Watch — a one-day-a-year volunteer car traverse, temperature only. https://www.capastrategies.com/heat-watch ; https://www.heat.gov/ *(repo POSITIONING)*

@@ -370,7 +370,7 @@ def _make_handler(ctx: IngestServerContext) -> type[BaseHTTPRequestHandler]:  # 
 def make_server(ctx: IngestServerContext, host: str, port: int) -> HTTPServer:
     """Build (but do not start) the ingest listener.
 
-    Single-threaded like the read server (one SQLite writer, serialised requests), and expected
+    Single-threaded like the read server (one SQLite writer, serialized requests), and expected
     to bind localhost or a private interface — the public internet talks to ``swelter serve``,
     nodes talk to this.
     """

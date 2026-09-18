@@ -516,7 +516,7 @@ def test_the_written_yaml_keeps_declaration_order_and_block_style(tmp_path: Path
     path = tmp_path / "corrections.yaml"
     registry.to_yaml(path)
     text = path.read_text(encoding="utf-8")
-    # sort_keys=False: the envelope keeps `version` first instead of alphabetising it after
+    # sort_keys=False: the envelope keeps `version` first instead of alphabetizing it after
     # `corrections`. A committed registry that reorders on every dump is not reproducible.
     assert text.startswith("version: 1\n")
     # default_flow_style=False: every sequence is block style, so no inline [] or {} appears.

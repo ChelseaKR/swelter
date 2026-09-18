@@ -290,7 +290,7 @@ def first_difference(frozen: bytes, rebuilt: bytes) -> str | None:
 
     Structural, not textual: it names ``features[12].properties.temp_c`` rather than a byte
     offset, because the point of the receipt is to tell an operator *what* moved. Two surfaces
-    that differ only in serialisation are reported at the document root as ``$``, which is the
+    that differ only in serialization are reported at the document root as ``$``, which is the
     truthful answer to "which value moved" when none did.
     """
     try:

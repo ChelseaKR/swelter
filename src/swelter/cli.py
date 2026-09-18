@@ -2,7 +2,7 @@
 plus the operator-side write path (ingest-serve, node-key) and the host-facing preview
 (node-preview).
 
-This is the one-command surface a neighbourhood collective actually touches. Every subcommand
+This is the one-command surface a neighborhood collective actually touches. Every subcommand
 is a thin wrapper over the library functions, so anything the CLI does is equally scriptable
 and testable. ``swelter demo`` is the keystone: it replays the recorded week in ``data/demo``
 through the whole pipeline — ingest → calibrate → aggregate → export — and optionally serves
@@ -130,7 +130,7 @@ STARTER_NETWORK = """\
 # unless a host opts a node into `location: precise` — a collective decision (docs/governance.md).
 
 name: __NAME__
-grid_resolution_m: 150          # published cell size in metres (~a block); a collective decision
+grid_resolution_m: 150          # published cell size in meters (~a block); a collective decision
 languages:
 - en
 - es
@@ -1879,7 +1879,9 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
 #: complete history.
 _EXPORT_WINDOW_HOURS = 24 * 7
 
-_PUBLISH_FILES = (
+#: Read by `scripts/pages_seo.py crawl`, which has to know that `export.csv` and
+#: `DATA-LICENSE` are linked from the dashboard footer and arrive only with a publish.
+PUBLISH_FILES = (
     "sample-surface.json",
     "demo.json",
     "sample-health.json",
@@ -2047,7 +2049,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
 
     data_hour = surface.newest_bucket() or ""
     written = _write_publish_manifest(
-        web_dir, _PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
+        web_dir, PUBLISH_FILES, interval_s=args.interval, data_hour=data_hour
     )
     _err(
         f"swelter publish: wrote {len(written)} files "
@@ -2481,7 +2483,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
     """Compare two surfaces, snapshot directories, or health reports, and attribute each change.
 
     `verify-archive` proves nothing was tampered with; this explains what legitimately changed.
-    An organiser who says "the block got worse this week" can show whether the number moved or
+    An organizer who says "the block got worse this week" can show whether the number moved or
     the calibration did, which are different claims about the same cell.
 
     Exit 0 on a successful comparison, changes or not — a diff is a report, not a gate. A
@@ -2840,8 +2842,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # sensor-community area (defaults to Stuttgart, where coverage is dense):
     p_fetch.add_argument("--area-name", default="Stuttgart", help="sensor-community: area label")
-    p_fetch.add_argument("--lat", type=float, default=48.7758, help="sensor-community: centre lat")
-    p_fetch.add_argument("--lon", type=float, default=9.1829, help="sensor-community: centre lon")
+    p_fetch.add_argument("--lat", type=float, default=48.7758, help="sensor-community: center lat")
+    p_fetch.add_argument("--lon", type=float, default=9.1829, help="sensor-community: center lon")
     p_fetch.add_argument("--radius", type=float, default=30.0, help="sensor-community: radius km")
     p_fetch.add_argument("--serve", action="store_true", help="serve the dashboard after fetching")
     p_fetch.add_argument("--host", default="127.0.0.1")
@@ -2905,7 +2907,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--doi",
         default="",
         help="DOI for this release, if one has been minted (e.g. via Zenodo/DataCite); "
-        "omit for a clearly-labelled placeholder",
+        "omit for a clearly-labeled placeholder",
     )
     p_snap.add_argument(
         "--license",

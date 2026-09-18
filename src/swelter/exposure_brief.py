@@ -151,7 +151,7 @@ def count_danger_days(
     fixed non-heat network has no such ambiguity but does raise a second one -- whether a heat-index
     count is refused outright for a network whose feed never alerts on heat, or kept with its floor
     stated. Both are recorded against the hazard-pack work rather than decided in a docstring.
-    ``tests/test_exposure_brief.py`` pins the current behaviour and names the day it becomes wrong.
+    ``tests/test_exposure_brief.py`` pins the current behavior and names the day it becomes wrong.
 
     A crossing is counted whatever its QC state — a spike that turns out to be the onset of a real
     event is exactly the hour a resident needs to see, and dropping it would repeat the mistake

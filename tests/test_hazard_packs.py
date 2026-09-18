@@ -43,7 +43,7 @@ def test_heat_is_the_default_pack() -> None:
 
 
 def test_heat_pack_floors_are_the_original_documented_values() -> None:
-    # The whole point of "no behaviour change when unspecified": these are the exact floors the
+    # The whole point of "no behavior change when unspecified": these are the exact floors the
     # feed always used, and the alerts module still exposes them under DEFAULT_THRESHOLDS.
     assert hazard_packs.HEAT_PACK.default_floors() == {
         "pm25_aqi": 101.0,

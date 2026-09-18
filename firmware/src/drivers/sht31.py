@@ -18,7 +18,7 @@ Datasheet references (Sensirion SHT3x-DIS, rev. 6):
 
 * Single-shot, clock-stretching disabled, high repeatability: command ``0x2C 0x06``.
 * Response: 6 bytes — ``[T_msb, T_lsb, T_crc, RH_msb, RH_lsb, RH_crc]``.
-* CRC-8: polynomial ``0x31`` (x^8 + x^5 + x^4 + 1), initialisation ``0xFF``, no final XOR,
+* CRC-8: polynomial ``0x31`` (x^8 + x^5 + x^4 + 1), initialization ``0xFF``, no final XOR,
   MSB-first, computed over the two preceding data bytes.
 * Temperature: ``temp_c = -45 + 175 * raw / 65535``.
 * Relative humidity: ``rh = 100 * raw / 65535``.

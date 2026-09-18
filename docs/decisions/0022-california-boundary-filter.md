@@ -26,7 +26,7 @@ Pages cache key is also versioned so the public CSV and SQLite-derived surface s
 previously stored bbox spillover; immutable local raw stores are not silently rewritten.
 
 OpenAQ's source coordinates are used only for the inclusion test. Generated node entries use
-`location: coarse`, so they pass through the existing 150-metre public grid. A coordinate that an
+`location: coarse`, so they pass through the existing 150-meter public grid. A coordinate that an
 upstream aggregator publishes is not treated as a sensor host's consent for swelter to republish a
 precise home-scale location.
 
@@ -47,7 +47,7 @@ runtime and does not need a full GIS stack for one containment predicate.
 ## Known weakness / Consequences
 
 The checked-in boundary is a simplified cartographic boundary, not a cadastral survey. The maximum
-simplification offset is about 22 metres of latitude, which is smaller than swelter's default public
+simplification offset is about 22 meters of latitude, which is smaller than swelter's default public
 grid but can still affect a monitor extremely close to a state line. A future boundary vintage must
 change the recorded scope id, update the asset provenance, and rerun the border fixtures; that scope
 change intentionally starts network accumulation from current, re-evaluated locations.

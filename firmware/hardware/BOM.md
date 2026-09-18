@@ -47,7 +47,7 @@ These are firmware facts backed by hardware: the node carries no parts that coul
 - **No microphone** — no I2S/PDM mic, no audio anything.
 - **No camera** — no image sensor, no optics beyond the PM sensor's internal laser/photodiode, which
   faces its own measurement chamber and sees only the air sample.
-- **No Bluetooth radio use** — the ESP32 has a BLE radio, but the firmware never initialises it; the
+- **No Bluetooth radio use** — the ESP32 has a BLE radio, but the firmware never initializes it; the
   radio is used for Wi-Fi station mode only.
 - **No GPS** — the node's location is set by the host in `network.yaml` and published snapped to a
   coarse grid; the node does not sense or report its own position.

@@ -19,7 +19,7 @@ So it counts now, against a committed ceiling:
 * **Below** it also fails, asking you to lower the ceiling. That is the ratchet: retiring a
   suppression and leaving the ceiling up would hand the slack straight back.
 
-The ceiling is a number, not a judgement about which suppressions are correct. Several here are
+The ceiling is a number, not a judgment about which suppressions are correct. Several here are
 permanent and right — ``S603`` on a fixed-argv subprocess call does not become wrong with age.
 Ratcheting the count is what makes the *direction* enforceable while that argument stays open.
 """
@@ -87,7 +87,13 @@ _SUPPRESSION = re.compile(r"#\s*noqa\b|#\s*type:\s*ignore\b|nosemgrep:")
 #: The count is +5 for the new site-local exemptions and -2 for the dead ones. This is the direction
 #: #107 asks for even though the number goes up: a `--exclude-rule` exempts every future site
 #: silently, a `# nosemgrep:` exempts one line and makes the next one fail the gate.
-SUPPRESSION_CEILING = 32
+#: 32 -> 33: one fixed-argv `S603` in scripts/deploy_staleness.py. The deploy-staleness sentinel
+#: drives both `git` (the commit comparison) and `gh` (the deployment record) through a single
+#: `_capture` helper, so the module costs one suppression instead of two, and its own test suite
+#: costs none because it drives its fixture repository through that same helper. Same permanent
+#: pattern as the other gate scripts here: absolute executable via `shutil.which`, fixed
+#: subcommands, argv-only, no shell.
+SUPPRESSION_CEILING = 33
 
 
 def _tracked_files(*dirs: str) -> list[Path]:

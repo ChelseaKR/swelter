@@ -106,7 +106,7 @@ collective's decision. Store it somewhere with the same access control as the st
 - The artifact manifest hashes every emitted file and source/license claims agree across UI,
   `demo.json`, export, and `DATA-LICENSE`.
 - Both route-scoped workers serve the new release and no older owned cache remains active.
-- The latest observations are clearly fresh or clearly labelled stale/provisional.
+- The latest observations are clearly fresh or clearly labeled stale/provisional.
 - An incident issue records start, containment, recovery, cause, and follow-up; its timestamps feed
   the DORA recovery metric.
 

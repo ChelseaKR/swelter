@@ -99,7 +99,7 @@ test("HTML public words are catalog-marked or a small language-neutral token", (
     if (context?.tag === "script" || context?.tag === "style" || context?.localized) continue;
     if (!allowed.has(text)) unmarked.push(text);
   }
-  assert.deepEqual(unmarked, [], `uncatalogued HTML copy: ${unmarked.join(" | ")}`);
+  assert.deepEqual(unmarked, [], `uncataloged HTML copy: ${unmarked.join(" | ")}`);
 });
 
 test("alert actions stay outside the dedicated atomic live-status node", () => {

@@ -79,7 +79,7 @@ both tables and with its referenced tests in the same change.
 
 ### Phase 1 — trustworthy local pipeline: complete
 
-Turn recorded payloads into idempotent, QC-labelled, exportable observations with malformed input
+Turn recorded payloads into idempotent, QC-labeled, exportable observations with malformed input
 quarantined. The shipped backend is SQLite plus generated files; raw observations are immutable and
 rebuild inputs remain portable.
 
@@ -154,7 +154,7 @@ never a person-level vulnerability score or individualized safety direction.
 ## Metrics ledger
 
 The schema is fixed by the portfolio standard: **Metric, Target, Measured by, Gate, Owner**. Targets
-describe the desired outcome; passing a proxy is not relabelled as the outcome itself.
+describe the desired outcome; passing a proxy is not relabeled as the outcome itself.
 
 | Metric | Target | Measured by | Gate | Owner |
 |---|---|---|---|---|
@@ -186,14 +186,17 @@ is claimed until complete row-level evidence is committed.
 **Tier declaration: Tier C — library and operator-run CLI.** The portfolio standard names
 `swelter` in Tier C. Its optional read-only HTTP server is started and owned by the local operator;
 the project does not operate a long-lived API service. The public Pages observatory is a static,
-account-free build artifact with no project-run browser telemetry collector or runtime backend.
+account-free build artifact with no project-run browser telemetry collector or runtime backend. It
+loads Google Analytics 4 page counts on the reference host only (ADR 0055).
 
 - OTel traces, metrics, a collector stack, RED/USE metrics, SLOs, burn-rate alerts, and
   `/livez`/`/readyz` are **N/A — no project-operated network service exists**. A future hosted API
   changes the tier and must add those controls before deployment.
-- Browser OTel and field Core Web Vitals RUM are **N/A — the static civic site deliberately sends
-  no client telemetry**. Same-origin static fetches do not cross into a project-operated backend.
-  Lighthouse lab measurements remain an AUTO quality regression gate; they are not relabelled as
+- Browser OTel and field Core Web Vitals RUM are **N/A — the static civic site sends no
+  performance or trace telemetry**. Its only client telemetry is GA4 page counts (ADR 0055), which
+  are not field performance data. Same-origin static fetches do not cross into a project-operated
+  backend.
+  Lighthouse lab measurements remain an AUTO quality regression gate; they are not relabeled as
   field evidence.
 - Opt-in `swelter --log-format json` is the Tier-C signal, rendered by the exactly locked structlog
   JSON processor. Human-readable output remains the default. The JSON shape, redaction behavior,
@@ -206,7 +209,7 @@ account-free build artifact with no project-run browser telemetry collector or r
 | Static frontend lab LCP | Under 2.5 seconds on `/` and `/sensors/` | Lighthouse CI and committed route baseline | AUTO | Maintainer |
 | Static frontend lab INP proxy | Total blocking time under 200 ms; INP remains field-only and is not inferred | Lighthouse CI and committed route baseline | AUTO | Maintainer |
 | Static frontend lab CLS | Under 0.1 on both routes | Lighthouse CI and committed route baseline | AUTO | Maintainer |
-| Field RUM / browser traces | N/A — no client telemetry collector or hosted runtime API | Architecture/privacy review | REVIEW | Privacy owner |
+| Field RUM / browser traces | N/A — no performance telemetry collector or hosted runtime API; GA4 page counts (ADR 0055) are not RUM | Architecture/privacy review | REVIEW | Privacy owner |
 
 ## Next validated bets
 
@@ -235,6 +238,6 @@ criteria, test/review mapping, and an ADR when it changes architecture.
 - Public exact sensor-host coordinates by default.
 - Signed/staged firmware OTA; it remains a documented future capability.
 - A shipped Parquet/Arrow backend, multi-writer cluster, mobile app, user account system, or client
-  analytics/RUM.
+  RUM. (GA4 page counts on the reference site are the one analytics exception; see ADR 0055.)
 - A claim of current manual assistive-technology or independent Spanish signoff until issue #106 has a
   dated reviewer artifact.

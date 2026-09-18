@@ -73,3 +73,5 @@ evidence of the collision.
 - [ADR 0051: A catalog record carries verified digests, or it is not written](0051-a-catalog-record-carries-verified-digests-or-is-not-written.md)
 - [ADR 0052: An alert nobody could check is not an alert that checked out](0052-an-alert-nobody-could-check-is-not-an-alert-that-checked-out.md)
 - [ADR 0053: A season is a property of the data, not of the run](0053-a-season-is-a-property-of-the-data-not-of-the-run.md)
+- [ADR 0054: A run killed by its own timeout is a failed deployment, and a cancellation nobody classified is not a success](0054-a-run-killed-by-its-own-timeout-is-a-failed-deployment.md)
+- [ADR 0055: Google Analytics 4 counts page views on the public pages, and never sees a place, search, or setting](0055-google-analytics-4-on-the-public-pages.md)

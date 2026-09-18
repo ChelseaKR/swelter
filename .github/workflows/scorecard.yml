@@ -16,7 +16,7 @@ permissions:
 
 # CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref. The key carries the event as
 # well as the ref, because a bare `${{ github.ref }}` on a busy `main` makes consecutive pushes
-# supersede each other: the older commit's run is cancelled before a job is dispatched, so that
+# supersede each other: the older commit's run is canceled before a job is dispatched, so that
 # commit never gets a verdict and the branch looks green on the strength of a run that never
 # happened. Pull-request runs share one slot per ref and do supersede each other, which is the
 # saving this is for; every push keeps its own slot, keyed by the commit it is a verdict about.
@@ -57,6 +57,6 @@ jobs:
 
       - name: Upload Scorecard SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           sarif_file: results.sarif

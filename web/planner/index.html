@@ -16,6 +16,7 @@
          self-hosted instances, for which a chelseakr.github.io canonical would be false. -->
     <!-- pages-seo:end -->
     <link rel="stylesheet" href="planner.css" />
+    <script src="../analytics.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#planner">Skip to the planner</a>
@@ -44,10 +45,11 @@
         </div>
         <aside class="privacy-docket" aria-labelledby="privacy-heading">
           <p class="docket-number" aria-hidden="true">00</p>
-          <h2 id="privacy-heading">Nothing leaves this page</h2>
+          <h2 id="privacy-heading">Your answers stay on this page</h2>
           <p>
-            No account, analytics, location, names, or free-text fields. Answers stay in this tab
-            and disappear when it closes. A plan can be copied or printed only when you choose.
+            No account, location, names, or free-text fields. Answers stay in this tab and
+            disappear when it closes. A plan can be copied or printed only when you choose. Google
+            Analytics counts visits to this page but never sees your answers.
           </p>
           <ul>
             <li>Community mandate before hardware</li>
@@ -284,6 +286,18 @@
     <footer>
       <p><strong>swelter</strong> is an independent, community-owned open-source project.</p>
       <p>Planner answers are neither stored nor transmitted. Code: Apache-2.0.</p>
+      <p class="analytics-note">
+        This page uses Google Analytics 4 to count visits, with ad features off. It gets the page
+        address without the part after # or ?, never your answers. It does not load if your browser
+        sends Global Privacy Control or Do Not Track. The <a href="../">dashboard</a> footer has
+        the full privacy note.
+      </p>
+      <p id="analytics-choice" class="analytics-choice" hidden>
+        <button id="analytics-toggle" class="button button-secondary" type="button">
+          Opt out of analytics
+        </button>
+        <span id="analytics-status" role="status" aria-live="polite"></span>
+      </p>
     </footer>
 
     <script id="decision-model" type="application/json">

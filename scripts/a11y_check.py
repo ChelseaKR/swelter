@@ -2,10 +2,10 @@
 """Structural accessibility gate for the dashboard — a merge-blocking WCAG 2.2 AA subset.
 
 This is the pure-Python check that runs in CI on every PR (``make a11y``). It cannot judge
-computed colour contrast or live ARIA semantics — that is the job of the advisory axe/pa11y
+computed color contrast or live ARIA semantics — that is the job of the advisory axe/pa11y
 pass and the manual NVDA/VoiceOver review documented in docs/accessibility/ACR.md. What it
 *can* do, deterministically and with no browser, is hold the structural floor the README
-promises: a language, a single heading, a skip link, labelled controls, landmarks, no
+promises: a language, a single heading, a skip link, labeled controls, landmarks, no
 keyboard traps from positive tabindex, image text alternatives, and — the load-bearing one —
 a semantic data-table shell that the browser suite checks for record equivalence with the map.
 
@@ -109,9 +109,9 @@ class _Collector(HTMLParser):
 
 
 def _checks(page: Page, css: str) -> list[tuple[bool, str]]:
-    # Evaluate labelling per control, so a control that is both <label for>'d and aria-labelled
-    # cannot over-count and mask a different, genuinely unlabelled control.
-    unlabelled = sum(
+    # Evaluate labeling per control, so a control that is both <label for>'d and aria-labeled
+    # cannot over-count and mask a different, genuinely unlabeled control.
+    unlabeled = sum(
         1
         for control_id, has_aria in page.controls
         if not ((control_id is not None and control_id in page.label_for) or has_aria)
@@ -125,7 +125,7 @@ def _checks(page: Page, css: str) -> list[tuple[bool, str]]:
             bool(page.skip_link_targets & page.ids),
             f"a skip link targets an in-page id ({sorted(page.skip_link_targets)})",
         ),
-        (unlabelled <= 0, f"every form control is labelled ({unlabelled} unlabelled)"),
+        (unlabeled <= 0, f"every form control is labeled ({unlabeled} unlabeled)"),
         (page.has_table, "a semantic data-table shell is present"),
         (
             page.imgs_with_alt == page.imgs_total,
@@ -135,7 +135,7 @@ def _checks(page: Page, css: str) -> list[tuple[bool, str]]:
         (page.lang_switch, "a language switch is present (data-lang-switch)"),
         (
             "prefers-reduced-motion" in css,
-            "CSS honours prefers-reduced-motion",
+            "CSS honors prefers-reduced-motion",
         ),
         (
             "focus-visible" in css or ":focus" in css,

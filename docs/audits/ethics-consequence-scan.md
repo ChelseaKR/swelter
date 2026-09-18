@@ -33,7 +33,8 @@ Owner release attestation remains blocked in `release-review-attestations.json`.
 ## Lines the product will not cross
 
 - No microphone, camera, Bluetooth/Wi-Fi client scanning, person-shaped field, or individual
-  tracking.
+  tracking. GA4 page counts on the reference site (ADR 0055) use a pseudonymous Google cookie outside
+  the EEA, UK and CH; swelter never joins them to a place, search, watch, or setting.
 - No individual diagnosis, medical advice, evacuation order, regulatory-grade claim, or “safe now”
   determination.
 - No silent mixing of raw/provisional, calibrated, model-derived, and directly sensed values.

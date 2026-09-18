@@ -53,7 +53,7 @@ DEFAULT_HISTORY_MIN_HOURS: Final = 72
 #: decade-old climate.
 DEFAULT_HISTORY_WINDOW_DAYS: Final = 730
 
-_METRES_PER_DEGREE_LAT = 111_320.0
+_METERS_PER_DEGREE_LAT = 111_320.0
 WEB_PREVIEW_STATEWIDE_CALIFORNIA = "statewide-california"
 #: The fingerprint of the exact generated demo fixture, over every typed field but `web_preview`.
 #: It moves whenever `NetworkConfig` gains a field, because the digest covers the whole dataclass
@@ -195,7 +195,7 @@ class NodeConfig:
         ``None`` when the host has not placed the node. ``precise`` returns the exact
         coordinate the host opted to disclose and ``public-place`` returns the exact coordinate of
         a place that has no host at all; otherwise the value is snapped to the grid so hosting a
-        sensor cannot reveal where a person lives. Any unrecognised value snaps, which is the
+        sensor cannot reveal where a person lives. Any unrecognized value snaps, which is the
         fail-safe direction: only these two exact spellings turn grid protection off.
         """
         if self.lat is None or self.lon is None:
@@ -281,7 +281,7 @@ class NetworkConfig:
     #: ``wind_chill_c``). Empty means "use the pack's cited defaults" (see ``alerts.py``).
     alert_thresholds: dict[str, float] = field(default_factory=dict)
     #: The hazard pack this network alerts on (``hazard_packs.PACKS``). ``"heat"`` is the default,
-    #: so an unset value reproduces swelter's original heat/air behaviour exactly (ADR 0031).
+    #: so an unset value reproduces swelter's original heat/air behavior exactly (ADR 0031).
     hazard_pack: str = hazard_packs.DEFAULT_PACK_ID
     #: Which months get which pack, when ``hazard_pack`` is ``auto-season``. Declared by the
     #: network, never by swelter: a calendar is a claim about a particular place's climate, and
@@ -352,26 +352,26 @@ def configuration_fingerprint(config: NetworkConfig) -> str:
 
 
 def snap_to_grid(lat: float, lon: float, grid_m: float) -> tuple[float, float]:
-    """Snap a coordinate to the centre of a ``grid_m``-sided cell.
+    """Snap a coordinate to the center of a ``grid_m``-sided cell.
 
     Longitude cell size widens with latitude so cells stay roughly square on the ground.
-    Returns the cell centre, which is what gets published.
+    Returns the cell center, which is what gets published.
     """
-    lat_step = grid_m / _METRES_PER_DEGREE_LAT
-    lon_metres_per_degree = _METRES_PER_DEGREE_LAT * math.cos(math.radians(lat)) or 1e-9
-    lon_step = grid_m / lon_metres_per_degree
+    lat_step = grid_m / _METERS_PER_DEGREE_LAT
+    lon_meters_per_degree = _METERS_PER_DEGREE_LAT * math.cos(math.radians(lat)) or 1e-9
+    lon_step = grid_m / lon_meters_per_degree
     snapped_lat = (math.floor(lat / lat_step) + 0.5) * lat_step
     snapped_lon = (math.floor(lon / lon_step) + 0.5) * lon_step
     return (round(snapped_lat, 6), round(snapped_lon, 6))
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Ground distance in metres between two coordinates (haversine formula).
+    """Ground distance in meters between two coordinates (haversine formula).
 
     Used to show a host how far the published (possibly grid-snapped) coordinate sits from
     their sensor's exact location — see ``swelter node-preview``.
     """
-    earth_radius_m = _METRES_PER_DEGREE_LAT * 180.0 / math.pi
+    earth_radius_m = _METERS_PER_DEGREE_LAT * 180.0 / math.pi
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
@@ -577,7 +577,7 @@ def config_concerns(config: NetworkConfig, doc: dict[str, Any]) -> tuple[list[st
     """Validate a loaded config against the raw document it came from.
 
     Returns ``(errors, warnings)``. Errors name a mistake that would silently corrupt data or
-    safety behaviour (a duplicate node id merging two sensors into one cell identity, an
+    safety behavior (a duplicate node id merging two sensors into one cell identity, an
     `alert_thresholds` typo that reverts a danger floor to the default without saying so) —
     ``swelter doctor`` exits nonzero when there are any. Warnings name something a host probably
     did not intend but that swelter can fail-safe around (a stray `location:` value falls back to
@@ -760,7 +760,7 @@ def _node_field_concerns(config: NetworkConfig, errors: list[str], warnings: lis
             )
         if node.location == LOCATION_PUBLIC_PLACE and node.consent_ref.strip():
             # A consent_ref means somebody believed there was a host to consent. Either this is a
-            # hosted node mislabelled as a public place — which would silently exempt a real home
+            # hosted node mislabeled as a public place — which would silently exempt a real home
             # from the consent check — or the reference is left over from an earlier shape. Both
             # need a human, so this is an error rather than a warning.
             errors.append(

@@ -9,7 +9,9 @@ value is not a colorful map; it is a traceable path from measurement to claim.
 
 1. **No surveillance.** Do not add people, accounts, device scanning, audio/video, or personal
    identifiers to the schema, firmware, browser, logs, or infrastructure. Browser geolocation is
-   explicit, in-memory, and used only to select a nearby published cell.
+   explicit, in-memory, and used only to select a nearby published cell. The one owner-accepted
+   exception is ADR 0055: Google Analytics 4 page counts on the reference site only, which never
+   receive a place, search, watch, or setting.
 2. **Location precision belongs to the host.** Coarse grid publication is the default. All new
    coordinate outputs must use the public-location seam; precision is an explicit opt-in.
 3. **Raw and calibrated never blur.** Raw rows are immutable. Calibration produces distinct rows
@@ -35,7 +37,7 @@ value is not a colorful map; it is a traceable path from measurement to claim.
   tests. Current reading and Readings link history, distribution, evidence, map, table, and list.
 - `firmware/`: reference sampling, buffering, and request signing. Signed/staged OTA is not
   implemented; never imply otherwise.
-- `data/`: deterministic demo, calibration inputs, and explicitly labelled contextual/reference
+- `data/`: deterministic demo, calibration inputs, and explicitly labeled contextual/reference
   fixtures. Source terms are not inferred from directory placement.
 - `infra/`: optional deployment reference. Static publication is a supported shape; a live
   authenticated ingest listener is a separate operator responsibility.

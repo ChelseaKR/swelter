@@ -54,7 +54,7 @@ review, not merged with a follow-up. Confirm each:
 - [ ] **Accessibility.** A new/changed custom interaction has APG, keyboard,
       reflow, motion, and assistive-technology evidence; no unperformed manual
       review is represented as complete (or N/A — reason).
-- [ ] **Internationalization.** Resident-facing copy is catalogued with EN/ES
+- [ ] **Internationalization.** Resident-facing copy is cataloged with EN/ES
       parity and placeholder/plural handling; human translation review is named
       only when it happened (or N/A — reason).
 - [ ] **Architecture.** A guardrail, workflow permission, quality threshold,

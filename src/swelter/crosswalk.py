@@ -99,7 +99,7 @@ def to_openaq(swelter_param: str) -> tuple[str, str] | None:
     """The (OpenAQ parameter name, unit) for a swelter parameter. ``None`` covers two distinct
     honest cases the caller cannot tell apart from the return value alone (and does not need
     to): ``swelter_param`` names a real swelter parameter with no OpenAQ equivalent
-    (``heat_index_c``), or it is not a recognised swelter parameter at all."""
+    (``heat_index_c``), or it is not a recognized swelter parameter at all."""
     entry = _CROSSWALK.get(swelter_param)
     return entry.openaq if entry is not None else None
 
@@ -108,7 +108,7 @@ def to_sensor_community(swelter_param: str) -> tuple[str, str] | None:
     """The (Sensor.Community ``value_type``, unit) for a swelter parameter. ``None`` covers two
     distinct honest cases the caller cannot tell apart from the return value alone (and does not
     need to): ``swelter_param`` names a real swelter parameter with no Sensor.Community
-    equivalent (``heat_index_c``, ``no2_ppb``), or it is not a recognised swelter parameter at
+    equivalent (``heat_index_c``, ``no2_ppb``), or it is not a recognized swelter parameter at
     all."""
     entry = _CROSSWALK.get(swelter_param)
     return entry.sensor_community if entry is not None else None

@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
-"""Retain, generate, and verify deterministic DORA evidence from GitHub JSON exports."""
+"""Retain, generate, and verify deterministic DORA evidence from GitHub JSON exports.
+
+**A canceled run is not one outcome.** A job killed by its own ``timeout-minutes`` concludes
+``cancelled``, never ``timed_out`` -- measured on `gtfs-scorecard` run 34162993774, whose job ran
+45 minutes to the second against ``timeout-minutes: 45`` and concluded ``cancelled``. That
+workflow died that way for eleven consecutive scheduled runs while every sweep read the result as
+no signal (#267). Meanwhile every one of this repository's 38 canceled ``pages.yml`` runs was
+evicted out of the pending queue before a runner existed, and counting *those* as deployment
+failures would put a false 12.5% on ``change_fail_rate``.
+
+So the repair is not a wider :data:`FAILED_CONCLUSIONS`. It is retaining the evidence that tells
+the two apart -- each canceled run's jobs and their check-run annotations, where GitHub says
+"The job has exceeded the maximum execution time of 45m0s" and nowhere else -- and then resolving
+every terminal outcome through one table (:data:`RUN_DISPOSITIONS`,
+:data:`CANCELLATION_DISPOSITIONS`) that has no silent branch. An outcome nobody has classified
+makes the change-failure metrics ``unavailable``; it does not make the denominator smaller.
+:func:`failure_mode_coverage` reports how many of the eleven non-success terminal outcomes reach a
+decision, so that number is a gate output rather than a claim in a pull request.
+"""
 
 from __future__ import annotations
 
@@ -23,11 +41,85 @@ DEFAULT_SNAPSHOT = ROOT / "docs" / "audits" / "dora" / "snapshot.json"
 DEFAULT_MARKDOWN = ROOT / "docs" / "DORA.md"
 DEFAULT_WORKFLOW = ROOT / ".github" / "workflows" / "dora.yml"
 
-FAILED_CONCLUSIONS = frozenset({"failure", "timed_out", "action_required", "startup_failure"})
+#: The retained-evidence schema. Bumped 1 -> 2 when a canceled run gained the ``cancellation``
+#: object below: a version 1 document cannot say why one of its runs was canceled, and a reader
+#: that treated the absence as "not a failure" would be making exactly the mistake this schema
+#: change exists to stop.
+SCHEMA_VERSION = 2
+
+#: Where a completed run lands relative to the change-failure line.
+#:
+#: ``REFUSED`` is the member that makes this a table rather than a set. Before it existed, every
+#: conclusion outside :data:`FAILED_CONCLUSIONS` fell out of *both* the numerator and the
+#: denominator of ``change_fail_rate`` without a word, so "this run did not fail" and "this reader
+#: does not know what this run did" produced the identical number. A terminal outcome nobody has
+#: classified is now a refusal, which is loud, rather than a silent subtraction.
+DEPLOYED = "deployed"
+FAILED = "failed"
+NOT_ATTEMPTED = "not_attempted"
+REFUSED = "refused"
+
+#: Every ``conclusion`` GitHub documents for a *completed* workflow run, except ``cancelled``.
+#: ``cancelled`` is deliberately absent: it is not one outcome, it is four, and which one it was
+#: is decided from retained per-job evidence by :func:`_classify_cancellation`.
+#:
+#: ``skipped`` and ``stale`` are non-attempts because nothing ran; ``neutral`` is a refusal
+#: because it is a legacy checks-API value with no settled meaning for a deployment, and guessing
+#: at one would put a number on the metric that nobody chose.
+RUN_DISPOSITIONS: dict[str, str] = {
+    "success": DEPLOYED,
+    "failure": FAILED,
+    "timed_out": FAILED,
+    "action_required": FAILED,
+    "startup_failure": FAILED,
+    "skipped": NOT_ATTEMPTED,
+    "stale": NOT_ATTEMPTED,
+    "neutral": REFUSED,
+}
+
+#: Retained conclusions that mean the run failed, kept as a name because `docs/DORA.md` and the
+#: tests both talk about it. ``cancelled`` reaches this set only through a classified cancellation.
+FAILED_CONCLUSIONS = frozenset(
+    conclusion for conclusion, disposition in RUN_DISPOSITIONS.items() if disposition == FAILED
+)
+
+#: **A job killed by its own `timeout-minutes` concludes `cancelled`, never `timed_out`.** Measured
+#: on `gtfs-scorecard` run 34162993774: the job started 21:24:06Z and completed 22:09:20Z, 45
+#: minutes to the second against `timeout-minutes: 45`, and both the job and the run concluded
+#: `cancelled`. That workflow had been dying that way for eleven consecutive scheduled runs while
+#: every sweep read the result as no signal (#267).
+#:
+#: The `conclusion` field cannot tell that apart from a concurrency eviction, and neither can the
+#: job's own duration without knowing the bound, which the API does not expose. GitHub *does* say
+#: it, in the check-run annotation it writes on the killed job, and that is the only place it says
+#: it. So the annotation is what this retains and what the classification reads.
+_TIMEOUT_KILL_ANNOTATION = re.compile(r"^The job has exceeded the maximum execution time of ")
+
+#: The same measurement's other half. A run superseded while a job was already running carries
+#: `Canceling since a higher priority waiting request for ... exists` -- measured on swelter
+#: `ci.yml` job 101911103002. That is a scheduling decision about a stale ref, not a deployment
+#: failure, and counting it as one would put a false rate on the metric.
+_SUPERSEDED_ANNOTATION = re.compile(r"^Canceling since a higher priority waiting request ")
+
+#: Why a run concluded `cancelled`, and what that means for the change-failure line.
+#:
+#: ``never_started`` is the common case here and the reason the obvious fix -- adding `cancelled`
+#: to :data:`FAILED_CONCLUSIONS` -- would have been worse than the blindness it replaced. All 38
+#: canceled `pages.yml` runs in this repository's history returned `total_count: 0` from the jobs
+#: endpoint: every one was evicted out of the pending queue before a runner existed. Counting them
+#: would have put a false 12.5% on `change_fail_rate`.
+CANCELLATION_DISPOSITIONS: dict[str, str] = {
+    "timeout_kill": FAILED,
+    "superseded": NOT_ATTEMPTED,
+    "never_started": NOT_ATTEMPTED,
+    # British spelling kept: this cause is a persisted value in retained schema-2 evidence.
+    "unrecognised": REFUSED,
+}
+
 REWORK_TITLE = re.compile(r"^(?:fix(?:\([^)]+\))?[!:]?|FIX-\d+\b)", re.IGNORECASE)
 
 #: The one call that makes `.github/workflows/dora.yml` the DORA workflow. `publication_route`
-#: refuses rather than answering over a file it no longer recognises: "this workflow has no way
+#: refuses rather than answering over a file it no longer recognizes: "this workflow has no way
 #: to publish" and "this reader stopped understanding the workflow" produce the same word
 #: otherwise, and only one of them is a fact about the repository.
 _GENERATE_INVOCATION = "dora_evidence.py generate"
@@ -105,7 +197,17 @@ def _write_json(path: Path, document: Any) -> None:
     path.write_bytes(_canonical_json(document))
 
 
-def _flatten_actions(raw: Any) -> list[dict[str, Any]]:
+def _flatten_actions(
+    raw: Any, cancellations: Mapping[int, dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Normalize a runs export, attaching the retained cause to every canceled run.
+
+    ``cancellations`` is not optional in practice: a canceled run with no entry is an error, not
+    a run that gets the benefit of the doubt. That is the whole repair -- the old flattener kept
+    `workflow_runs` fields only, so nothing downstream *could* tell a cap-kill from an eviction,
+    and the metric resolved the ambiguity by dropping both.
+    """
+    cancellations = {} if cancellations is None else cancellations
     pages = raw if isinstance(raw, list) else [raw]
     records: list[dict[str, Any]] = []
     for page in pages:
@@ -124,21 +226,163 @@ def _flatten_actions(raw: Any) -> list[dict[str, Any]]:
             title = item.get("display_title")
             if not isinstance(title, str) and isinstance(commit_message, str):
                 title = commit_message.splitlines()[0]
-            records.append(
+            record: dict[str, Any] = {
+                "id": item.get("id"),
+                "event": item.get("event"),
+                "status": item.get("status"),
+                "conclusion": item.get("conclusion"),
+                "head_sha": item.get("head_sha"),
+                "commit_timestamp": commit_timestamp,
+                "created_at": item.get("created_at"),
+                "updated_at": item.get("updated_at"),
+                "display_title": title,
+                "url": item.get("html_url"),
+            }
+            if record["conclusion"] == "cancelled":
+                run_id = record["id"]
+                if run_id not in cancellations:
+                    raise EvidenceError(
+                        f"canceled run {run_id} has no retained cancellation evidence; a "
+                        "cancellation whose cause was not collected cannot be scored"
+                    )
+                record["cancellation"] = cancellations[run_id]
+            records.append(record)
+    return sorted(records, key=lambda record: (str(record.get("created_at")), record.get("id", 0)))
+
+
+def cancelled_run_ids(raw: Any) -> list[int]:
+    """Run ids the collector must fetch job and annotation evidence for, newest last.
+
+    Exposed as its own subcommand so the workflow does not have to re-derive the canceled set in
+    shell, where a quoting mistake yields an empty list and an empty list looks like good news.
+    """
+    pages = raw if isinstance(raw, list) else [raw]
+    found: list[int] = []
+    for page in pages:
+        if not isinstance(page, dict) or not isinstance(page.get("workflow_runs"), list):
+            raise EvidenceError(
+                "Actions export must be an object or slurped list with workflow_runs"
+            )
+        for item in page["workflow_runs"]:
+            if not isinstance(item, dict):
+                raise EvidenceError("Actions workflow_runs entries must be objects")
+            if item.get("conclusion") != "cancelled":
+                continue
+            run_id = item.get("id")
+            if not isinstance(run_id, int) or isinstance(run_id, bool):
+                raise EvidenceError("a canceled run has no integer id")
+            found.append(run_id)
+    return sorted(set(found))
+
+
+def job_ids(raw: Any) -> list[int]:
+    """Job ids in a `/actions/runs/{id}/jobs` export, so the collector can fetch each annotation."""
+    return [job["id"] for job in _jobs_export(raw, label="jobs export")]
+
+
+def _jobs_export(raw: Any, *, label: str) -> list[dict[str, Any]]:
+    pages = raw if isinstance(raw, list) else [raw]
+    jobs: list[dict[str, Any]] = []
+    for page in pages:
+        if not isinstance(page, dict) or not isinstance(page.get("jobs"), list):
+            raise EvidenceError(f"{label} must be an object or slurped list with jobs")
+        for item in page["jobs"]:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), int):
+                raise EvidenceError(f"{label}: each job must be an object with an integer id")
+            jobs.append(item)
+    return jobs
+
+
+def _annotations_export(raw: Any, *, label: str) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        raise EvidenceError(f"{label} must be a list of annotations")
+    pages = raw if raw and all(isinstance(page, list) for page in raw) else [raw]
+    annotations: list[dict[str, str]] = []
+    for page in pages:
+        if not isinstance(page, list):
+            raise EvidenceError(f"{label}: slurped page must be a list")
+        for item in page:
+            if not isinstance(item, dict):
+                raise EvidenceError(f"{label}: each annotation must be an object")
+            level = item.get("annotation_level")
+            message = item.get("message")
+            if not isinstance(level, str) or not isinstance(message, str):
+                raise EvidenceError(
+                    f"{label}: each annotation needs a string annotation_level and message"
+                )
+            annotations.append({"annotation_level": level, "message": message})
+    return annotations
+
+
+def _classify_cancellation(jobs: Sequence[Mapping[str, Any]]) -> str:
+    """Name the cause of one canceled run from its jobs and their check-run annotations.
+
+    Order matters and it runs toward the failure. A run with two jobs, one superseded and one
+    killed by its bound, is a run that hit its bound.
+    """
+    for job in jobs:
+        for annotation in job["annotations"]:
+            if _TIMEOUT_KILL_ANNOTATION.match(annotation["message"]):
+                return "timeout_kill"
+    if not any(job["steps"] for job in jobs):
+        return "never_started"
+    for job in jobs:
+        for annotation in job["annotations"]:
+            if _SUPERSEDED_ANNOTATION.match(annotation["message"]):
+                return "superseded"
+    return "unrecognised"
+
+
+def load_cancellations(directory: Path, run_ids: Sequence[int]) -> dict[int, dict[str, Any]]:
+    """Read one `run-<id>.jobs.json` plus one `job-<id>.annotations.json` per job, and classify.
+
+    Fail-closed in both directions. A canceled run with no jobs file is an error, and so is a
+    jobs file for a run that is not in ``run_ids`` -- a stale collection directory reused across
+    windows would otherwise classify this window's cancellations from last window's evidence.
+    """
+    wanted = set(run_ids)
+    collected = {
+        int(path.name[len("run-") : -len(".jobs.json")])
+        for path in sorted(directory.glob("run-*.jobs.json"))
+    }
+    if collected - wanted:
+        extra = ", ".join(str(run_id) for run_id in sorted(collected - wanted))
+        raise EvidenceError(
+            f"{directory}: holds cancellation evidence for run(s) {extra}, which the actions "
+            "export does not report as canceled; this collection is not from this window"
+        )
+    cancellations: dict[int, dict[str, Any]] = {}
+    for run_id in sorted(wanted):
+        jobs_path = directory / f"run-{run_id}.jobs.json"
+        if not jobs_path.is_file():
+            raise EvidenceError(
+                f"{jobs_path}: missing job evidence for canceled run {run_id}; without it the "
+                "cause of the cancellation cannot be named"
+            )
+        jobs: list[dict[str, Any]] = []
+        for job in _jobs_export(_read_json(jobs_path), label=str(jobs_path)):
+            annotations_path = directory / f"job-{job['id']}.annotations.json"
+            if not annotations_path.is_file():
+                raise EvidenceError(
+                    f"{annotations_path}: missing annotations for job {job['id']} of canceled "
+                    f"run {run_id}; the timeout-kill signal lives only there"
+                )
+            steps = job.get("steps")
+            jobs.append(
                 {
-                    "id": item.get("id"),
-                    "event": item.get("event"),
-                    "status": item.get("status"),
-                    "conclusion": item.get("conclusion"),
-                    "head_sha": item.get("head_sha"),
-                    "commit_timestamp": commit_timestamp,
-                    "created_at": item.get("created_at"),
-                    "updated_at": item.get("updated_at"),
-                    "display_title": title,
-                    "url": item.get("html_url"),
+                    "id": job["id"],
+                    "name": job.get("name"),
+                    "conclusion": job.get("conclusion"),
+                    "started_at": job.get("started_at"),
+                    "completed_at": job.get("completed_at"),
+                    "steps": len(steps) if isinstance(steps, list) else 0,
+                    "annotations": _annotations_export(
+                        _read_json(annotations_path), label=str(annotations_path)
+                    ),
                 }
             )
-    return sorted(records, key=lambda record: (str(record.get("created_at")), record.get("id", 0)))
+        cancellations[run_id] = {"cause": _classify_cancellation(jobs), "jobs": jobs}
+    return cancellations
 
 
 def _flatten_issues(raw: Any) -> list[dict[str, Any]]:
@@ -196,7 +440,7 @@ def _retained_document(
     collected_at: str,
 ) -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "kind": kind,
         "repository": repository,
         "query": {
@@ -220,10 +464,12 @@ def retain(args: argparse.Namespace) -> None:
         raise EvidenceError("window start must precede window end")
     if collected < end:
         raise EvidenceError("collection time must be at or after window end")
+    actions_raw = _read_json(args.actions_raw)
+    cancellations = load_cancellations(args.cancellations_dir, cancelled_run_ids(actions_raw))
     actions = _retained_document(
         kind="github_actions",
         repository=args.repository,
-        records=_flatten_actions(_read_json(args.actions_raw)),
+        records=_flatten_actions(actions_raw, cancellations),
         endpoint=f"/repos/{args.repository}/actions/workflows/{args.workflow}/runs",
         parameters={
             "created": f"{args.window_start}..{args.window_end}",
@@ -276,7 +522,7 @@ def _validate_collection(collection: Any, kind: str) -> None:
 def _validate_input(document: Any, kind: str) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise EvidenceError(f"{kind}: top level must be an object")
-    if document.get("schema_version") != 1 or document.get("kind") != kind:
+    if document.get("schema_version") != SCHEMA_VERSION or document.get("kind") != kind:
         raise EvidenceError(f"{kind}: unsupported schema_version or kind")
     if not isinstance(document.get("repository"), str) or not document["repository"]:
         raise EvidenceError(f"{kind}: repository must be non-empty")
@@ -314,6 +560,47 @@ def _validate_action_record(record: Any, index: int, seen: set[int]) -> None:
     _validate_action_times(record, label)
     if record.get("conclusion") is not None and not isinstance(record["conclusion"], str):
         raise EvidenceError(f"{label}: conclusion must be string or null")
+    _validate_cancellation(record, label)
+
+
+def _validate_cancellation(record: Mapping[str, Any], label: str) -> None:
+    """A canceled run carries a classified cause; nothing else carries one.
+
+    Both halves are load-bearing. Without the first, a version 2 document can still contain the
+    unclassifiable canceled run this schema exists to prevent. Without the second, a
+    ``cancellation`` object could be attached to a *successful* run and silently ignored, which is
+    how a field stops meaning anything.
+    """
+    cancellation = record.get("cancellation")
+    if record.get("conclusion") != "cancelled":
+        if cancellation is not None:
+            raise EvidenceError(f"{label}: only a canceled run carries a cancellation object")
+        return
+    if not isinstance(cancellation, dict):
+        raise EvidenceError(f"{label}: a canceled run must carry a cancellation object")
+    cause = cancellation.get("cause")
+    if cause not in CANCELLATION_DISPOSITIONS:
+        raise EvidenceError(
+            f"{label}: cancellation cause {cause!r} is not one this reader classifies "
+            f"({', '.join(sorted(CANCELLATION_DISPOSITIONS))})"
+        )
+    jobs = cancellation.get("jobs")
+    if not isinstance(jobs, list):
+        raise EvidenceError(f"{label}: cancellation.jobs must be a list")
+    for index, job in enumerate(jobs):
+        _validate_cancellation_job(job, f"{label}: cancellation job {index}")
+
+
+def _validate_cancellation_job(job: Any, label: str) -> None:
+    """The three fields the cause was read from, so the classification stays checkable."""
+    if not isinstance(job, dict):
+        raise EvidenceError(f"{label} must be an object")
+    if not isinstance(job.get("id"), int) or isinstance(job.get("id"), bool):
+        raise EvidenceError(f"{label} needs an integer id")
+    if not isinstance(job.get("steps"), int) or isinstance(job.get("steps"), bool):
+        raise EvidenceError(f"{label} needs an integer step count")
+    if not isinstance(job.get("annotations"), list):
+        raise EvidenceError(f"{label} needs an annotations list")
 
 
 def _validate_issue_record(record: Any, index: int, seen: set[int]) -> None:
@@ -392,16 +679,162 @@ def _metric_unavailable(reason: str) -> dict[str, Any]:
     return {"status": "unavailable", "reason": reason}
 
 
+def run_disposition(record: Mapping[str, Any]) -> str:
+    """Which side of the change-failure line one completed run falls on.
+
+    Every terminal outcome reaches a decision here, including the ones nobody has thought about:
+    an unmapped ``conclusion`` is :data:`REFUSED`, not skipped. That is the difference between a
+    denominator a reader can check and one that quietly shrinks.
+    """
+    conclusion = record.get("conclusion")
+    if conclusion == "cancelled":
+        cancellation = record.get("cancellation")
+        cause = cancellation.get("cause") if isinstance(cancellation, Mapping) else None
+        return CANCELLATION_DISPOSITIONS.get(str(cause), REFUSED)
+    return RUN_DISPOSITIONS.get(str(conclusion), REFUSED)
+
+
+def failure_mode_coverage() -> dict[str, int]:
+    """How many ways a run can end without deploying, and how many of them reach a decision.
+
+    ``examinable`` counts the distinct non-success terminal outcomes this evidence can *name*
+    from what it retains: the seven non-success ``conclusion`` values, plus the four causes a
+    ``cancelled`` run resolves into. ``resolved`` counts the ones that reach a definite side of
+    the line; ``refused`` counts the ones that stop the metric rather than being dropped from it.
+
+    Before #267 the answer was four of eleven -- the four :data:`FAILED_CONCLUSIONS`. The other
+    seven, `cancelled` in all four of its shapes included, fell out of both the numerator and the
+    denominator of ``change_fail_rate`` with nothing printed. This function exists so those two
+    numbers are an output of the gate rather than a sentence in a pull request.
+    """
+    dispositions = [
+        disposition
+        for conclusion, disposition in RUN_DISPOSITIONS.items()
+        if conclusion != "success"
+    ] + list(CANCELLATION_DISPOSITIONS.values())
+    return {
+        "examinable": len(dispositions),
+        "counted_as_failure": dispositions.count(FAILED),
+        "counted_as_non_attempt": dispositions.count(NOT_ATTEMPTED),
+        "refused": dispositions.count(REFUSED),
+        "resolved": sum(1 for disposition in dispositions if disposition != REFUSED),
+    }
+
+
+def _by_disposition(completed: Sequence[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """Place every completed run on exactly one side of the change-failure line.
+
+    Every run lands in a bucket, including the ones nobody classified. That is the property the
+    old `[record for record in completed if record["conclusion"] in FAILED_CONCLUSIONS]` did not
+    have: it selected, and everything it did not select disappeared without a count.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {
+        DEPLOYED: [],
+        FAILED: [],
+        NOT_ATTEMPTED: [],
+        REFUSED: [],
+    }
+    for record in completed:
+        buckets[run_disposition(record)].append(record)
+    return buckets
+
+
+def _unresolved_reason(unresolved: Sequence[Mapping[str, Any]]) -> str | None:
+    """Why the change-failure metrics refuse, naming every run that caused it."""
+    if not unresolved:
+        return None
+    runs = "; ".join(
+        f"run {record['id']} concluded {record['conclusion']!r}"
+        + (
+            " for a cause this reader does not classify"
+            if record["conclusion"] == "cancelled"
+            else ""
+        )
+        for record in unresolved
+    )
+    return f"{runs}. A terminal outcome nobody has classified is not a run that succeeded."
+
+
+def _recovery_metric(
+    *,
+    successful: Sequence[Mapping[str, Any]],
+    failures: Sequence[Mapping[str, Any]],
+    issues: Mapping[str, Any],
+    end: datetime,
+    unresolved: Sequence[Mapping[str, Any]],
+    unresolved_reason: str | None,
+) -> dict[str, Any]:
+    """Time from a failed deployment or incident to the next success, or the open events.
+
+    ``failures`` now includes a run killed by its own ``timeout-minutes``, so a capped deploy
+    opens a recovery event instead of passing through this function invisibly (#267).
+    """
+    recovery_hours: list[float] = []
+    open_events: list[str] = []
+    success_times = sorted(
+        _timestamp(record["updated_at"], "run updated_at") for record in successful
+    )
+    for record in failures:
+        failed_at = _timestamp(record["updated_at"], "failed run updated_at")
+        recovery = next((candidate for candidate in success_times if candidate > failed_at), None)
+        if recovery is None:
+            open_events.append(f"workflow run {record['id']}")
+        else:
+            recovery_hours.append((recovery - failed_at).total_seconds() / 3600)
+    for issue in issues["records"]:
+        opened = _timestamp(issue["created_at"], "incident created_at")
+        closed_value = issue.get("closed_at")
+        closed = None if closed_value is None else _timestamp(closed_value, "incident closed_at")
+        if closed is None or closed > end:
+            open_events.append(f"incident #{issue['number']}")
+        else:
+            recovery_hours.append((closed - opened).total_seconds() / 3600)
+    if unresolved_reason is not None:
+        refused = _metric_unavailable(unresolved_reason)
+        refused["unresolved_runs"] = [record["id"] for record in unresolved]
+        return refused
+    if open_events:
+        return {
+            "status": "alert",
+            "open_events": open_events,
+            "recovered_events": len(recovery_hours),
+            "target": "under 24 hours",
+        }
+    if not recovery_hours:
+        return {
+            "status": "no_event",
+            "open_events": [],
+            "recovered_events": 0,
+            "target": "under 24 hours",
+        }
+    maximum = max(recovery_hours)
+    return {
+        "status": "pass" if maximum < 24 else "alert",
+        "open_events": [],
+        "recovered_events": len(recovery_hours),
+        "p50_hours": round(_percentile(recovery_hours, 0.5) or 0, 4),
+        "max_hours": round(maximum, 4),
+        "target": "under 24 hours",
+    }
+
+
 def _complete_metrics(actions: dict[str, Any], issues: dict[str, Any]) -> dict[str, Any]:
     start = _timestamp(actions["query"]["window_start"], "window_start")
     end = _timestamp(actions["query"]["window_end"], "window_end")
     window_days = (end - start).total_seconds() / 86400
     completed = [record for record in actions["records"] if record["status"] == "completed"]
-    successful = [record for record in completed if record["conclusion"] == "success"]
-    failures = [record for record in completed if record["conclusion"] in FAILED_CONCLUSIONS]
+    by_disposition = _by_disposition(completed)
+    successful = by_disposition[DEPLOYED]
+    failures = by_disposition[FAILED]
+    unresolved = by_disposition[REFUSED]
     cancellations = [record for record in completed if record["conclusion"] == "cancelled"]
+    cancelled_by_cause = {
+        cause: sum(1 for record in cancellations if record["cancellation"]["cause"] == cause)
+        for cause in sorted(CANCELLATION_DISPOSITIONS)
+    }
     attempts = [*successful, *failures]
     change_deploys = [record for record in successful if record["event"] == "push"]
+    unresolved_reason = _unresolved_reason(unresolved)
 
     deployment_frequency = {
         "status": "pass" if successful and window_days / len(successful) <= 14 else "alert",
@@ -444,62 +877,32 @@ def _complete_metrics(actions: dict[str, Any], issues: dict[str, Any]) -> dict[s
         }
 
     failure_rate = len(failures) / len(attempts) if attempts else None
-    change_fail_rate = {
-        "status": "no_event"
-        if failure_rate is None
-        else ("pass" if failure_rate < 0.15 else "alert"),
-        "failed_attempts": len(failures),
-        "completed_attempts": len(attempts),
-        "cancelled_runs": len(cancellations),
-        "rate": None if failure_rate is None else round(failure_rate, 6),
-        "target": "under 15%",
-    }
-
-    recovery_hours: list[float] = []
-    open_events: list[str] = []
-    success_times = sorted(
-        _timestamp(record["updated_at"], "run updated_at") for record in successful
-    )
-    for record in failures:
-        failed_at = _timestamp(record["updated_at"], "failed run updated_at")
-        recovery = next((candidate for candidate in success_times if candidate > failed_at), None)
-        if recovery is None:
-            open_events.append(f"workflow run {record['id']}")
-        else:
-            recovery_hours.append((recovery - failed_at).total_seconds() / 3600)
-    for issue in issues["records"]:
-        opened = _timestamp(issue["created_at"], "incident created_at")
-        closed_value = issue.get("closed_at")
-        closed = None if closed_value is None else _timestamp(closed_value, "incident closed_at")
-        if closed is None or closed > end:
-            open_events.append(f"incident #{issue['number']}")
-        else:
-            recovery_hours.append((closed - opened).total_seconds() / 3600)
-    if open_events:
-        recovery_metric = {
-            "status": "alert",
-            "open_events": open_events,
-            "recovered_events": len(recovery_hours),
-            "target": "under 24 hours",
-        }
-    elif recovery_hours:
-        maximum = max(recovery_hours)
-        recovery_metric = {
-            "status": "pass" if maximum < 24 else "alert",
-            "open_events": [],
-            "recovered_events": len(recovery_hours),
-            "p50_hours": round(_percentile(recovery_hours, 0.5) or 0, 4),
-            "max_hours": round(maximum, 4),
-            "target": "under 24 hours",
-        }
+    if unresolved_reason is not None:
+        change_fail_rate = _metric_unavailable(unresolved_reason)
+        change_fail_rate["unresolved_runs"] = [record["id"] for record in unresolved]
     else:
-        recovery_metric = {
-            "status": "no_event",
-            "open_events": [],
-            "recovered_events": 0,
-            "target": "under 24 hours",
+        change_fail_rate = {
+            "status": "no_event"
+            if failure_rate is None
+            else ("pass" if failure_rate < 0.15 else "alert"),
+            "failed_attempts": len(failures),
+            "completed_attempts": len(attempts),
+            # `cancelled_*` keys follow GitHub's `cancelled` conclusion and are retained evidence.
+            "cancelled_runs": len(cancellations),
+            "cancelled_by_cause": cancelled_by_cause,
+            "timeout_killed_attempts": cancelled_by_cause["timeout_kill"],
+            "rate": None if failure_rate is None else round(failure_rate, 6),
+            "target": "under 15%",
         }
 
+    recovery_metric = _recovery_metric(
+        successful=successful,
+        failures=failures,
+        issues=issues,
+        end=end,
+        unresolved=unresolved,
+        unresolved_reason=unresolved_reason,
+    )
     rework = [record for record in change_deploys if REWORK_TITLE.search(record["display_title"])]
     rework_rate = len(rework) / len(change_deploys) if change_deploys else None
     deployment_rework_rate = {
@@ -576,10 +979,25 @@ def _percent(value: Any) -> str:
     return "N/A" if value is None else f"{float(value) * 100:.1f}%"
 
 
+def _unavailable_baseline(metric: Mapping[str, Any]) -> str:
+    """Which unavailability this is: no retained window, or a run nobody could score.
+
+    They are different findings with different owners, and the ledger used to print the first
+    sentence over both.
+    """
+    unresolved = metric.get("unresolved_runs")
+    if unresolved:
+        return (
+            f"Unavailable — {len(unresolved)} completed run(s) ended in a terminal outcome "
+            "this reader does not classify"
+        )
+    return "Unavailable — retained inputs are incomplete"
+
+
 def _metric_baseline(name: str, metric: dict[str, Any]) -> str:
     status = metric["status"]
     if status == "unavailable":
-        return "Unavailable — retained inputs are incomplete"
+        return _unavailable_baseline(metric)
     if name == "deployment_frequency":
         return (
             f"{metric['successful_deployments']} successful deploys "
@@ -590,10 +1008,12 @@ def _metric_baseline(name: str, metric: dict[str, Any]) -> str:
             return "No successful push deployment in the window"
         return f"P50 {metric['p50_hours']:.2f} h; P90 {metric['p90_hours']:.2f} h"
     if name == "change_fail_rate":
+        causes = metric["cancelled_by_cause"]
         return (
             f"{metric['failed_attempts']} of {metric['completed_attempts']} completed attempts "
-            f"({_percent(metric['rate'])}); {metric['cancelled_runs']} cancelled reported "
-            "separately"
+            f"({_percent(metric['rate'])}), including {causes['timeout_kill']} killed by its own "
+            f"timeout; {causes['never_started'] + causes['superseded']} of "
+            f"{metric['cancelled_runs']} canceled run(s) were not deployment attempts"
         )
     if name == "failed_deployment_recovery_time":
         if status == "no_event":
@@ -675,9 +1095,12 @@ def render_markdown(
             "",
             "Scheduled `.github/workflows/dora.yml` queries Pages runs and `incident` issues.",
             "It normalizes the fields needed for the five metrics, generates and verifies the",
-            "snapshot, and retains all four evidence files as a CI artifact. Cancelled runs are",
-            "reported apart from completed deployment attempts. Rework remains a disclosed title",
-            "proxy until human quarterly classification is retained alongside it.",
+            "snapshot, and retains all four evidence files as a CI artifact. A canceled run is",
+            "resolved from its own jobs and their check-run annotations: one killed by its",
+            "`timeout-minutes` bound is a failed deployment attempt, one whose jobs never started",
+            "or was superseded is no attempt at all, and one whose cause this reader cannot name",
+            "makes the change-failure metrics unavailable rather than smaller. Rework remains a",
+            "disclosed title proxy until human quarterly classification is retained alongside it.",
             "",
             f"Last verified: {snapshot['generated_at'][:10]}. Recheck cadence: weekly in CI,",
             "quarterly for the committed snapshot, and after an incident or event-model change.",
@@ -718,9 +1141,16 @@ def coverage_summary(
     )
     state = "complete" if snapshot.get("collection_complete") else "INCOMPLETE"
     where = "" if route is None else f", scheduled window reaches {route}"
+    coverage = failure_mode_coverage()
+    modes = (
+        f"{coverage['resolved'] + coverage['refused']}/{coverage['examinable']} non-success "
+        f"terminal outcome(s) reach a decision ({coverage['counted_as_failure']} scored as change "
+        f"failures, {coverage['counted_as_non_attempt']} as non-attempts, {coverage['refused']} "
+        "refused)"
+    )
     return (
         f"{len(actions['records'])} deployment run(s), {len(issues['records'])} incident(s), "
-        f"{computed}/{len(metrics)} metric(s) computed, collection {state}{where}"
+        f"{computed}/{len(metrics)} metric(s) computed, {modes}, collection {state}{where}"
     )
 
 
@@ -882,6 +1312,27 @@ def _parser() -> argparse.ArgumentParser:
     retain_parser.add_argument("--window-end", required=True)
     retain_parser.add_argument("--collected-at", required=True)
     retain_parser.add_argument("--out-dir", type=Path, required=True)
+    retain_parser.add_argument(
+        "--cancellations-dir",
+        type=Path,
+        required=True,
+        help=(
+            "directory holding run-<id>.jobs.json and job-<id>.annotations.json for every "
+            "canceled run in the actions export; required, because a canceled run whose cause "
+            "was not collected must stop the retention rather than be scored as a non-failure"
+        ),
+    )
+
+    # Subcommand names follow GitHub's `cancelled` conclusion value, which they select on.
+    plan_parser = subparsers.add_parser(
+        "cancelled-runs", help="print the run ids needing cancellation evidence, one per line"
+    )
+    plan_parser.add_argument("--actions-raw", type=Path, required=True)
+
+    jobs_parser = subparsers.add_parser(
+        "cancelled-jobs", help="print the job ids in one runs/<id>/jobs export, one per line"
+    )
+    jobs_parser.add_argument("--jobs", type=Path, required=True)
 
     for command in ("generate", "check"):
         command_parser = subparsers.add_parser(command)
@@ -899,6 +1350,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "retain":
             retain(args)
+        elif args.command == "cancelled-runs":
+            for run_id in cancelled_run_ids(_read_json(args.actions_raw)):
+                print(run_id)
+            return 0
+        elif args.command == "cancelled-jobs":
+            for job_id in job_ids(_read_json(args.jobs)):
+                print(job_id)
+            return 0
         elif args.command == "generate":
             generate(args)
         else:

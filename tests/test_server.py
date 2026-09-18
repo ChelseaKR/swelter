@@ -448,8 +448,28 @@ def test_every_declared_route_answers_and_the_table_is_the_whole_dispatch(
         # 200 or 404 (a route whose optional artifact this fixture has no file for) are both
         # "the route resolved"; a 500 would mean the table calls the wrong thing.
         assert status in (200, 404), f"{path} answered {status}"
-    # Trailing slashes are still normalised before the lookup, as the old chain assumed.
+    # Trailing slashes are still normalized before the lookup, as the old chain assumed.
     assert _get(f"{base_url}/api/schema.json/")[0] == 200
     # A path the table does not name reaches the static handler, not an error branch.
     assert _get(f"{base_url}/index.html")[0] == 200
     assert _get(f"{base_url}/no-such-file.txt")[0] == 404
+
+
+def test_static_serves_a_published_page_directory(server: _Server) -> None:
+    """A published page directory is a page, not a missing file.
+
+    `do_GET` strips the trailing slash, so `/planner/` reaches `_static` as a directory. The
+    dashboard footer links to that page, and a link the dashboard emits must not 404 when the
+    same `web/` tree is served by `swelter serve` rather than by GitHub Pages.
+    """
+    planner = server.ctx.web_dir / "planner"
+    planner.mkdir()
+    (planner / "index.html").write_text("<!doctype html><title>planner</title>", "utf-8")
+
+    status, body = _get(f"{server.url}/planner/")
+    assert status == 200
+    assert "<title>planner</title>" in body
+
+    # A directory with no index is still not found; this never becomes a directory listing.
+    (server.ctx.web_dir / "empty").mkdir()
+    assert _get(f"{server.url}/empty/")[0] == 404

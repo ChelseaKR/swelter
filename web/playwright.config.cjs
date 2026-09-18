@@ -10,6 +10,15 @@ module.exports = defineConfig({
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
+  // A test that failed and then passed on the retry above is reported `flaky`,
+  // and Playwright exits 0 on flaky unless told otherwise — so without this the
+  // retry would not absorb an intermittent failure, it would hide one: a race
+  // or an unawaited promise in a browser spec would read as a green
+  // `a11y-advisory` check and leave nothing behind but a log line. The retry
+  // still runs and `trace: "retain-on-failure"` still keeps the failed
+  // attempt's trace; only the verdict changes. Locally there is no retry, so a
+  // flake is already a failure there. See #281.
+  failOnFlakyTests: Boolean(process.env.CI),
   reporter: process.env.CI
     ? [
         ["line"],

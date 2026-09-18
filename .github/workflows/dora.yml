@@ -43,10 +43,36 @@ jobs:
           gh api --paginate --slurp \
             "/repos/${EVIDENCE_REPOSITORY}/issues?labels=incident&state=all&per_page=100" \
             > "${raw_dir}/issues.json"
+
+          # A job killed by its own `timeout-minutes` concludes `cancelled`, never `timed_out`,
+          # and the only place GitHub says which kind of cancellation it was is the check-run
+          # annotation on the job. Nothing below is optional: `retain` refuses a canceled run
+          # whose cause was not collected, so a failed fetch here reddens the run instead of
+          # quietly scoring a capped deploy as "not a failure" (#267).
+          cancel_dir="${raw_dir}/cancelled"
+          mkdir -p "${cancel_dir}"
+          python scripts/dora_evidence.py cancelled-runs \
+            --actions-raw "${raw_dir}/actions.json" > "${raw_dir}/cancelled-runs.txt"
+          while read -r run_id; do
+            [ -n "${run_id}" ] || continue
+            gh api --paginate --slurp \
+              "/repos/${EVIDENCE_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" \
+              > "${cancel_dir}/run-${run_id}.jobs.json"
+            python scripts/dora_evidence.py cancelled-jobs \
+              --jobs "${cancel_dir}/run-${run_id}.jobs.json" > "${cancel_dir}/run-${run_id}.job-ids"
+            while read -r job_id; do
+              [ -n "${job_id}" ] || continue
+              gh api --paginate --slurp \
+                "/repos/${EVIDENCE_REPOSITORY}/check-runs/${job_id}/annotations?per_page=100" \
+                > "${cancel_dir}/job-${job_id}.annotations.json"
+            done < "${cancel_dir}/run-${run_id}.job-ids"
+          done < "${raw_dir}/cancelled-runs.txt"
+
           collected_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python scripts/dora_evidence.py retain \
             --actions-raw "${raw_dir}/actions.json" \
             --issues-raw "${raw_dir}/issues.json" \
+            --cancellations-dir "${cancel_dir}" \
             --repository "${EVIDENCE_REPOSITORY}" \
             --workflow pages.yml \
             --window-start "${window_start}" \

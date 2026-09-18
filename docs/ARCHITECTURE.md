@@ -42,6 +42,7 @@ visualization can all be rebuilt from raw data and versioned correction/context 
 | Store → public server | Local SQLite/generated files | GET-only routing, path containment, response limits/cache validators | stdlib server belongs behind a trusted proxy/CDN for hostile public traffic |
 | Store → static artifact | Generated surfaces/exports/manifests | Fail-closed source truth and license checks, hashes, illustrative-fixture exclusion | CI/cache compromise and platform trust remain; governance exception is issue #105 |
 | Browser → device APIs | User-initiated geolocation and preferences | Explicit permission, in-memory nearest-cell lookup, local clear control, no RUM | Browser/extension/device controls remain outside swelter |
+| Browser → Google Analytics | GA4 page counts on the reference host (ADR 0055) | Host/path binding, GPC/DNT/opt-out guards, origin+path `page_location`, ad signals denied, service worker ignores cross-origin requests | Google's processing is outside swelter; the owner accepted it for page counts |
 
 The complete data inventory, including localStorage, URL fragments, service worker, Actions cache,
 and precise coordinates, is in [`audits/data-flow.md`](audits/data-flow.md).
@@ -74,7 +75,7 @@ creates a new calibrated observation beside the raw observation. A missing or in
 leaves the value raw/provisional.
 
 Derived heat metrics remain explicit. Heat index derived from calibrated inputs retains that lineage;
-estimated WBGT is labelled estimated and has no occupational guidance band because this implementation
+estimated WBGT is labeled estimated and has no occupational guidance band because this implementation
 does not include a black-globe radiation term.
 
 ### 3. Aggregation and action surfaces
@@ -175,12 +176,13 @@ shell/data and purges obsolete release caches.
 
 Pipeline stages can emit scrubbed JSON lines and a run manifest with bounded identifiers, counts,
 source, freshness, and outcome. The optional public server exposes a health view and opt-in request
-logging. The static reference deployment has no real-user monitoring by design, so client analytics,
-traces, and user identifiers are not collected.
+logging. The static reference deployment has no real-user monitoring by design, so traces and
+performance telemetry are not collected. Its only client analytics is GA4 page counts (ADR 0055),
+which never receive a place, search, or setting.
 
 This yields three explicit observability profiles:
 
-- static Pages: build/source/freshness/manifests and external availability, no RUM;
+- static Pages: build/source/freshness/manifests and external availability, GA4 page counts, no RUM;
 - CLI/pipeline: structured stage events and reproducible run manifests;
 - optional self-hosted server: health and opt-in bounded request events.
 

@@ -6,10 +6,10 @@ GeoJSON file carries a metadata object with its source, license, attribution, an
 | Layer | Repository role | Source/term | Publication rule |
 | --- | --- | --- | --- |
 | California boundary/basemap | Filters OpenAQ jurisdiction and draws California context | U.S. Census Bureau TIGERweb; U.S. Government work | Keep vintage/simplification provenance; review annually |
-| Tree-canopy sample | Exercises descriptive context plumbing | Project-authored illustrative sample labelled CC BY 4.0 | Synthetic/local demonstration only; replace with jurisdiction data and its terms |
+| Tree-canopy sample | Exercises descriptive context plumbing | Project-authored illustrative sample labeled CC BY 4.0 | Synthetic/local demonstration only; replace with jurisdiction data and its terms |
 | AC-access sample | Exercises LACE-shaped context | Illustrative sample; real target is U.S. Census LACE, public-domain U.S. Government work | Never describe the sample as measured local AC access |
 | Historical-redlining sample | Exercises HOLC context | Illustrative sample shaped for Mapping Inequality; CC BY-NC-SA 4.0 metadata | Never infer a grade where no historical HOLC map exists; preserve noncommercial/share-alike terms |
-| Cooling-center sample | Exercises validated overlay/list parity | Project-authored illustrative sample labelled CC BY 4.0 | Excluded from public Pages; production requires a current jurisdiction-verified facility list |
+| Cooling-center sample | Exercises validated overlay/list parity | Project-authored illustrative sample labeled CC BY 4.0 | Excluded from public Pages; production requires a current jurisdiction-verified facility list |
 
 ## Method and limitations
 

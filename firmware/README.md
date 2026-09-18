@@ -86,7 +86,7 @@ the firmware has no way to do otherwise:
   BOM specifies no microphone part.
 - **No camera.** No image sensor driver, no camera, no frame buffer. The BOM specifies no camera.
 - **No Bluetooth.** The radio is used for Wi-Fi station mode to reach the ingest endpoint and for
-  nothing else. The firmware never initialises the Bluetooth/BLE stack.
+  nothing else. The firmware never initializes the Bluetooth/BLE stack.
 - **No Wi-Fi client scanning.** The node connects to one configured access point to forward its
   readings. It never scans for, enumerates, or records nearby Wi-Fi clients, access points, or
   probe requests. It cannot be used to count or track devices.
