@@ -370,7 +370,7 @@ def test_too_few_pairs_reads_insufficient_data_not_cross_checked() -> None:
 
 def test_window_agreement_threshold_override_tightens_the_bar() -> None:
     # The same closely-agreeing twins are marked diverged when the pair sets a stricter bar than
-    # the per-parameter default — the documented config knob is honoured.
+    # the per-parameter default — the documented config knob is honored.
     obs = _twin_series("twin-a", [10.0, 11.0, 12.0, 13.0]) + _twin_series(
         "twin-b", [10.5, 11.2, 11.8, 13.3]
     )
@@ -924,7 +924,7 @@ def test_detect_gaps_names_the_series_and_reports_worst_first() -> None:
 
 
 def test_a_steady_ramp_is_not_a_spike() -> None:
-    # The spike test compares against the median of *both* neighbours. Judged against either one
+    # The spike test compares against the median of *both* neighbors. Judged against either one
     # alone, the middle of a 10-30-50 ramp looks like a 20-degree departure; against both, it is
     # exactly where it belongs.
     assert [o.qc for o in qc.apply(_series([10.0, 30.0, 50.0]))] == ["ok", "ok", "ok"]
@@ -932,13 +932,13 @@ def test_a_steady_ramp_is_not_a_spike() -> None:
 
 def test_a_departure_exactly_at_the_threshold_is_not_a_spike() -> None:
     # The per-parameter thresholds are deliberately conservative, and the bar is "further than",
-    # so a reading exactly one threshold away from its neighbours keeps its clean verdict.
+    # so a reading exactly one threshold away from its neighbors keeps its clean verdict.
     assert [o.qc for o in qc.apply(_series([25.0, 33.0, 25.0]))] == ["ok", "ok", "ok"]  # 8.0 degC
     assert [o.qc for o in qc.apply(_series([25.0, 33.1, 25.0]))] == ["ok", "spike", "ok"]
 
 
 def test_the_first_and_last_reading_of_a_series_are_never_spikes() -> None:
-    # An end reading has only one neighbour, so there is no local median to judge it against and
+    # An end reading has only one neighbor, so there is no local median to judge it against and
     # it keeps its verdict. Scanning past the ends would wrap around and compare it to the far
     # end of the series instead.
     flagged = [o.qc for o in qc.apply(_series([20.0, 20.0, 20.0, 20.0, 20.0, 40.0]))]

@@ -23,7 +23,7 @@ class _PlannerParser(HTMLParser):
         self.ids: set[str] = set()
         self.skip_targets: set[str] = set()
         self.radios: dict[str, list[str]] = {}
-        self.unlabelled_radios: list[str] = []
+        self.unlabeled_radios: list[str] = []
         self.disallowed_inputs: list[str] = []
         self.local_scripts: list[str] = []
         self.local_styles: list[str] = []
@@ -41,7 +41,7 @@ class _PlannerParser(HTMLParser):
         if input_type == "radio":
             self.radios.setdefault(name, []).append(values.get("value", ""))
             if self._label_depth <= 0:
-                self.unlabelled_radios.append(name)
+                self.unlabeled_radios.append(name)
         elif input_type not in {"button", "submit", "reset", "hidden"}:
             self.disallowed_inputs.append(input_type)
 
@@ -116,7 +116,7 @@ def test_planner_is_accessible_and_collects_no_personal_or_location_fields() -> 
     assert {"header", "main", "nav", "footer"} <= page.landmarks
     assert page.skip_targets & page.ids == {"planner"}
     assert set(page.radios) == required
-    assert not page.unlabelled_radios
+    assert not page.unlabeled_radios
     assert not page.disallowed_inputs
     assert {"name", "email", "address", "location"}.isdisjoint(page.radios)
     # planner.js, plus the site's one first-party analytics loader (ADR 0055), which

@@ -35,7 +35,7 @@ source's terms, attribution, and provenance:
   Sensor.Community attribution.
 * **Boundaries, canopy, AC-access, historical-redlining, cooling-center, and other context
   layers:** the license and attribution in each layer's metadata govern that layer. Repository
-  fixtures labelled illustrative are not verified facts about the depicted jurisdiction.
+  fixtures labeled illustrative are not verified facts about the depicted jurisdiction.
 
 The generated artifact's own `DATA-LICENSE`, `demo.json`, source-license ledger, per-record
 provenance, and source card are the authoritative statement for that artifact. The root file is the

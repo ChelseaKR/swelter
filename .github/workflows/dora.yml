@@ -46,7 +46,7 @@ jobs:
 
           # A job killed by its own `timeout-minutes` concludes `cancelled`, never `timed_out`,
           # and the only place GitHub says which kind of cancellation it was is the check-run
-          # annotation on the job. Nothing below is optional: `retain` refuses a cancelled run
+          # annotation on the job. Nothing below is optional: `retain` refuses a canceled run
           # whose cause was not collected, so a failed fetch here reddens the run instead of
           # quietly scoring a capped deploy as "not a failure" (#267).
           cancel_dir="${raw_dir}/cancelled"

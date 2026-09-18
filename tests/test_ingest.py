@@ -35,7 +35,7 @@ def test_explode_rejects_unparseable_timestamp() -> None:
 
 def test_explode_rejects_empty_reading() -> None:
     _, reason = ingest.explode({"node_id": "n", "timestamp": "2026-06-01T00:00:00Z"})
-    assert reason == "no recognised parameters"
+    assert reason == "no recognized parameters"
 
 
 def test_ingest_quarantines_bad_payloads(store: SqliteStore, tmp_path: Path) -> None:

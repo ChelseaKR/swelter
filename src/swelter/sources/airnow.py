@@ -42,7 +42,7 @@ SOURCE = "airnow"
 
 #: AirNow redistributes US federal reference-monitor data. US Government works are public domain
 #: (17 U.S.C. §105); AirNow's data-exchange terms additionally require attribution and forbid
-#: implying EPA endorsement. Those terms are retained here, not relabelled under swelter's CC0.
+#: implying EPA endorsement. Those terms are retained here, not relabeled under swelter's CC0.
 LICENSE = "US Government public-domain data (17 U.S.C. §105); AirNow attribution terms retained"
 LICENSE_URL = "https://docs.airnowapi.org/"
 ATTRIBUTION = (

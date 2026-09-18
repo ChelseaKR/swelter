@@ -96,7 +96,7 @@ def things(config: NetworkConfig, base_url: str) -> dict[str, object]:
 
 
 def locations(config: NetworkConfig, base_url: str) -> dict[str, object]:
-    """The published (grid-snapped) cell centres as SensorThings ``Locations``."""
+    """The published (grid-snapped) cell centers as SensorThings ``Locations``."""
     value: list[dict[str, object]] = []
     for node in config.nodes:
         loc = config.public_locations().get(node.node_id)

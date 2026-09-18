@@ -48,7 +48,7 @@ DATA_LICENSE_LINE = "CC0-1.0 (observations) · see DATA-LICENSE"
 DEFAULT_LICENSE = "CC0-1.0"
 
 # Characters that make a spreadsheet treat a cell as a formula. node_id is self-reported by
-# untrusted field devices, so a CSV cell starting with one of these is neutralised on export.
+# untrusted field devices, so a CSV cell starting with one of these is neutralized on export.
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 
@@ -70,7 +70,7 @@ def to_records(
             "node_id": observation.node_id,
             "timestamp": observation.timestamp,
             "parameter": observation.parameter,
-            # A non-finite value would serialise as invalid JSON (NaN/Infinity tokens); map it
+            # A non-finite value would serialize as invalid JSON (NaN/Infinity tokens); map it
             # to null. Ingest rejects these, so this is belt-and-suspenders for direct callers.
             "value": observation.value if math.isfinite(observation.value) else None,
             "unit": observation.unit,

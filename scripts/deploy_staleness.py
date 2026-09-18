@@ -54,11 +54,11 @@ Why the deployment record and not the run history
 -------------------------------------------------
 A deployment row exists because bytes were published, and it names the commit they were built
 from. ``pages.yml``'s run list does not carry that guarantee: this workflow can finish having
-published a *fallback* artifact, and a cancelled or skipped run is indistinguishable from a fresh
+published a *fallback* artifact, and a canceled or skipped run is indistinguishable from a fresh
 one at the granularity a run list offers. Worse, in this repository the run history would
 systematically flatter the site -- the daily cron reaches a runner every day whether or not the
 fetch, the build contract, or the crawl gate succeeded. A ``github-pages`` deployment whose newest
-status is ``success`` is the only artefact here that says bytes actually landed.
+status is ``success`` is the only artifact here that says bytes actually landed.
 
 Note what the daily cron does to the *first* number. Because the cron builds whatever `main` points
 at, the deployed commit equals `main`'s head most days, and ``visitor_commits`` reads zero. That is
@@ -310,9 +310,9 @@ def ships_to_visitors(path: str) -> bool:
 def cron_period_days(expression: str) -> int | None:
     """Days between runs of one cron expression, or ``None`` when this reader will not guess.
 
-    Deliberately narrow. It recognises the two shapes a publisher in this portfolio actually
+    Deliberately narrow. It recognizes the two shapes a publisher in this portfolio actually
     declares -- every day, and on named weekdays -- and returns ``None`` for anything else rather
-    than inventing a cadence. An unrecognised schedule disarms the age verdict and says so; a
+    than inventing a cadence. An unrecognized schedule disarms the age verdict and says so; a
     guessed one would produce a threshold nobody chose.
     """
     fields = expression.split()

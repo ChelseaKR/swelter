@@ -14,7 +14,7 @@ GitHub Pages. The Map, Table, and List tabs are three equal views of one
 aggregated surface — the map is never the only way in, and the sortable `<table>`
 is the canonical screen-reader path with the full dataset. Air-quality severity
 is conveyed by text and pattern, never color alone; cells with only uncalibrated
-readings are labelled provisional. The time slider is keyboard-operable and
+readings are labeled provisional. The time slider is keyboard-operable and
 announces its value through an `aria-live` output. The page ships en and es i18n
 and installs as a PWA (`manifest.webmanifest` + `sw.js`). It reads
 `GET /api/surface.json?hours=N` live and falls back to the committed

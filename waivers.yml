@@ -1,7 +1,7 @@
 # Repository waiver registry (portfolio waiver-hygiene convention, SEC-10).
 #
 # One dated, owned, expiring record per accepted finding. `kind:
-# dependency-advisory` entries are the only ones the dependency gates honour,
+# dependency-advisory` entries are the only ones the dependency gates honor,
 # and scripts/dependency_advisory_gate.py matches them on the advisory id, the
 # package, and the severity, all three. A new advisory, a second advisory in
 # the same package, or the same advisory escalated to a higher severity is

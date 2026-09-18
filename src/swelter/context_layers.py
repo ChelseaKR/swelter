@@ -60,7 +60,7 @@ class ContextCell:
 
     ``canopy_pct`` is a plain percentage read from the source dataset — not a derived score. A
     resident or organizer relates this to the heat surface by reading both layers, the same way
-    they would read two labelled columns in a table; swelter never combines them into a single
+    they would read two labeled columns in a table; swelter never combines them into a single
     computed number.
     """
 

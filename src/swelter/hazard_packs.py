@@ -73,7 +73,7 @@ class EventRule:
 
     A single node reading 300 ug/m3 is a node, not a smoke day: it might be a barbecue under the
     sensor, or a failing ADC. What distinguishes a wildfire-smoke episode from a spiking node is
-    that it happens *across* a neighbourhood at once. So an event needs ``minimum_cells`` distinct
+    that it happens *across* a neighborhood at once. So an event needs ``minimum_cells`` distinct
     published cells at or above ``floor`` in the same hour, each of which has risen by at least
     ``rise`` against its own reading ``lookback_hours`` earlier.
 
@@ -107,7 +107,7 @@ class HazardPack:
     """A named, versioned set of alert floors plus the observed parameters they need aggregated.
 
     A pack is reviewable, diffable data. The heat pack reproduces swelter's original heat/air
-    behaviour exactly; a network that names no pack gets it, so nothing changes when unspecified.
+    behavior exactly; a network that names no pack gets it, so nothing changes when unspecified.
     """
 
     pack_id: str  # the ``network.yaml: hazard_pack`` value that selects this pack
@@ -166,7 +166,7 @@ _EPA_PM25_FLOOR: Final = HazardThreshold(
 )
 
 #: The default pack: swelter's original heat/air danger floors, unchanged. A network that names no
-#: ``hazard_pack`` gets this, so existing behaviour is preserved exactly.
+#: ``hazard_pack`` gets this, so existing behavior is preserved exactly.
 HEAT_PACK: Final = HazardPack(
     pack_id="heat",
     version="1",

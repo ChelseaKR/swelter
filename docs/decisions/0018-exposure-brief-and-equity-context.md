@@ -31,7 +31,7 @@ new context-layer datasets that follow the pattern ADR 0013 set for tree canopy.
   surface, text or JSON, for one area or all of them — the CLI/library shape `swelter alerts` and
   `swelter export` already use.
 - Illustrative sample datasets (`data/ac_access_layer.geojson`, `data/redlining_layer.geojson`)
-  are committed on the synthetic demo network's published grid cells, labelled exactly as
+  are committed on the synthetic demo network's published grid cells, labeled exactly as
   illustrative as `data/context_layers.geojson` already is — not a real survey, not a real HOLC
   determination for this fictional location.
 

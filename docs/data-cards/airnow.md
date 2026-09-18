@@ -47,7 +47,7 @@ no-local-reference case that transfer calibration (research-roadmap E4) and the 
 
 AirNow redistributes US federal reference-monitor data. US Government works are in the public domain
 (17 U.S.C. §105); AirNow's data-exchange terms additionally require attribution and prohibit implying
-EPA endorsement. Those terms are retained on the source, not relabelled under the repository CC0
+EPA endorsement. Those terms are retained on the source, not relabeled under the repository CC0
 dedication. Because reference readings are used only to fit a correction and never enter the store or
 a published surface, no reference PM2.5 value is redistributed as a swelter observation; the emitted
 co-location file is fit evidence, carrying the reference concentration beside the node's raw value.

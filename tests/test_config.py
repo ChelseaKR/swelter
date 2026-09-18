@@ -44,7 +44,7 @@ def test_snap_to_grid_coarsens_within_one_cell() -> None:
     cell = snap_to_grid(lat, lon, 150.0)
     assert cell != (lat, lon)  # the published coordinate is coarsened, not exact
     assert snap_to_grid(lat, lon, 150.0) == cell  # deterministic
-    # The cell centre is within one grid cell of the true point.
+    # The cell center is within one grid cell of the true point.
     assert abs(cell[0] - lat) * 111_320 < 150
     assert abs(cell[1] - lon) * 111_320 < 150
 
@@ -62,12 +62,13 @@ def test_precise_node_publishes_exact_location() -> None:
 
 
 def test_public_place_node_publishes_its_exact_coordinate() -> None:
-    # A hostless public place is exact like `precise`, not snapped like an unrecognised value:
+    # A hostless public place is exact like `precise`, not snapped like an unrecognized value:
     # a city centroid or a model grid cell is already public record and has no home to protect.
     node = NodeConfig(node_id="calexico", lat=32.6789, lon=-115.4989, location="public-place")
     assert node.public_location(150.0) == (32.6789, -115.4989)
 
 
+# Name keeps its British spelling: accepted (immutable) ADR 0040 cites this test by name.
 def test_an_unrecognised_location_kind_still_snaps() -> None:
     # Only the two exact spellings turn grid protection off; everything else fails safe.
     node = NodeConfig(node_id="node-01", lat=38.5816, lon=-121.4944, location="public place")
@@ -83,7 +84,7 @@ def test_consent_concerns_is_silent_for_a_hostless_public_place() -> None:
 
 def test_a_public_place_that_records_host_consent_is_a_configuration_error() -> None:
     # A consent_ref means somebody believed there was a host. Either the node is a hosted one
-    # mislabelled as a public place — which would exempt a real home from the consent check — or
+    # mislabeled as a public place — which would exempt a real home from the consent check — or
     # the reference is stale. Both need a human.
     doc = {
         "nodes": [
@@ -366,7 +367,7 @@ def test_config_concerns_warns_not_errors_on_bad_location() -> None:
     errors, warnings = config_concerns(config, {})
     assert errors == []
     assert any("location 'exact'" in w and "coarse" in w for w in warnings)
-    # Fail-safe behaviour is unchanged: an unrecognized location still snaps to the grid.
+    # Fail-safe behavior is unchanged: an unrecognized location still snaps to the grid.
     assert node.public_location(150.0) != (1.0, 1.0)
 
 

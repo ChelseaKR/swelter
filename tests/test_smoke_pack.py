@@ -6,7 +6,7 @@ Four things are under test, and three of them are ways this could have quietly l
    ``hazard_pack`` produces a byte-identical feed to the one it produced before this pack
    existed.
 2. **One spiking node is a node, not an event.** The rule counts cells that have each risen
-   against their own past, so a single sensor going to 300 with flat neighbours produces no
+   against their own past, so a single sensor going to 300 with flat neighbors produces no
    event and stays visible and provisional.
 3. **A question that could not be asked has not been answered "no".** A surface with no
    comparable earlier hour reports ``evaluated=False``, not ``active=False``, and says so in
@@ -186,7 +186,7 @@ def test_a_cell_with_no_pm25_at_all_gets_no_tier_and_not_tier_zero() -> None:
 # ------------------------------------------------------------------------------------------
 
 
-def test_one_spiking_node_with_flat_neighbours_declares_no_event() -> None:
+def test_one_spiking_node_with_flat_neighbors_declares_no_event() -> None:
     """The rule's whole reason for counting cells. The spiking node still alerts and stays
     visible and provisional; what it does not get to do is declare a network-wide event."""
     feed = _feed(
@@ -207,7 +207,7 @@ def test_one_spiking_node_with_flat_neighbours_declares_no_event() -> None:
     assert event.qualifying_cells == 1
     assert event.minimum_cells == 3
 
-    # The node is still there, still alerting, and still labelled as uncalibrated-or-not.
+    # The node is still there, still alerting, and still labeled as uncalibrated-or-not.
     assert [a.area_id for a in feed.alerts]
     assert all(isinstance(a.provisional, bool) for a in feed.alerts)
 

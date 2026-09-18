@@ -59,7 +59,7 @@ Every cell whose latest reading predates the feed's `generated` hour appears in 
 Read it this way:
 
 - **There is no value in the record.** No `value`, `severity`, `unit`, or `aqi`. The last reading is
-  not a measurement of now, and republishing it — even labelled — would hand you a number to put in
+  not a measurement of now, and republishing it — even labeled — would hand you a number to put in
   a "current conditions" column.
 - **`withdrawn: true`** means the block's last reading *did* cross a danger floor, so an alert for it
   was published before the node went quiet. This record retracts that alert. It does not say the
@@ -208,7 +208,7 @@ and a cell that was never aggregated cannot be alerted on later.
 | `/api/alerts.json?area=<area_id>` | Narrowed to one published cell (live server only) |
 | `/api/alerts.xml?area=<area_id>` | The same, as Atom |
 
-`area_id` is the published grid-cell id (`lat,lon` of the cell centre), as it appears in the surface
+`area_id` is the published grid-cell id (`lat,lon` of the cell center), as it appears in the surface
 and in each alert's `area_id`. On the static Pages site the baked `alerts.xml` is whole-network only;
 per-area filtering needs a live `swelter serve`.
 

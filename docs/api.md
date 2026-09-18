@@ -53,7 +53,7 @@ export, source, license, or server-boundary change.
 | `/healthz` | Alias of `/health` (Kubernetes-style liveness probe convention) |
 | `/v1.1` | SensorThings service document |
 | `/v1.1/Things` | Nodes, with published (grid-snapped) locations |
-| `/v1.1/Locations` | The published cell centres |
+| `/v1.1/Locations` | The published cell centers |
 | `/v1.1/Datastreams` | One stream per (node, parameter) |
 | `/v1.1/ObservedProperties` | The parameters a node may report |
 | `/v1.1/Observations` | Readings (filterable, paginated) |
@@ -78,7 +78,7 @@ the demo network.
 
 ### Conventions across every endpoint
 
-- **Trailing slashes are normalised** — `/v1.1/Things/` and `/v1.1/Things` are the same route.
+- **Trailing slashes are normalized** — `/v1.1/Things/` and `/v1.1/Things` are the same route.
 - **`OPTIONS` returns `204`** with `Access-Control-Allow-Origin: *`,
   `Access-Control-Allow-Methods: GET, OPTIONS`, and `Access-Control-Allow-Headers: *` — a CORS
   preflight succeeds without a separate config.
@@ -117,7 +117,7 @@ terms, and the same response is linked with `rel="describedby"` from observation
 ## SensorThings 1.1 subset
 
 A subset of the OGC SensorThings API 1.1, mapped to swelter's model: **Things are nodes**,
-**Locations are published cell centres**, **Datastreams are (node, parameter) streams**,
+**Locations are published cell centers**, **Datastreams are (node, parameter) streams**,
 **ObservedProperties are parameters**, **Observations are readings**. The service document
 advertises `serverSettings.readOnly: true`, so a client knows up front there is no write path.
 
@@ -178,7 +178,7 @@ Coordinates are `[lon, lat]`, GeoJSON order.
 
 ### `GET /v1.1/Locations`
 
-The published (grid-snapped) cell centres as standalone SensorThings `Locations` — one per node
+The published (grid-snapped) cell centers as standalone SensorThings `Locations` — one per node
 that has a published location, with the same coordinates the matching `Thing` carries. Useful for a
 map client that wants the locations collection without walking each Thing.
 
@@ -743,7 +743,7 @@ node-01,2026-06-01T00:00:00Z,temp_c,24.935811,degC,native,temp_c.enclosure-offse
 `trustworthy` is `True` only for a calibrated, QC-clean reading; a `raw` row leaves `uncertainty`
 empty and reads `False`. `data_license` and `data_attribution` come from the export invocation; the
 default is CC0 for a network's native store, while fetched third-party stores must pass their actual
-source terms. (Text cells that begin with a spreadsheet formula character are neutralised on export,
+source terms. (Text cells that begin with a spreadsheet formula character are neutralized on export,
 so a self-reported `node_id` can't smuggle a formula into a spreadsheet.)
 
 ### `GET /export.json`
@@ -866,7 +866,7 @@ closed vocabulary (ADR 0047):
 | `value_change` | a published number or label moved |
 | `calibration_version` | the correction/fit behind a reading moved (ADR 0038) |
 | `qc_state` | a provisional flag, QC flag, or node status flipped (ADR 0029) |
-| `source_or_rights_change` | the source, licence, attribution or DOI changed (ADR 0024) |
+| `source_or_rights_change` | the source, license, attribution or DOI changed (ADR 0024) |
 | `absent_to_present` / `present_to_absent` | something exists on one side only |
 | `schema_version_change` | the recorded schema or swelter version moved |
 
@@ -1031,7 +1031,7 @@ and the table-wide rule would publish that completed check as one nobody perform
 `missingValues` is why the descriptor declares Frictionless v2 (`$schema`) rather than
 `profile: tabular-data-package`.
 
-Rights travel per hard rule 6. A licence string swelter can map with certainty (`CC0-1.0`,
+Rights travel per hard rule 6. A license string swelter can map with certainty (`CC0-1.0`,
 `CC-BY-4.0`, `ODbL-1.0`) gets an SPDX `name`. Anything else — an OpenAQ-derived release, whose
 terms differ location by location — gets the snapshot's own statement in `title` and a `path` to
 the packaged `source-license-ledger.json`, never an invented identifier.
@@ -1077,7 +1077,7 @@ QC and derive an estimated WBGT several degrees too cool
 
 ## pm25_ugm3
 
-Fine particulate matter (PM2.5), unit **ug/m3** (micrograms per cubic metre). Particles 2.5
+Fine particulate matter (PM2.5), unit **ug/m3** (micrograms per cubic meter). Particles 2.5
 micrometres and smaller; the basis for the AQI shown on the map. Calibrated nodes apply a
 humidity-aware correction in the US-EPA PurpleAir lineage
 (`pm25_ugm3.epa-humidity.{node_id}`, `corrected = a*raw + b*humidity + c`), because optical PM
@@ -1092,7 +1092,7 @@ ug/m3.
 
 ## pm10_ugm3
 
-Coarse particulate matter (PM10), unit **ug/m3** (micrograms per cubic metre). Particles 10
+Coarse particulate matter (PM10), unit **ug/m3** (micrograms per cubic meter). Particles 10
 micrometres and smaller (includes PM2.5). Calibrated nodes apply the same humidity-aware correction
 family (`pm10_ugm3.epa-humidity.{node_id}`). Valid range 0 to 2000 ug/m3.
 
@@ -1129,7 +1129,7 @@ degC.
 
 Wind chill, unit **degC** (degrees Celsius) — the cold pack's hazard parameter (ADR 0031). A
 **documented approximation of how cold exposed skin feels**, not a measured quantity: the standard
-NWS/Environment-Canada metric wind-chill index (2001 revision) from air temperature and 10-metre
+NWS/Environment-Canada metric wind-chill index (2001 revision) from air temperature and 10-meter
 wind speed, defined only for temperatures at or below 10 degC and wind above ~4.8 km/h (air
 temperature is returned unchanged outside that domain). Unlike `heat_index_c`, no current swelter
 source adapter supplies wind speed, so it is **not auto-derived in the fetch path**; it enters as a

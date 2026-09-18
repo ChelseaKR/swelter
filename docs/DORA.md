@@ -33,7 +33,7 @@ python scripts/dora_evidence.py check
 
 Scheduled `.github/workflows/dora.yml` queries Pages runs and `incident` issues.
 It normalizes the fields needed for the five metrics, generates and verifies the
-snapshot, and retains all four evidence files as a CI artifact. A cancelled run is
+snapshot, and retains all four evidence files as a CI artifact. A canceled run is
 resolved from its own jobs and their check-run annotations: one killed by its
 `timeout-minutes` bound is a failed deployment attempt, one whose jobs never started
 or was superseded is no attempt at all, and one whose cause this reader cannot name

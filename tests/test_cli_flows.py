@@ -1593,7 +1593,7 @@ def test_fetch_rejects_malformed_generated_network_without_mutation(
 def test_fetch_without_accumulate_wipes_prior_store(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The default (no --accumulate) behaviour is unchanged: each fetch is a fresh snapshot."""
+    """The default (no --accumulate) behavior is unchanged: each fetch is a fresh snapshot."""
     node_id = openmeteo.CALIFORNIA[0].node_id
     store = tmp_path / "store"
     cfg = tmp_path / "net.yaml"

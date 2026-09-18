@@ -36,7 +36,7 @@ in a real deployment, where a co-location `raw` *is* the node's recorded reading
 
 ## Uses
 
-Appropriate for tests, onboarding, screenshots explicitly labelled synthetic, and local demos. It
+Appropriate for tests, onboarding, screenshots explicitly labeled synthetic, and local demos. It
 must not be used to describe real environmental exposure, cooling-center availability, AC access,
 tree canopy, historical redlining, or sensor coverage.
 

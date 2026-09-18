@@ -2,7 +2,7 @@
 
 ``verify-archive`` proves nothing was tampered with. Nothing proved what legitimately changed.
 A steward or a journalist holding two ``sample-surface.json`` files from different days could
-only eyeball two GeoJSONs, and an organiser who says "the block got worse this week" had no way
+only eyeball two GeoJSONs, and an organizer who says "the block got worse this week" had no way
 to show whether the *number* moved or the *calibration* did — which are different claims about
 the same cell, and only one of them is about the weather.
 

@@ -16,13 +16,13 @@ three small files that make the release citable:
 
 Only local artifacts are used — there is no call to an external DOI service. A collective that
 has minted a DOI (Zenodo, DataCite, an institutional repository, ...) passes it with ``--doi``;
-otherwise the release carries an honest, clearly-labelled placeholder so nothing is silently
+otherwise the release carries an honest, clearly-labeled placeholder so nothing is silently
 mistaken for a real identifier.
 
 This module never reads or mutates the raw log: it opens the store read-only and copies
 (``corrections.yaml``, ``aggregate.geojson``) or re-exports through :mod:`swelter.export`
 (the raw observations), so the calibrated-vs-raw distinction that the rest of swelter enforces
-travels into the snapshot as clearly labelled, separate files rather than a mixed dump.
+travels into the snapshot as clearly labeled, separate files rather than a mixed dump.
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ _FALLBACK_AUTHORS: tuple[dict[str, str], ...] = (
     {"given-names": "Chelsea", "family-names": "Kelly-Reif", "alias": "ChelseaKR"},
 )
 
-#: An honestly-labelled placeholder, never presented as if it were a real, resolvable DOI.
+#: An honestly-labeled placeholder, never presented as if it were a real, resolvable DOI.
 DOI_PLACEHOLDER = "10.0000/swelter-snapshot-doi-not-yet-assigned"
 
 DEFAULT_DATA_LICENSE = "CC0-1.0"

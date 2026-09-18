@@ -3,7 +3,7 @@
 A read-only pass over the seven open pull requests as of 2026-08-28, against
 `origin/main` at `b725a7e` (the merge of #204).
 
-Nothing in this pass merged, closed, commented on, labelled, re-ran or otherwise
+Nothing in this pass merged, closed, commented on, labeled, re-ran or otherwise
 modified a pull request, an issue or a workflow run. Merge states were checked
 against GitHub and independently re-derived with `git merge-tree`, because a
 `MERGEABLE` verdict answers "do these lines conflict", which is a narrower
@@ -140,13 +140,13 @@ exactly and leaves the threshold pinned to within ten percent.
 
 - `test_residual_std_and_r2_are_the_documented_formulas` asserts
   `residual_std == 0.707107` with the comment "divided by n and not n - 1". This
-  looked like a test pinning a defect as correct behaviour, since dividing by `n`
+  looked like a test pinning a defect as correct behavior, since dividing by `n`
   rather than by `n - p` biases the 1-sigma downward, and understated error bars
   are precisely what #142 fixed elsewhere. It is not a defect.
   `docs/calibration.md` lines 250 to 257 publish the formula as
   `sqrt(sum(residual^2) / n)` and state that the divisor is `n` on purpose,
   because `residual_std` is the root-mean-square of the training residuals. The
-  test pins published behaviour. The arithmetic also checks out: residuals
+  test pins published behavior. The arithmetic also checks out: residuals
   `0.5, -1.0, 0.5` give `ss_res` 1.5, `sqrt(0.5) = 0.707107` at six decimal
   places, and `r2 = 1 - 1.5/6.0 = 0.75`.
 - `test_round_collapses_negative_zero_so_a_refit_stays_byte_identical` and
@@ -170,7 +170,7 @@ Two things follow that are not in the diff.
 
 **A regeneration step, not a merge.** The fixture was regenerated at `1f7bd62`.
 `main` has since moved to `b725a7e`, which changed `src/swelter/qc.py`. #204's
-changelog states pairing behaviour is unchanged, and the change was a loop bound
+changelog states pairing behavior is unchanged, and the change was a loop bound
 rather than an arithmetic one, so the fixture is expected to be identical. That
 expectation should be confirmed, not assumed. After rebasing #206, re-run
 `swelter demo --web web` and confirm the tree is clean before merging.
@@ -248,7 +248,7 @@ one having landed, because the branches share content rather than history.
 - The `_solve` guard value `1e-12` and the test's `1e-13`/`1e-6` bracket, read
   from source, and the window they leave unpinned, derived from those values.
 - That `residual_std`'s divisor of `n` is published in `docs/calibration.md`,
-  so #207's assertion pins documented behaviour.
+  so #207's assertion pins documented behavior.
 - The absence of any currency gate on `web/sample-surface.json`, by grepping
   `tests/`, `scripts/` and `.github/` for every reference to it.
 - The `CHANGELOG.md` section boundaries and each PR's hunk line numbers.
@@ -258,7 +258,7 @@ one having landed, because the branches share content rather than history.
 **Taken on trust.**
 
 - That #204's changelog is right that `qc._pair_by_nearest_timestamp`'s pairing
-  behaviour is unchanged. Step 3 above exists so this is confirmed rather than
+  behavior is unchanged. Step 3 above exists so this is confirmed rather than
   believed.
 - #206's arithmetic that the 11 changed cells widen by 1.48x to 1.75x and that
   this is consistent with a slope floored at 1.0. The direction of every change

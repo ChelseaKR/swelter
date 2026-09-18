@@ -1,8 +1,8 @@
 """Spatial/temporal rollups: the gridded heat-island and AQI surfaces the map and API read.
 
 Aggregation snaps each node's reading to its *published* grid cell — never its precise
-location — and rolls values up by hour. Neighbourhood-scale exposure is the question, so the grid
-is neighbourhood resolution, not a city average.
+location — and rolls values up by hour. Neighborhood-scale exposure is the question, so the grid
+is neighborhood resolution, not a city average.
 
 On top of the per-parameter cells, a derived ``exposure`` layer combines the calibrated heat index
 and the PM2.5 AQI into one published level per cell/hour (ADR 0009). It is built only where both

@@ -13,7 +13,7 @@ permissions:
 
 # CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref. The key carries the event as
 # well as the ref, because a bare `${{ github.ref }}` on a busy `main` makes consecutive pushes
-# supersede each other: the older commit's run is cancelled before a job is dispatched, so that
+# supersede each other: the older commit's run is canceled before a job is dispatched, so that
 # commit never gets a verdict and the branch looks green on the strength of a run that never
 # happened. Pull-request runs share one slot per ref and do supersede each other, which is the
 # saving this is for; every push keeps its own slot, keyed by the commit it is a verdict about.
@@ -36,8 +36,8 @@ jobs:
       issues: read
     # `make verify-core` is the long one: 20 gates plus the full pytest suite. Measured on this
     # repository it takes 16-25 minutes (runs 33715839075 16m20s, 33992964515 17m39s,
-    # 34039001734 20m56s, 33992912300 25m03s), so a 15-minute cap cancelled it mid-suite — and a
-    # cancelled job reports no verdict at all rather than a failure. 45 leaves room for a slow
+    # 34039001734 20m56s, 33992912300 25m03s), so a 15-minute cap canceled it mid-suite — and a
+    # canceled job reports no verdict at all rather than a failure. 45 leaves room for a slow
     # runner while still bounding a genuine hang far below Actions' six-hour default.
     timeout-minutes: 45
     steps:

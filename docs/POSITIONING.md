@@ -34,14 +34,14 @@ held one to three of the properties below; none held all of them.
 | Continuous (not one day a year) | yes | yes | yes | yes | yes | no (one day) | yes |
 | Heat **and** air as published surfaces | partial | partial | no | no | no | heat only | yes |
 | Per-node calibration **with published uncertainty** | no | no (pass-through) | corrected, hidden | yes (closed) | yes (opaque) | n/a | yes |
-| No-account export with source terms | no (restricted licence) | provider-specific | government | no | no | reports only | yes |
+| No-account export with source terms | no (restricted license) | provider-specific | government | no | no | reports only | yes |
 | Open-standard egress (OGC SensorThings) | no | no | no | no | no | no | yes |
 | Community-owned governance | no | no | no | no | no | vendor-run | yes |
 | WCAG 2.2 AA target, bilingual, map/table/list outcomes, automated gates | no | no | partial | no | no | no | yes |
 | Self-hostable: copy one config file, run your own instance, no vendor | no (proprietary devices) | no (hosted platform) | no (federal service) | no (hosted SaaS) | no (hosted SaaS) | no (vendor-run campaign) | yes |
 
 "partial" on heat: PurpleAir and OpenAQ carry temperature and humidity but do not publish a
-calibrated heat surface. "partial" on accessibility: AirNow has a list view and does not use colour
+calibrated heat surface. "partial" on accessibility: AirNow has a list view and does not use color
 alone for AQI, so accessible elements exist there; the full gated, bilingual, three-equal-views
 package was not found elsewhere.
 
@@ -172,4 +172,4 @@ number or a hard negative in public material:
 [^equity]: Low-cost networks can reduce or worsen information disparities — https://pmc.ncbi.nlm.nih.gov/articles/PMC10329730/
 
 Last verified: 2026-07-16. Recheck cadence: recheck the competitive table and the demand examples at
-least annually, and whenever a named tool changes its data licence or adds a heat surface.
+least annually, and whenever a named tool changes its data license or adds a heat surface.

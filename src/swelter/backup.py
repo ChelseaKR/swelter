@@ -1,7 +1,7 @@
 """``swelter backup`` / ``swelter restore`` — rehearse recovery, and keep the receipt.
 
 The store is "one copyable directory" and the operations runbook says to copy it. Nothing
-checked that the copy was complete, that it restored, or that the archive's rights, licence and
+checked that the copy was complete, that it restored, or that the archive's rights, license and
 integrity evidence survived the trip. A collective that has never restored its own store does not
 know whether it has a backup; it knows it has a file.
 
@@ -28,7 +28,7 @@ the directory cannot be verified, because deleting on the strength of a listing 
 read is a decision made out of absence.
 
 Archives are byte-reproducible: members are sorted, ownership and modification times are
-normalised, and nothing records a wall clock. Two backups of an unchanged store are the same
+normalized, and nothing records a wall clock. Two backups of an unchanged store are the same
 bytes, so an operator can tell "the store changed" from "the backup ran again".
 """
 
@@ -355,7 +355,7 @@ def _store_files(store_dir: Path) -> list[Path]:
 
     The whole directory is archived rather than the handful of names ``store_paths`` knows,
     because "one copyable directory" is the promise and a backup that copies only the files this
-    version happens to recognise would silently drop whatever a later one adds.
+    version happens to recognize would silently drop whatever a later one adds.
     """
     files = sorted(p for p in store_dir.rglob("*") if p.is_file() and not p.is_symlink())
     strays = sorted(p.name for p in store_dir.rglob("*") if p.is_symlink())
@@ -465,7 +465,7 @@ def build_manifest(store_dir: str | Path) -> BackupManifest:
 
 
 def _tarinfo(name: str, size: int) -> tarfile.TarInfo:
-    """A member header with every host-specific field normalised away.
+    """A member header with every host-specific field normalized away.
 
     Ownership, permissions and modification time are properties of the machine that ran the
     backup, not of the data, and leaving them in would make two archives of identical bytes

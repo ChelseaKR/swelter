@@ -19,7 +19,7 @@ rejects anything escaping `web_dir`. CORS is open (`Access-Control-Allow-Origin:
 ## Why
 
 A community dashboard sits behind a static cache or CDN and needs almost no
-concurrency, so single-threaded is enough — and serialising requests is what
+concurrency, so single-threaded is enough — and serializing requests is what
 keeps the one SQLite reader safe (see ADR 0001). The process is stateless: it
 reads the store and answers, so it is happy behind a scale-to-zero front end and
 runs just as well on a Raspberry-Pi-class host with no cloud at all. GET-only is

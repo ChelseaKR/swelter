@@ -79,7 +79,7 @@ both tables and with its referenced tests in the same change.
 
 ### Phase 1 — trustworthy local pipeline: complete
 
-Turn recorded payloads into idempotent, QC-labelled, exportable observations with malformed input
+Turn recorded payloads into idempotent, QC-labeled, exportable observations with malformed input
 quarantined. The shipped backend is SQLite plus generated files; raw observations are immutable and
 rebuild inputs remain portable.
 
@@ -154,7 +154,7 @@ never a person-level vulnerability score or individualized safety direction.
 ## Metrics ledger
 
 The schema is fixed by the portfolio standard: **Metric, Target, Measured by, Gate, Owner**. Targets
-describe the desired outcome; passing a proxy is not relabelled as the outcome itself.
+describe the desired outcome; passing a proxy is not relabeled as the outcome itself.
 
 | Metric | Target | Measured by | Gate | Owner |
 |---|---|---|---|---|
@@ -196,7 +196,7 @@ loads Google Analytics 4 page counts on the reference host only (ADR 0055).
   performance or trace telemetry**. Its only client telemetry is GA4 page counts (ADR 0055), which
   are not field performance data. Same-origin static fetches do not cross into a project-operated
   backend.
-  Lighthouse lab measurements remain an AUTO quality regression gate; they are not relabelled as
+  Lighthouse lab measurements remain an AUTO quality regression gate; they are not relabeled as
   field evidence.
 - Opt-in `swelter --log-format json` is the Tier-C signal, rendered by the exactly locked structlog
   JSON processor. Human-readable output remains the default. The JSON shape, redaction behavior,

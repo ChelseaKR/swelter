@@ -17,7 +17,7 @@ and documented in ``firmware/hardware/assembly.md``.
 
 Privacy facts that hold here: the only identifier in a payload is the host-assigned ``node_id``; the
 radio is used for Wi-Fi station mode to reach the endpoint and nothing else; the firmware never
-initialises Bluetooth, never scans for Wi-Fi clients, and reads no microphone or camera — there are
+initializes Bluetooth, never scans for Wi-Fi clients, and reads no microphone or camera — there are
 no such drivers in this firmware.
 """
 

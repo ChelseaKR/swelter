@@ -255,7 +255,7 @@ def write_manifest(store_dir: str | Path, manifest: RunManifest) -> Path:
 
     Called once, at the end of a pipeline invocation, after :meth:`RunManifest.finish`. The
     store directory is created if it does not already exist (mirrors ``store.open_store``'s
-    own lazy-create behaviour), so a first-ever ``swelter ingest`` on a fresh ``--store`` path
+    own lazy-create behavior), so a first-ever ``swelter ingest`` on a fresh ``--store`` path
     does not need a separate mkdir step.
     """
     base = Path(store_dir)

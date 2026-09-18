@@ -63,7 +63,7 @@ corpus, are the subject of Phase 1 and Phase 2.
 
 ### Phase 1 — gates that pass on an empty corpus — DONE
 
-| # | Gate | Vacuous behaviour, verified by running it | Guard added |
+| # | Gate | Vacuous behavior, verified by running it | Guard added |
 |---|---|---|---|
 | 1 | `scripts/log_safety_check.py` | `[PASS] production log calls are structured and PII-safe` with zero files scanned | `corpus_problems`; each of `src`, `scripts`, `infra` must contribute a file; the PASS line names the counts |
 | 2 | `scripts/acceptance_map_check.py` | `PASS (0 shipped features; paths, symbols, roadmap, ISO 25010:2023 verified)` | an empty feature map or an empty roadmap inventory is a problem |

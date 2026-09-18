@@ -137,7 +137,7 @@ test("localeDirection — recognizes RTL language tags while keeping shipped loc
   assert.equal(app.localeDirection("he-IL"), "rtl");
 });
 
-test("localizeDocumentMetadata — preserves Pages metadata on catalogue failure", async () => {
+test("localizeDocumentMetadata — preserves Pages metadata on catalog failure", async () => {
   const app = await freshApp();
   app.document.title = "Source-aware Pages title";
   app.state.strings = {};
@@ -174,7 +174,7 @@ test("loadStrings — the latest language request wins an out-of-order race", as
   assert.equal(app.document.documentElement.dir, "ltr");
 });
 
-test("loadStrings — a failed swap retains the prior catalogue and document language", async () => {
+test("loadStrings — a failed swap retains the prior catalog and document language", async () => {
   const app = await freshApp();
   app.state.strings = { language: "Español" };
   app.document.documentElement.lang = "es";
@@ -1500,7 +1500,7 @@ test("coverageLine — a model-backed source counts grid cells, not sensors", as
   assert.match(app.coverageLine(), /^Model cells with values this hour: .*2.* of .*2.*\.$/);
   assert.doesNotMatch(app.coverageLine(), /sensor/i);
 
-  // A source with real hardware declares no override and keeps the catalogue's sensor wording.
+  // A source with real hardware declares no override and keeps the catalog's sensor wording.
   app.state.demo = { source: {} };
   assert.match(app.coverageLine(), /^Sensors reporting now: .*2.* of .*2.*\.$/);
 });
@@ -1635,12 +1635,12 @@ test("analytics control — offers the opt-out, then toggles and says what happe
 });
 
 test("analytics control — explains GPC/DNT and blocked storage instead of offering a dead button", async () => {
-  const signalled = await appWithEnglish();
-  signalled.swelterAnalytics = fakeAnalytics({ blockedBySignal: true }).api;
-  signalled.wireAnalyticsChoice();
-  assert.equal(signalled.document.querySelector("#analytics-toggle").hidden, true);
+  const signaled = await appWithEnglish();
+  signaled.swelterAnalytics = fakeAnalytics({ blockedBySignal: true }).api;
+  signaled.wireAnalyticsChoice();
+  assert.equal(signaled.document.querySelector("#analytics-toggle").hidden, true);
   assert.match(
-    signalled.document.querySelector("#analytics-status").textContent,
+    signaled.document.querySelector("#analytics-status").textContent,
     /Global Privacy Control or Do Not Track/,
   );
 

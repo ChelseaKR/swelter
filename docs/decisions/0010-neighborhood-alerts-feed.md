@@ -52,7 +52,7 @@ subscription is more friction than a text message and assumes some tooling liter
 panel softens this for the common case. Per-area filtering (`?area=`) needs a live server — the
 static feed is whole-network only, and the dashboard says so. Provisional (uncalibrated) readings can
 raise an alert; suppressing real danger because a sensor is not yet calibrated would be worse, so the
-alert is published but labelled provisional, the same honesty the map keeps. Finally, danger floors
+alert is published but labeled provisional, the same honesty the map keeps. Finally, danger floors
 are a policy choice: the defaults are conservative public-health boundaries, but a network can lower
 them, and a poorly chosen floor either cries wolf or stays silent — which is why the threshold lives
 in the reviewable `network.yaml`, not buried in code.

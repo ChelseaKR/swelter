@@ -65,7 +65,7 @@ def test_to_observations_maps_arrays() -> None:
     assert all(o.node_id == "oak-park" for o in obs)
     assert all(o.source == openmeteo.SOURCE for o in obs)  # provenance travels with every value
     assert all(not o.is_trustworthy for o in obs)  # an upstream model is not swelter-calibrated
-    assert all(o.timestamp.endswith("Z") for o in obs)  # normalised to canonical UTC
+    assert all(o.timestamp.endswith("Z") for o in obs)  # normalized to canonical UTC
     pm = next(
         o for o in obs if o.parameter == "pm25_ugm3" and o.timestamp == "2026-06-16T00:00:00Z"
     )

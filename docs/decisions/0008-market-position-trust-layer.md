@@ -38,7 +38,7 @@ the dashboard already fixed once.
 ## Known weakness / Consequences
 
 A position is a snapshot of a moving market. The competitive table will age as named tools change
-licences or add heat surfaces, and the funding ordering (philanthropy first) reflects a specific
+licenses or add heat surfaces, and the funding ordering (philanthropy first) reflects a specific
 2025–2026 moment of federal environmental-justice funding being cut and litigated — both need
 rechecking on the cadence in `POSITIONING.md`, not treating as settled. The claim-discipline rule is
 a review burden with no automated gate: nothing in `make verify` checks prose for overstatement, so

@@ -42,11 +42,11 @@ cadence: regenerated and re-committed each release, and at least every 6 months 
   including LCP at or below 2.5s. PR
   [#130](https://github.com/ChelseaKR/swelter/pull/130) resolved the performance work in
   [#117](https://github.com/ChelseaKR/swelter/issues/117). Automation cannot prove criteria that
-  require human judgement.
+  require human judgment.
 - **Automated, merge-blocking:** the structural WCAG 2.2 AA gate `scripts/a11y_check.py`
   (`make a11y`, part of `make verify`). Twelve deterministic, browser-free checks; the build
   fails if any regresses. It holds the structural floor — a language, a non-empty `<title>`, a
-  single `<h1>`, landmarks, a working skip link, labelled controls, a semantic data-table shell,
+  single `<h1>`, landmarks, a working skip link, labeled controls, a semantic data-table shell,
   image text alternatives, no positive `tabindex`, a language switch, a
   `prefers-reduced-motion` rule, and a visible focus indicator. As of this report all twelve pass.
 - **Manual screen-reader review:** the 2026-06-16 baseline covered NVDA on Windows (Firefox and
@@ -97,7 +97,7 @@ numbering shared across 2.0/2.1/2.2.
 
 | Criterion | Conformance level | Remarks and explanations |
 | --- | --- | --- |
-| 1.1.1 Non-text Content | Supports | No content `<img>` elements ship; the map uses text-labelled overview cluster and reading buttons. The exposure-braid SVG is `aria-hidden` and described by keyboard instructions, a plain-text statistical summary, and a method/uncertainty note; the same readings remain in List and Table. Legend swatches are decorative with adjacent category text. The gate asserts every `<img>` has `alt`. |
+| 1.1.1 Non-text Content | Supports | No content `<img>` elements ship; the map uses text-labeled overview cluster and reading buttons. The exposure-braid SVG is `aria-hidden` and described by keyboard instructions, a plain-text statistical summary, and a method/uncertainty note; the same readings remain in List and Table. Legend swatches are decorative with adjacent category text. The gate asserts every `<img>` has `alt`. |
 | 1.2.1 Audio-only and Video-only (Prerecorded) | Not Applicable | No audio or video content. |
 | 1.2.2 Captions (Prerecorded) | Not Applicable | No multimedia. |
 | 1.2.3 Audio Description or Media Alternative (Prerecorded) | Not Applicable | No multimedia. |
@@ -106,7 +106,7 @@ numbering shared across 2.0/2.1/2.2.
 | 1.3.3 Sensory Characteristics | Supports | Instructions never rely on shape, size, or position alone; views are named "Map", "Table", "List" and severity is named in text. |
 | 1.4.1 Use of Color | Supports | Air-quality category is conveyed by **text and a distinct background pattern**, not color alone (see `.aqi-*` rules in `styles.css`, which pair each color with a unique hatch/dot pattern and an always-present text label). Provisional cells use a dashed border plus the word "provisional". |
 | 1.4.2 Audio Control | Not Applicable | No auto-playing audio. |
-| 2.1.1 Keyboard | Supports | Controls are native `<select>`, `<input type="range">`, links, and buttons. The exposure braid itself accepts Left/Right/Home/End, its range has two labelled native sliders, tabs use roving focus, map pan/zoom has button and arrow-key alternatives, overview clusters activate with Enter or Space to reveal their geographically fixed reading buttons, and sort is a button in the table header. |
+| 2.1.1 Keyboard | Supports | Controls are native `<select>`, `<input type="range">`, links, and buttons. The exposure braid itself accepts Left/Right/Home/End, its range has two labeled native sliders, tabs use roving focus, map pan/zoom has button and arrow-key alternatives, overview clusters activate with Enter or Space to reveal their geographically fixed reading buttons, and sort is a button in the table header. |
 | 2.1.2 No Keyboard Trap | Supports | Focus moves into and out of every component with Tab/Shift+Tab. No modal or custom focus capture exists. |
 | 2.1.4 Character Key Shortcuts | Supports | Optional `l`, `t`, `m`, and `/` shortcuts never fire while typing or with a modifier, and can be disabled through the persistent “Enable keyboard shortcuts” checkbox. |
 | 2.2.1 Timing Adjustable | Not Applicable | No task or content has a time limit. |
@@ -151,7 +151,7 @@ numbering shared across 2.0/2.1/2.2.
 | 2.5.8 Target Size (Minimum) | Partially Supports | The passing Playwright assertion enumerates native controls plus focusable/pointer composite surfaces across Map, List, and Table at desktop and 320 CSS pixels, and rejects targets below 24×24 CSS pixels unless they satisfy exactly the WCAG inline-text or 24 CSS-pixel-spacing exception. The braid's full plot surface, map pan surface, overview clusters, and revealed reading buttons are included explicitly. Manual touch/zoom confirmation remains pending. (WCAG 2.2.) |
 | 3.1.2 Language of Parts | Partially Supports | UI strings follow the selected document language (`en`/`es`) and provenance output marks raw source-authored English notes with `lang="en"`. The actual Arabic fixture exercises page direction and mixed-direction rendering. Screen-reader pronunciation of composed Spanish/source-English content remains part of the pending manual AT walkthrough. |
 | 3.2.3 Consistent Navigation | Supports | The single-page dashboard presents the same controls and tab order on every render. |
-| 3.2.4 Consistent Identification | Supports | The same components ("provisional" tag, AQI tag, view tabs) are labelled identically wherever they appear. |
+| 3.2.4 Consistent Identification | Supports | The same components ("provisional" tag, AQI tag, view tabs) are labeled identically wherever they appear. |
 | 3.2.6 Consistent Help | Not Applicable | No help mechanism is provided across multiple pages; the dashboard is a single page. (WCAG 2.2.) |
 | 3.3.3 Error Suggestion | Not Applicable | No data-entry forms produce errors. |
 | 3.3.4 Error Prevention (Legal, Financial, Data) | Not Applicable | No legal, financial, or data-modifying transactions; the dashboard is read-only. |
@@ -194,7 +194,7 @@ reason.
 | --- | --- | --- |
 | 502 Interoperability with Assistive Technology | Partially Supports | The dashboard uses native HTML controls and standard ARIA, exposing name, role, state, and value through the browser accessibility tree. Browser tree/interaction assertions pass for the expanded components, including cluster `aria-expanded` transitions. The 2026-06-16 baseline covered the original controls with NVDA and VoiceOver; the complete current manual task sequence remains pending. No custom accessibility API bridge is used. |
 | 502.2.1 User Control of Accessibility Features | Not Applicable | The dashboard is not platform software and does not disrupt platform accessibility features. |
-| 502.2.2 No Disruption of Accessibility Features | Supports | The page does not override or disable platform or browser accessibility features (zoom, contrast, reduced motion, screen-reader). It honours `prefers-color-scheme` and `prefers-reduced-motion`. |
+| 502.2.2 No Disruption of Accessibility Features | Supports | The page does not override or disable platform or browser accessibility features (zoom, contrast, reduced motion, screen-reader). It honors `prefers-color-scheme` and `prefers-reduced-motion`. |
 | 502.3 Accessibility Services | Not Applicable | Web content; it relies on the browser's accessibility services rather than implementing a platform accessibility API. |
 | 502.4 Platform Accessibility Features | Not Applicable | Not a platform; no platform features are claimed or implemented. |
 | 503 Applications | Partially Supports | See sub-criteria; the pending expanded assistive-technology sequence is reflected in 502 and the WCAG report. |

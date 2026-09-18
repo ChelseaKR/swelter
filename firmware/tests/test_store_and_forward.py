@@ -96,7 +96,7 @@ def _recording_sleep(log: list[float]) -> Callable[[float], None]:
 
 
 def test_append_persists_across_a_new_instance(tmp_path: Path) -> None:
-    # A reboot is modelled as a fresh StoreAndForward over the same on-flash file.
+    # A reboot is modeled as a fresh StoreAndForward over the same on-flash file.
     path = str(tmp_path / "buffer.jsonl")
     buf = StoreAndForward(path, transport=_RecordingTransport())
     buf.append(_payload(ts="2026-06-16T18:00:00Z"))
