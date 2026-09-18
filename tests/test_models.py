@@ -95,7 +95,7 @@ def test_qc_rejected_is_not_trustworthy_even_if_calibrated() -> None:
     assert not obs.is_trustworthy
 
 
-def test_timestamp_roundtrip_normalises_to_utc_z() -> None:
+def test_timestamp_roundtrip_normalizes_to_utc_z() -> None:
     assert format_timestamp(parse_timestamp("2026-06-01T12:00:00+02:00")) == "2026-06-01T10:00:00Z"
     assert format_timestamp(parse_timestamp("2026-06-01T00:00:00Z")) == "2026-06-01T00:00:00Z"
 
@@ -418,8 +418,8 @@ def test_exposure_bounding_component_needs_a_strictly_higher_axis() -> None:
 
 
 def test_unknown_aqi_category_contributes_no_air_concern() -> None:
-    # An unrecognised category must read as no elevated air concern, never as a mid-tier one:
-    # a mislabelled band would otherwise silently raise the published exposure level.
+    # An unrecognized category must read as no elevated air concern, never as a mid-tier one:
+    # a mislabeled band would otherwise silently raise the published exposure level.
     assert exposure_level(20.0, "not-a-published-category") == (0, "Minimal", False)
     assert exposure_bounding_component(28.0, "not-a-published-category") == "heat"
 

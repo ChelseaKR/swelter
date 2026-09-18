@@ -209,11 +209,11 @@ def _deduplicated_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 
 def _license_url_alternative_note(detail: dict[str, Any], license_url: str) -> str:
-    """Answer, in the refusal itself, whether the licence resource offers an HTTPS URL elsewhere.
+    """Answer, in the refusal itself, whether the license resource offers an HTTPS URL elsewhere.
 
     #179's root cause is that OpenAQ serves ``sourceUrl`` over plain ``http``, and every one of
     the 250 California locations is refused on that one property. The decision about what to do
-    turns on a question nobody with the API key has answered: **does the same licence resource
+    turns on a question nobody with the API key has answered: **does the same license resource
     publish an ``https`` URL under a different key?** If it does, this is a mapping fix and there
     is no rights-posture decision to make. If it does not, the three options in #179 are the real
     set. Either answer is worth having, and neither needs anyone to hold the key -- the next
@@ -247,12 +247,12 @@ def _license_url_alternative_note(detail: dict[str, Any], license_url: str) -> s
     )
     if https_keys:
         return (
-            f"diagnostic for #179: OpenAQ licence {detail.get('id')} does publish an absolute "
+            f"diagnostic for #179: OpenAQ license {detail.get('id')} does publish an absolute "
             f"HTTPS URL under {', '.join(https_keys)}, so this may be a field-mapping fix rather "
             f"than a rights decision"
         )
     return (
-        f"diagnostic for #179: OpenAQ licence {detail.get('id')} publishes no absolute HTTPS URL "
+        f"diagnostic for #179: OpenAQ license {detail.get('id')} publishes no absolute HTTPS URL "
         f"under any other top-level field ({len(strings)} string field(s) inspected; nested "
         f"objects not inspected)"
     )
@@ -266,7 +266,7 @@ def _record_rejection(
     The rule, not the license id: the location is already named beside this reason, and identical
     text across locations is what lets a whole-state refusal collapse to "247 x <this rule>"
     instead of 247 lines that each say it once. The diagnostic is deduplicated on the same
-    principle -- one licence resource produces one note however many locations cite it.
+    principle -- one license resource produces one note however many locations cite it.
     """
     for line in (str(exc), _license_url_alternative_note(detail, license_url)):
         if line and line not in rejections:

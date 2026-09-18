@@ -42,7 +42,7 @@ function ensureRejectionGuardInstalled() {
 // `.dataset.foo`, chained accessors, etc. all resolve without throwing), every property write is
 // remembered verbatim, and calling it as a function is a no-op. This is deliberately dumb — it
 // exists only so `app.js` can load and its top-level `init()` call can run to completion without
-// crashing the process, not to model real DOM behaviour.
+// crashing the process, not to model real DOM behavior.
 function inertStub() {
   const target = function stub() {};
   return new Proxy(target, {
@@ -159,7 +159,7 @@ async function loadApp(options = {}) {
   vm.runInContext(source, context, { filename: "web/app.js" });
 
   // `function` declarations at app.js's top level are already own properties of `sandbox`
-  // (verified vm behaviour), so `sandbox.heatTier`, `sandbox.convert`, etc. work as-is. Its
+  // (verified vm behavior), so `sandbox.heatTier`, `sandbox.convert`, etc. work as-is. Its
   // top-level `const`/`let` bindings (notably the mutable `state` object unit conversion and the
   // trend/contrast lines read) are *not* auto-attached — pull the ones tests need back out with a
   // second script run in the same Context, which shares app.js's top-level lexical scope (the

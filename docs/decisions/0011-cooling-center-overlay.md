@@ -34,7 +34,7 @@ information (the addresses are public buildings, not residences), so it sits cle
 privacy posture as long as the schema is held to an allowlist, which the loader enforces.
 
 The committed dataset is an **illustrative sample** placed within the synthetic demo network's
-footprint — it is labelled as such in its metadata and is explicitly not a real facility list. A real
+footprint — it is labeled as such in its metadata and is explicitly not a real facility list. A real
 deployment replaces it with the jurisdiction's published cooling-center data (a county OES / 211 list
 or a city open-data portal) under that source's license, keeping the `last_verified` discipline the
 repo applies to every external-fact artifact.

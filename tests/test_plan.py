@@ -13,7 +13,7 @@ from swelter.plan import haversine_m, simulate_add_node
 
 # A block apart in Davis, CA — inside network.yaml's grid_resolution_m (150 m) of each other.
 NODE_LAT, NODE_LON = 38.575057, -121.509361
-NEAR_LAT, NEAR_LON = 38.575120, -121.506400  # ~250m away: same neighbourhood, different cell
+NEAR_LAT, NEAR_LON = 38.575120, -121.506400  # ~250m away: same neighborhood, different cell
 FAR_LAT, FAR_LON = 34.052235, -118.243683  # Los Angeles: far from anything above
 
 

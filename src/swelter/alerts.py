@@ -77,8 +77,8 @@ class Alert:
     locate a person; an alert is an environmental fact about a block, not a record about anyone.
     """
 
-    area_id: str  # the published grid-cell id (lat,lon of the cell centre)
-    area: str  # the host-assigned place name, or the cell id when a cell is unlabelled
+    area_id: str  # the published grid-cell id (lat,lon of the cell center)
+    area: str  # the host-assigned place name, or the cell id when a cell is unlabeled
     lat: float
     lon: float
     parameter: str
@@ -144,7 +144,7 @@ class StaleArea:
     last reported and that swelter has no current reading for it.
 
     Deliberately carries **no value**. The last reading is not a measurement of now, so
-    republishing it — even labelled — would hand a consumer a number to plot in the "current"
+    republishing it — even labeled — would hand a consumer a number to plot in the "current"
     column. What travels instead is when it was last heard from (``last_bucket``,
     ``hours_since_last_reading``) and whether an alert published from that last reading is being
     withdrawn (``withdrawn``).
@@ -153,8 +153,8 @@ class StaleArea:
     label, and the node id(s) feeding the cell. No field can name or locate a person.
     """
 
-    area_id: str  # the published grid-cell id (lat,lon of the cell centre)
-    area: str  # the host-assigned place name, or the cell id when a cell is unlabelled
+    area_id: str  # the published grid-cell id (lat,lon of the cell center)
+    area: str  # the host-assigned place name, or the cell id when a cell is unlabeled
     lat: float
     lon: float
     parameter: str
@@ -543,7 +543,7 @@ def build_feed(
 
     ``pack`` selects the hazard pack (:mod:`swelter.hazard_packs`) whose parameters and cited floors
     are checked; it defaults to the heat pack, so a caller that passes none gets the original
-    heat/air behaviour unchanged. The cold pack, for example, checks wind chill instead of heat.
+    heat/air behavior unchanged. The cold pack, for example, checks wind chill instead of heat.
     """
     active = pack or hazard_packs.HEAT_PACK
     floors = resolve_thresholds(thresholds, active)
@@ -622,7 +622,7 @@ def detect_event(surface: Surface, pack: hazard_packs.HazardPack) -> HazardEvent
     A cell qualifies when it has a reading in the newest bucket, in the rule's own window, at or
     above the floor, **and** a reading exactly ``lookback_hours`` earlier that it has risen at
     least ``rise`` above. Both halves are required, and both are per-cell. One node spiking with
-    flat neighbours therefore produces one qualifying cell and no event, which is the whole reason
+    flat neighbors therefore produces one qualifying cell and no event, which is the whole reason
     the rule counts cells rather than readings.
 
     A cell whose earlier bucket is missing does not qualify, and is not treated as a rise from

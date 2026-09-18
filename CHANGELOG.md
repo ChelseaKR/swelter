@@ -29,12 +29,12 @@ All notable changes to swelter are recorded here. The format follows
   values, so such a run left both the numerator and the denominator of `change_fail_rate` and
   opened no recovery event.
 
-  Widening the conclusion set would have been worse: all 38 cancelled `pages.yml` runs in this
+  Widening the conclusion set would have been worse: all 38 canceled `pages.yml` runs in this
   repository's history returned `total_count: 0` from the jobs endpoint — evicted out of the
   pending queue before a runner existed — and counting them would have put a false 12.5% on a
   metric whose alert threshold is 15%. GitHub distinguishes the two in exactly one place, the
-  check-run annotation on the job, so retention now collects each cancelled run's jobs and their
-  annotations and stores the classified cause. A cancelled run whose cause was not collected stops
+  check-run annotation on the job, so retention now collects each canceled run's jobs and their
+  annotations and stores the classified cause. A canceled run whose cause was not collected stops
   retention rather than being scored as a non-failure. Retained schema `1` → `2`; see
   [ADR 0054](docs/adr/0054-a-run-killed-by-its-own-timeout-is-a-failed-deployment.md).
 
@@ -219,7 +219,7 @@ All notable changes to swelter are recorded here. The format follows
   `title` is a contributor's *name*, and `data_attribution` is a sentence about terms -- so it
   travels as `swelter:attribution`, as `dct:rights`, and in the packaged `DATA-LICENSE`.
 
-  **A per-location source keeps its terms.** Only licence strings this project can map with
+  **A per-location source keeps its terms.** Only license strings this project can map with
   certainty get an SPDX `name`; an OpenAQ-derived release gets the snapshot's own statement plus a
   `path` to the packaged `source-license-ledger.json`, never an invented identifier (hard rule 6).
 
@@ -432,7 +432,7 @@ All notable changes to swelter are recorded here. The format follows
   `src/swelter/diff.py`, the `diff` verb, `docs/api.md`, and ADR 0047. `verify-archive`
   proves nothing was tampered with; nothing proved what *legitimately* changed. A steward or
   a journalist holding two `sample-surface.json` files from different days could only eyeball
-  two GeoJSONs, and an organiser who says "the block got worse this week" had no way to show
+  two GeoJSONs, and an organizer who says "the block got worse this week" had no way to show
   whether the number moved or the calibration did — different claims about the same cell, and
   only one of them is about the weather. ADR 0038 made every correction name its fit precisely
   so that distinction could be drawn; nothing drew it.
@@ -557,12 +557,12 @@ All notable changes to swelter are recorded here. The format follows
   outright refusal on every run.
 
 - **The OpenAQ scheme refusal now answers the one question #179's decision turns on.** Every one of
-  the 250 California locations is excluded because the licence catalog's `sourceUrl` is served over
-  plain `http`, and `license_url` requires `https` exactly. Whether the *same* licence resource
+  the 250 California locations is excluded because the license catalog's `sourceUrl` is served over
+  plain `http`, and `license_url` requires `https` exactly. Whether the *same* license resource
   publishes an `https` URL under a different key decides whether that is a field-mapping fix or a
   rights-posture decision — and nobody without the `OPENAQ_API_KEY` can see the payload to find out.
 
-  The refusal now carries the answer, either way: *"OpenAQ licence 33 does publish an absolute HTTPS
+  The refusal now carries the answer, either way: *"OpenAQ license 33 does publish an absolute HTTPS
   URL under homepageUrl, so this may be a field-mapping fix rather than a rights decision"*, or
   *"publishes no absolute HTTPS URL under any other top-level field (2 string field(s) inspected;
   nested objects not inspected)"*. The next scheduled `demo` run prints it with no one holding the
@@ -591,7 +591,7 @@ All notable changes to swelter are recorded here. The format follows
   look at heat index at all -- while `count_danger_days` reports **1** Danger day at the heat
   pack's 39.4 degC floor.
 
-  **Nothing published is wrong and no behaviour changed.** Every `DangerDayCount` record already
+  **Nothing published is wrong and no behavior changed.** Every `DangerDayCount` record already
   carries the `floor` and `severity` it was measured against, so it describes itself; the defect
   was in what the code claimed about itself, which this repository's own contract says to remove
   rather than leave standing. The docstrings now state which floor table is used and what the
@@ -608,7 +608,7 @@ All notable changes to swelter are recorded here. The format follows
   calendar, "danger days across a window" needs the floors of each day's own pack, and whether a
   window spanning two seasons is one count or two is a product call; a fixed non-heat network
   raises a second one, whether a heat-index count is refused outright for a network whose feed
-  never alerts on heat. Two tests pin the current behaviour, and the first says in terms that it
+  never alerts on heat. Two tests pin the current behavior, and the first says in terms that it
   fails the day the count learns to resolve the network's own pack, which is the day both it and
   the docstring are rewritten.
 
@@ -847,7 +847,7 @@ All notable changes to swelter are recorded here. The format follows
   `pages_seo.py` gains `STATIC_ROUTES` and `write_static_page_metadata` for a published route
   that is not a data surface. The planner reads no readings, so it gets a canonical, icons,
   `robots`, Open Graph and a Twitter card, and deliberately **no JSON-LD**: the only graph this
-  project emits is a `Dataset` describing readings and their licence, and a page that publishes
+  project emits is a `Dataset` describing readings and their license, and a page that publishes
   none must not claim one. It also keeps the title and description it already ships with rather
   than having them rewritten, because a static page's copy is truthful in source, whereas a data
   surface's is only truthful once the deployed fallback is known. Nothing new is written about
@@ -858,7 +858,7 @@ All notable changes to swelter are recorded here. The format follows
   template as well as the dashboard's.
 
   Observed failing four ways: `/planner/` dropped from the published routes; the planner
-  canonicalised to the bare `chelseakr.github.io` origin, which is a different site and one all
+  canonicalized to the bare `chelseakr.github.io` origin, which is a different site and one all
   six project sites on that origin would claim; the `Dataset` graph attached to the planner; and
   the planner template stripped of its marker block, which fails `make seo` with exit 2.
 
@@ -957,7 +957,7 @@ All notable changes to swelter are recorded here. The format follows
   job — the hygiene gate failed the build until the ceiling came down with the count.
 
   A test pins the table *as* the dispatch: every declared route resolves, trailing slashes are
-  still normalised before lookup, and a path the table does not name still reaches `_static`.
+  still normalized before lookup, and a path the table does not name still reaches `_static`.
 
   **Not retired, and honestly so:** the two `_make_handler` `C901` waivers stay. Ruff's mccabe
   walker sums every nested method into the enclosing factory because the handler class is defined
@@ -1039,7 +1039,7 @@ All notable changes to swelter are recorded here. The format follows
   live project site, contributor templates preserve source-specific data rights, and the existing
   sun app icon now carries through to the basic California-map social card and social metadata.
 - **Frontend performance baseline ([PR #130](https://github.com/ChelseaKR/swelter/pull/130)).**
-  Snapshot, source-contract, catalogue, and basemap requests start in parallel; the initial map waits
+  Snapshot, source-contract, catalog, and basemap requests start in parallel; the initial map waits
   for the already-running basemap request so readings and geography align on first render. Both
   published routes pass the committed Lighthouse regression budget with measured LCP at or below
   2.5 seconds.
@@ -1049,7 +1049,7 @@ All notable changes to swelter are recorded here. The format follows
   severity chip's 4.5:1 contrast pair. Cross-browser and copy-drift test fixes track the current
   Spanish catalog, preserve published labels in record-set comparisons, target pressable selection
   controls, exclude disabled controls from focus-exposure checks, and accept Firefox's
-  `translate(0px)` reset serialisation. See
+  `translate(0px)` reset serialization. See
   [`docs/audits/accessibility-report.md`](docs/audits/accessibility-report.md).
 - **Data schema version 2 (was 1).** The observation export gains a `qc_flags` field: an array in the
   JSON export and a new `qc_flags` column in `/export.csv`. Because adding a CSV column is a break for
@@ -1070,7 +1070,7 @@ All notable changes to swelter are recorded here. The format follows
   `hazard_pack:` in `network.yaml`, instead of code. Heat is the default and unchanged — a config
   that names no pack produces identical output. A new **cold pack** ships alongside it: a
   `wind_chill_c` parameter (the documented NWS/Environment-Canada metric wind-chill index, honestly
-  labelled an approximation, added to `models.PARAMETERS` with QC bounds and a spike threshold) and
+  labeled an approximation, added to `models.PARAMETERS` with QC bounds and a spike threshold) and
   the NWS Wind Chill Chart's cited −28.3 °C / −19 °F 30-minute frostbite floor, wired through the
   alerts feed in English and machine-drafted Spanish. Enabling cold is config alone; every pack
   floor carries a public-source citation, and `swelter doctor` validates the pack id and its
@@ -1080,7 +1080,7 @@ All notable changes to swelter are recorded here. The format follows
   reference series, matching each hourly reference reading to the nearest node sample within a
   documented tolerance (the pairing/resampling logic is a pure, offline function). A new
   `sources/airnow.py` adapter pulls US EPA AirNow / AQS reference PM2.5 — its own public-domain-plus-
-  attribution terms retained, never relabelled, and its runtime API key redacted from any failure
+  attribution terms retained, never relabeled, and its runtime API key redacted from any failure
   message — and the monitor's AQS site id flows into `Correction.reference`. See
   [`docs/adr/0032-reference-monitor-adapter.md`](docs/adr/0032-reference-monitor-adapter.md) and the
   [AirNow data card](docs/data-cards/airnow.md).
@@ -1296,7 +1296,7 @@ All notable changes to swelter are recorded here. The format follows
   neither looked at `cell.provisional` or `cell.qc_flags`. A single QC-flagged spike — the
   pipeline's own "do not trust this as a measurement" verdict — became a full Danger day or Danger
   hour in a record built for organizers and health departments, with nothing on the page saying the
-  evidence behind it was flagged or uncalibrated. The alerts feed had honoured this all along
+  evidence behind it was flagged or uncalibrated. The alerts feed had honored this all along
   (`Alert.provisional`, rendered in the headline); the two share artifacts had not.
   `DangerDayCount` now carries `danger_days_provisional` and `danger_days_qc_flagged`, and
   `CellChronicle` carries `danger_hours_provisional` and `danger_hours_qc_flagged` — how much of
@@ -1329,7 +1329,7 @@ All notable changes to swelter are recorded here. The format follows
   `state-flagged` (`provisional, flagged` / `provisional, marcada`) was already in both shipped
   catalogs and already loaded by `cards.load_strings`; the card never asked for it. `_CellReadings`
   now carries `qc_flagged` and `_render_provenance` renders the same three states as every other
-  surface, with a print-safe weight difference rather than colour alone.
+  surface, with a print-safe weight difference rather than color alone.
 - **Five merge-blocking gates could pass over an empty corpus.** The repository had already fixed
   this shape twice (`workflow_policy_check`, `reading_level_check`); these are the rest of it. Each
   printed a universal claim and returned 0 when the set it was claiming about was empty:
@@ -1658,7 +1658,7 @@ All notable changes to swelter are recorded here. The format follows
 - **Dark-mode severity-chip contrast.** The table's AQI/heat severity chips inherited the scheme
   foreground (near-white in dark mode) over their light severity fill — a genuine contrast failure the
   chips' pattern was hiding from the contrast scanner. They now use the permanent dark `--severity-ink`
-  like the map cells, clearing AA in both colour schemes.
+  like the map cells, clearing AA in both color schemes.
 - **Verifiable selected-row contrast.** The selected List/Table row highlight is a flat, computable
   tint instead of a gradient, so a contrast scanner can read every reading in the selected row.
 - **Reflow at 320px.** The `#method` legend and dataset card no longer stay side by side below the
@@ -1695,7 +1695,7 @@ responsible-technology evidence.
   time-window caveats travel with each representation ([ADR 0004](docs/adr/0004-framework-free-accessible-dashboard.md)).
 - **Environmental pipeline.** Idempotent ingest, quarantine, range/spike/flatline QC, gap and health
   reporting, immutable raw rows, versioned calibration corrections, gridded aggregation, compound
-  heat/air exposure, estimated-WBGT labelling, and deterministic demo/rebuild paths.
+  heat/air exposure, estimated-WBGT labeling, and deterministic demo/rebuild paths.
 - **Authenticated node write boundary.** A separate HMAC-SHA256 ingest listener with per-node keys,
   freshness/replay checks, impersonation refusal, key rotation, and quarantine for authentication
   failures. The public server remains GET-only.

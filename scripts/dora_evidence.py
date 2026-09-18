@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Retain, generate, and verify deterministic DORA evidence from GitHub JSON exports.
 
-**A cancelled run is not one outcome.** A job killed by its own ``timeout-minutes`` concludes
+**A canceled run is not one outcome.** A job killed by its own ``timeout-minutes`` concludes
 ``cancelled``, never ``timed_out`` -- measured on `gtfs-scorecard` run 34162993774, whose job ran
 45 minutes to the second against ``timeout-minutes: 45`` and concluded ``cancelled``. That
 workflow died that way for eleven consecutive scheduled runs while every sweep read the result as
-no signal (#267). Meanwhile every one of this repository's 38 cancelled ``pages.yml`` runs was
+no signal (#267). Meanwhile every one of this repository's 38 canceled ``pages.yml`` runs was
 evicted out of the pending queue before a runner existed, and counting *those* as deployment
 failures would put a false 12.5% on ``change_fail_rate``.
 
 So the repair is not a wider :data:`FAILED_CONCLUSIONS`. It is retaining the evidence that tells
-the two apart -- each cancelled run's jobs and their check-run annotations, where GitHub says
+the two apart -- each canceled run's jobs and their check-run annotations, where GitHub says
 "The job has exceeded the maximum execution time of 45m0s" and nowhere else -- and then resolving
 every terminal outcome through one table (:data:`RUN_DISPOSITIONS`,
 :data:`CANCELLATION_DISPOSITIONS`) that has no silent branch. An outcome nobody has classified
@@ -41,8 +41,8 @@ DEFAULT_SNAPSHOT = ROOT / "docs" / "audits" / "dora" / "snapshot.json"
 DEFAULT_MARKDOWN = ROOT / "docs" / "DORA.md"
 DEFAULT_WORKFLOW = ROOT / ".github" / "workflows" / "dora.yml"
 
-#: The retained-evidence schema. Bumped 1 -> 2 when a cancelled run gained the ``cancellation``
-#: object below: a version 1 document cannot say why one of its runs was cancelled, and a reader
+#: The retained-evidence schema. Bumped 1 -> 2 when a canceled run gained the ``cancellation``
+#: object below: a version 1 document cannot say why one of its runs was canceled, and a reader
 #: that treated the absence as "not a failure" would be making exactly the mistake this schema
 #: change exists to stop.
 SCHEMA_VERSION = 2
@@ -105,20 +105,21 @@ _SUPERSEDED_ANNOTATION = re.compile(r"^Canceling since a higher priority waiting
 #:
 #: ``never_started`` is the common case here and the reason the obvious fix -- adding `cancelled`
 #: to :data:`FAILED_CONCLUSIONS` -- would have been worse than the blindness it replaced. All 38
-#: cancelled `pages.yml` runs in this repository's history returned `total_count: 0` from the jobs
+#: canceled `pages.yml` runs in this repository's history returned `total_count: 0` from the jobs
 #: endpoint: every one was evicted out of the pending queue before a runner existed. Counting them
 #: would have put a false 12.5% on `change_fail_rate`.
 CANCELLATION_DISPOSITIONS: dict[str, str] = {
     "timeout_kill": FAILED,
     "superseded": NOT_ATTEMPTED,
     "never_started": NOT_ATTEMPTED,
+    # British spelling kept: this cause is a persisted value in retained schema-2 evidence.
     "unrecognised": REFUSED,
 }
 
 REWORK_TITLE = re.compile(r"^(?:fix(?:\([^)]+\))?[!:]?|FIX-\d+\b)", re.IGNORECASE)
 
 #: The one call that makes `.github/workflows/dora.yml` the DORA workflow. `publication_route`
-#: refuses rather than answering over a file it no longer recognises: "this workflow has no way
+#: refuses rather than answering over a file it no longer recognizes: "this workflow has no way
 #: to publish" and "this reader stopped understanding the workflow" produce the same word
 #: otherwise, and only one of them is a fact about the repository.
 _GENERATE_INVOCATION = "dora_evidence.py generate"
@@ -199,9 +200,9 @@ def _write_json(path: Path, document: Any) -> None:
 def _flatten_actions(
     raw: Any, cancellations: Mapping[int, dict[str, Any]] | None = None
 ) -> list[dict[str, Any]]:
-    """Normalize a runs export, attaching the retained cause to every cancelled run.
+    """Normalize a runs export, attaching the retained cause to every canceled run.
 
-    ``cancellations`` is not optional in practice: a cancelled run with no entry is an error, not
+    ``cancellations`` is not optional in practice: a canceled run with no entry is an error, not
     a run that gets the benefit of the doubt. That is the whole repair -- the old flattener kept
     `workflow_runs` fields only, so nothing downstream *could* tell a cap-kill from an eviction,
     and the metric resolved the ambiguity by dropping both.
@@ -241,7 +242,7 @@ def _flatten_actions(
                 run_id = record["id"]
                 if run_id not in cancellations:
                     raise EvidenceError(
-                        f"cancelled run {run_id} has no retained cancellation evidence; a "
+                        f"canceled run {run_id} has no retained cancellation evidence; a "
                         "cancellation whose cause was not collected cannot be scored"
                     )
                 record["cancellation"] = cancellations[run_id]
@@ -252,7 +253,7 @@ def _flatten_actions(
 def cancelled_run_ids(raw: Any) -> list[int]:
     """Run ids the collector must fetch job and annotation evidence for, newest last.
 
-    Exposed as its own subcommand so the workflow does not have to re-derive the cancelled set in
+    Exposed as its own subcommand so the workflow does not have to re-derive the canceled set in
     shell, where a quoting mistake yields an empty list and an empty list looks like good news.
     """
     pages = raw if isinstance(raw, list) else [raw]
@@ -269,7 +270,7 @@ def cancelled_run_ids(raw: Any) -> list[int]:
                 continue
             run_id = item.get("id")
             if not isinstance(run_id, int) or isinstance(run_id, bool):
-                raise EvidenceError("a cancelled run has no integer id")
+                raise EvidenceError("a canceled run has no integer id")
             found.append(run_id)
     return sorted(set(found))
 
@@ -314,7 +315,7 @@ def _annotations_export(raw: Any, *, label: str) -> list[dict[str, str]]:
 
 
 def _classify_cancellation(jobs: Sequence[Mapping[str, Any]]) -> str:
-    """Name the cause of one cancelled run from its jobs and their check-run annotations.
+    """Name the cause of one canceled run from its jobs and their check-run annotations.
 
     Order matters and it runs toward the failure. A run with two jobs, one superseded and one
     killed by its bound, is a run that hit its bound.
@@ -335,7 +336,7 @@ def _classify_cancellation(jobs: Sequence[Mapping[str, Any]]) -> str:
 def load_cancellations(directory: Path, run_ids: Sequence[int]) -> dict[int, dict[str, Any]]:
     """Read one `run-<id>.jobs.json` plus one `job-<id>.annotations.json` per job, and classify.
 
-    Fail-closed in both directions. A cancelled run with no jobs file is an error, and so is a
+    Fail-closed in both directions. A canceled run with no jobs file is an error, and so is a
     jobs file for a run that is not in ``run_ids`` -- a stale collection directory reused across
     windows would otherwise classify this window's cancellations from last window's evidence.
     """
@@ -348,14 +349,14 @@ def load_cancellations(directory: Path, run_ids: Sequence[int]) -> dict[int, dic
         extra = ", ".join(str(run_id) for run_id in sorted(collected - wanted))
         raise EvidenceError(
             f"{directory}: holds cancellation evidence for run(s) {extra}, which the actions "
-            "export does not report as cancelled; this collection is not from this window"
+            "export does not report as canceled; this collection is not from this window"
         )
     cancellations: dict[int, dict[str, Any]] = {}
     for run_id in sorted(wanted):
         jobs_path = directory / f"run-{run_id}.jobs.json"
         if not jobs_path.is_file():
             raise EvidenceError(
-                f"{jobs_path}: missing job evidence for cancelled run {run_id}; without it the "
+                f"{jobs_path}: missing job evidence for canceled run {run_id}; without it the "
                 "cause of the cancellation cannot be named"
             )
         jobs: list[dict[str, Any]] = []
@@ -363,7 +364,7 @@ def load_cancellations(directory: Path, run_ids: Sequence[int]) -> dict[int, dic
             annotations_path = directory / f"job-{job['id']}.annotations.json"
             if not annotations_path.is_file():
                 raise EvidenceError(
-                    f"{annotations_path}: missing annotations for job {job['id']} of cancelled "
+                    f"{annotations_path}: missing annotations for job {job['id']} of canceled "
                     f"run {run_id}; the timeout-kill signal lives only there"
                 )
             steps = job.get("steps")
@@ -563,20 +564,20 @@ def _validate_action_record(record: Any, index: int, seen: set[int]) -> None:
 
 
 def _validate_cancellation(record: Mapping[str, Any], label: str) -> None:
-    """A cancelled run carries a classified cause; nothing else carries one.
+    """A canceled run carries a classified cause; nothing else carries one.
 
     Both halves are load-bearing. Without the first, a version 2 document can still contain the
-    unclassifiable cancelled run this schema exists to prevent. Without the second, a
+    unclassifiable canceled run this schema exists to prevent. Without the second, a
     ``cancellation`` object could be attached to a *successful* run and silently ignored, which is
     how a field stops meaning anything.
     """
     cancellation = record.get("cancellation")
     if record.get("conclusion") != "cancelled":
         if cancellation is not None:
-            raise EvidenceError(f"{label}: only a cancelled run carries a cancellation object")
+            raise EvidenceError(f"{label}: only a canceled run carries a cancellation object")
         return
     if not isinstance(cancellation, dict):
-        raise EvidenceError(f"{label}: a cancelled run must carry a cancellation object")
+        raise EvidenceError(f"{label}: a canceled run must carry a cancellation object")
     cause = cancellation.get("cause")
     if cause not in CANCELLATION_DISPOSITIONS:
         raise EvidenceError(
@@ -886,6 +887,7 @@ def _complete_metrics(actions: dict[str, Any], issues: dict[str, Any]) -> dict[s
             else ("pass" if failure_rate < 0.15 else "alert"),
             "failed_attempts": len(failures),
             "completed_attempts": len(attempts),
+            # `cancelled_*` keys follow GitHub's `cancelled` conclusion and are retained evidence.
             "cancelled_runs": len(cancellations),
             "cancelled_by_cause": cancelled_by_cause,
             "timeout_killed_attempts": cancelled_by_cause["timeout_kill"],
@@ -1011,7 +1013,7 @@ def _metric_baseline(name: str, metric: dict[str, Any]) -> str:
             f"{metric['failed_attempts']} of {metric['completed_attempts']} completed attempts "
             f"({_percent(metric['rate'])}), including {causes['timeout_kill']} killed by its own "
             f"timeout; {causes['never_started'] + causes['superseded']} of "
-            f"{metric['cancelled_runs']} cancelled run(s) were not deployment attempts"
+            f"{metric['cancelled_runs']} canceled run(s) were not deployment attempts"
         )
     if name == "failed_deployment_recovery_time":
         if status == "no_event":
@@ -1093,7 +1095,7 @@ def render_markdown(
             "",
             "Scheduled `.github/workflows/dora.yml` queries Pages runs and `incident` issues.",
             "It normalizes the fields needed for the five metrics, generates and verifies the",
-            "snapshot, and retains all four evidence files as a CI artifact. A cancelled run is",
+            "snapshot, and retains all four evidence files as a CI artifact. A canceled run is",
             "resolved from its own jobs and their check-run annotations: one killed by its",
             "`timeout-minutes` bound is a failed deployment attempt, one whose jobs never started",
             "or was superseded is no attempt at all, and one whose cause this reader cannot name",
@@ -1316,11 +1318,12 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
         help=(
             "directory holding run-<id>.jobs.json and job-<id>.annotations.json for every "
-            "cancelled run in the actions export; required, because a cancelled run whose cause "
+            "canceled run in the actions export; required, because a canceled run whose cause "
             "was not collected must stop the retention rather than be scored as a non-failure"
         ),
     )
 
+    # Subcommand names follow GitHub's `cancelled` conclusion value, which they select on.
     plan_parser = subparsers.add_parser(
         "cancelled-runs", help="print the run ids needing cancellation evidence, one per line"
     )

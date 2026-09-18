@@ -75,7 +75,7 @@ creates a new calibrated observation beside the raw observation. A missing or in
 leaves the value raw/provisional.
 
 Derived heat metrics remain explicit. Heat index derived from calibrated inputs retains that lineage;
-estimated WBGT is labelled estimated and has no occupational guidance band because this implementation
+estimated WBGT is labeled estimated and has no occupational guidance band because this implementation
 does not include a black-globe radiation term.
 
 ### 3. Aggregation and action surfaces

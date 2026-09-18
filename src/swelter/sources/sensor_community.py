@@ -56,7 +56,7 @@ _PM_OVER_RANGE = 999.0
 
 @dataclass(frozen=True)
 class Area:
-    """A circular query area: a name and a centre, with a radius in kilometres."""
+    """A circular query area: a name and a center, with a radius in kilometers."""
 
     name: str
     lat: float

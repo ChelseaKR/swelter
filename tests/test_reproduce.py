@@ -178,7 +178,7 @@ def test_the_fingerprint_is_a_digest_and_never_the_coordinates_themselves(releas
         for path in sorted(release.iterdir())
         if path.is_file()
     )
-    # Bounded so the grid-snapped cell centre the surface legitimately publishes
+    # Bounded so the grid-snapped cell center the surface legitimately publishes
     # (-117.928057) does not satisfy the assertion as a prefix of the precise coordinate.
     assert not re.search(r"(?<![\d.])33\.87(?![\d])", published)
     assert not re.search(r"(?<![\d.])-117\.92(?![\d])", published)
@@ -455,7 +455,7 @@ def test_first_difference_names_a_json_path_not_a_byte_offset() -> None:
     assert reproduce.first_difference(left, left) is None
 
 
-def test_first_difference_reports_the_root_when_only_the_serialisation_moved() -> None:
+def test_first_difference_reports_the_root_when_only_the_serialization_moved() -> None:
     left = json.dumps({"a": 1, "b": 2}, indent=2).encode()
     right = json.dumps({"b": 2, "a": 1}, indent=4).encode()
     assert reproduce.first_difference(left, right) == "$"

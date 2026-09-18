@@ -22,12 +22,12 @@ from typing import Any, cast
 
 from .config import NetworkConfig, snap_to_grid
 
-#: Mean Earth radius (m), the standard haversine constant — plenty accurate at neighbourhood scale.
+#: Mean Earth radius (m), the standard haversine constant — plenty accurate at neighborhood scale.
 _EARTH_RADIUS_M = 6_371_000.0
 
 
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Great-circle distance in metres between two lat/lon points (no external dependency)."""
+    """Great-circle distance in meters between two lat/lon points (no external dependency)."""
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)

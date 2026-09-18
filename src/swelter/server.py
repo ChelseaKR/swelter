@@ -274,7 +274,7 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
         # BaseHTTPRequestHandler honors this for socket reads/writes: a client that opens a
         # connection and trickles bytes (or none) no longer ties up the single request thread
         # indefinitely. Slow-loris defense without switching off the single-threaded model
-        # (ADR 0005 — the one SQLite reader stays serialised).
+        # (ADR 0005 — the one SQLite reader stays serialized).
         timeout = 10
 
         def log_message(self, *_: object) -> None:  # keep stdout clean; structured logs elsewhere
@@ -288,7 +288,7 @@ def _make_handler(ctx: ServerContext) -> type[BaseHTTPRequestHandler]:  # noqa: 
             started = time.monotonic()
             self._status_sent = 0
             parsed = urlparse(self.path)
-            path = parsed.path.rstrip("/") or "/"  # normalise trailing slashes
+            path = parsed.path.rstrip("/") or "/"  # normalize trailing slashes
             query = parse_qs(parsed.query)
             try:
                 route = _GET_ROUTES.get(path)
@@ -672,7 +672,7 @@ def make_server(ctx: ServerContext, host: str, port: int) -> HTTPServer:
     """Build (but do not start) the HTTP server.
 
     Single-threaded on purpose: a community dashboard sits behind a static cache / CDN and
-    needs almost no concurrency, and serialising requests keeps the one SQLite reader safe.
+    needs almost no concurrency, and serializing requests keeps the one SQLite reader safe.
     """
     if _request_logging_enabled():
         obs.configure_json_logging()

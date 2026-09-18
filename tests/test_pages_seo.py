@@ -322,7 +322,7 @@ def test_the_planner_gets_a_canonical_and_a_card_but_no_dataset(tmp_path: Path) 
     the planner does not have. Sharing a link to it previewed as a bare URL.
 
     It must not carry the Dataset graph. The only structured data this project emits
-    describes readings and their licence, and the planner publishes no readings; claiming
+    describes readings and their license, and the planner publishes no readings; claiming
     otherwise would be a claim the page cannot support.
     """
     web_dir = _planner_template(tmp_path)

@@ -115,7 +115,7 @@ class SqliteStore:
         self.path = Path(db_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         # check_same_thread=False so the read-only server can answer from its own thread;
-        # the server is single-threaded (see swelter.server) so access stays serialised.
+        # the server is single-threaded (see swelter.server) so access stays serialized.
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         try:
@@ -320,7 +320,7 @@ class SqliteStore:
             clauses.append("calibration = ?")
             params.append(calibration)
         # Compare instants, not raw strings: the stored column is canonical ...Z, so a valid
-        # but non-canonical bound (an offset, fractional seconds) must be normalised first or
+        # but non-canonical bound (an offset, fractional seconds) must be normalized first or
         # SQLite's lexical TEXT comparison would silently drop or include the wrong rows.
         if since is not None:
             clauses.append("timestamp >= ?")

@@ -37,7 +37,7 @@ value is not a colorful map; it is a traceable path from measurement to claim.
   tests. Current reading and Readings link history, distribution, evidence, map, table, and list.
 - `firmware/`: reference sampling, buffering, and request signing. Signed/staged OTA is not
   implemented; never imply otherwise.
-- `data/`: deterministic demo, calibration inputs, and explicitly labelled contextual/reference
+- `data/`: deterministic demo, calibration inputs, and explicitly labeled contextual/reference
   fixtures. Source terms are not inferred from directory placement.
 - `infra/`: optional deployment reference. Static publication is a supported shape; a live
   authenticated ingest listener is a separate operator responsibility.

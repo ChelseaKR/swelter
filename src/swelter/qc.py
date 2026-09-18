@@ -35,7 +35,7 @@ from .models import (
 )
 
 # Per-parameter spike threshold: a reading that departs from the median of its immediate
-# neighbours by more than this (in the parameter's unit) is an isolated spike. Conservative
+# neighbors by more than this (in the parameter's unit) is an isolated spike. Conservative
 # on purpose — real heat and smoke events are gradual at a five-minute cadence.
 _SPIKE_THRESHOLD: dict[str, float] = {
     "temp_c": 8.0,
@@ -46,7 +46,7 @@ _SPIKE_THRESHOLD: dict[str, float] = {
     "heat_index_c": 10.0,
     "wbgt_c": 10.0,
     # Wind chill swings with both temperature and gusting wind, so it is more volatile hour-to-hour
-    # than air temperature; a >12 °C jump against clean neighbours still reads as a sensor spike.
+    # than air temperature; a >12 °C jump against clean neighbors still reads as a sensor spike.
     "wind_chill_c": 12.0,
 }
 
@@ -89,9 +89,9 @@ def range_flag(obs: Observation) -> str:
 
 
 def _flag_spikes(series: list[Observation], flags: list[str], n: int) -> None:
-    """Mark isolated departures from the local median of the two neighbours, in place.
+    """Mark isolated departures from the local median of the two neighbors, in place.
 
-    Only QC-clean neighbours count — an already-flagged out-of-range neighbour would drag the
+    Only QC-clean neighbors count — an already-flagged out-of-range neighbor would drag the
     median and mislabel a perfectly valid reading next to a fault as a spike.
     """
     threshold = _SPIKE_THRESHOLD.get(series[0].parameter) if series else None
@@ -100,10 +100,10 @@ def _flag_spikes(series: list[Observation], flags: list[str], n: int) -> None:
     for i in range(1, n - 1):
         if flags[i] != QC_OK:
             continue
-        neighbours = [series[j].value for j in (i - 1, i + 1) if flags[j] == QC_OK]
-        if not neighbours:
-            continue  # both neighbours are faulty — no clean baseline to judge against
-        local = median(neighbours)
+        neighbors = [series[j].value for j in (i - 1, i + 1) if flags[j] == QC_OK]
+        if not neighbors:
+            continue  # both neighbors are faulty — no clean baseline to judge against
+        local = median(neighbors)
         if abs(series[i].value - local) > threshold:
             flags[i] = QC_SPIKE
 
@@ -716,7 +716,7 @@ def node_health(
     *,
     expected_interval_s: float = 3600.0,
 ) -> list[NodeHealth]:
-    """Summarise each node: how much it reported, how clean, whether it is live, and how complete
+    """Summarize each node: how much it reported, how clean, whether it is live, and how complete
     its record is (so a mid-window outage shows as degraded, not silently healthy)."""
     by_node: dict[str, list[Observation]] = defaultdict(list)
     for obs in observations:

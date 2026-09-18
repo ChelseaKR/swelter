@@ -141,7 +141,7 @@ def test_cams_network_panel_reports_grid_cells_rather_than_device_health() -> No
     )
 
 
-def test_sources_with_real_hardware_keep_the_catalogue_sensor_wording() -> None:
+def test_sources_with_real_hardware_keep_the_catalog_sensor_wording() -> None:
     """The override is opt-in: Sensor.Community measures with real low-cost sensors, so its Network
     tab must keep saying "sensors". It declares no terminology, and ``sourceTerm`` falls back."""
     for source_id in ("sensor-community", "openaq"):

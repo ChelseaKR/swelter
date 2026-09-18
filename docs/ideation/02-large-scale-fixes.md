@@ -13,7 +13,7 @@ is in [`01-deep-dive.md`](01-deep-dive.md).
 into code: a minimal operator-side ingest listener with per-node keyed authentication.
 
 **Why it matters.** This is the single largest docs-vs-code gap. Today ingest is file/CLI only
-(`src/swelter/ingest.py`; `server.py` is GET-only), so the spoofing defence the security audit
+(`src/swelter/ingest.py`; `server.py` is GET-only), so the spoofing defense the security audit
 cites does not exist in software — a real deployment would improvise it. For stewards (B-group
 personas) it is the difference between a network they can actually run and a demo.
 
@@ -44,7 +44,7 @@ stretch is never mislabeled and — critically — a QC-rejected value degrades 
 provisional*, not to absence.
 
 **Why it matters.** `aggregate.py` drops QC-rejected values entirely (line ~231), while
-`qc._SPIKE_THRESHOLD` (150 µg/m³ vs neighbour median) and `FLATLINE_RUN = 6` are hardcoded
+`qc._SPIKE_THRESHOLD` (150 µg/m³ vs neighbor median) and `FLATLINE_RUN = 6` are hardcoded
 heuristics. The worst hour of a smoke event is exactly when a flagged-then-dropped cell would
 blank the map for the residents who most need it. This is a correctness risk to the mission, not a
 tuning nicety.

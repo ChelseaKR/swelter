@@ -3,7 +3,7 @@
 ``swelter snapshot`` freezes a citable release. What it does not produce is a *catalog record*:
 the thing a CKAN instance (``data.ca.gov``) or a Socrata portal harvests before a dataset is
 findable by anyone who was not sent the link. Those portals read two well-known descriptors — a
-Frictionless ``datapackage.json`` (resources, a Table Schema, licences, digests) and a DCAT
+Frictionless ``datapackage.json`` (resources, a Table Schema, licenses, digests) and a DCAT
 record (``dcat:Dataset`` with ``dcat:distribution``) — and this module writes both from a
 snapshot that already exists.
 
@@ -20,9 +20,9 @@ reports clean over a release whose every byte was replaced.
 
 **A per-location source does not get an SPDX id it never had.** OpenAQ redistributes other
 providers' data under terms that differ location by location (hard rule 6), so a package built
-from such a snapshot sets its ``licenses`` entry to the snapshot's own licence *statement* and
+from such a snapshot sets its ``licenses`` entry to the snapshot's own license *statement* and
 points ``path`` at the retained ``source-license-ledger.json``, rather than flattening a mixed
-rights position into one identifier a harvester would then republish as fact. Only the licence
+rights position into one identifier a harvester would then republish as fact. Only the license
 strings this project can map with certainty (``CC0-1.0``, ``CC-BY-4.0``) get an SPDX ``name``.
 
 **The Table Schema is generated from the data dictionary, and refuses to guess.** Fields come
@@ -90,7 +90,7 @@ _TABULAR_RESOURCE_PROFILE_URL: Final = (
     "https://datapackage.org/profiles/2.0/tabulardataresource.json"
 )
 
-#: Licence strings this project can map to an SPDX identifier without interpreting anything. A
+#: License strings this project can map to an SPDX identifier without interpreting anything. A
 #: string absent from here is published as a statement with no ``name``, never as a guess: see the
 #: per-location rule in the module docstring.
 _SPDX_BY_LICENSE: Final[dict[str, str]] = {
@@ -138,7 +138,7 @@ _EXPORT_ONLY_COLUMNS: Final[dict[str, dict[str, object]]] = {
     "data_license": {
         "type": "string",
         "description": (
-            "The licence this row is released under. Repeated per row so an extracted subset "
+            "The license this row is released under. Repeated per row so an extracted subset "
             "stays self-describing; for a per-location source it may differ between rows, which "
             "is why it is a column and not a single package-level identifier."
         ),
@@ -340,7 +340,7 @@ def _licenses(manifest: dict[str, Any], *, has_ledger: bool) -> list[dict[str, o
     if spdx is not None:
         entry["name"] = spdx
     if has_ledger:
-        # A per-location source has no single licence. `path` sends a harvester to the retained
+        # A per-location source has no single license. `path` sends a harvester to the retained
         # per-location evidence instead of letting `title` be read as one blanket grant.
         entry["path"] = SOURCE_LICENSE_LEDGER_FILENAME
     return [entry]
@@ -574,7 +574,7 @@ def _resources(inputs: _VerifiedInputs, csv_bytes: bytes) -> list[dict[str, obje
             _resource(
                 name="source-license-ledger",
                 path=SOURCE_LICENSE_LEDGER_FILENAME,
-                title="Per-location upstream licence and attribution evidence",
+                title="Per-location upstream license and attribution evidence",
                 mediatype="application/json",
                 payload=inputs.ledger,
                 fmt="json",

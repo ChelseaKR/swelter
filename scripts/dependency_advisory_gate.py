@@ -45,7 +45,7 @@ OSV_CONFIG_PATH = ROOT / "osv-scanner.toml"
 #: --audit-level=high` floor this replaces, unchanged.
 BLOCKING = frozenset({"high", "critical"})
 
-#: The waiver kind these gates honour. Waivers of any other kind are ignored
+#: The waiver kind these gates honor. Waivers of any other kind are ignored
 #: here, so a semgrep waiver can never accept a dependency advisory.
 KIND = "dependency-advisory"
 

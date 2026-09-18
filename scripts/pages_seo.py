@@ -603,7 +603,7 @@ def _static_metadata_block(*, base_url: str, route: str, title: str, description
     """Discovery metadata for a published page that is not a data surface.
 
     Deliberately narrower than :func:`_metadata_block`. It carries no JSON-LD, because the
-    only graph this project emits describes readings and their licence, and a page that
+    only graph this project emits describes readings and their license, and a page that
     publishes no readings must not claim to. It also does NOT rewrite the page's title or
     description: those are correct in source for a static page, whereas a data surface's are
     only truthful once the deployed fallback is known.

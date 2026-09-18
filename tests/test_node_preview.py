@@ -35,12 +35,12 @@ def test_haversine_m_known_short_distance() -> None:
 
 
 def test_offset_between_exact_and_snapped_is_within_grid_diagonal() -> None:
-    """The published cell centre can never be farther from the sensor than the cell diagonal."""
+    """The published cell center can never be farther from the sensor than the cell diagonal."""
     lat, lon = 38.581600, -121.494400
     grid_m = 150.0
     snapped = snap_to_grid(lat, lon, grid_m)
     offset = haversine_m(lat, lon, snapped[0], snapped[1])
-    # A point anywhere in a grid_m-sided square is at most grid_m * sqrt(2) from the centre.
+    # A point anywhere in a grid_m-sided square is at most grid_m * sqrt(2) from the center.
     assert offset <= grid_m * 1.5  # generous slack over the exact sqrt(2) diagonal
 
 

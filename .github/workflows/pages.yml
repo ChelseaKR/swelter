@@ -1,4 +1,4 @@
-# Publish the dashboard to GitHub Pages with source-labelled open data on two routes:
+# Publish the dashboard to GitHub Pages with source-labeled open data on two routes:
 #   "/"         — California. Physical sensors from OpenAQ when the OPENAQ_API_KEY repository
 #                 secret is set; otherwise Copernicus CAMS model data or the synthetic fixture.
 #   "/sensors/" — Sensor.Community readings near Stuttgart when available; otherwise a truthful

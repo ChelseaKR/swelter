@@ -448,7 +448,7 @@ def test_every_declared_route_answers_and_the_table_is_the_whole_dispatch(
         # 200 or 404 (a route whose optional artifact this fixture has no file for) are both
         # "the route resolved"; a 500 would mean the table calls the wrong thing.
         assert status in (200, 404), f"{path} answered {status}"
-    # Trailing slashes are still normalised before the lookup, as the old chain assumed.
+    # Trailing slashes are still normalized before the lookup, as the old chain assumed.
     assert _get(f"{base_url}/api/schema.json/")[0] == 200
     # A path the table does not name reaches the static handler, not an error branch.
     assert _get(f"{base_url}/index.html")[0] == 200

@@ -52,7 +52,7 @@ published California routes include the basemap. List and Table always expose ev
 the overview represents nearby Map targets as one group.
 
 Air-quality severity is conveyed by **text and pattern**, never color alone. Cells with only
-uncalibrated readings are labelled **provisional**, never shown as confirmed fact. The time slider,
+uncalibrated readings are labeled **provisional**, never shown as confirmed fact. The time slider,
 history window, tabs, and exposure braid are keyboard operable; the selected time and linked-view
 changes are exposed as text/status output.
 
@@ -160,7 +160,7 @@ against the route serving it and requires a file that is really there, and it re
 sitemap URL to have an inbound link from another rendered page — a page reachable only from the
 sitemap gets no readers. `make seo` runs it at PR time against a model of the deployed layout; the
 Pages job runs it again on the finished artifact immediately before upload, where nothing is
-modelled. Its route set is read from the tree, so a new page directory that nothing added to
+modeled. Its route set is read from the tree, so a new page directory that nothing added to
 `PUBLISHED_ROUTES` — and which would therefore ship with no canonical, no card and no sitemap
 entry — fails the same gate.
 

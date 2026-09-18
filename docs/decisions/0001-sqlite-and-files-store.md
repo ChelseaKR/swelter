@@ -32,11 +32,11 @@ SQLite now does not foreclose Parquet later.
 
 ## Known weakness / Consequences
 
-SQLite is single-writer: concurrent ingest processes will serialise or contend
+SQLite is single-writer: concurrent ingest processes will serialize or contend
 on the write lock, so this design assumes one writer (the pipeline) and many
 readers. That is exactly why `swelter.server` is single-threaded and read-only,
 and why `SqliteStore` opens with `check_same_thread=False` only under that
-serialised access. The model does not scale to high-frequency, many-writer
+serialized access. The model does not scale to high-frequency, many-writer
 ingestion or to a dataset larger than one host's disk; a network that outgrows a
 single board computer would implement a Parquet/Arrow `Store` backend rather
 than bolt clustering onto SQLite. Append-only means the raw table only grows;

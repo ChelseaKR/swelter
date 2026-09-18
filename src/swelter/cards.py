@@ -354,7 +354,7 @@ body.large-type { font-size: 20px; }
 .qr-url { font-family: monospace; font-size: 0.75em; word-break: break-all; }
 .provenance { margin: 0.5rem 0 0; font-size: 0.8em; color: #333; }
 .provenance.provisional { font-style: italic; }
-/* Flagged has to read differently from provisional in print, where colour may not survive. */
+/* Flagged has to read differently from provisional in print, where color may not survive. */
 .provenance.flagged { font-style: italic; font-weight: 700; }
 @media print {
   @page { margin: 1.2cm; }

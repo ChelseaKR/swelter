@@ -7,7 +7,7 @@ store key is idempotent, so a node backfilling its store-and-forward buffer afte
 fills the gap instead of duplicating.
 
 Validation is strict but forgiving in the right direction. A payload missing a node id or a
-timestamp, or carrying no recognisable parameter, is *quarantined* (written to
+timestamp, or carrying no recognizable parameter, is *quarantined* (written to
 ``quarantine.jsonl`` with a reason) rather than ingested — malformed data never silently
 enters the record. Unknown extra fields are ignored, so a firmware that adds a sensor does not
 break intake.
@@ -102,7 +102,7 @@ def explode(payload: dict[str, Any]) -> tuple[list[Observation], str | None]:
             )
         )
     if not observations:
-        return [], "no recognised parameters"
+        return [], "no recognized parameters"
     return observations, None
 
 

@@ -213,7 +213,7 @@ def format_timestamp(dt: datetime) -> str:
 
 
 # US EPA PM2.5 AQI breakpoints (2024 revision), 24-hour averages, micrograms per cubic
-# metre. Each tuple is (concentration low, concentration high, AQI low, AQI high, category).
+# meter. Each tuple is (concentration low, concentration high, AQI low, AQI high, category).
 _PM25_AQI: Final[tuple[tuple[float, float, int, int, str], ...]] = (
     (0.0, 9.0, 0, 50, "Good"),
     (9.1, 35.4, 51, 100, "Moderate"),
@@ -394,7 +394,7 @@ def wind_chill_c(temp_c: float, wind_kph: float) -> float:
 
     This is the standard NWS/Environment-Canada wind-chill index (the 2001 North American revision),
     metric form: ``WCT = 13.12 + 0.6215*T - 11.37*V^0.16 + 0.3965*T*V^0.16`` with ``T`` in °C and
-    ``V`` the 10-metre wind speed in km/h. It is a **documented approximation of how cold exposed
+    ``V`` the 10-meter wind speed in km/h. It is a **documented approximation of how cold exposed
     skin feels**, not a measured quantity: it models convective and evaporative heat loss from bare
     skin for an average adult walking into the wind, and it says nothing about a person's actual
     core temperature, clothing, sun, or health. Producers must label it "wind chill," never present

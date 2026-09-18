@@ -4,7 +4,7 @@ Last verified: 2026-07-31. Automated MF2 and browser suites: passing in CI and l
 Recheck cadence: each release, and on any change under `web/`.
 
 This is the committed accessibility report that audit E in
-[../RESPONSIBLE-TECH-AUDITS.md](../RESPONSIBLE-TECH-AUDITS.md) references. It summarises the
+[../RESPONSIBLE-TECH-AUDITS.md](../RESPONSIBLE-TECH-AUDITS.md) references. It summarizes the
 structural WCAG 2.2 AA gate and the status of the manual review. Methodology — what auto-gated
 versus review-gated means — is in [methodology.md](methodology.md).
 
@@ -25,12 +25,12 @@ deterministically. As of the verified date, all twelve checks pass.
 | 3 | Exactly one `<h1>` | 1.3.1 Info and Relationships | PASS |
 | 4 | Landmarks present (`main`, `header`) | 1.3.1, 2.4.1 Bypass Blocks | PASS |
 | 5 | A skip link targets an in-page id | 2.4.1 Bypass Blocks | PASS |
-| 6 | Every form control is labelled | 1.3.1, 3.3.2, 4.1.2 | PASS |
+| 6 | Every form control is labeled | 1.3.1, 3.3.2, 4.1.2 | PASS |
 | 7 | A semantic data-table shell is present | 1.1.1 Non-text Content | PASS |
 | 8 | Every `<img>` has an `alt` attribute | 1.1.1 Non-text Content | PASS |
 | 9 | No positive `tabindex` | 2.4.3 Focus Order | PASS |
 | 10 | A language switch is present | 3.1.2 Language of Parts (en/es) | PASS |
-| 11 | CSS honours `prefers-reduced-motion` | 2.3.3 Animation from Interactions | PASS |
+| 11 | CSS honors `prefers-reduced-motion` | 2.3.3 Animation from Interactions | PASS |
 | 12 | CSS provides a visible focus indicator | 2.4.7 Focus Visible | PASS |
 
 Check 7 proves only that the static shell retains a semantic table; a parser cannot prove that its
@@ -43,12 +43,12 @@ removed.
 
 The script is honest about its limits. With no browser and no DOM it cannot judge:
 
-- computed colour-contrast ratios (1.4.3, 1.4.11) — mitigated in design by conveying AQI and heat
-  severity with text and pattern, never colour alone;
+- computed color-contrast ratios (1.4.3, 1.4.11) — mitigated in design by conveying AQI and heat
+  severity with text and pattern, never color alone;
 - live ARIA semantics and announcement order, e.g. the time slider's `aria-live` value
   announcements;
 - reading and focus order as actually experienced with a screen reader;
-- reflow and target-size behaviour at real viewport sizes (1.4.10, 2.5.8).
+- reflow and target-size behavior at real viewport sizes (1.4.10, 2.5.8).
 
 Browser assertions now cover computed contrast, keyboard paths, reflow, target size, reduced
 motion, and a 40%-expanded pseudolocale. The structural gate and CI browser engines are configured
@@ -60,7 +60,7 @@ separately.
 - **Baseline reviewer:** Chelsea Kelly-Reif.
 - **Date of last full manual pass:** 2026-06-16, before the expanded observatory sequence.
 - **Tools:** NVDA (Firefox), VoiceOver (Safari), keyboard-only traversal.
-- **Baseline scope:** map, table, list, time slider, language switch, focus order, and non-colour
+- **Baseline scope:** map, table, list, time slider, language switch, focus order, and non-color
   severity cues.
 - **Current result:** the baseline found no AA blocker in that original scope. It is not reused as
   proof for the new history braid, distribution, evidence inspector, or mobile sequence.
@@ -90,13 +90,13 @@ separately.
 ## Contrast on patterned severity surfaces
 
 The map cells, distribution-braid axis/time labels, and the table's AQI/heat severity chips carry the
-WCAG-mandated non-colour severity texture as a pattern or gradient `background-image` (hard rule 5).
-axe-core cannot compute colour-contrast *through* a pattern background, so for text drawn over that
+WCAG-mandated non-color severity texture as a pattern or gradient `background-image` (hard rule 5).
+axe-core cannot compute color-contrast *through* a pattern background, so for text drawn over that
 texture it returns `incomplete` ("cantTell") rather than a pass or a violation. The browser gate
 (`web/tests/browser/conformance.spec.js`) allowlists only these `color-contrast` **incomplete**
 results, scoped to the cell/reading/category and severity-chip families, and never a real violation.
 The paired assertion "patterned visualization text has an independently verified 4.5:1 contrast pair"
-independently computes the ratio for a map reading, a braid label, and a severity chip in both colour
+independently computes the ratio for a map reading, a braid label, and a severity chip in both color
 schemes, so the allowlist rests on measured contrast, not on a suppressed check.
 
 Two supporting fixes make that allowlist honest rather than a silencer:
@@ -144,7 +144,7 @@ The `/sensors/` route also showed a Lighthouse cumulative-layout-shift of 0.133 
 The cause was the resident-facing **Now** card filling from its short HTML placeholders a frame later
 and shoving the blocks below it. The card's answer, temporal line, guidance, and status now reserve
 their rendered heights, and the Now card is painted in the first synchronous render pass rather than in
-the deferred workspace pass; the boot fetches (catalogue, demo contract, basemap, first snapshot) also
+the deferred workspace pass; the boot fetches (catalog, demo contract, basemap, first snapshot) also
 run in parallel to shorten the path to that paint. Measured CLS drops to <0.06 on `/sensors/` and
 stays <0.02 on `/`, both inside the 0.1 budget. The 2026-07-31 local and CI Lighthouse runs passed
 both route budgets, with largest-contentful paint at or below 2.5s under the configured throttle. PR

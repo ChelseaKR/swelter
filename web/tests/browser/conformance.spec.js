@@ -55,11 +55,11 @@ async function assertNoBlockingAxe(page, label) {
       const html = (node.html || "").toLowerCase();
       const selectorLower = selector.toLowerCase();
       // The map cells, distribution-braid axis/time labels, and table severity chips all carry the
-      // WCAG-mandated non-colour severity texture as a pattern/gradient background-image (hard
-      // rule 5). axe-core cannot compute colour-contrast through a pattern background, so for text
+      // WCAG-mandated non-color severity texture as a pattern/gradient background-image (hard
+      // rule 5). axe-core cannot compute color-contrast through a pattern background, so for text
       // drawn over that texture it returns "incomplete" (cantTell) rather than a pass or a
       // violation. Every one of these elements draws permanent dark severity ink on a solid,
-      // opaque severity fill and clears AA in BOTH colour schemes — proven independently by the
+      // opaque severity fill and clears AA in BOTH color schemes — proven independently by the
       // "independently verified 4.5:1 contrast pair" test below (map reading, braid label, and a
       // severity chip). Allow ONLY these cantTell results; a real color-contrast violation is never
       // allowlisted. Matching is case-insensitive so class/coordinate casing cannot slip a node
@@ -85,7 +85,7 @@ async function assertNoBlockingAxe(page, label) {
           (check) =>
             check.id === "error-occurred" &&
             check.data?.ruleId === "target-size" &&
-            // axe emits this message with varying capitalisation across engine versions
+            // axe emits this message with varying capitalization across engine versions
             // ("Reduce"/"reduce of empty array"); match case-insensitively so the known
             // target-size engine error on grid cells stays allowlisted.
             check.data?.message?.toLowerCase().includes("reduce of empty array"),

@@ -10,7 +10,7 @@
 // line. See #281.
 //
 // This REQUIRES the config the way Playwright reads it rather than matching its
-// text, so a key that is commented out, misspelt, or set to `false` cannot
+// text, so a key that is commented out, misspelled, or set to `false` cannot
 // satisfy it. It runs here, in the unit suite, because the browser gate that
 // uses the config is advisory and this assertion is not: `web-tests` is the job
 // that must go red if the policy is dropped.

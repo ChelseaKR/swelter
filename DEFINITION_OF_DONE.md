@@ -57,7 +57,7 @@ Owner: Chelsea Kelly-Reif. Review cadence: quarterly and before every release.
   blocked; the same rule applies to required human translation review.
 - [ ] Current and prior stable branded Edge pass the compatibility smoke defined in
   [`web/README.md`](web/README.md#browser-support-policy), or the release is explicitly blocked; the
-  Chromium engine run is supporting evidence, not a relabelled branded-Edge pass.
+  Chromium engine run is supporting evidence, not a relabeled branded-Edge pass.
 - [ ] The source cards, DPIA, threat model, fairness review, ethics scan, and residual-risk register
   have been rechecked against the exact release candidate.
 - [ ] The operations runbook and rollback procedure are current.

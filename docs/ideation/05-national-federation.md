@@ -57,7 +57,7 @@ backlog (§5), and the failure modes the plan is designed against (§6).
 never hold); no person-shaped data or surveillance; the authenticated-write / public-read boundary;
 coarse public locations by default; raw and calibrated never blur; caveats travel to every surface;
 map/table/list outcome-equivalence and the WCAG/bilingual gates; source-license fail-closed — a
-member's terms and attribution are never relabelled; no invented release, deployment, or partnership.
+member's terms and attribution are never relabeled; no invented release, deployment, or partnership.
 
 ## 3. How the executing model must work (read this before any task)
 
@@ -148,7 +148,7 @@ the **invariants** it must not break. Tasks are additive and reversible; none we
   `api`/`crosswalk` to read members; every published cell carries `network`, `steward_channel`,
   `license`, `attribution`, freshness, and the same provisional/uncertainty caveats it had at the source.
 - **Acceptance.** The two-fixture federation produces one surface in which every cell names its owning
-  network and no member's terms are relabelled; a missing-terms fixture fails closed. `make verify` green.
+  network and no member's terms are relabeled; a missing-terms fixture fails closed. `make verify` green.
 - **Invariants.** Read, never hold: the builder derives a surface, it does not create a central store.
   Source terms travel; caveats travel; coarse locations only.
 
@@ -173,7 +173,7 @@ the **invariants** it must not break. Tasks are additive and reversible; none we
 - **Goal.** Make the catalog system pluggable for additional languages and add one third-language proof
   catalog behind the existing parity/encoding/BCP-47 gates, so national language access can grow.
 - **Files.** `web/i18n/`, `src/swelter/locales/`, the i18n scripts, docs. **[HUMAN-GATE]** native-speaker
-  review per new language — a machine-drafted catalog ships labelled machine-translated or waits.
+  review per new language — a machine-drafted catalog ships labeled machine-translated or waits.
 - **Acceptance.** i18n parity/encoding/BCP-47/CLDR gates pass for the new language; the machine-translation
   label is present until a named human review exists.
 - **Invariants.** No unperformed translation review claimed as complete.

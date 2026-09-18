@@ -1,7 +1,7 @@
 # swelter multiyear plan, 2026 to 2029
 
 [`ROADMAP.md`](ROADMAP.md) records delivery state through Phase 5 and the completion loop for the
-first release. [`RESEARCH-ROADMAP.md`](RESEARCH-ROADMAP.md) records a prioritised backlog assembled
+first release. [`RESEARCH-ROADMAP.md`](RESEARCH-ROADMAP.md) records a prioritized backlog assembled
 from a synthetic persona panel and cited external research. Neither says what order the *next two
 to three years* run in, or which of it is engineering and which is waiting on a person. This file
 does, and only that; it introduces no new direction of its own.
@@ -102,7 +102,7 @@ actually run.
   therefore already not counted as a change failure. What is genuinely open is narrower: a
   cancellation caused by a runner never picking the job up is indistinguishable in the snapshot
   from one a human triggered, and neither is distinguishable from a job that died in two seconds on
-  an Actions spending limit. That is a labelling improvement to an existing correct metric, not a
+  an Actions spending limit. That is a labeling improvement to an existing correct metric, not a
   missing metric.
 - Extend the mutation-selected set beyond `calibrate`, `models`, and `qc` once the harness is
   trustworthy, starting with the surviving mutants in the correction-registry serialization and the
@@ -143,7 +143,7 @@ rollback readiness.
   ([#105](https://github.com/ChelseaKR/swelter/issues/105)).
 - A retained DORA baseline and a hosted performance baseline
   ([#109](https://github.com/ChelseaKR/swelter/issues/109)), the second of which needs a real
-  deployment window rather than lab Lighthouse numbers relabelled as field evidence.
+  deployment window rather than lab Lighthouse numbers relabeled as field evidence.
 
 Engineering can still finish [#107](https://github.com/ChelseaKR/swelter/issues/107) — retiring or
 narrowing the tracked static-analysis suppressions until the hygiene gate reports none — and that
@@ -247,7 +247,7 @@ has been accumulating this list deliberately, each item deferred with a reason:
 - Extending [ADR 0041](adr/0041-a-derived-reading-is-only-as-real-as-its-inputs.md)'s input
   plausibility guard into `calibrate.apply`'s derivation path, named there as follow-up work rather
   than a silent inclusion.
-- **E4**, the no-local-reference transfer-calibration path: a travelling reference unit, or chained
+- **E4**, the no-local-reference transfer-calibration path: a traveling reference unit, or chained
   co-location to a distant AQS site, with the weakened provenance recorded honestly. This is the
   single largest unlock for a community with no regulatory monitor nearby, and the research
   roadmap's own evidence says the nearest monitor averages about 19 km in urban areas.

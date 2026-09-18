@@ -19,7 +19,7 @@ So it counts now, against a committed ceiling:
 * **Below** it also fails, asking you to lower the ceiling. That is the ratchet: retiring a
   suppression and leaving the ceiling up would hand the slack straight back.
 
-The ceiling is a number, not a judgement about which suppressions are correct. Several here are
+The ceiling is a number, not a judgment about which suppressions are correct. Several here are
 permanent and right — ``S603`` on a fixed-argv subprocess call does not become wrong with age.
 Ratcheting the count is what makes the *direction* enforceable while that argument stays open.
 """

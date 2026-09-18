@@ -348,7 +348,7 @@ def test_a_publication_route_of_any_kind_changes_the_sentence_the_evidence_must_
     assert dora_evidence.publication_route(_workflow(tmp_path, pushed)) == "repository"
 
 
-def test_a_workflow_the_reader_no_longer_recognises_is_refused_not_called_artifact_only(
+def test_a_workflow_the_reader_no_longer_recognizes_is_refused_not_called_artifact_only(
     tmp_path: Path,
 ) -> None:
     """``build-artifact`` is the answer a reader returns when it understands the file and finds
@@ -410,7 +410,7 @@ def test_an_incomplete_reason_that_predates_the_workflow_is_refused_and_a_comple
     )
 
 
-# --- #267: a cancelled run is four outcomes, and the DORA failure set must tell them apart ----
+# --- #267: a canceled run is four outcomes, and the DORA failure set must tell them apart ----
 #
 # Every annotation string below is the exact text GitHub wrote, copied from a real run:
 # `gtfs-scorecard` run 34162993774 / job 101868453025 for the timeout kill, and swelter `ci.yml`
@@ -506,7 +506,7 @@ def test_dora_counts_a_job_killed_by_its_own_timeout_as_a_failed_deployment() ->
         "timeout_kill", messages=(TIMEOUT_KILL_MESSAGE, OPERATION_CANCELED_MESSAGE)
     )
     assert dora_evidence._classify_cancellation(killed["jobs"]) == "timeout_kill", (
-        "the classifier must recognise the exact sentence GitHub writes"
+        "the classifier must recognize the exact sentence GitHub writes"
     )
     assert (
         dora_evidence.run_disposition({"conclusion": "cancelled", "cancellation": killed})
@@ -532,7 +532,7 @@ def test_dora_change_fail_rate_counts_a_timeout_kill_and_opens_its_recovery(
 def test_dora_does_not_count_a_cancellation_that_never_reached_a_runner(tmp_path: Path) -> None:
     """Adding ``cancelled`` to the failure set would have been worse than the blindness.
 
-    All 38 cancelled ``pages.yml`` runs in this repository's history returned ``total_count: 0``
+    All 38 canceled ``pages.yml`` runs in this repository's history returned ``total_count: 0``
     from the jobs endpoint -- evicted out of the pending queue before a runner existed. Counting
     them would put a false 12.5% on a metric whose target is 15%.
     """
@@ -563,9 +563,9 @@ def test_dora_does_not_count_a_run_superseded_while_a_job_was_running(tmp_path: 
 
 def test_dora_refuses_a_cancellation_whose_cause_it_cannot_name(tmp_path: Path) -> None:
     """ "We could not tell" must not arrive at the reader spelled "it did not fail"."""
-    unrecognised = _cancellation("unrecognised", messages=(OPERATION_CANCELED_MESSAGE,))
-    assert dora_evidence._classify_cancellation(unrecognised["jobs"]) == "unrecognised"
-    metrics = _metrics_over(_deploy_and_cancellation(unrecognised), tmp_path)
+    unrecognized = _cancellation("unrecognised", messages=(OPERATION_CANCELED_MESSAGE,))
+    assert dora_evidence._classify_cancellation(unrecognized["jobs"]) == "unrecognised"
+    metrics = _metrics_over(_deploy_and_cancellation(unrecognized), tmp_path)
     for name in ("change_fail_rate", "failed_deployment_recovery_time"):
         assert metrics[name]["status"] == "unavailable", name
         assert metrics[name]["unresolved_runs"] == [2], name
@@ -688,7 +688,7 @@ def test_dora_retention_refuses_a_cancelled_run_whose_cause_was_not_collected(
 ) -> None:
     """The half that makes the rest of this trustworthy.
 
-    If a fetch fails in the collector, the cheap outcome is a retained window in which a cancelled
+    If a fetch fails in the collector, the cheap outcome is a retained window in which a canceled
     run simply has no cause -- and a reader that defaults a missing cause to "not a failure" has
     rebuilt the blindness with more code. So retention stops.
     """
@@ -745,7 +745,7 @@ def test_dora_retention_classifies_and_attaches_the_cause(tmp_path: Path) -> Non
     )
     dora_evidence.retain(args)
     retained = json.loads((args.out_dir / "actions.json").read_text(encoding="utf-8"))
-    assert retained["schema_version"] == 2, "a v1 document cannot say why a run was cancelled"
+    assert retained["schema_version"] == 2, "a v1 document cannot say why a run was canceled"
     cancellation = retained["records"][0]["cancellation"]
     assert cancellation["cause"] == "timeout_kill"
     assert cancellation["jobs"][0]["steps"] == 8, (
@@ -765,7 +765,7 @@ def test_dora_refuses_a_cancellation_object_on_a_run_that_was_not_cancelled() ->
         title="feat: ship",
         cancellation=_cancellation("timeout_kill", messages=(TIMEOUT_KILL_MESSAGE,)),
     )
-    with pytest.raises(dora_evidence.EvidenceError, match="only a cancelled run"):
+    with pytest.raises(dora_evidence.EvidenceError, match="only a canceled run"):
         dora_evidence._validate_action_record(record, 0, seen)
 
 
@@ -800,7 +800,7 @@ def test_dora_schema_refuses_a_cancelled_record_carrying_no_cause() -> None:
     ``retain`` cannot emit such a record, so no test through ``retain`` can fail if the schema
     rule is deleted -- a negative control proved exactly that. But ``check`` also validates
     evidence read off disk: a hand-edited `docs/audits/dora/actions.json`, or a 90-day artifact
-    retained before schema 2, would otherwise arrive with cancelled runs and no cause and be
+    retained before schema 2, would otherwise arrive with canceled runs and no cause and be
     scored as if none of them had failed.
     """
     seen: set[int] = set()

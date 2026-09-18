@@ -50,7 +50,7 @@ swelter-computed "this neighborhood is worse" score. Keeping that boundary at th
 than only by review discipline.
 
 The committed dataset is an **illustrative sample** on the synthetic demo network's published grid
-cells — it is labelled as such in its metadata and is explicitly not a real canopy survey. A real
+cells — it is labeled as such in its metadata and is explicitly not a real canopy survey. A real
 deployment replaces it with a jurisdiction's published tree-canopy or land-cover dataset (for
 example a USFS Urban Tree Canopy assessment or a city open-data portal) under that source's
 license, keeping the `last_verified` discipline this repo applies to every external-fact artifact.

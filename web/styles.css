@@ -518,8 +518,8 @@ input[type="range"][aria-disabled="true"] {
   background-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.5) 0 2px, transparent 2px 4px);
 }
 
-/* Heat map scale (cool → hot). The marker's number is the primary signal; colour + pattern are a
-   redundant cue so the heat island is legible without relying on colour alone. */
+/* Heat map scale (cool → hot). The marker's number is the primary signal; color + pattern are a
+   redundant cue so the heat island is legible without relying on color alone. */
 .heat-1 { background-color: var(--heat-1-bg); background-image: none; }
 .heat-2 {
   background-color: var(--heat-2-bg);
@@ -1219,7 +1219,7 @@ footer code {
 }
 
 /* The footer's "Opt out of analytics" control (ADR 0055), styled like the settings button so
-   it never falls back to the user agent's button colours, which fail contrast in dark mode. */
+   it never falls back to the user agent's button colors, which fail contrast in dark mode. */
 .analytics-choice {
   margin: 0.5rem 0 0;
 }
