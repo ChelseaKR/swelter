@@ -1,5 +1,7 @@
 # Spanish translations for swelter alert feeds.
 # Machine-drafted; independent fluent review is tracked in issue #106.
+# Ships labeled machine-translated, not reviewed by a person (owner decision, 2026-09-18);
+# every Spanish feed surface shows the notice from i18n_alerts.machine_translation_notice().
 msgid ""
 msgstr ""
 "Project-Id-Version: swelter 0.1.0\n"

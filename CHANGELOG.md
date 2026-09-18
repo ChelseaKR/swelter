@@ -9,6 +9,13 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **The Spanish is labeled machine-translated wherever it is shown (owner decision,
+  2026-09-18).** No person has reviewed it (#106 stays open). While the Spanish catalog is
+  active the dashboard shows a notice first in `<main>`, in Spanish and English, pointing to
+  the language menu for the English; the Spanish Atom feed's subtitle and every entry's summary now start with
+  the same notice, and each entry links to the English feed. Tests fail if a machine-translated
+  catalog or feed language can be shown without it. See `docs/I18N.md`.
+
 - **`history_context` — "is this normal here?", answered from the network's own record** (#241).
   Every surface cell, every alert, and every `swelter brief` now carries where that hour's value
   sits in *that same cell's* recorded distribution for the same calendar month: `percentile`,

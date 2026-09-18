@@ -31,6 +31,17 @@ MACHINE_TRANSLATED: Final[bool] = True
 TRANSLATION_LABEL: Final[str] = "machine"
 LANGUAGES: Final[tuple[str, ...]] = ("en", "es")
 
+#: The feed languages whose text is machine-translated and unreviewed (#106).
+MACHINE_TRANSLATED_LANGUAGES: Final[frozenset[str]] = frozenset({"es"})
+
+#: The visible notice every machine-translated feed carries, in Spanish and English (owner
+#: decision, 2026-09-18: the Spanish ships, labeled machine-translated). Deliberately *not* a
+#: gettext message: it has to read the same in both languages whatever catalog is loaded, and it
+#: must not be translatable into a claim that the text was reviewed. The dashboard carries the
+#: same two sentences (``mt-notice-es`` / ``mt-notice-en`` in ``web/i18n/``).
+MACHINE_TRANSLATION_NOTICE_ES: Final[str] = "Traducción automática, sin revisión humana."
+MACHINE_TRANSLATION_NOTICE_EN: Final[str] = "Machine-translated, not reviewed by a person."
+
 _DOMAIN: Final[str] = "alerts"
 _LOCALE_DIR: Final[Path] = Path(__file__).with_name("locales")
 
@@ -334,6 +345,22 @@ def feed_title(network: str, lang: str = "en") -> str:
         .gettext("{network} — heat & air-quality alerts")
         .format(network=network)
     )
+
+
+def machine_translation_notice(lang: str, english_url: str | None = None) -> str | None:
+    """Return the bilingual machine-translation notice for a feed in ``lang``, or ``None``.
+
+    ``None`` for a language whose text is not machine-translated (English), so a caller cannot
+    label the reference text as a translation. With ``english_url``, the notice ends by pointing
+    at the English feed in both languages.
+    """
+
+    if lang not in MACHINE_TRANSLATED_LANGUAGES:
+        return None
+    notice = f"{MACHINE_TRANSLATION_NOTICE_ES} {MACHINE_TRANSLATION_NOTICE_EN}"
+    if english_url:
+        notice += f" Consulte la versión en inglés / See the English version: {english_url}"
+    return notice
 
 
 def feed_subtitle(lang: str = "en") -> str:

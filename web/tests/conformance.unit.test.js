@@ -201,3 +201,56 @@ test("Node tooling is pinned to the supported Node 22 LTS floor", () => {
   assert.equal(read(".nvmrc").trim(), "22.12.0");
   assert.equal(packageJson.engines.node, ">=22.12.0 <23");
 });
+
+// Owner decision, 2026-09-18: the Spanish ships labeled machine-translated. These fail if a
+// machine-translated catalog can be shown without the notice, or the notice stops being first in
+// the page body, loses either language, or loses its way to the English.
+test("the machine-translation notice is first in <main>, in both languages, with the way to the English", () => {
+  const html = read("index.html");
+  const main = html.match(/<main\b[^>]*>([\s\S]*?)<\/main>/)?.[1] || "";
+  assert.ok(main, "index.html has no <main>");
+  const firstElement = main.replace(/<!--[\s\S]*?-->/g, "").match(/<([a-z0-9-]+)\b[^>]*>/i)?.[0] || "";
+  assert.match(firstElement, /\bid="mt-notice"/, "the notice must be the first element in <main>");
+  assert.match(firstElement, /\bclass="mt-notice"/);
+  assert.match(firstElement, /\bdata-machine-translation-notice\b/);
+  assert.doesNotMatch(firstElement, /\bhidden\b/, "styles.css decides visibility; a hidden attribute would override it");
+
+  const notice = main.match(/<div id="mt-notice"[\s\S]*?<\/div>/)?.[0] || "";
+  assert.match(notice, /<p lang="es" data-i18n="mt-notice-es">/);
+  assert.match(notice, /<p lang="en" data-i18n="mt-notice-en">/);
+  assert.match(notice, /<span lang="es" data-i18n="mt-notice-switch-es">/);
+  assert.match(notice, /<span lang="en" data-i18n="mt-notice-switch-en">/);
+  assert.match(html, /<select id="lang-select"[^>]*>[\s\S]*?<option value="en">English<\/option>/, "the menu the notice points to offers English");
+});
+
+test("the notice reads the same in every catalog: Spanish half in Spanish, English half in English", () => {
+  for (const locale of ["en", "es"]) {
+    const strings = catalog(locale);
+    assert.match(strings["mt-notice-es"], /^Traducción automática, sin revisión humana\./, locale);
+    assert.match(strings["mt-notice-en"], /^Machine-translated, not reviewed by a person\./, locale);
+    assert.match(strings["mt-notice-switch-es"], /^Consulte la versión en inglés/, locale);
+    assert.match(strings["mt-notice-switch-en"], /^See the English version/, locale);
+  }
+});
+
+test("the notice is hidden by default and shown for every non-English catalog", () => {
+  const css = read("styles.css");
+  const base = css.match(/(?:^|\n)\.mt-notice\s*\{([^}]*)\}/)?.[1] || "";
+  assert.match(base, /display:\s*none/, "English (and a page before any catalog loads) must not show it");
+  const shown = [...css.matchAll(/html\[lang="([^"]+)"\]\s+\.mt-notice\s*\{([^}]*)\}/g)]
+    .filter((match) => /display:\s*block/.test(match[2]))
+    .map((match) => match[1]);
+  const catalogs = fs
+    .readdirSync(path.join(WEB, "i18n"))
+    .filter((name) => /^[a-z]{2,3}(?:-[A-Za-z0-9]+)*\.json$/.test(name))
+    .map((name) => name.replace(/\.json$/, ""));
+  assert.ok(catalogs.includes("es"), "the Spanish catalog is missing, so this proves nothing");
+  for (const locale of catalogs) {
+    if (locale === "en") continue;
+    assert.ok(shown.includes(locale), `${locale} can be shown without the machine-translation notice`);
+  }
+  assert.ok(!shown.includes("en"), "English is the reference, not a machine translation");
+
+  // The rule keys on <html lang>, so it holds only while loadStrings() keeps setting it.
+  assert.match(read("app.js"), /document\.documentElement\.lang = lang;/);
+});

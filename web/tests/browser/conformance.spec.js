@@ -111,6 +111,12 @@ for (const route of ROUTES) {
           // Confirm the catalog actually re-rendered in Spanish (the Now heading is a stable anchor).
           await expect(page.locator("#now-heading")).toHaveText("Lectura actual");
           await expect(page.locator("html")).toHaveAttribute("data-render-ready", "true");
+          // Machine-translated Spanish is labeled as such on screen, in both languages.
+          await expect(page.locator("#mt-notice")).toBeVisible();
+          await expect(page.locator('#mt-notice p[lang="es"]')).toContainText("Traducción automática");
+          await expect(page.locator('#mt-notice p[lang="en"]')).toContainText("Machine-translated");
+        } else {
+          await expect(page.locator("#mt-notice")).toBeHidden();
         }
         for (const tabId of VIEWS) {
           await selectView(page, tabId);

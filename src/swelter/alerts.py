@@ -445,8 +445,16 @@ class AlertFeed:
             f'  <link rel="self" href="{escape(self_url)}"/>',
             f'  <link rel="alternate" hreflang="{escape(alt_lang)}" href="{escape(alt_url)}"/>',
             f"  <updated>{escape(updated)}</updated>",
-            f"  <subtitle>{escape(i18n_alerts.feed_subtitle(lang))}</subtitle>",
         ]
+        # Machine-translated, unreviewed Spanish (owner decision, 2026-09-18) is said where a
+        # reader sees it, not only in `<generator>`: first in the subtitle, which is the feed's
+        # own description, and first in every entry's summary, because most readers show an
+        # entry without the feed around it. Each entry also links to the English feed.
+        notice = i18n_alerts.machine_translation_notice(lang)
+        subtitle = i18n_alerts.feed_subtitle(lang)
+        if notice is not None:
+            subtitle = f"{i18n_alerts.machine_translation_notice(lang, alt_url)} {subtitle}"
+        lines.append(f"  <subtitle>{escape(subtitle)}</subtitle>")
         if lang != "en":
             lines.append(
                 f"  <generator>swelter i18n_alerts ({escape(i18n_alerts.TRANSLATION_LABEL)}-"
@@ -459,12 +467,15 @@ class AlertFeed:
             # change shape; the local baseline is a second sentence in the summary, which is where
             # a reader looks for context rather than for the verdict.
             summary = f"{headline} {alert.history_line_in(lang)}"
+            if notice is not None:
+                summary = f"{notice} {summary}"
             lines.extend(
                 [
                     "  <entry>",
                     f"    <title>{escape(headline)}</title>",
                     f"    <id>{escape(entry_id)}</id>",
                     f"    <updated>{escape(alert.bucket)}</updated>",
+                    *_english_link(notice, alt_url),
                     f'    <category term="{escape(alert.parameter)}"/>',
                     f'    <category term="{escape(alert.severity)}"/>',
                     f"    <summary>{escape(summary)}</summary>",
@@ -477,6 +488,7 @@ class AlertFeed:
                 f"{self_url}#{area.id}"  # the id an alert for this cell would use, on purpose
             )
             headline = area.headline(lang)
+            stale_summary = headline if notice is None else f"{notice} {headline}"
             lines.extend(
                 [
                     "  <entry>",
@@ -485,15 +497,23 @@ class AlertFeed:
                     # The *feed's* bucket, not the block's last one: a reader ignores an update
                     # stamped older than the entry it already holds, and this entry has to land.
                     f"    <updated>{escape(updated)}</updated>",
+                    *_english_link(notice, alt_url),
                     f'    <category term="{escape(area.parameter)}"/>',
                     f'    <category term="{escape(STALE_CATEGORY)}"/>',
-                    f"    <summary>{escape(headline)}</summary>",
+                    f"    <summary>{escape(stale_summary)}</summary>",
                     f"    <georss:point>{area.lat} {area.lon}</georss:point>",
                     "  </entry>",
                 ]
             )
         lines.append("</feed>")
         return "\n".join(lines) + "\n"
+
+
+def _english_link(notice: str | None, english_url: str) -> list[str]:
+    """An entry's link to the English feed, present exactly when the entry carries the notice."""
+    if notice is None:
+        return []
+    return [f'    <link rel="alternate" hreflang="en" href="{escape(english_url)}"/>']
 
 
 def resolve_thresholds(
