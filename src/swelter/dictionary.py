@@ -16,6 +16,14 @@ endpoint this module backs.
 from __future__ import annotations
 
 from . import __version__
+from .aggregate import (
+    HISTORY_ABSENCE_CODES,
+    HISTORY_BASIS_CALIBRATED,
+    HISTORY_BASIS_RAW,
+    HISTORY_TIE_RULE,
+    HISTORY_WINDOW_RULE,
+)
+from .config import DEFAULT_HISTORY_MIN_HOURS, DEFAULT_HISTORY_WINDOW_DAYS
 from .export import _CSV_FIELDS
 from .models import (
     KNOWN_SOURCES,
@@ -187,6 +195,97 @@ def _parameters() -> list[dict[str, object]]:
     ]
 
 
+#: Field-by-field description of the surface's ``history_context`` object (#241). Kept here beside
+#: the observation fields because it is the one *derived* published field a consumer has to be
+#: told the rules of: the numbers mean nothing without the tie rule, the window rule, and the
+#: fact that absence is a first-class outcome with three distinct causes.
+_HISTORY_CONTEXT_FIELDS: tuple[dict[str, object], ...] = (
+    {
+        "name": "percentile",
+        "type": "number",
+        "unit": "percent (0-100)",
+        "nullable": False,
+        "description": (
+            "The share of the n_hours behind this reading that are strictly below it. Read it as "
+            "'this hour is above N% of what this cell has recorded', never as a probability or a "
+            "forecast."
+        ),
+    },
+    {
+        "name": "n_hours",
+        "type": "integer",
+        "unit": "hours",
+        "nullable": False,
+        "description": (
+            "How many earlier recorded hours the percentile is over. Always published, because a "
+            "percentile over 72 hours and one over 1,400 are different claims and the number is "
+            "the only thing that separates them."
+        ),
+    },
+    {
+        "name": "window_start",
+        "type": "string",
+        "unit": "ISO-8601 UTC (YYYY-MM-DDTHH:MM:SSZ)",
+        "nullable": False,
+        "description": "The earliest of those hours — how far back this cell's own record goes.",
+    },
+    {
+        "name": "basis",
+        "type": "string",
+        "unit": None,
+        "nullable": False,
+        "enum": [HISTORY_BASIS_CALIBRATED, HISTORY_BASIS_RAW],
+        "description": (
+            f"{HISTORY_BASIS_CALIBRATED!r} when this reading and every hour behind it are "
+            f"calibrated. {HISTORY_BASIS_RAW!r} when the baseline is not calibrated-only — the "
+            "reading is provisional, or too few calibrated hours are recorded to reach the "
+            "minimum — and the context must then be shown as provisional wherever it appears."
+        ),
+    },
+)
+
+
+def _history_context() -> dict[str, object]:
+    """The published rules behind the surface's ``history_context`` field.
+
+    Generated from :mod:`swelter.aggregate` and :mod:`swelter.config`, not restated: the tie rule,
+    the window rule, the basis vocabulary and the absence codes are the same constants the rollup
+    runs on, and the defaults are the same ones ``network.yaml`` overrides.
+    """
+    return {
+        "field": "history_context",
+        "published_on": [
+            "/api/surface.json?hours=N records",
+            "the alerts feed (/api/alerts.json, /api/alerts.xml)",
+            "swelter brief",
+        ],
+        "description": (
+            "Where one hour's value sits in that same cell's own recorded distribution. No "
+            "external climatology and no model — the network's own record, with its sample size "
+            "shown. Absent whenever it cannot be computed honestly, never estimated."
+        ),
+        "window_rule": HISTORY_WINDOW_RULE,
+        "tie_rule": HISTORY_TIE_RULE,
+        "fields": [dict(field) for field in _HISTORY_CONTEXT_FIELDS],
+        "absence": {
+            "shape": (
+                "history_context is null and history_context_reason carries {code, note}. Both "
+                "keys are always present; exactly one of them is null."
+            ),
+            "codes": list(HISTORY_ABSENCE_CODES),
+        },
+        "defaults": {
+            "history_min_hours": DEFAULT_HISTORY_MIN_HOURS,
+            "history_window_days": DEFAULT_HISTORY_WINDOW_DAYS,
+            "note": (
+                "Both are network.yaml settings; these are the defaults a network that sets "
+                "neither runs on. The hours actually used are published per record as n_hours "
+                "and window_start, so a reader never has to know the serving network's settings."
+            ),
+        },
+    }
+
+
 def _qc_verdicts() -> list[dict[str, object]]:
     return [
         {
@@ -224,6 +323,7 @@ def build_data_dictionary(
         "csv_columns": list(_CSV_FIELDS),
         "parameters": _parameters(),
         "qc_verdicts": _qc_verdicts(),
+        "history_context": _history_context(),
         "calibration": {
             "raw_sentinel": RAW,
             "correction_version_format": "{parameter}.{method}.{node_id}@{window_end}-{digest}",

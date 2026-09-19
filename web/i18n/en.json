@@ -416,5 +416,9 @@
   "sc-view-table": "Table view",
   "sc-view-map": "Map view",
   "sc-search": "Jump to the location search",
-  "no-data": "No data yet. Run `swelter demo --serve` or `make demo`."
+  "no-data": "No data yet. Run `swelter demo --serve` or `make demo`.",
+  "mt-notice-es": "Machine-translated, not reviewed by a person. A machine wrote the Spanish on this page. No person has checked it. The English version is the one to trust.",
+  "mt-notice-en": "Machine-translated, not reviewed by a person. A machine wrote the Spanish on this page. No person has checked it. The English version is the one to trust.",
+  "mt-notice-switch-es": "See the English version: choose English in the language menu above.",
+  "mt-notice-switch-en": "See the English version: choose English in the language menu above."
 }

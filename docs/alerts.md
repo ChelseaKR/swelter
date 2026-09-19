@@ -245,11 +245,24 @@ $ curl -s http://localhost:8000/api/alerts.json
       "severity": "Unhealthy for Sensitive Groups",
       "threshold": 101.0,
       "provisional": false,
-      "headline": "Walnut & 3rd: air quality is Unhealthy for Sensitive Groups (AQI 114), as of 2026-06-08T00:00:00Z."
+      "headline": "Walnut & 3rd: air quality is Unhealthy for Sensitive Groups (AQI 114), as of 2026-06-08T00:00:00Z.",
+      "headline_es": "Walnut & 3rd: la calidad del aire es Unhealthy for Sensitive Groups (AQI 114), a partir de 2026-06-08T00:00:00Z.",
+      "history_context": {"percentile": 97.6, "n_hours": 168, "window_start": "2026-06-01T00:00:00Z", "basis": "calibrated"},
+      "history_context_reason": null,
+      "history_line": "Walnut & 3rd: this hour is above 97.6% of the 168 earlier hour(s) this area has recorded in the same calendar month, back to 2026-06-01T00:00:00Z.",
+      "history_line_es": "Walnut & 3rd: esta hora supera al 97.6% de las 168 hora(s) anteriores registradas en esta zona en el mismo mes del calendario, desde 2026-06-01T00:00:00Z."
     }
   ]
 }
 ```
+
+Every alert also answers "is this normal here?" from the area's own record (#241).
+`history_context` places this hour among the area's earlier recorded hours for the same calendar
+month; when there are too few of them, or the reading has no distribution to sit in, it is `null`
+and `history_context_reason` says which, as a `code` and a `note`. `history_line` / `history_line_es`
+are that answer as one sentence, and the Atom `<summary>` carries it after the headline — the
+`<title>` is unchanged. A `basis` of `"raw"` means the baseline is not calibrated-only, and the
+sentence says so. The full rules are in [`api.md`](api.md) under `history_context`.
 
 ## Subscribing
 

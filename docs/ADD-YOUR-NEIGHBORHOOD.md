@@ -89,6 +89,23 @@ languages:
   translations, not machine output (see `governance.md` §6, the accessibility and language keeper
   role).
 
+Two optional settings control the "is this normal here?" context each reading is published with
+(`history_context`, see [`api.md`](api.md)). Leave both out and the defaults apply:
+
+```yaml
+history_min_hours: 72       # optional, default 72
+history_window_days: 730    # optional, default 730
+```
+
+- **`history_min_hours`** is how many earlier hours a location must have recorded, in the same
+  calendar month, before swelter will say where today's reading sits among them. Below it the
+  reading publishes no percentile and says why. Raise it once your archive is long enough that 72
+  hours is no longer the most a location has; **lowering it does not make a thin record into a
+  baseline, it only publishes one**. A whole number of 1 or more; `swelter doctor` refuses
+  anything else rather than quietly falling back.
+- **`history_window_days`** is how far back that comparison may reach. The default keeps roughly
+  two years in view, so a June hour is compared against more than one June once you have them.
+
 ## Step 3 — Register your nodes
 
 Replace the `nodes:` list with your locations. Each node is four required fields plus a location

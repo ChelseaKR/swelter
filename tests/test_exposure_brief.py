@@ -111,7 +111,10 @@ def test_brief_with_no_context_has_the_danger_line_and_its_evidence_line() -> No
     briefs = exposure_brief.build_briefs(_danger_only_surface())
     brief = briefs[_CELL_ID]
     lines = brief.lines()
-    assert len(lines) == 2  # the count, then how much of it swelter vouches for (ADR 0046)
+    # The count, how much of it swelter vouches for (ADR 0046), then the local baseline for the
+    # most recent hour — absent here, and saying so rather than being left out (#241).
+    assert len(lines) == 3
+    assert "no local baseline" in lines[2]
     assert "Danger" in lines[0]
     assert "1 of 1 day(s)" in lines[0]
     assert brief.canopy is None
@@ -164,12 +167,14 @@ def test_brief_joins_all_three_context_layers_by_cell_id() -> None:
     )
     brief = briefs[_CELL_ID]
     lines = brief.lines()
-    # The danger line, its evidence line, then one line per context layer present.
-    assert len(lines) == 5
-    assert "27.5%" in lines[2] and "USDA Forest Service" in lines[2]
-    assert "22%" in lines[3] and "may lack air" in lines[3] and "LACE" in lines[3]
-    assert 'grade D ("Hazardous")' in lines[4] and "Mapping Inequality" in lines[4]
-    assert "https://dsl.richmond.edu/panorama/redlining/" in lines[4]
+    # The danger line, its evidence line, the local-baseline line, then one line per context
+    # layer present. The baseline line is always there, present or absent (#241).
+    assert len(lines) == 6
+    assert "no local baseline" in lines[2]
+    assert "27.5%" in lines[3] and "USDA Forest Service" in lines[3]
+    assert "22%" in lines[4] and "may lack air" in lines[4] and "LACE" in lines[4]
+    assert 'grade D ("Hazardous")' in lines[5] and "Mapping Inequality" in lines[5]
+    assert "https://dsl.richmond.edu/panorama/redlining/" in lines[5]
 
     record = brief.as_record()
     canopy_record = record["canopy"]
@@ -187,7 +192,8 @@ def test_context_layer_with_no_coverage_for_this_cell_is_omitted() -> None:
     )
     briefs = exposure_brief.build_briefs(_danger_only_surface(), canopy=canopy)
     assert briefs[_CELL_ID].canopy is None
-    assert len(briefs[_CELL_ID].lines()) == 2  # danger line + evidence line, no canopy line
+    # Danger line + evidence line + local-baseline line, and no canopy line.
+    assert len(briefs[_CELL_ID].lines()) == 3
 
 
 def test_build_brief_returns_none_for_unreported_area() -> None:
@@ -313,7 +319,8 @@ def test_a_cell_that_never_crossed_gets_no_evidence_line() -> None:
     brief = exposure_brief.build_brief(_CELL_ID, surface)
     assert brief is not None
     assert brief.danger.danger_days == 0
-    assert len(brief.lines()) == 1
+    # No evidence line (nothing crossed), but the local-baseline line is still rendered (#241).
+    assert len(brief.lines()) == 2
 
 
 def test_the_danger_day_count_uses_heat_pack_floors_whatever_pack_the_network_runs() -> None:

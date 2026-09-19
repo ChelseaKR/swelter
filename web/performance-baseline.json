@@ -8,7 +8,7 @@
       "lcp_ms": 1659.9982,
       "cls": 0.0275649961813885,
       "tbt_ms": 30.5,
-      "total_bytes": 194513,
+      "total_bytes": 227351,
       "dom_nodes": 1080
     },
     "/sensors/": {
@@ -24,5 +24,16 @@
   "state": "measured",
   "evidence_date": "2026-07-20",
   "source_commit": "f837d0ff28e467c0b8cf6f8d87dd8a3613179664",
-  "method": "Median Lighthouse CI route metrics plus deterministic gzip level-9 asset sizes."
+  "method": "Median Lighthouse CI route metrics plus deterministic gzip level-9 asset sizes.",
+  "rebaselined": [
+    {
+      "route": "/",
+      "metric": "total_bytes",
+      "from": 194513,
+      "to": 227351,
+      "date": "2026-09-18",
+      "pull_request": 280,
+      "reason": "#280 (issue #241): every surface cell, alert and brief now carries history_context, and the Spanish is labeled machine-translated. Owner decision 2026-09-18: raise the budget rather than keep history_context off the baked first-paint files. 227351 is what a11y-advisory measured on #280's merge with main (run 35407253961); the other metrics here are still the 2026-07-20 measurement named by evidence_date and source_commit."
+    }
+  ]
 }

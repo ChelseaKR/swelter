@@ -9,6 +9,56 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **The Spanish is labeled machine-translated wherever it is shown (owner decision,
+  2026-09-18).** No person has reviewed it (#106 stays open). While the Spanish catalog is
+  active the dashboard shows a notice first in `<main>`, in Spanish and English, pointing to
+  the language menu for the English; the Spanish Atom feed's subtitle and every entry's summary now start with
+  the same notice, and each entry links to the English feed. Tests fail if a machine-translated
+  catalog or feed language can be shown without it. See `docs/I18N.md`.
+
+- **`history_context` — "is this normal here?", answered from the network's own record** (#241).
+  Every surface cell, every alert, and every `swelter brief` now carries where that hour's value
+  sits in *that same cell's* recorded distribution for the same calendar month: `percentile`,
+  `n_hours`, `window_start`, and `basis`. `attach_history_context`, `HistoryContext` and
+  `HistoryAbsence` in `src/swelter/aggregate.py`; `history_min_hours` / `history_window_days` in
+  `network.yaml`; a generated `history_context` block in `/api/schema.json`; EN/ES sentences in
+  the alerts catalog; `docs/api.md`.
+
+  **No external climatology and no model.** The distribution is this cell's own earlier recorded
+  hours for the same parameter, in the same calendar month, within `history_window_days`. Nothing
+  is imported, interpolated, or borrowed from a neighboring cell.
+
+  **A published record's context is final.** Only hours *strictly earlier* than the hour being
+  described enter its distribution, so a record written today reads the same next year, and
+  `swelter diff` shows a moved percentile only where a reading actually moved.
+
+  **The tie rule is stated, not inferred**: `percentile = 100 × (hours strictly below) / n_hours`,
+  so a value equal to every hour behind it reports `0.0` and a value above all of them reports
+  `100.0`. It is published in `/api/schema.json` alongside the window rule.
+
+  **Absence is three answers, not one.** Below `history_min_hours` (default 72) a cell publishes
+  `history_context: null` and a `history_context_reason` of `{code, note}`. The three codes are
+  `thin_history` (recording more hours fixes it), `ordinal_layer` (the derived `exposure` tier is
+  not a measured quantity — the same reason it publishes no `uncertainty`) and
+  `single_window_reading` (exactly one NowCast reading is derived per cell, so no NowCast
+  distribution exists). Merging them into one sentence would tell two thirds of readers to wait
+  for data that will never help.
+
+  **A baseline that is not calibrated-only says so.** `basis: "raw"` covers both a provisional
+  reading and a cell with too few calibrated hours, and every surface that renders the sentence
+  marks it provisional. A raw value is never placed in a calibrated distribution.
+
+  Additive under `docs/VERSIONING.md`: new keys on an existing response object, nothing removed,
+  renamed, or retyped, and **no `DATA_SCHEMA_VERSION` bump** — that integer moves only for a
+  breaking change to the observation fields, the CSV column set/order, or a QC verdict's meaning,
+  and none of those changed. See "Compatibility decisions" in that file.
+
+  **The dashboard's `/` byte budget is re-baselined for it** (owner decision, 2026-09-18).
+  `web/performance-baseline.json` moves `/`'s `total_bytes` from 194,513 to 227,351, the figure
+  `a11y-advisory` measured on this change merged with `main`, and records why under
+  `rebaselined`. The context objects are most of the growth, and it is growth every reading
+  carries, so the budget is raised rather than the field kept off the first-paint files.
+
 - **Google Analytics 4 page counts on the reference site, with an opt-out.** `web/analytics.js`
   loads GA4 (`G-CMSGSNGC9P`) on the dashboard, `/sensors/`, and the planner, only over HTTPS on
   `chelseakr.github.io/swelter/`, and never under Global Privacy Control, Do Not Track, or the new

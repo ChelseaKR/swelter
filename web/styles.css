@@ -661,6 +661,33 @@ td .tag {
   font-size: 0.9rem;
 }
 
+/* Machine-translation notice (#mt-notice): first in <main>, shown only while a machine-translated
+   catalog is active -- loadStrings() sets <html lang>, so the rule below is the list of such
+   catalogs (owner decision, 2026-09-18; review is #106). The offline note's treatment, so it reads
+   as a statement about the page, not a reading. */
+.mt-notice {
+  display: none;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--accent);
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+}
+
+html[lang="es"] .mt-notice {
+  display: block;
+}
+
+.mt-notice p {
+  margin: 0;
+}
+
+.mt-notice p + p {
+  margin-block-start: 0.35rem;
+}
+
 /* Per-node health detail — which sensors a host should go check. */
 .health-detail {
   margin: 0.3rem 0;

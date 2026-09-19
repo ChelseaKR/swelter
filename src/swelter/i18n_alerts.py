@@ -18,9 +18,29 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Final, Protocol
 
+# The three absence codes, imported rather than restated: a sentence keyed on a copy of a code
+# goes silently unreachable the day the original is renamed. `aggregate` imports nothing from
+# here, so this direction is the safe one.
+from .aggregate import (
+    HISTORY_ABSENT_ORDINAL,
+    HISTORY_ABSENT_SINGLE_WINDOW,
+    HISTORY_ABSENT_THIN,
+)
+
 MACHINE_TRANSLATED: Final[bool] = True
 TRANSLATION_LABEL: Final[str] = "machine"
 LANGUAGES: Final[tuple[str, ...]] = ("en", "es")
+
+#: The feed languages whose text is machine-translated and unreviewed (#106).
+MACHINE_TRANSLATED_LANGUAGES: Final[frozenset[str]] = frozenset({"es"})
+
+#: The visible notice every machine-translated feed carries, in Spanish and English (owner
+#: decision, 2026-09-18: the Spanish ships, labeled machine-translated). Deliberately *not* a
+#: gettext message: it has to read the same in both languages whatever catalog is loaded, and it
+#: must not be translatable into a claim that the text was reviewed. The dashboard carries the
+#: same two sentences (``mt-notice-es`` / ``mt-notice-en`` in ``web/i18n/``).
+MACHINE_TRANSLATION_NOTICE_ES: Final[str] = "Traducción automática, sin revisión humana."
+MACHINE_TRANSLATION_NOTICE_EN: Final[str] = "Machine-translated, not reviewed by a person."
 
 _DOMAIN: Final[str] = "alerts"
 _LOCALE_DIR: Final[Path] = Path(__file__).with_name("locales")
@@ -125,6 +145,79 @@ def headline(alert: _AlertLike, lang: str = "en") -> str:
         provisional=provisional,
         as_of=as_of,
     )
+
+
+class _HistoryLike(Protocol):
+    """Read-only :class:`swelter.aggregate.HistoryContext` fields needed to render a sentence."""
+
+    @property
+    def percentile(self) -> float: ...
+
+    @property
+    def n_hours(self) -> int: ...
+
+    @property
+    def window_start(self) -> str: ...
+
+    @property
+    def provisional(self) -> bool: ...
+
+
+def history_line(
+    area: str,
+    context: _HistoryLike | None,
+    absence_code: str | None,
+    lang: str = "en",
+) -> str:
+    """Render one area's historical-percentile context — or its absence — as one sentence.
+
+    Absence gets **three** sentences rather than one, routed by ``absence_code``, because the
+    three causes lead a reader to three different actions and only one of them is answered by
+    waiting for more data. An unrecognized code raises rather than falling through to the last
+    branch: a fourth cause published under the third one's sentence would tell a reader to do the
+    wrong thing while reading as a match.
+
+    The sentence never names the calendar month. ``window_start`` says which record it is over,
+    and month names are not in this catalog — an untranslated "August" inside a Spanish sentence
+    is the failure this project's own i18n gate exists to prevent.
+    """
+
+    _ = get_translation(lang).gettext
+    if context is not None:
+        provisional = (
+            _(" That baseline is not calibrated-only, so read it as provisional.")
+            if context.provisional
+            else ""
+        )
+        # The percent *sign* travels inside the value, not in the message id. A literal "% o"
+        # or "% de" in a catalog is read by babel's printf checker as the conversions %o and %d,
+        # and the two locales then "disagree" on a placeholder neither of them has.
+        return _(
+            "{area}: this hour is above {percentile} of the {n_hours} earlier hour(s) this area "
+            "has recorded in the same calendar month, back to {window_start}.{provisional}"
+        ).format(
+            area=area,
+            percentile=f"{context.percentile:.1f}%",
+            n_hours=context.n_hours,
+            window_start=context.window_start,
+            provisional=provisional,
+        )
+    if absence_code == HISTORY_ABSENT_THIN:
+        return _(
+            "{area}: no local baseline for this hour yet — too few comparable hours are recorded "
+            "here to say whether this is normal."
+        ).format(area=area)
+    if absence_code == HISTORY_ABSENT_ORDINAL:
+        return _(
+            "{area}: no local baseline for this hour — this is a combined tier derived from other "
+            "readings, not a measured quantity; the heat and air entries carry their own."
+        ).format(area=area)
+    if absence_code == HISTORY_ABSENT_SINGLE_WINDOW:
+        return _(
+            "{area}: no local baseline for this hour — only one NowCast reading is derived per "
+            "area, so there is no recorded NowCast distribution to compare it against."
+        ).format(area=area)
+    raise ValueError(f"no history sentence is defined for absence code {absence_code!r}")
 
 
 class _EventLike(Protocol):
@@ -252,6 +345,22 @@ def feed_title(network: str, lang: str = "en") -> str:
         .gettext("{network} — heat & air-quality alerts")
         .format(network=network)
     )
+
+
+def machine_translation_notice(lang: str, english_url: str | None = None) -> str | None:
+    """Return the bilingual machine-translation notice for a feed in ``lang``, or ``None``.
+
+    ``None`` for a language whose text is not machine-translated (English), so a caller cannot
+    label the reference text as a translation. With ``english_url``, the notice ends by pointing
+    at the English feed in both languages.
+    """
+
+    if lang not in MACHINE_TRANSLATED_LANGUAGES:
+        return None
+    notice = f"{MACHINE_TRANSLATION_NOTICE_ES} {MACHINE_TRANSLATION_NOTICE_EN}"
+    if english_url:
+        notice += f" Consulte la versión en inglés / See the English version: {english_url}"
+    return notice
 
 
 def feed_subtitle(lang: str = "en") -> str:

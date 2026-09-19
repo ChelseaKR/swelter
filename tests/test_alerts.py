@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from typing import cast
 
-from swelter import aggregate, alerts
+from swelter import aggregate, alerts, i18n_alerts
 from swelter.alerts import DEFAULT_THRESHOLDS, crossing
 from swelter.config import NetworkConfig, NodeConfig
 from swelter.models import Observation
@@ -362,6 +362,12 @@ def test_alert_record_carries_only_public_fields() -> None:
         "provisional",
         "headline",
         "headline_es",
+        # Aggregate context about the block, never about anyone in it: where this hour sits in
+        # the block's own record, or why there is no such baseline, plus the two sentences (#241).
+        "history_context",
+        "history_context_reason",
+        "history_line",
+        "history_line_es",
         "aqi",
         "nodes",
     }
@@ -419,6 +425,72 @@ def test_to_atom_es_is_labeled_machine_translated() -> None:
     assert "machine" in es_atom.lower()
     en_atom = feed.to_atom()
     assert "<generator>" not in en_atom  # English is not flagged as a translation of anything
+
+
+def test_every_spanish_atom_surface_carries_the_machine_translation_notice() -> None:
+    # Owner decision, 2026-09-18: the Spanish ships labeled machine-translated, visibly and in
+    # both languages, not only in `<generator>`. The subtitle is the feed's own description and
+    # every entry is often read alone, so each starts with the notice and links to the English.
+    feed = _feed(
+        make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"),
+        make_obs(parameter="heat_index_c", value=41.0, calibration="v2"),
+    )
+    ns = "{http://www.w3.org/2005/Atom}"
+    notice = i18n_alerts.machine_translation_notice("es")
+    assert notice is not None
+    assert notice.startswith("Traducción automática, sin revisión humana.")
+    assert "Machine-translated, not reviewed by a person." in notice
+
+    root = _atom_root(feed.to_atom(lang="es"))
+    subtitle = root.find(f"{ns}subtitle")
+    assert subtitle is not None and subtitle.text
+    assert subtitle.text.startswith(notice)
+    assert "See the English version: https://example.org/api/alerts.xml" in subtitle.text
+
+    entries = root.findall(f"{ns}entry")
+    assert entries, "the control needs entries to check"
+    for entry in entries:
+        summary = entry.find(f"{ns}summary")
+        assert summary is not None and summary.text
+        assert summary.text.startswith(notice)
+        english = [
+            link
+            for link in entry.findall(f"{ns}link")
+            if link.get("rel") == "alternate" and link.get("hreflang") == "en"
+        ]
+        assert [link.get("href") for link in english] == ["https://example.org/api/alerts.xml"]
+
+
+def test_a_stale_spanish_atom_entry_carries_the_notice_too() -> None:
+    feed = alerts.build_feed(
+        _dead_node_surface(45.0), network="demo", base_url="https://example.org"
+    )
+    ns = "{http://www.w3.org/2005/Atom}"
+    notice = i18n_alerts.machine_translation_notice("es")
+    assert notice is not None
+    entries = _atom_root(feed.to_atom(lang="es")).findall(f"{ns}entry")
+    assert len(entries) == 1
+    summary = entries[0].find(f"{ns}summary")
+    assert summary is not None and summary.text and summary.text.startswith(notice)
+
+
+def test_the_english_feed_carries_no_machine_translation_notice() -> None:
+    feed = _feed(make_obs(parameter="pm25_ugm3", unit="ug/m3", value=40.0, calibration="v1"))
+    en_atom = feed.to_atom()
+    assert i18n_alerts.machine_translation_notice("en") is None
+    assert "Traducción automática" not in en_atom
+    assert "Machine-translated" not in en_atom
+
+
+def test_every_non_english_feed_language_is_labeled_until_reviewed() -> None:
+    # A new feed language arrives machine-translated unless someone records a review: this fails
+    # if a language is added to LANGUAGES without either the notice or that decision.
+    i18n = i18n_alerts
+    for lang in i18n.LANGUAGES:
+        if lang == "en":
+            continue
+        assert lang in i18n.MACHINE_TRANSLATED_LANGUAGES
+        assert i18n.machine_translation_notice(lang) is not None
 
 
 def test_to_atom_links_the_alternate_language() -> None:

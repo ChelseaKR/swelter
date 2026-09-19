@@ -45,7 +45,7 @@ from typing import Final
 from xml.sax.saxutils import escape
 
 from . import hazard_packs, i18n_alerts
-from .aggregate import EXPOSURE, CellReading, Surface
+from .aggregate import EXPOSURE, CellReading, HistoryAbsence, HistoryContext, Surface
 from .config import NetworkConfig
 from .models import EXPOSURE_LEVELS, heat_index_category, wind_chill_category
 
@@ -90,6 +90,30 @@ class Alert:
     provisional: bool  # built from an uncalibrated reading — published, but flagged
     aqi: int | None = None
     nodes: tuple[str, ...] = ()
+    # Copied from the cell this alert was raised on: where this hour sits in the area's own
+    # recorded distribution for the same calendar month, or why there is no such baseline (#241).
+    # Exactly one is set, always — an alert never simply omits the question.
+    history_context: HistoryContext | None = None
+    history_context_reason: HistoryAbsence | None = None
+
+    @property
+    def history_line(self) -> str:
+        """The historical-percentile sentence, in English — or the absence, in its own words."""
+        return self.history_line_in("en")
+
+    @property
+    def history_line_es(self) -> str:
+        """The Spanish history sentence — machine-drafted, see :mod:`swelter.i18n_alerts`."""
+        return self.history_line_in("es")
+
+    def history_line_in(self, lang: str) -> str:
+        """The history sentence in ``lang``. One renderer, so the feed and the brief agree."""
+        return i18n_alerts.history_line(
+            self.area,
+            self.history_context,
+            None if self.history_context_reason is None else self.history_context_reason.code,
+            lang,
+        )
 
     @property
     def id(self) -> str:
@@ -124,6 +148,18 @@ class Alert:
             "provisional": self.provisional,
             "headline": self.headline(),
             "headline_es": self.headline_es,
+            # Both keys always written, never omitted: a consumer reads one stable shape and can
+            # tell "no baseline here, and here is why" from "this build predates the field".
+            "history_context": (
+                None if self.history_context is None else self.history_context.as_record()
+            ),
+            "history_context_reason": (
+                None
+                if self.history_context_reason is None
+                else self.history_context_reason.as_record()
+            ),
+            "history_line": self.history_line,
+            "history_line_es": self.history_line_es,
         }
         if self.aqi is not None:
             record["aqi"] = self.aqi
@@ -409,8 +445,16 @@ class AlertFeed:
             f'  <link rel="self" href="{escape(self_url)}"/>',
             f'  <link rel="alternate" hreflang="{escape(alt_lang)}" href="{escape(alt_url)}"/>',
             f"  <updated>{escape(updated)}</updated>",
-            f"  <subtitle>{escape(i18n_alerts.feed_subtitle(lang))}</subtitle>",
         ]
+        # Machine-translated, unreviewed Spanish (owner decision, 2026-09-18) is said where a
+        # reader sees it, not only in `<generator>`: first in the subtitle, which is the feed's
+        # own description, and first in every entry's summary, because most readers show an
+        # entry without the feed around it. Each entry also links to the English feed.
+        notice = i18n_alerts.machine_translation_notice(lang)
+        subtitle = i18n_alerts.feed_subtitle(lang)
+        if notice is not None:
+            subtitle = f"{i18n_alerts.machine_translation_notice(lang, alt_url)} {subtitle}"
+        lines.append(f"  <subtitle>{escape(subtitle)}</subtitle>")
         if lang != "en":
             lines.append(
                 f"  <generator>swelter i18n_alerts ({escape(i18n_alerts.TRANSLATION_LABEL)}-"
@@ -419,15 +463,22 @@ class AlertFeed:
         for alert in self.alerts:
             entry_id = f"{self_url}#{alert.id}"
             headline = alert.headline(lang)
+            # The title stays exactly the crossing, so an existing reader's entry list does not
+            # change shape; the local baseline is a second sentence in the summary, which is where
+            # a reader looks for context rather than for the verdict.
+            summary = f"{headline} {alert.history_line_in(lang)}"
+            if notice is not None:
+                summary = f"{notice} {summary}"
             lines.extend(
                 [
                     "  <entry>",
                     f"    <title>{escape(headline)}</title>",
                     f"    <id>{escape(entry_id)}</id>",
                     f"    <updated>{escape(alert.bucket)}</updated>",
+                    *_english_link(notice, alt_url),
                     f'    <category term="{escape(alert.parameter)}"/>',
                     f'    <category term="{escape(alert.severity)}"/>',
-                    f"    <summary>{escape(headline)}</summary>",
+                    f"    <summary>{escape(summary)}</summary>",
                     f"    <georss:point>{alert.lat} {alert.lon}</georss:point>",
                     "  </entry>",
                 ]
@@ -437,6 +488,7 @@ class AlertFeed:
                 f"{self_url}#{area.id}"  # the id an alert for this cell would use, on purpose
             )
             headline = area.headline(lang)
+            stale_summary = headline if notice is None else f"{notice} {headline}"
             lines.extend(
                 [
                     "  <entry>",
@@ -445,15 +497,23 @@ class AlertFeed:
                     # The *feed's* bucket, not the block's last one: a reader ignores an update
                     # stamped older than the entry it already holds, and this entry has to land.
                     f"    <updated>{escape(updated)}</updated>",
+                    *_english_link(notice, alt_url),
                     f'    <category term="{escape(area.parameter)}"/>',
                     f'    <category term="{escape(STALE_CATEGORY)}"/>',
-                    f"    <summary>{escape(headline)}</summary>",
+                    f"    <summary>{escape(stale_summary)}</summary>",
                     f"    <georss:point>{area.lat} {area.lon}</georss:point>",
                     "  </entry>",
                 ]
             )
         lines.append("</feed>")
         return "\n".join(lines) + "\n"
+
+
+def _english_link(notice: str | None, english_url: str) -> list[str]:
+    """An entry's link to the English feed, present exactly when the entry carries the notice."""
+    if notice is None:
+        return []
+    return [f'    <link rel="alternate" hreflang="en" href="{escape(english_url)}"/>']
 
 
 def resolve_thresholds(
@@ -598,6 +658,8 @@ def build_feed(
                     provisional=reading.provisional,
                     aqi=reading.aqi if parameter == "pm25_ugm3" else None,
                     nodes=reading.nodes,
+                    history_context=reading.history_context,
+                    history_context_reason=reading.history_context_reason,
                 )
             )
     return AlertFeed(
