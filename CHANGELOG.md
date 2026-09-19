@@ -53,6 +53,12 @@ All notable changes to swelter are recorded here. The format follows
   breaking change to the observation fields, the CSV column set/order, or a QC verdict's meaning,
   and none of those changed. See "Compatibility decisions" in that file.
 
+  **The dashboard's `/` byte budget is re-baselined for it** (owner decision, 2026-09-18).
+  `web/performance-baseline.json` moves `/`'s `total_bytes` from 194,513 to 227,351, the figure
+  `a11y-advisory` measured on this change merged with `main`, and records why under
+  `rebaselined`. The context objects are most of the growth, and it is growth every reading
+  carries, so the budget is raised rather than the field kept off the first-paint files.
+
 - **Google Analytics 4 page counts on the reference site, with an opt-out.** `web/analytics.js`
   loads GA4 (`G-CMSGSNGC9P`) on the dashboard, `/sensors/`, and the planner, only over HTTPS on
   `chelseakr.github.io/swelter/`, and never under Global Privacy Control, Do Not Track, or the new
