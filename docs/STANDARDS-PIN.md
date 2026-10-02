@@ -1,16 +1,17 @@
 # Portfolio standards pin and provenance
 
-Swelter vendors the released portfolio standards tag **v3.0.0**. The canonical source is
+Swelter vendors the released portfolio standards tag **v3.0.1**. The canonical source is
 <https://github.com/ChelseaKR/portfolio-standards>; the tag resolves to commit
-`250a426ee2dcba62ec93d243844cd6514d64b49e`.
+`96822bb304506715faeb6f91b89c9f075e9af186`.
 
 The vendored subset is under [`docs/standards/`](standards/), and the declared release is recorded
 in [`docs/standards/.standards-version`](standards/.standards-version). On 2026-10-02 the set was
-exported from the `v3.0.0` tag with upstream's `automation/vendor-standards.sh`, and every vendored
-Markdown file was byte-compared to the same path in the signed `portfolio-standards-3.0.0.tar.gz`
+exported from the `v3.0.1` tag with upstream's `automation/vendor-standards.sh`, and every vendored
+Markdown file was byte-compared to the same path in the signed `portfolio-standards-3.0.1.tar.gz`
 release archive (whose `SHA256SUMS` entry and Sigstore bundle verified); all seventeen matched.
-v3.0.0 adds the advisory `DISCOVERY-AND-ADOPTION-STANDARD.md` to the set. The local checkout of a
-future or dirty standards branch is not policy and is never used as the comparison target.
+v3.0.1 is a patch release (re-verified stamps, text corrections, and tooling fixes) with the
+same seventeen-document set as v3.0.0. The local checkout of a future or dirty standards branch
+is not policy and is never used as the comparison target.
 
 The verification contract is:
 
