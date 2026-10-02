@@ -519,6 +519,13 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Changed
 
+- **The vendored portfolio standards move from v3.0.0 to v3.0.1.** `docs/standards/` is replaced
+  as one set, exported from the `v3.0.1` tag (commit `96822bb30450`) with upstream's
+  `automation/vendor-standards.sh` and byte-checked against the signed release archive. v3.0.1 is
+  a patch release (re-verified stamps, text corrections, and tooling fixes) with no control,
+  threshold, or gate change; the set stays at 17 documents. The pin, the SHA-256 manifest, and
+  `docs/STANDARDS-PIN.md` are updated.
+
 - **The vendored portfolio standards move from v2.0.0 to v3.0.0.** `docs/standards/` is replaced
   as one set, exported from the `v3.0.0` tag (commit `250a426ee2dc`) with upstream's
   `automation/vendor-standards.sh` and byte-checked against the signed release archive. The set
