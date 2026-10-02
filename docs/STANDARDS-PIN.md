@@ -1,13 +1,16 @@
 # Portfolio standards pin and provenance
 
-Swelter vendors the released portfolio standards tag **v2.0.0**. The canonical source is
+Swelter vendors the released portfolio standards tag **v3.0.0**. The canonical source is
 <https://github.com/ChelseaKR/portfolio-standards>; the tag resolves to commit
-`e9cddffff4e9f685642f4ac2c90ddbca12bcebf3`.
+`250a426ee2dcba62ec93d243844cd6514d64b49e`.
 
 The vendored subset is under [`docs/standards/`](standards/), and the declared release is recorded
-in [`docs/standards/.standards-version`](standards/.standards-version). On 2026-08-09 every vendored
-Markdown file was byte-compared to the same path at `v2.0.0`; all sixteen matched. The local checkout
-of a future or dirty standards branch is not policy and is never used as the comparison target.
+in [`docs/standards/.standards-version`](standards/.standards-version). On 2026-10-02 the set was
+exported from the `v3.0.0` tag with upstream's `automation/vendor-standards.sh`, and every vendored
+Markdown file was byte-compared to the same path in the signed `portfolio-standards-3.0.0.tar.gz`
+release archive (whose `SHA256SUMS` entry and Sigstore bundle verified); all seventeen matched.
+v3.0.0 adds the advisory `DISCOVERY-AND-ADOPTION-STANDARD.md` to the set. The local checkout of a
+future or dirty standards branch is not policy and is never used as the comparison target.
 
 The verification contract is:
 
@@ -24,4 +27,4 @@ GitHub repository, fetches the exact tag from its canonical Git remote, checks t
 every tagged blob, and enforces the one-minor currency window. A release API or Git failure fails the
 upstream gate; it never silently falls back to the local assertion.
 
-Last verified: 2026-08-09. Recheck cadence: on every standards-version change and quarterly.
+Last verified: 2026-10-02. Recheck cadence: on every standards-version change and quarterly.

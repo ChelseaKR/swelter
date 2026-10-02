@@ -517,6 +517,15 @@ All notable changes to swelter are recorded here. The format follows
   last in the file while the other half vanished. `aqi_window` is therefore part of a
   reading's identity here, and a remaining collision is a named refusal rather than a guess.
 
+### Changed
+
+- **The vendored portfolio standards move from v2.0.0 to v3.0.0.** `docs/standards/` is replaced
+  as one set, exported from the `v3.0.0` tag (commit `250a426ee2dc`) with upstream's
+  `automation/vendor-standards.sh` and byte-checked against the signed release archive. The set
+  grows to 17 documents with the advisory `DISCOVERY-AND-ADOPTION-STANDARD.md`. The pin, both
+  manifests, and `docs/STANDARDS-PIN.md` are updated; `make standards-pin-upstream` had been
+  failing because v2.0.0 was a major release behind.
+
 ### Fixed
 
 - **`a11y-advisory` stops deciding merges on runner noise, and its Lighthouse reports are
