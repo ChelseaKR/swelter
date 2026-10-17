@@ -75,3 +75,4 @@ evidence of the collision.
 - [ADR 0053: A season is a property of the data, not of the run](0053-a-season-is-a-property-of-the-data-not-of-the-run.md)
 - [ADR 0054: A run killed by its own timeout is a failed deployment, and a cancellation nobody classified is not a success](0054-a-run-killed-by-its-own-timeout-is-a-failed-deployment.md)
 - [ADR 0055: Google Analytics 4 counts page views on the public pages, and never sees a place, search, or setting](0055-google-analytics-4-on-the-public-pages.md)
+- [ADR 0056: Open-Meteo access is separate from its data license, and an API key reaches only Open-Meteo](0056-open-meteo-access-is-separate-from-its-data-license.md)
