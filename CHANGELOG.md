@@ -794,6 +794,12 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Security
 
+- **The web dev-dependency lockfile clears its high and critical npm advisories.** `compression`
+  1.8.1 to 1.8.2 (GHSA-vc2v-76pw-4v95, high) and `proxy-addr` 2.0.7 to 2.0.8 (GHSA-jqcg-44mw-7w3h,
+  critical), both transitive dev dependencies, via `npm audit fix --package-lock-only`; only
+  `web/package-lock.json` moves. `sprintf-js` (GHSA-hp3w-g68c-fv3c, moderate, via `argparse`) has no
+  patched release, so `make security-osv` stays red until a dated waiver is decided.
+
 - **`make security-semgrep` no longer excludes five rules from the whole repository**
   (narrows #107; the register stays open). The scan carried
   `--exclude-rule` for `sqlalchemy-execute-raw-query`, `formatted-sql-query`,
