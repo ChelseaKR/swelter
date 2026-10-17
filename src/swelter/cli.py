@@ -1479,10 +1479,11 @@ def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
         f"swelter: fetching real readings for {len(places)} California cities "
         "from Open-Meteo (Copernicus CAMS air quality + weather)…"
     )
-    # Never echo the key itself: only that one is set (ADR 0056).
+    # Never echo the key itself: only that one is set (ADR 0056). The variable is named as a
+    # literal, like AIRNOW_API_KEY and OPENAQ_API_KEY above, so no key-named value reaches stderr.
     api_key = openmeteo.api_key_from_env()
     if api_key:
-        _err(f"swelter: {openmeteo.API_KEY_ENV} is set; using Open-Meteo's customer endpoints")
+        _err("swelter: OPENMETEO_API_KEY is set; using Open-Meteo's customer endpoints")
     try:
         observations = openmeteo.fetch(
             places, past_days=args.past_days, forecast_days=args.forecast_days, api_key=api_key
@@ -2460,11 +2461,11 @@ def _openmeteo_key_status() -> str:
 
     if openmeteo.api_key_from_env():
         return (
-            f"swelter: {openmeteo.API_KEY_ENV} is set — `fetch --source openmeteo` uses "
+            "swelter: OPENMETEO_API_KEY is set — `fetch --source openmeteo` uses "
             "Open-Meteo's customer endpoints"
         )
     return (
-        f"swelter: {openmeteo.API_KEY_ENV} is not set — `fetch --source openmeteo` uses "
+        "swelter: OPENMETEO_API_KEY is not set — `fetch --source openmeteo` uses "
         "Open-Meteo's free endpoints, which are for non-commercial use only"
     )
 
