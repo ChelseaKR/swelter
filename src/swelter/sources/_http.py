@@ -27,7 +27,7 @@ import json
 import time
 from collections.abc import Mapping
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 #: HTTP statuses worth retrying: rate-limit, request-timeout, and server-side faults.
 _RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
@@ -47,6 +47,37 @@ _MAX_RETRY_AFTER_S = 30.0
 USER_AGENT = (
     "swelter/0.1 (community heat and air-quality monitoring; +https://github.com/ChelseaKR/swelter)"
 )
+
+
+#: Query parameters that carry a credential. Their values never appear in an error message: a
+#: source URL is quoted into :class:`SourceError` text, which the CLI prints to stderr and a CI
+#: log keeps. Open-Meteo's customer endpoints take their key as ``apikey=`` in the query string.
+_SECRET_QUERY_PARAMS = frozenset({"apikey", "api_key", "key", "token", "access_token"})
+
+#: What a redacted credential value reads as.
+REDACTED = "REDACTED"
+
+
+def redact_url(url: str) -> str:
+    """``url`` with the value of every credential-bearing query parameter replaced.
+
+    Used wherever a URL is quoted into an error message. Parameter names stay, so the message still
+    says *that* a key was sent; the value does not. A URL with no such parameter, or one that
+    cannot be split, is returned unchanged.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not parts.query:
+        return url
+    pairs = parse_qsl(parts.query, keep_blank_values=True)
+    if not any(name.lower() in _SECRET_QUERY_PARAMS for name, _ in pairs):
+        return url
+    redacted = [
+        (name, REDACTED if name.lower() in _SECRET_QUERY_PARAMS else value) for name, value in pairs
+    ]
+    return urlunsplit(parts._replace(query=urlencode(redacted, safe=",")))
 
 
 class SourceError(OSError):
@@ -88,7 +119,7 @@ def _request_json(url: str, headers: Mapping[str, str], timeout: float) -> Any:
     """
     parts = urlsplit(url)
     if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
-        raise ValueError(f"source URL must be absolute HTTPS without userinfo: {url!r}")
+        raise ValueError(f"source URL must be absolute HTTPS without userinfo: {redact_url(url)!r}")
     target = parts.path or "/"
     if parts.query:
         target = f"{target}?{parts.query}"
@@ -135,14 +166,14 @@ def get_json(
         except _HTTPStatusError as exc:
             last = exc
             if exc.code not in _RETRYABLE_STATUS:
-                raise SourceError(f"{url} returned HTTP {exc.code}") from exc
+                raise SourceError(f"{redact_url(url)} returned HTTP {exc.code}") from exc
             wait = max(wait, _retry_after_seconds(exc))
         except (OSError, ValueError, http.client.HTTPException) as exc:
             # URLError, timeout, SSL/reset, truncated body, and bad JSON all land here.
             last = exc
         if attempt < attempts - 1:
             time.sleep(wait)
-    raise SourceError(f"{url} failed after {attempts} attempts") from last
+    raise SourceError(f"{redact_url(url)} failed after {attempts} attempts") from last
 
 
 def expect_records(payload: Any, *, source: str) -> list[dict[str, Any]]:

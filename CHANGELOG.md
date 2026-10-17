@@ -9,6 +9,16 @@ All notable changes to swelter are recorded here. The format follows
 
 ### Added
 
+- **Optional Open-Meteo API key for commercial deployments (ADR 0056).** When `OPENMETEO_API_KEY`
+  is set, `swelter fetch --source openmeteo` calls Open-Meteo's customer endpoints
+  (`customer-api.open-meteo.com`, `customer-air-quality-api.open-meteo.com`) and sends the key as
+  `apikey`. Without it, the requests are byte-identical to before. The key is sent only to
+  Open-Meteo. `swelter.sources._http.redact_url` strips credential query values from every fetch
+  error message, and nothing prints, logs, stores, caches, or publishes the key. `swelter doctor`
+  now reports whether `OPENMETEO_API_KEY` is set, never its value, and that the free endpoints are
+  for non-commercial use only. The published data license and attribution are unchanged. Tests:
+  `tests/test_openmeteo_access.py`.
+
 - **The Spanish is labeled machine-translated wherever it is shown (owner decision,
   2026-09-18).** No person has reviewed it (#106 stays open). While the Spanish catalog is
   active the dashboard shows a notice first in `<main>`, in Spanish and English, pointing to
@@ -518,6 +528,16 @@ All notable changes to swelter are recorded here. The format follows
   reading's identity here, and a remaining collision is a named refusal rather than a guess.
 
 ### Changed
+
+- **The CAMS/Open-Meteo terms now separate the data license from API access.** The source card
+  said only "CC BY 4.0". That is the data license, and it still travels with every published
+  value. Open-Meteo's terms also limit the free API to non-commercial use, with rate limits, and
+  require a paid subscription for commercial use. `docs/data-cards/openmeteo-cams.md`,
+  `DATA-LICENSE`, the adapter's comment, and the README now state both. The source card records
+  why the reference site's single daily batched fetch is believed to fit the free tier, and lists
+  the Ko-fi link and GA4 page counts as items for the owner to confirm with Open-Meteo. The
+  verification method, owner, and recheck trigger are on the card. The threat model, data-flow
+  inventory, DPIA, `SECURITY.md`, and residual-risk register (R-17) are updated to match.
 
 - **The vendored portfolio standards move from v3.0.0 to v3.0.1.** `docs/standards/` is replaced
   as one set, exported from the `v3.0.1` tag (commit `96822bb30450`) with upstream's

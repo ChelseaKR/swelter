@@ -9,7 +9,7 @@ method, license, refresh, limitations, and steward.
 | Community-operated swelter nodes | [`first-party-observations.md`](first-party-observations.md) | First-party physical measurements; CC0 only when the publishing collective has authority to dedicate them |
 | Generated demonstration fixture | [`synthetic-demo.md`](synthetic-demo.md) | Deterministic test/demo observations; never evidence about a real place |
 | OpenAQ v3 | [`openaq.md`](openaq.md) | California physical-sensor snapshot; upstream provider terms vary per location |
-| Copernicus CAMS via Open-Meteo | [`openmeteo-cams.md`](openmeteo-cams.md) | California atmospheric model/weather series; CC BY 4.0 with attribution |
+| Copernicus CAMS via Open-Meteo | [`openmeteo-cams.md`](openmeteo-cams.md) | California atmospheric model/weather series; data CC BY 4.0 with attribution; free API non-commercial only (paid key for commercial use) |
 | Sensor.Community | [`sensor-community.md`](sensor-community.md) | Stuttgart-area community low-cost sensor snapshot; ODC-DbCL-1.0 |
 | US EPA AirNow / AQS | [`airnow.md`](airnow.md) | Regulatory PM2.5 reference used only as co-location truth to fit corrections; public-domain data with AirNow attribution terms retained |
 | Boundaries and equity/context layers | [`context-and-reference-layers.md`](context-and-reference-layers.md) | Cartography and optional descriptive context; each layer retains its own terms |

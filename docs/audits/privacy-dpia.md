@@ -23,7 +23,8 @@ The authoritative item-by-item inventory, location, retention, access, and publi
 - observation rows contain environmental values and a collective/public-source node id, but no
   person or coordinate;
 - exact community-node coordinates and HMAC keys stay operator-local;
-- an OpenAQ API key exists only as a build/runtime secret;
+- an OpenAQ API key, and an optional Open-Meteo API key for a commercial deployment (ADR 0056),
+  exist only as build/runtime secrets;
 - browser geolocation is optional and used in memory to select a nearest public cell;
 - `localStorage` retains UI preferences, public-cell selections/comparisons, and watch thresholds
   until the user clears settings/site data;

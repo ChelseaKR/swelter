@@ -30,7 +30,11 @@ source's terms, attribution, and provenance:
 * **OpenAQ:** original-provider terms vary by location. A mixed OpenAQ artifact has no honest
   blanket CC license and must include `source-license-ledger.json` with the provider/license fields
   OpenAQ supplies and explicit unavailable fields.
-* **Copernicus CAMS via Open-Meteo:** CC BY 4.0 with Copernicus/Open-Meteo attribution.
+* **Copernicus CAMS via Open-Meteo:** the data is CC BY 4.0 with Copernicus/Open-Meteo
+  attribution. API access is a separate condition: Open-Meteo's free API is for non-commercial use
+  only and rate-limited, and commercial use needs a paid Open-Meteo API subscription
+  (`OPENMETEO_API_KEY`). As of 2026-10-17, per Open-Meteo's terms page; see
+  `docs/data-cards/openmeteo-cams.md` for the detail, the open questions, and the recheck trigger.
 * **Sensor.Community:** Open Data Commons Database Contents License 1.0 (ODC-DbCL-1.0) with
   Sensor.Community attribution.
 * **Boundaries, canopy, AC-access, historical-redlining, cooling-center, and other context

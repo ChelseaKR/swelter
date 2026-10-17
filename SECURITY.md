@@ -41,7 +41,9 @@ The primary boundaries are:
   by GET. The stdlib server rejects mutation methods. It is intentionally small and should be
   placed behind an appropriate reverse proxy/CDN for hostile public traffic.
 - **External source → GitHub Actions build.** OpenAQ uses an Actions secret; CAMS/Open-Meteo and
-  Sensor.Community are keyless. Provider payloads are untrusted input. Source, geography,
+  Sensor.Community are keyless in the reference build. A commercial deployment may set
+  `OPENMETEO_API_KEY` for Open-Meteo's customer endpoints (ADR 0056); the key is redacted from
+  fetch error text and `swelter doctor` reports only whether it is set. Provider payloads are untrusted input. Source, geography,
   calibration/provisional state, license, and attribution must survive into the artifact.
 - **Actions cache → build → Pages.** An accumulated environmental store can influence a later
   build. It is not a secret store or release trust root. The published manifest and source truth
@@ -55,9 +57,9 @@ The primary boundaries are:
   (ADR 0055): never under Global Privacy Control, Do Not Track, or the footer opt-out, with ad
   features off and the page address sent without its fragment or query string.
 
-Observation data is environmental, but exact host coordinates, OpenAQ API keys, node HMAC keys,
-workflow identity, source-license integrity, calibration evidence, and the untampered raw archive
-are security-relevant assets.
+Observation data is environmental, but exact host coordinates, OpenAQ and Open-Meteo API keys,
+node HMAC keys, workflow identity, source-license integrity, calibration evidence, and the
+untampered raw archive are security-relevant assets.
 
 ## Supply chain and releases
 

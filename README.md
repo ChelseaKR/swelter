@@ -111,7 +111,7 @@ Useful commands:
 ```console
 uv run swelter init --config my-network.yaml --name "My neighborhood heat and air network"
 uv run swelter doctor --config my-network.yaml
-uv run swelter fetch --source openmeteo --store store
+uv run swelter fetch --source openmeteo --store store  # free tier: non-commercial use only
 uv run swelter fetch --source sensor-community --store store
 uv run swelter fetch --source openaq --api-key "$OPENAQ_API_KEY" --store store
 uv run swelter publish --store store --web dist
@@ -132,7 +132,7 @@ measurements as CC0.
 | Community-operated swelter nodes | Physical measurements | CC0 only when the publishing collective has authority to dedicate them |
 | Synthetic demo | Project-authored fixture | CC0-1.0 |
 | OpenAQ | Aggregated physical-monitor data | Per-location provider terms and attribution in `source-license-ledger.json`; publication fails closed without the ledger |
-| Copernicus CAMS via Open-Meteo | Modeled/reanalysis air quality and weather | Upstream attribution and license retained; not swelter-calibrated |
+| Copernicus CAMS via Open-Meteo | Modeled/reanalysis air quality and weather | Data CC BY 4.0 with upstream attribution retained; not swelter-calibrated. API access is separate: the free API is non-commercial only, and a commercial deployment sets its own `OPENMETEO_API_KEY` ([source card](docs/data-cards/openmeteo-cams.md#distribution-and-license)) |
 | Sensor.Community | Community low-cost sensors | Sensor.Community attribution and database terms retained; readings remain provisional until calibrated |
 
 Read [`DATA-LICENSE`](DATA-LICENSE) for the legal boundary and [`docs/data-cards/`](docs/data-cards/README.md)

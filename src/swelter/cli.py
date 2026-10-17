@@ -1479,12 +1479,17 @@ def _fetch_openmeteo(args: argparse.Namespace) -> _FetchOk | int:
         f"swelter: fetching real readings for {len(places)} California cities "
         "from Open-Meteo (Copernicus CAMS air quality + weather)…"
     )
+    # Never echo the key itself: only that one is set (ADR 0056).
+    api_key = openmeteo.api_key_from_env()
+    if api_key:
+        _err(f"swelter: {openmeteo.API_KEY_ENV} is set; using Open-Meteo's customer endpoints")
     try:
         observations = openmeteo.fetch(
-            places, past_days=args.past_days, forecast_days=args.forecast_days
+            places, past_days=args.past_days, forecast_days=args.forecast_days, api_key=api_key
         )
     except (SourceError, OSError, ValueError) as exc:
-        _err(f"swelter: fetch failed ({exc}); check your network connection")
+        detail = openmeteo.scrub(str(exc), api_key)
+        _err(f"swelter: fetch failed ({detail}); check your network connection")
         return 1
     if not observations:
         _err("swelter: no readings returned")
@@ -2448,6 +2453,22 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _openmeteo_key_status() -> str:
+    """One line saying whether an Open-Meteo API key is configured — presence only, never the value
+    or any part of it (ADR 0056). Informational: it never changes `doctor`'s exit code."""
+    from .sources import openmeteo
+
+    if openmeteo.api_key_from_env():
+        return (
+            f"swelter: {openmeteo.API_KEY_ENV} is set — `fetch --source openmeteo` uses "
+            "Open-Meteo's customer endpoints"
+        )
+    return (
+        f"swelter: {openmeteo.API_KEY_ENV} is not set — `fetch --source openmeteo` uses "
+        "Open-Meteo's free endpoints, which are for non-commercial use only"
+    )
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     """Validate a network.yaml loudly: report every mistake in one pass, exit nonzero on errors.
 
@@ -2463,6 +2484,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     config, doc = load_config_doc(str(path))
     errors, warnings = config_concerns(config, doc)
     warnings = [*warnings, *label_concerns(config)]
+    _err(_openmeteo_key_status())
     if not errors and not warnings:
         _err(f"swelter: {path} — clean ({len(config.nodes)} nodes, no concerns)")
         return 0
@@ -2815,7 +2837,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--source",
         choices=("openmeteo", "openaq", "sensor-community"),
         default="openmeteo",
-        help="openmeteo: Copernicus CAMS model data, California (keyless, coarse); "
+        help="openmeteo: Copernicus CAMS model data, California (keyless free tier, "
+        "non-commercial use only; OPENMETEO_API_KEY selects the customer endpoints); "
         "openaq: dense real sensors, California, block-by-block (needs API key); "
         "sensor-community: real community low-cost sensors (dense in Europe)",
     )
