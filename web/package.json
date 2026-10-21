@@ -20,7 +20,7 @@
     "verify": "node tests/run-web-gates.cjs test:unit test:browser test:pa11y test:lighthouse test:performance-baseline"
   },
   "dependencies": {
-    "messageformat": "4.0.0"
+    "messageformat": "4.1.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
